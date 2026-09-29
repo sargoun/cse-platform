@@ -19,6 +19,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungFuer } from '../../kennung';
+import { startSperre } from '../../darstellung';
 import { MAX_SCHRITTE_PLATZHALTER } from '@/server/agent/limits.platzhalter';
 import { Recht } from '@/components/ui/Recht';
 
@@ -204,6 +205,11 @@ export default async function AgentStart(
   const gestoppt = budget !== null
     && (budget.status === 'gestoppt'
       || (budget.stoppt && restCent !== null && restCent <= 0n));
+  /* Ein Knopf nur, wo ein Lauf entstünde (V-271) — die Regel ist geprüft
+     (`tests/kern/agent-start-sperre.test.ts`). */
+  const sperre = startSperre({
+    istAktiv: kopf.ist_aktiv, hatAuftrag: auftrag !== undefined, modell, gestoppt, tatsachen,
+  });
 
   return (
     <PortalRahmen
@@ -389,25 +395,27 @@ export default async function AgentStart(
       </section>
 
       {/* ------------------------------------------------------------ Der Knopf */}
-      {!kopf.ist_aktiv ? (
+      {sperre === 'agent_aus' ? (
         <Hinweis art="warnung" cse="start-agent-aus" className="max-w-prose">
           <strong>Der Agent ist abgeschaltet.</strong> Solange er aus ist, läuft er
           nicht — auch nicht auf Knopfdruck. Abgeschaltet ist er, solange kein
           Modellzugang eingerichtet ist (D-435).
         </Hinweis>
-      ) : auftrag === undefined ? null : modell === null ? (
+      ) : sperre === 'kein_modell' ? (
         <Hinweis art="warnung" cse="start-kein-modell" className="max-w-prose">
           <strong>Ohne freigegebenes Modell gibt es keinen Lauf.</strong> Die Arbeit läuft
           von Hand weiter; nichts wird ersatzweise erfunden. Ein Knopf, der verspricht,
           was nicht geht, wäre schlimmer als keiner.
         </Hinweis>
-      ) : gestoppt ? (
+      ) : sperre === 'budget_stopp' ? (
         <Hinweis art="warnung" cse="start-budget-stopp" className="max-w-prose">
           <strong>Das Monatsbudget ist ausgeschöpft.</strong> Der harte Stopp aus AGT-05
           weist weitere Läufe ab — ein Knopf, den der Deckel abweisen würde, hätte gar
           nicht erst dastehen dürfen.
         </Hinweis>
-      ) : (
+      ) : sperre !== null ? null : (
+        /* Ohne Auftrag sagt es der Abschnitt „Was dieser Lauf tut", ohne offene
+           Anfrage der Abschnitt „Womit er formuliert" — dort, oben, steht der Grund. */
         <form method="post" action="/api/agenten/lauf"
               data-cse="start-formular"
               className="max-w-prose rounded-lg border border-line bg-surface p-s5">

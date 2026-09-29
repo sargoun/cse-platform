@@ -20175,15 +20175,26 @@ erfassten Seed-Fall.
    Weg von `POST /api/anfrage`, mit Prüfung, SLA und Eingangsaktivität,
    wiederholbar. `seed/operations.ts` bleibt dabei: einen `formular_eingang`
    per `insert` anzulegen hiesse, eine Anfrage zu behaupten.
+5. **Ohne offene Anfrage steht kein Startknopf da.** Das Vorschaltblatt
+   schrieb „Ein Lauf entstünde deshalb nicht", und darunter stand „Lauf
+   starten und vorlegen" trotzdem — der Klick führte nur zurück auf „Kein
+   Lauf". Ohne Modell und beim Budgetstopp blendete dasselbe Blatt den Knopf
+   schon aus. Die Kette ist jetzt eine geprüfte Regel (`startSperre` in
+   `agenten/darstellung.ts`): Agent aus, kein Auftrag, kein Modell,
+   Budgetstopp, keine Anfrage — in dieser Reihenfolge, und nur ohne Sperre
+   ein Formular. Den Grund „keine Anfrage" nennt der Abschnitt „Womit er
+   formuliert" darüber.
 
 **Geprüft:** `tests/isolation/akquise-tatsachen.test.ts` (4) jüngere Leads
 aus Handerfassung, Recherche und Radar werden übergangen, ohne Einsendung
 kein Entwurf; (5) der Arbeitstitel „Anfrage angebot_reinigung" steht nirgends,
 der öffentliche Titel des Formulars schon; `tests/isolation/agent-lauf.test.ts`
 (9) läuft den Akquise-Agenten gegen eine Einsendung; der Demo-Seed legt die
-Webanfrage an und findet sie beim zweiten Lauf wieder.
+Webanfrage an und findet sie beim zweiten Lauf wieder;
+`tests/kern/agent-start-sperre.test.ts` (Nr. 5: kein Knopf ohne Anfrage, die
+übrigen Gründe in ihrer Reihenfolge, das Formular nur ohne Sperre).
 
-| Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/akquise-entwurf.test.ts` |
+| Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/app/portal/[mandant]/agenten/darstellung.ts`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/{akquise-entwurf,agent-start-sperre}.test.ts` |
 |---|---|
 
 ### D-765 · Das Druckblatt eines Berichts zeigt die Werte der Datei mit derselben Genauigkeit und setzt Zahlen rechts, weil die Spalte es sagt (V-269)

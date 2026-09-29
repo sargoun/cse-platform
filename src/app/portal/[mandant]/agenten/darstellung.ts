@@ -20,3 +20,33 @@ export const AUFGABE_PILLE: Readonly<Record<string, PillZustand>> = {
   abgebrochen: 'Abgelehnt',
   gestoppt_budget: 'Abgelehnt',
 };
+
+/**
+ * Warum auf dem Vorschaltblatt KEIN Startknopf steht — oder `null`, wenn er
+ * steht (`agenten/[agent]/start`, V-230, V-271, D-764).
+ *
+ * **Ein Knopf, dessen Wirkung das Blatt selbst ausschliesst, steht nicht da.**
+ * So hielt es das Blatt schon ohne Modell und beim Budgetstopp; ohne offene
+ * Anfrage aber schrieb es „Ein Lauf entstünde deshalb nicht", und darunter
+ * stand der Knopf trotzdem — sein Klick führte nur zurück auf „Kein Lauf".
+ * Die Reihenfolge ist die der Hinweise auf dem Blatt; `keine_anfrage` steht
+ * zuletzt, weil den Grund schon der Abschnitt „Womit er formuliert" nennt.
+ */
+export type StartSperre =
+  'agent_aus' | 'ohne_auftrag' | 'kein_modell' | 'budget_stopp' | 'keine_anfrage';
+
+export function startSperre(lage: {
+  readonly istAktiv: boolean;
+  readonly hatAuftrag: boolean;
+  readonly modell: string | null;
+  readonly gestoppt: boolean;
+  /** `null`: `fuelleTatsachen` fand keine offene Anfrage (`KeineOffeneAnfrage`). */
+  readonly tatsachen: Readonly<Record<string, string>> | null;
+}): StartSperre | null {
+  if (!lage.istAktiv) return 'agent_aus';
+  if (!lage.hatAuftrag) return 'ohne_auftrag';
+  if (lage.modell === null) return 'kein_modell';
+  if (lage.gestoppt) return 'budget_stopp';
+  if (lage.tatsachen === null) return 'keine_anfrage';
+  return null;
+}
