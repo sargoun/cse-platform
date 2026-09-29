@@ -6,6 +6,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { AuBisVorBeginn, meldeAbwesenheit } from '@/server/services/abwesenheit/index';
 import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
@@ -33,7 +34,13 @@ import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
  */
 export const dynamic = 'force-dynamic';
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * Ein Tag ist ein Kalendertag, den es gibt — `istGueltigerKalendertag`, nicht
+ * nur das Muster `JJJJ-MM-TT` (D-771 Nachtrag). Das Muster allein liess
+ * `2025-02-31` bis an ein `::date` durch, und die Datenbank antwortete mit
+ * 22008 — hier eine 500 statt des Grundes, den die Route für ein unlesbares
+ * Datum schon hat.
+ */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function textOder(daten: FormData, feld: string): string | null {
@@ -62,12 +69,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (abwesenheitsartId === null || !UUID.test(abwesenheitsartId)) {
     return NextResponse.json({ fehler: 'keine_art' }, { status: 400 });
   }
-  if (von === null || bis === null || !DATUM.test(von) || !DATUM.test(bis)) {
+  if (von === null || bis === null
+      || !istGueltigerKalendertag(von) || !istGueltigerKalendertag(bis)) {
     return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
   }
 
   const auBis = textOder(daten, 'au_bis');
-  if (auBis !== null && !DATUM.test(auBis)) {
+  if (auBis !== null && !istGueltigerKalendertag(auBis)) {
     return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
   }
 

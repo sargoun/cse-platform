@@ -185,6 +185,19 @@ describe('POST /api/mein/antraege — der Rückweg auf die Maske', () => {
     expect(ziel(antwort).searchParams.get('fehler')).toBe('kein_datum');
   });
 
+  it('ein Tag, den es nicht gibt, fällt jetzt schon vor dem Dienst — derselbe Grund (D-771 Nachtrag)', async () => {
+    for (const [von, bis] of [
+      ['2029-02-31', '2029-03-02'], ['2029-03-01', '2029-04-31'], ['2029-13-01', '2029-13-02'],
+    ] as const) {
+      const antwort = await POST(anfrage({
+        ...FORMULAR, anstellung: ANSTELLUNG, antragsart: ART, von, bis,
+      }));
+      expect(ziel(antwort).pathname).toBe(MASKE);
+      expect(ziel(antwort).searchParams.get('fehler')).toBe('kein_datum');
+    }
+    expect(zustand.reiche).not.toHaveBeenCalled();
+  });
+
   it('ein echter Serverfehler bleibt einer — er wird nicht als Eingabefehler verkleidet', async () => {
     zustand.reiche.mockRejectedValue(Object.assign(new Error('connection reset'),
       { code: 'ECONNRESET' }));

@@ -23456,6 +23456,37 @@ demselben Zweig):
       vorher fragt, bleibt ein Wurf**: genau eine aktive Gesellschaft, die
       Gruppenansicht, das Recht (42501) sieht `authorize` zuerst, und ein
       unbekannter Datenbankfehler wird keine erfundene Abweisung.
+13. **Kein Tag, den es nicht gibt, erreicht aus einem Personal- oder
+    Beschäftigtenformular ein `::date`** (Nebenbefund zu Nr. 12, auf
+    Nachfrage). Geprüft wurden alle Routen unter `api/personal/**` und die
+    Abwesenheits-, Antrags- und Urlaubswege unter `api/mein/**`:
+    - `personal/urlaubsanspruch` („Verfällt am") und `personal/abwesenheit`
+      (Von, Bis, „Bescheinigung gültig bis") prüften nur das Muster;
+      `2026-02-30` lief bis `::date`, die Datenbank antwortete mit 22008, und
+      keine der beiden Routen kannte den Fehler — eine 500. Jetzt steht an
+      derselben Stelle `istGueltigerKalendertag`, mit dem Grund, den die Route
+      für ein unlesbares Datum schon hat (`kein_datum`, 400, wie bisher).
+    - `mein/abwesenheit`: den 31.02. fing `datenbankGrund` als `kein_datum`
+      auf, ein Tag im 13. Monat warf aber schon vorher in `rechneTage`
+      (`tagePlus`) einen RangeError — eine 500. `mein/antraege` fing beides
+      über `datenbankGrund` auf. Beide prüfen jetzt vor der Datenbank, mit
+      demselben Grund und derselben Maske.
+    - `rechneTage` (`services/abwesenheit/tage.ts`) prüft selbst mit
+      `istGueltigerKalendertag`: es rollte den 31.02. lautlos in den März und
+      zählte einen Tag, den es nicht gibt. Jetzt `ZeitraumFehler`
+      `kein_datum` für jeden Aufrufer.
+    - `personal/nachweise` prüfte Beginn, Ende und Ausstellungstag gar
+      nicht; `nimmNachweisAuf` reichte sie an drei `::date` — 22008 und eine
+      500, und „01.03.2026" las die Datenbank mit `DateStyle = ISO, MDY` (so
+      die Testdatenbank) lautlos als 3. Januar. Jetzt prüft der Dienst vor der
+      ersten Abfrage die Form, die das Formular (`type="date"`) schickt. Kein
+      vorhandener Grund passte, deshalb ein neuer, `kein_datum`, mit Satz auf
+      beiden Nachweisseiten (de/en, der Wortlaut der Aufnahmeseite der
+      Abwesenheiten). Leer heisst weiter „nicht genannt".
+    - Ohne Befund: die übrigen Routen unter `api/personal/**` tragen keinen
+      Tag (Zugang, Zugangscode, Zusammenführen) oder prüfen seit Nr. 12 mit
+      `istGueltigerKalendertag` (Einstellen, Vertrag, Entgelt, Beenden,
+      Stammdaten).
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts` |
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts`, `src/app/api/personal/{abwesenheit,urlaubsanspruch}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/server/services/abwesenheit/tage.ts`, `src/server/services/nachweis/aufnahme.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/{personal-kalendertag,meldung-rueckweg,antrag-rueckweg}.test.ts`, `tests/isolation/{abwesenheit-aufnehmen,nachweis-aufnehmen}.test.ts` |
 |---|---|

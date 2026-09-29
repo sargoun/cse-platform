@@ -168,6 +168,41 @@ describe('POST /api/mein/abwesenheit — die Maske statt der 500', () => {
     expect(zustand.melde).not.toHaveBeenCalled();
   });
 
+  it('ein Tag, den es nicht gibt — auch im 13. Monat —, fällt vor dem Dienst: „kein_datum" (D-771 Nachtrag)', async () => {
+    /* Vorher: das Muster liess sie durch; `2029-02-31` fing erst die Datenbank
+       (22008), `2029-13-01` warf in `rechneTage` einen RangeError — eine 500. */
+    for (const felder of [
+      { ...GUELTIG, von: '2029-02-31' },
+      { ...GUELTIG, bis: '2029-02-30' },
+      { ...GUELTIG, au_bis: '2029-04-31' },
+      { ...GUELTIG, von: '2029-13-01', bis: '2029-13-02' },
+    ]) {
+      const antwort = await meldung(anfrage('/api/mein/abwesenheit', felder));
+      expect(antwort.status).toBe(303);
+      expect(ziel(antwort).pathname).toBe(MASKE);
+      expect(ziel(antwort).searchParams.get('fehler')).toBe('kein_datum');
+    }
+    expect(zustand.melde).not.toHaveBeenCalled();
+  });
+
+  it('und der Dienst selbst: `rechneTage` nennt denselben Grund statt zu rollen oder zu werfen', () => {
+    for (const [von, bis] of [
+      ['2029-02-31', '2029-03-02'], ['2029-03-01', '2029-04-31'], ['2029-13-01', '2029-13-02'],
+      ['2029-00-10', '2029-01-12'],
+    ] as const) {
+      let gefangen: unknown = null;
+      try {
+        rechneTage({ von, bis });
+      } catch (fehler) {
+        gefangen = fehler;
+      }
+      expect(gefangen, `${von} … ${bis}`).toBeInstanceOf(ZeitraumFehler);
+      expect((gefangen as ZeitraumFehler).grund).toBe('kein_datum');
+    }
+    /* Die Gegenprobe: den 29. Februar eines Schaltjahrs gibt es (ein Dienstag, ein Arbeitstag). */
+    expect(Number(rechneTage({ von: '2028-02-29', bis: '2028-02-29' }))).toBe(1000);
+  });
+
   it('ein fehlendes Recht bleibt 404 (D-656), ein Serverfehler bleibt einer', async () => {
     zustand.authorize.mockRejectedValueOnce(new NichtGefundenFehler());
     expect((await meldung(anfrage('/api/mein/abwesenheit', GUELTIG))).status).toBe(404);
@@ -201,6 +236,23 @@ describe('POST /api/personal/abwesenheit — auch das Büro kommt zurück', () =
         expect(Object.hasOwn(t.abgewiesen, grund)).toBe(true);
       }
     }
+  });
+
+  it('VORHER 500: ein Tag, den es nicht gibt, ist „kein_datum" — wie ein unlesbarer (D-771 Nachtrag)', async () => {
+    /* Das Muster liess `2029-02-31` durch, die Datenbank antwortete mit 22008,
+       und diese Route kannte ihn nicht. Jetzt dieselbe Antwort wie für „06.03.2029". */
+    for (const felder of [
+      { ...GUELTIG, von: '2029-02-31' },
+      { ...GUELTIG, bis: '2029-02-30' },
+      { ...GUELTIG, au_bis: '2029-04-31' },
+      { ...GUELTIG, au_bis: '06.03.2029' },
+    ]) {
+      const antwort = await buero(anfrage('/api/personal/abwesenheit',
+        { ...felder, zurueck: AUFNAHME, fehlerweg: AUFNAHME }));
+      expect(antwort.status).toBe(400);
+      expect(await antwort.json()).toEqual({ fehler: 'kein_datum' });
+    }
+    expect(zustand.melde).not.toHaveBeenCalled();
   });
 
   it('die doppelte Meldung bleibt, wie sie war', async () => {

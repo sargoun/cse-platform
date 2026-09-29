@@ -7,6 +7,7 @@ import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { MengeFehler, mengeAusEingabe } from '@/server/services/finanz/menge';
 import {
   eroeffneUrlaubskonto, setzeAnspruch,
@@ -39,7 +40,13 @@ import {
 export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * Ein Tag ist ein Kalendertag, den es gibt — `istGueltigerKalendertag`, nicht
+ * nur das Muster `JJJJ-MM-TT` (D-771 Nachtrag). Das Muster allein liess
+ * `2025-02-31` bis an ein `::date` durch, und die Datenbank antwortete mit
+ * 22008 — hier eine 500 statt des Grundes, den die Route für ein unlesbares
+ * Datum schon hat.
+ */
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -72,7 +79,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (anspruchRoh === null) {
     return NextResponse.json({ fehler: 'kein_anspruch' }, { status: 400 });
   }
-  if (verfaelltAm !== null && !DATUM.test(verfaelltAm)) {
+  if (verfaelltAm !== null && !istGueltigerKalendertag(verfaelltAm)) {
     return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
   }
   const jahr = Number(jahrRoh);
