@@ -36,14 +36,29 @@ export function maskeMitEingaben(
 ): string {
   const [basis, vorhanden] = pfad.split('?', 2) as [string, string | undefined];
   const suche = new URLSearchParams(vorhanden ?? '');
+  eingabenSetzen(suche, werte);
+  suche.set('fehler', grund);
+  return `${basis}?${suche.toString()}`;
+}
+
+/**
+ * Die Eingaben einer Maske in eine Abfrage setzen — nach den Regeln von
+ * `maskeMitEingaben`, die es hier zum zweiten Aufrufer gibt: dem Rückweg der
+ * Arbeiterformulare (`grundAufsFormularweg`, V-198 mit V-187…V-189), der sein
+ * Ziel erst prüft (`internesZiel`) und dann die Abfrage füllt. Leere und
+ * fehlende Werte fallen weg, ein Feld namens `fehler` nie hinein, jeder Wert
+ * gekürzt auf `MASKE_WERT_HOECHSTENS`.
+ */
+export function eingabenSetzen(
+  suche: URLSearchParams,
+  werte: Readonly<Record<string, string | null | undefined>>,
+): void {
   for (const [name, wert] of Object.entries(werte)) {
     if (name === 'fehler' || wert === null || wert === undefined) continue;
     const t = wert.trim();
     if (t === '') continue;
     suche.set(name, t.length > MASKE_WERT_HOECHSTENS ? t.slice(0, MASKE_WERT_HOECHSTENS) : t);
   }
-  suche.set('fehler', grund);
-  return `${basis}?${suche.toString()}`;
 }
 
 /**

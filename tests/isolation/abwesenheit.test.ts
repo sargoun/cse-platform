@@ -22,8 +22,8 @@ import {
   unverfuegbarImFenster, ArtUngeklaertFehler,
 } from '../../src/server/services/abwesenheit/index.js';
 import {
-  entscheideAntrag, listeOffeneAntraege, reicheAntragEin, zieheAntragZurueck,
-  KommentarFehlt, UrlaubskontoFehlt,
+  entscheideAntrag, listeOffeneAntraege, pflichtfeldGrund, reicheAntragEin, zieheAntragZurueck,
+  AntragAbgewiesen, AntragNichtGefunden, KommentarFehlt, UrlaubskontoFehlt,
 } from '../../src/server/services/abwesenheit/antrag.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 
@@ -258,6 +258,123 @@ describe('(2) Eine Ablehnung behält ihren Grund und beide Zeitpunkte', () => {
 
     await expect(alsMensch(jonasKonto, f.jonas, f.reinigung, (k) => zieheAntragZurueck(k, antrag.id)))
       .rejects.toThrow();
+  });
+});
+
+describe('(2a) Ein zweiter Klick auf „Genehmigen" ist „schon entschieden" — kein Serverfehler (D-753)', () => {
+  it('die zweite Genehmigung wirft AntragNichtGefunden mit Grund, und es bleibt EINE Abwesenheit', async () => {
+    const urlaub = await art('urlaub');
+    await sql.unsafe(
+      `insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage)
+       values ($1, $2, 2029, 30)`, [f.reinigung, f.jonasReinigung]);
+    const artId = await antragsart('urlaub');
+    const antrag = await alsMensch(jonasKonto, f.jonas, f.reinigung, (k) =>
+      reicheAntragEin(k, {
+        anstellungId: f.jonasReinigung, antragsartId: artId,
+        vonDatum: '2029-10-08', bisDatum: '2029-10-09', abwesenheitsartId: urlaub,
+      }));
+    await alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'genehmigt' }));
+
+    /*
+     * Vorher stand vor dem Update, das den Stand prüft, das INSERT der
+     * Abwesenheit — und das traf die Sperre `ab_keine_dublette` (23P01):
+     * eine 500 statt des Satzes. Jetzt fällt die Entscheidung am Stand.
+     */
+    const zweite = alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'genehmigt' }));
+    await expect(zweite).rejects.toBeInstanceOf(AntragNichtGefunden);
+    await expect(zweite).rejects.toMatchObject({ grund: 'nicht_gefunden', status: 404 });
+
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from abwesenheit where antrag_id = $1`, [antrag.id]);
+    expect(Number(n?.n ?? '0'), 'genau eine Abwesenheit').toBe(1);
+  });
+
+  it('eine Ablehnung nach der Genehmigung ändert nichts', async () => {
+    const urlaub = await art('urlaub');
+    await sql.unsafe(
+      `insert into urlaubskonto (mandant_id, anstellung_id, jahr, anspruch_tage)
+       values ($1, $2, 2029, 30)`, [f.reinigung, f.jonasReinigung]);
+    const artId = await antragsart('urlaub');
+    const antrag = await alsMensch(jonasKonto, f.jonas, f.reinigung, (k) =>
+      reicheAntragEin(k, {
+        anstellungId: f.jonasReinigung, antragsartId: artId,
+        vonDatum: '2029-10-15', bisDatum: '2029-10-15', abwesenheitsartId: urlaub,
+      }));
+    await alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'genehmigt' }));
+    await expect(alsRolle(chef, f.reinigung, (k) =>
+      entscheideAntrag(k, { antragId: antrag.id, entscheidung: 'abgelehnt', kommentar: 'zu spät' })))
+      .rejects.toBeInstanceOf(AntragNichtGefunden);
+
+    const [z] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from antrag where id = $1`, [antrag.id]);
+    expect(z?.status).toBe('genehmigt');
+  });
+});
+
+describe('(2b) Was der Auslöser abweist, wird ein Grund — am echten Fehler (V-198, D-692 Nr. 4)', () => {
+  /*
+   * `pflichtfeldGrund` war nur an nachgebauten Objekten geprüft
+   * (`Object.assign(new Error('x'), { code: '23514', hint })`). Ob der ECHTE
+   * postgres.js-Fehler des Auslösers `antrag_pflichtfelder` und der Prüfung
+   * `an_zeitraum` diese Felder so trägt, prüft nur die Datenbank.
+   *
+   * **Seit V-187 prüft der Dienst vor dem Auslöser** (`AntragAbgewiesen`,
+   * D-681 Nr. 1): über `reicheAntragEin` erreicht diese Eingabe den Auslöser
+   * nicht mehr, der Dienst nennt den Grund selbst. Jeder Fall prüft deshalb
+   * beide Linien — die erste am Dienst, die zweite am INSERT selbst, als
+   * derselbe Mensch in derselben Gesellschaft, so wie ein Weg am Dienst
+   * vorbei sie träfe (zusammengeführt, D-692 Nachsatz).
+   */
+  async function abgewiesen(eingabe: {
+    readonly antragsartId: string;
+    readonly vonDatum?: string;
+    readonly bisDatum?: string;
+    readonly abwesenheitsartId?: string;
+  }, ersteLinie: string): Promise<unknown> {
+    const dienst = alsMensch(jonasKonto, f.jonas, f.reinigung, (k) =>
+      reicheAntragEin(k, { anstellungId: f.jonasReinigung, ...eingabe }));
+    await expect(dienst).rejects.toBeInstanceOf(AntragAbgewiesen);
+    await expect(dienst).rejects.toMatchObject({ grund: ersteLinie });
+    try {
+      await alsMensch(jonasKonto, f.jonas, f.reinigung, (k) => k.schreibe(
+        `insert into antrag
+           (mandant_id, anstellung_id, antragsart_id, von_datum, bis_datum,
+            abwesenheitsart_id, eingereicht_von_benutzer_id)
+         values (app.aktiver_mandant(), $1::uuid, $2::uuid, $3::date, $4::date,
+                 $5::uuid, $6::uuid)`,
+        [f.jonasReinigung, eingabe.antragsartId, eingabe.vonDatum ?? null,
+          eingabe.bisDatum ?? null, eingabe.abwesenheitsartId ?? null, jonasKonto]));
+    } catch (fehler) {
+      return fehler;
+    }
+    throw new Error('der Antrag hätte abgewiesen werden müssen');
+  }
+
+  it('Urlaubsantrag ohne Datum → `fehlt_zeitraum`', async () => {
+    const urlaub = await art('urlaub');
+    const fehler = await abgewiesen({
+      antragsartId: await antragsart('urlaub'), abwesenheitsartId: urlaub,
+    }, 'zeitraum_fehlt');
+    expect(pflichtfeldGrund(fehler)).toBe('fehlt_zeitraum');
+  });
+
+  it('Urlaubsantrag ohne Abwesenheitsart → `fehlt_abwesenheitsart`', async () => {
+    const fehler = await abgewiesen({
+      antragsartId: await antragsart('urlaub'), vonDatum: '2029-06-04', bisDatum: '2029-06-05',
+    }, 'abwesenheitsart_fehlt');
+    expect(pflichtfeldGrund(fehler)).toBe('fehlt_abwesenheitsart');
+  });
+
+  it('„bis" vor „von" → `zeitraum` (die Prüfung an_zeitraum)', async () => {
+    const urlaub = await art('urlaub');
+    const fehler = await abgewiesen({
+      antragsartId: await antragsart('urlaub'),
+      vonDatum: '2029-06-10', bisDatum: '2029-06-03', abwesenheitsartId: urlaub,
+    }, 'zeitraum_verkehrt');
+    expect(pflichtfeldGrund(fehler)).toBe('zeitraum');
   });
 });
 

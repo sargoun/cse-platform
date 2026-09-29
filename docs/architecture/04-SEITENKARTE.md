@@ -1203,6 +1203,7 @@ still unsubmitted", not "which of project 14's".
 | `/portal/[mandant]/bau/nachtraege` — across projects, "announced but not submitted" filter | `bau.lesen` | `M1` | BAU-04, BAU-05 | 5 |
 | `/portal/[mandant]/bau/behinderungen` — across projects | `bau.lesen` | `M1` | BAU-06 | 5 |
 | `/portal/[mandant]/bau/bautagebuch` — across projects | `bau.lesen` | `M1` | BAU-07 | 5 |
+| `/portal/[mandant]/bau/gewerke` — the Gewerk catalogue behind Mannstunden per trade: enter, rename, archive, never delete (V-182, O-159) | `bau.lesen` / `bau.schreiben` | `M1` | BAU-07 | 5 |
 
 `[datum]` is a **Berlin calendar date** converted to a half-open UTC range
 `[berlin_start, berlin_start + 1 day)` (K-11). A Bautagebuch day resolved at UTC midnight
@@ -2550,8 +2551,8 @@ German may have to operate to do their job or to be paid correctly.
 
 | Surface | Routes | Locale source |
 |---|---|---|
-| Check-in | `/check-in/[token]`, `/check-in/abgelaufen` | `person.sprache`, resolved from the token — there is no login to read a preference from |
-| Worker login | `/auth/mitarbeiter`, `/auth/mitarbeiter/code` | a cookie, defaulting to `Accept-Language`, then German |
+| Check-in | `/check-in/[token]`, `/check-in/abgelaufen` | the device: the language cookie `cse_sprache` (set only on an explicit choice — the language row on the surface, or a worker saving the language at `/portal/konto/profil`; a session cookie until O-928 decides its lifetime, D-751), then `Accept-Language`, then German. **Not** `person.sprache` through the token: the page does not resolve its token before the tap (AUT-06), and a page that answered a valid token in Arabic and an invalid one in German would be the oracle (D-694) |
+| Worker login | `/auth/mitarbeiter`, `/auth/mitarbeiter/code` | the same device cookie `cse_sprache`, defaulting to `Accept-Language`, then German (D-694) |
 | Worker portal | every route under `/portal/mein/**` | `person.sprache` |
 | Account screens in the worker shell | `/portal/konto/**` when `app.portal() = 'mitarbeiter'` | `person.sprache`, editable at `/portal/konto/profil` |
 | Shift action screens | `/portal/mein/schichten/[zuordnungId]/{fotos,wachbuch,leistungsnachweis,bautagebuch}` | operator chrome translated; the legal text a **customer** signs on the Leistungsnachweis stays German |

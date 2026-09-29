@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -61,6 +62,17 @@ export async function POST(
   const grund = typeof grundRoh === 'string' && grundRoh.trim() !== ''
     ? grundRoh.trim() : 'Vom Menschen selbst zurückgenommen';
 
+  /*
+   * **Gefunden, aber nicht mehr rücknehmbar, ist ein anderer Fall als
+   * „gibt es nicht"** (D-692 Nr. 2, Nachtrag). Liefert der Personen-Scope
+   * die Zeile, gehört sie der Person; scheitert danach die Rücknahme, ist sie
+   * inzwischen entschieden oder schon zurückgenommen — ein Wettlauf, kein
+   * fremder Vorgang. Das Blatt, auf das der Rückweg führt, zeigt den Vorgang mit
+   * seinem neuen Stand; „gibt es nicht (mehr)" darüber widerspräche ihm. Ein
+   * genauerer Satz verrät nichts: das Blatt zeigt ohnehin nur eigene Vorgänge,
+   * ein fremder oder fehlender bleibt `nicht_gefunden` (AUT-06).
+   */
+  let gefunden = false;
   try {
     await db().begin(async (tx: postgres.TransactionSql) => {
       const anstellungId = await withPersonScope(tx, sitzung, async (k) => {
@@ -68,6 +80,7 @@ export async function POST(
         return zeile?.anstellungId ?? null;
       });
       if (anstellungId === null) throw new AbwesenheitNichtGefunden(id);
+      gefunden = true;
 
       const mandantId = await withPersonScope(tx, sitzung, async (k) =>
         mandantDerAnstellung(k, anstellungId));
@@ -78,8 +91,17 @@ export async function POST(
       return withTenant(tx, imMandanten, async (k) => storniereAbwesenheit(k, id, grund));
     });
   } catch (fehler: unknown) {
+    if (fehler instanceof AbwesenheitNichtGefunden && gefunden) {
+      /*
+       * Der Wettlauf: die Personalstelle hat entschieden (oder ein zweiter
+       * Tipp hat schon zurückgenommen), während das Blatt offen war. Zurück
+       * aufs Blatt, das jetzt den Stand zeigt (V-198) — mit dem Satz, der
+       * genau das sagt.
+       */
+      return grundAufsFormularweg(anfrage, daten, 'ungueltiger_zustand', 409);
+    }
     if (fehler instanceof AbwesenheitNichtGefunden || fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404);
     }
     throw fehler;
   }

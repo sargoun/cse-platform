@@ -52,10 +52,34 @@ export class KeinUrheber extends Error {
   }
 }
 
+/**
+ * Was an einer Eingabe fehlt — als SCHLÜSSEL neben dem Satz (V-198, V-180).
+ *
+ * Der Satz ist deutsch und gehört ins Protokoll; die Seiten schlagen den
+ * Grund in IHRER Sprache nach — das Arbeiterportal in vier, die Leitstelle in
+ * zwei (D-599, D-728). Mehrere Fälle tragen denselben `code`, und „Präsenz
+ * ohne Kontrollpunkt" ist ein anderer Satz als „Betreff fehlt".
+ *
+ * Zusammengeführt (D-692 Nachsatz): `schluessel_art` ist mit V-180 entfallen
+ * — die Art `schluessel` wird seither angenommen und verlangt den Schlüssel
+ * (`schluessel_fehlt`). `grund_fehlt` sagt die Route der Leitstelle, wenn das
+ * Feld ganz fehlt; `ungueltige_eingabe` ist der Vorgabewert, gleich dem
+ * `code`.
+ */
+export const WACHBUCH_EINGABE_GRUENDE = [
+  'kein_betreff', 'kein_text', 'schluessel_fehlt', 'praesenz_ohne_kontrollpunkt',
+  'kein_korrekturgrund', 'grund_fehlt', 'ungueltige_eingabe',
+] as const;
+export type WachbuchEingabeGrund = (typeof WACHBUCH_EINGABE_GRUENDE)[number];
+
 export class WachbuchEingabeFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  /**
+   * Der GRUND als Schluessel — er reist als `?fehler=` auf die Seite zurueck
+   * (D-599) und wird dort als eigener Eintrag nachgeschlagen (D-728).
+   */
+  constructor(nachricht: string, readonly grund: WachbuchEingabeGrund = 'ungueltige_eingabe') {
     super(nachricht);
     this.name = 'WachbuchEingabeFehlt';
   }
@@ -96,6 +120,13 @@ export interface EintragEingabe {
   readonly praesenzBestaetigt?: boolean;
   readonly polizeiInformiert?: boolean;
   /**
+   * Der Schluessel, um den es geht (SEC-05 „key", SEC-07, V-180). Pflicht bei
+   * `art = 'schluessel'` (`wachbuch_schluessel_genannt`, 0070), bei jeder
+   * anderen Art erlaubt — ein Vorkommnis kann einen Schluessel betreffen. Er
+   * muss zu DIESEM Objekt gehoeren; das prueft der Dienst vor dem Schreiben.
+   */
+  readonly schluesselId?: string | null;
+  /**
    * Die Uhr des Geraets, als BEHAUPTUNG (TIM-08). Sie wird gespeichert und
    * ihre Abweichung abgeleitet; massgeblich ist sie nie.
    */
@@ -108,6 +139,16 @@ interface UrheberZeile {
   readonly anstellung_id: string;
   readonly person_id: string;
 }
+
+/** Die Beschaeftigung dieser Sitzung im aktiven Mandanten — siehe `urheber`. */
+const URHEBER_ABFRAGE = `select a.id as anstellung_id, a.person_id
+       from anstellung a
+      where a.person_id = app.aktuelle_person()
+        and a.mandant_id = app.aktiver_mandant()
+        and a.geloescht_am is null
+        and a.status = 'aktiv'
+      order by a.eintritt, a.id
+      limit 1`;
 
 /**
  * Wer schreibt — aus der SITZUNG, nie aus der Anfrage.
@@ -122,47 +163,51 @@ interface UrheberZeile {
  * dann mal unter der einen, mal unter der anderen Nummer im Buch.
  */
 async function urheber(kontext: SchreibKontext): Promise<UrheberZeile> {
-  const [zeile] = await kontext.abfrage<UrheberZeile>(
-    `select a.id as anstellung_id, a.person_id
-       from anstellung a
-      where a.person_id = app.aktuelle_person()
-        and a.mandant_id = app.aktiver_mandant()
-        and a.geloescht_am is null
-        and a.status = 'aktiv'
-      order by a.eintritt, a.id
-      limit 1`,
-  );
+  const [zeile] = await kontext.abfrage<UrheberZeile>(URHEBER_ABFRAGE);
   if (zeile === undefined) throw new KeinUrheber();
   return zeile;
 }
 
+/**
+ * Ob diese Sitzung im aktiven Mandanten Urheber einer Seite sein KANN —
+ * dieselbe Abfrage, die `schreibeEintrag` stellt, nur ohne Wurf.
+ *
+ * Fuer die Seiten, die eine Seite nur auf Wunsch mitschreiben (die
+ * Schluesselquittung, V-180, D-674 Nr. 3): ohne Beschaeftigung in dieser
+ * Gesellschaft kann das Haekchen nur scheitern, und eine Wahl, die nur
+ * scheitern kann, ist keine. Die Seite sagt dann, warum es fehlt.
+ */
+export async function hatWachbuchUrheber(kontext: LeseKontext): Promise<boolean> {
+  return (await kontext.abfrage<UrheberZeile>(URHEBER_ABFRAGE)).length > 0;
+}
+
 function pruefeText(eingabe: EintragEingabe): void {
   if (eingabe.betreff.trim() === '') {
-    throw new WachbuchEingabeFehlt('Ein Eintrag braucht einen Betreff.');
+    throw new WachbuchEingabeFehlt('Ein Eintrag braucht einen Betreff.', 'kein_betreff');
   }
   if (eingabe.eintragstext.trim() === '') {
     throw new WachbuchEingabeFehlt(
-      'Ein Eintrag ohne Text ist keine Dokumentation. Was ist passiert?',
+      'Ein Eintrag ohne Text ist keine Dokumentation. Was ist passiert?', 'kein_text',
     );
   }
   /**
-   * **Keine Schein-Integration.** `schluessel` entsteht erst mit PR 42; bis
-   * dahin gibt es keine Kennung, auf die `art = 'schluessel'` zeigen koennte.
-   * Die Datenbank verlangt sie (`wachbuch_schluessel_genannt`), also weist der
-   * Dienst die Art mit einer Meldung ab, die den Grund nennt, statt den
-   * Aufrufer in eine Bedingungsverletzung laufen zu lassen.
+   * **Die Schluesselverwaltung GIBT es (0079, SEC-07)** — hier stand bis
+   * V-180 eine Abweisung mit dem Satz, sie sei „noch nicht gebaut". Die
+   * Datenbank verlangt bei dieser Art die Kennung
+   * (`wachbuch_schluessel_genannt`); der Dienst sagt es vorher mit einem Satz,
+   * statt den Aufrufer in die Bedingungsverletzung laufen zu lassen.
    */
-  if (eingabe.art === 'schluessel') {
+  if (eingabe.art === 'schluessel' && (eingabe.schluesselId ?? '') === '') {
     throw new WachbuchEingabeFehlt(
-      'Schlüsselbewegungen werden mit der Schlüsselverwaltung erfasst, und die ist '
-      + 'noch nicht gebaut (SEC-07). Bis dahin: als „Übergabe" eintragen und den '
-      + 'Schlüssel im Text benennen.',
+      'Ein Schlüsseleintrag nennt den Schlüssel, um den es geht.',
+      'schluessel_fehlt',
     );
   }
   if (eingabe.praesenzBestaetigt === true
       && (eingabe.kontrollpunktId ?? '') === '') {
     throw new WachbuchEingabeFehlt(
       'Ein Präsenznachweis braucht den Kontrollpunkt, an dem er entstanden ist.',
+      'praesenz_ohne_kontrollpunkt',
     );
   }
 }
@@ -233,6 +278,14 @@ export async function schreibeEintrag(
      * Kontrollpunkt ab (AUT-05).
      */
     ['kontrollpunkt', eingabe.kontrollpunktId],
+    /*
+     * V-180: der Schluessel. `wachbuch_schluessel_fk` (0079) bindet nur an
+     * den MANDANTEN; dass der Schluessel am Objekt DIESER Seite haengt, sagt
+     * erst diese Zeile. Ohne sie stuende die Ausgabe des Generalschluessels
+     * von Haus B in der Beweiskette von Haus A. Im M1-Scope traegt
+     * `schluessel.t_selbst_m1` (0466) die Lesbarkeit fuer die eigene Wache.
+     */
+    ['schluessel', eingabe.schluesselId],
   ];
   for (const [tabelle, kennung] of AM_OBJEKT) {
     if (kennung == null) continue;
@@ -273,11 +326,13 @@ export async function schreibeEintrag(
        (id, mandant_id, objekt_id, posten_id, veranstaltung_id, einsatz_id,
         anstellung_id, person_id, art, betreff, eintragstext,
         kontrollpunkt_id, praesenz_bestaetigt, polizei_informiert,
-        geraete_zeit, nachgetragen, erstellt_von_art, erstellt_von, erstellt_von_person_id)
+        geraete_zeit, nachgetragen, erstellt_von_art, erstellt_von, erstellt_von_person_id,
+        schluessel_id)
      values ($17::uuid, $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
              $6::uuid, $7::uuid, $8::wachbuch_art, $9, $10,
              $11::uuid, $12::boolean, $13::boolean,
-             $14::timestamptz, $15::boolean, 'mensch', $16::uuid, $7::uuid)`,
+             $14::timestamptz, $15::boolean, 'mensch', $16::uuid, $7::uuid,
+             $18::uuid)`,
     [
       kontext.aktiverMandantId, eingabe.objektId,
       eingabe.postenId ?? null, eingabe.veranstaltungId ?? null, eingabe.einsatzId ?? null,
@@ -287,6 +342,7 @@ export async function schreibeEintrag(
       eingabe.praesenzBestaetigt === true, eingabe.polizeiInformiert === true,
       eingabe.geraeteZeit ?? null, eingabe.nachgetragen === true,
       kontext.benutzerId, id,
+      (eingabe.schluesselId ?? '') === '' ? null : eingabe.schluesselId,
     ],
   );
   return id;
@@ -322,16 +378,17 @@ export async function korrigiereEintrag(
   if (eingabe.grund.trim().length < GRUND_MINDESTLAENGE) {
     throw new WachbuchEingabeFehlt(
       'Eine Korrektur ohne Grund ist im Streitfall keine Auskunft. Warum war der '
-      + 'Eintrag falsch?',
+      + 'Eintrag falsch?', 'kein_korrekturgrund',
     );
   }
 
   const [alt] = await kontext.abfrage<{
     objekt_id: string; posten_id: string | null; veranstaltung_id: string | null;
     einsatz_id: string | null; art: WachbuchArt; storniert: boolean;
+    schluessel_id: string | null;
   }>(
     `select objekt_id, posten_id, veranstaltung_id, einsatz_id, art::text as art,
-            (storniert_am is not null) as storniert
+            (storniert_am is not null) as storniert, schluessel_id
        from wachbuch_eintrag where id = $1::uuid`,
     [eingabe.eintragId],
   );
@@ -345,8 +402,10 @@ export async function korrigiereEintrag(
    * beiden Zeilen stuenden in zwei verschiedenen Buechern.
    *
    * Die ART wird ebenfalls uebernommen: eine Richtigstellung eines
-   * Vorkommnisses ist ein Vorkommnis. `schluessel` kommt hier nicht vor — die
-   * Art laesst sich heute gar nicht eintragen (siehe `pruefeText`).
+   * Vorkommnisses ist ein Vorkommnis. Und mit ihr der SCHLUESSEL (V-180):
+   * eine Schluesselseite ohne Schluessel liesse `wachbuch_schluessel_genannt`
+   * gar nicht zu, und eine Richtigstellung, die den Gegenstand wechselt,
+   * waere eine neue Seite und keine Korrektur.
    */
   const neu = await schreibeEintrag(kontext, {
     objektId: alt.objekt_id,
@@ -356,6 +415,7 @@ export async function korrigiereEintrag(
     postenId: alt.posten_id,
     veranstaltungId: alt.veranstaltung_id,
     einsatzId: alt.einsatz_id,
+    schluesselId: alt.schluessel_id,
   });
 
   const zeilen = await kontext.schreibe<{ id: string }>(
@@ -409,6 +469,21 @@ export interface EintragZeile {
   readonly stornoGrund: string | null;
   readonly ersetztDurchId: string | null;
   readonly ersetztId: string | null;
+  /**
+   * Der Schluessel dieser Seite (V-180): Bezeichnung und Nummer — oder `null`,
+   * wenn die Seite keinen nennt ODER diese Anmeldung ihn nicht lesen darf
+   * (`schluessel.lesen`; im eigenen Portal nur die Schluessel des eigenen
+   * Objekts).
+   */
+  readonly schluessel: string | null;
+  /** Die Quittung, die diese Seite geschrieben hat — wo es eine gibt und sie lesbar ist. */
+  readonly quittungId: string | null;
+  readonly quittungSchluesselId: string | null;
+  /**
+   * Die Schicht, an der die Seite haengt (V-181) — ihre Aufnahmen zeigt das
+   * Blatt daneben, soweit die Anmeldung sie lesen darf.
+   */
+  readonly einsatzId: string | null;
 }
 
 interface RohEintrag {
@@ -431,6 +506,10 @@ interface RohEintrag {
   readonly storno_grund: string | null;
   readonly ersetzt_durch_id: string | null;
   readonly ersetzt_id: string | null;
+  readonly schluessel: string | null;
+  readonly einsatz_id: string | null;
+  readonly quittung_id: string | null;
+  readonly quittung_schluessel_id: string | null;
 }
 
 /**
@@ -468,6 +547,10 @@ function ausEintrag(z: RohEintrag): EintragZeile {
     stornoGrund: z.storno_grund,
     ersetztDurchId: z.ersetzt_durch_id,
     ersetztId: z.ersetzt_id,
+    schluessel: z.schluessel,
+    quittungId: z.quittung_id,
+    quittungSchluesselId: z.quittung_schluessel_id,
+    einsatzId: z.einsatz_id,
   };
 }
 
@@ -492,7 +575,7 @@ function ausEintrag(z: RohEintrag): EintragZeile {
  */
 const FELDER = `
   w.id, w.jahr, w.laufnummer, w.art::text as art, w.betreff, w.eintragstext,
-  w.objekt_id, o.bezeichnung as objekt,
+  w.objekt_id, o.bezeichnung as objekt, w.einsatz_id,
   to_char(w.erfasst_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI') as erfasst_lokal,
   (p.vorname || ' ' || p.nachname) as urheber,
   w.zeitabweichung_sek, w.nachgetragen, w.polizei_informiert,
@@ -505,12 +588,21 @@ const FELDER = `
   -- wegen einer Verweisdoppelung nicht mehr oeffnen laesst, ist die
   -- schlechtere Antwort als ein Verweis, der einen von zweien zeigt.
   (select v.id from wachbuch_eintrag v
-    where v.ersetzt_durch_id = w.id order by v.laufnummer limit 1) as ersetzt_id
+    where v.ersetzt_durch_id = w.id order by v.laufnummer limit 1) as ersetzt_id,
+  -- V-180: der Schluessel der Seite, und die Quittung, die sie geschrieben hat.
+  -- Beides LEFT: ohne schluessel.lesen bleibt das Feld leer, die Seite nicht.
+  (s.bezeichnung || coalesce(' · ' || s.schluessel_nummer, '')) as schluessel,
+  (select q.id from schluessel_quittung q
+    where q.wachbuch_eintrag_id = w.id order by q.quittiert_am limit 1) as quittung_id,
+  (select q.schluessel_id from schluessel_quittung q
+    where q.wachbuch_eintrag_id = w.id order by q.quittiert_am limit 1)
+    as quittung_schluessel_id
   from wachbuch_eintrag w
   -- LEFT JOIN und nicht JOIN: siehe die Begruendung ueber FELDER.
   left join person p on p.id = w.person_id
   join objekt o on o.id = w.objekt_id and o.mandant_id = w.mandant_id
-  left join kontrollpunkt k on k.id = w.kontrollpunkt_id and k.mandant_id = w.mandant_id`;
+  left join kontrollpunkt k on k.id = w.kontrollpunkt_id and k.mandant_id = w.mandant_id
+  left join schluessel s on s.id = w.schluessel_id and s.mandant_id = w.mandant_id`;
 
 export interface BuchFilter {
   readonly objektId?: string | null;

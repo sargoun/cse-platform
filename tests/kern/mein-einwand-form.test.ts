@@ -1,10 +1,12 @@
 /**
  * Die kleinen Punkte der zweiten Prüfung am Arbeiterportal (V-193).
  *
- *  - Die Einwandliste schreibt jeden Tag in DERSELBEN, der gesetzlichen Form
- *    (TT.MM.JJJJ, Berliner Kalendertag, SEITENKARTE §12) — vorher stand der
- *    Tag des Einwands deutsch da und daneben Eingangs- und Entscheidungstag
- *    nach Sprache (englisch 09/21/2026, arabisch mit anderen Ziffern).
+ *  - Die Einwandliste schreibt jeden Tag in DERSELBEN Form (Berliner
+ *    Kalendertag, SEITENKARTE §12) — vorher stand der Tag des Einwands deutsch
+ *    da und daneben Eingangs- und Entscheidungstag nach Sprache (englisch
+ *    09/21/2026, arabisch mit anderen Ziffern). Seit der Zusammenführung mit
+ *    V-199/V-201 (D-692 Nachsatz) ist es die Form des ganzen Arbeiterportals:
+ *    TT.MM.JJJJ auf Deutsch, Arabisch und Türkisch, britisch auf Englisch.
  *  - Die Pause trägt ihre Einheit in der Sprache der Kraft, nicht „(min)".
  *  - Die Gesellschaft ist eine Pflichtwahl OHNE Vorauswahl (D-09): ein leerer
  *    erster Eintrag, `required` verlangt die Wahl.
@@ -45,16 +47,24 @@ const EINWAND: EinwandZeile = {
   entscheidungBegruendung: 'Nachgetragen.',
 };
 
-describe('EinwandListe — jeder Tag in der gesetzlichen Form, in jeder Sprache', () => {
+describe('EinwandListe — jeder Tag in derselben Form, in jeder Sprache', () => {
   for (const sprache of PORTAL_SPRACHEN) {
-    it(`${sprache}: Tag, Eingang und Entscheidung als TT.MM.JJJJ (Berlin)`, () => {
+    it(`${sprache}: Tag, Eingang und Entscheidung in einer Form (Berlin)`, () => {
       const html = renderToStaticMarkup(createElement(EinwandListe, {
         einwaende: [EINWAND], texte: meinTexte(sprache), sprache,
       }));
-      expect(html).toContain('21.09.2026');
-      // Der Eingang ist der Berliner Tag des Zeitpunkts, nicht der UTC-Tag.
-      expect(html).toContain('22.09.2026');
-      expect(html).toContain('23.09.2026');
+      if (sprache === 'en') {
+        // Britisch wie `tagInSprache` (D-693, D-695) — nie Monat vor Tag.
+        expect(html).toMatch(/21 Sept? 2026/u);
+        expect(html).toMatch(/22 Sept? 2026/u);
+        expect(html).toMatch(/23 Sept? 2026/u);
+        expect(html).not.toContain('.09.2026');
+      } else {
+        expect(html).toContain('21.09.2026');
+        // Der Eingang ist der Berliner Tag des Zeitpunkts, nicht der UTC-Tag.
+        expect(html).toContain('22.09.2026');
+        expect(html).toContain('23.09.2026');
+      }
       expect(html).not.toMatch(/\d{2}\/\d{2}\/\d{4}/u);
       expect(html).not.toMatch(/[٠-٩]/u);
     });

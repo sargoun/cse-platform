@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
@@ -195,8 +196,8 @@ export default async function Anstellungsliste(
               kopf: 'Eintritt',
               zelle: (z) => (
                 <span className="tabular-nums">
-                  {z.eintritt}
-                  {z.austritt !== null && ` – ${z.austritt}`}
+                  {tagDeutsch(z.eintritt)}
+                  {z.austritt !== null && ` – ${tagDeutsch(z.austritt)}`}
                 </span>
               ),
             },

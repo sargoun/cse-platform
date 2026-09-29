@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { internesZiel } from '@/server/auth/ursprung';
+import { eingabenSetzen } from '@/lib/formular/maske';
 
 /**
  * Ein Formular darf nicht auf einer weissen Seite mit JSON enden.
@@ -61,8 +62,65 @@ export function grundAufsFormular(
 }
 
 /**
+ * Der Grund eines abgewiesenen FORMULARS, aus dem Formular selbst gelesen —
+ * mit `fehlerweg` vor `zurueck` (V-198, D-692).
+ *
+ * **Zwei Felder, weil es zwei Ziele sind.** `zurueck` ist das Ziel des
+ * ERFOLGS — nach einer Abwesenheitsmeldung die Liste der Anträge. Ein
+ * Fehlschlag gehört dorthin, wo das Formular steht, sonst steht der Satz über
+ * einer Liste, in der die Eingabe fehlt; das sagt `fehlerweg`. Fehlt es, ist
+ * `zurueck` die Seite des Formulars selbst (Wachbuch, Fotos, Bautagebuch).
+ *
+ * **Ohne beide Felder ist der Aufrufer kein Portalformular**, sondern ein
+ * Programm — und das bekommt JSON mit dem Status (D-599: „ein Browser bekommt
+ * eine Seite, ein Programm bekommt JSON"). Nie wird ein Satz mitgeschickt: die
+ * Seite schlägt den Grund in IHRER Sprache nach, und ein Satz eines Dienstes
+ * ist deutsch.
+ *
+ * **Derselbe Weg trägt die Masken der Gruppe zeit** (V-187, V-188, V-189;
+ * zusammengeführt, D-692 Nachsatz): `rueckweg.werte` sind die Eingaben, mit
+ * denen die Maske zurückkommt (`eingabenSetzen`, dieselben Regeln wie
+ * `maskeMitEingaben`, D-599) — Auswahlen, Tage, Haken, nie Freitext. Und hat
+ * eine Route genau EINE Maske (`rueckweg.maske`: Abwesenheit melden, Antrag
+ * stellen), gilt sie, wenn ein Formular zwar `zurueck`, aber kein
+ * `fehlerweg` schickt: `zurueck` ist dort die Liste des Erfolgs, und eine
+ * Abweisung über einer Liste ohne die Eingabe wäre ein Weg ins Leere (D-691).
+ */
+export function grundAufsFormularweg(
+  anfrage: NextRequest, daten: FormData, grund: string, status: number,
+  rueckweg: FormularRueckweg = {},
+): NextResponse {
+  const feld = (name: string): string | undefined => {
+    const wert = daten.get(name);
+    return typeof wert === 'string' && wert !== '' ? wert : undefined;
+  };
+  const zurueck = feld('zurueck');
+  const weg = feld('fehlerweg')
+    ?? (zurueck === undefined ? undefined : (rueckweg.maske ?? zurueck));
+  if (weg === undefined) return NextResponse.json({ fehler: grund }, { status });
+  const ziel = internesZiel(weg, HEIMWEG, anfrage);
+  eingabenSetzen(ziel.searchParams, rueckweg.werte ?? {});
+  ziel.searchParams.set('fehler', grund);
+  return NextResponse.redirect(ziel, 303);
+}
+
+/** Was ein abgewiesenes Formular über den Grund hinaus zurückbekommt (V-187…V-189). */
+export interface FormularRueckweg {
+  /** Die eine Maske der Route — gilt vor `zurueck`, nie vor `fehlerweg`. */
+  readonly maske?: string;
+  /** Die Eingaben, mit denen die Maske vorbelegt zurückkommt — nie Freitext. */
+  readonly werte?: Readonly<Record<string, string | null | undefined>>;
+}
+
+/**
  * Die Antwort auf einen FACHLICHEN Fehler — als Umleitung fuer ein Formular,
  * als JSON fuer einen JSON-Aufrufer.
+ *
+ * **Fuer einen neuen Aufrufer ist `grundAufsFormular` der Weg** (D-753): der
+ * Satz eines Dienstes ist deutsch und traegt manchmal eine Kennung, und eine
+ * Seite, die `?meldung=` roh zeigt, zeigt auch jeden Text aus einem
+ * praeparierten Link. Die beiden Zeitrouten, fuer die diese Weiche gebaut
+ * wurde, schicken seit V-197/D-753 einen Grund.
  *
  * `null` heisst: dafuer ist diese Weiche nicht zustaendig (kein Formular oder
  * kein `zurueck`). Der Aufrufer antwortet dann wie bisher mit JSON — das ist

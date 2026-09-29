@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { formatiereMengeIn, mengeAusPostgres } from '@/server/services/finanz/menge';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { BAUTAG_PILLE } from '@/app/portal/[mandant]/bau/bautagebuch-anzeige';
 import {
@@ -18,6 +19,7 @@ import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang'
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { FormularFehler } from '../../../FormularAntwort';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/bautagebuch` — der Bautag der Kolonne
@@ -67,12 +69,17 @@ interface Blatt {
 const ARTEN: readonly PositionArt[] = ['geraet', 'lieferung', 'vorkommnis'];
 
 export default async function MeinBautagebuch(
-  { params }: { params: Promise<{ zuordnungId: string }> },
+  { params, searchParams }: {
+    params: Promise<{ zuordnungId: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { zuordnungId } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/bautagebuch`,
-    async (kontext) => {
+    async (kontext, { sprache }) => {
       const schicht = await findeEigeneSchicht(kontext, zuordnungId);
       if (schicht === null) return null;
       const leer = {
@@ -99,13 +106,18 @@ export default async function MeinBautagebuch(
        * statt einer Meldung.
        */
       const bezug = await findeSchichtBezug(kontext, zuordnungId);
-      const gewerke = bezug === null ? [] : await listeGewerke(kontext, bezug.mandantId);
+      /*
+       * V-185 (EMP-12): der Gewerkname in der Sprache DIESES Bildschirms —
+       * die Übersetzung aus dem Katalog, ohne sie der deutsche Name. Die
+       * Pflegeseite verspricht das; gelesen hat es bis dahin kein Weg.
+       */
+      const gewerke = bezug === null ? [] : await listeGewerke(kontext, bezug.mandantId, sprache);
       if (tag === null) return { ...leer, gewerke };
 
       return {
         schicht,
         tag,
-        mannstunden: await leseMannstunden(kontext, tag.id),
+        mannstunden: await leseMannstunden(kontext, tag.id, sprache),
         positionen: await lesePositionen(kontext, tag.id),
         fotos: await leseTagesfotos(kontext, tag.id),
         abgleich: await gleicheMannstundenAb(kontext, tag.id),
@@ -183,6 +195,8 @@ export default async function MeinBautagebuch(
         {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
+
       {schicht.projektId === null ? (
         /*
          * Keine Baustelle, kein Bautagebuch. Das ist kein Fehler — eine
@@ -200,7 +214,7 @@ export default async function MeinBautagebuch(
               <div className="mb-s3 flex flex-wrap items-center gap-s3">
                 <StatusPill sprache={basis.sprache} zustand={BAUTAG_PILLE[tag.status] ?? 'Entwurf'} />
                 <span className="text-sm text-text-muted">
-                  {bautagStatus[tag.status as BautagStatusSchluessel] ?? tag.status}
+                  {bautagStatus[tag.status as BautagStatusSchluessel] ?? '—'}
                 </span>
               </div>
               <Felder>
@@ -427,7 +441,10 @@ export default async function MeinBautagebuch(
                     <Felder>
                       <Feld label={t.bezeichnung}>{q.bezeichnung}</Feld>
                       <Feld label={t.menge}>
-                        <span className="cse-zahl">{q.menge ?? '—'}</span>{' '}
+                        <span className="cse-zahl">
+                          {q.menge === null
+                            ? '—' : formatiereMengeIn(mengeAusPostgres(q.menge), basis.sprache)}
+                        </span>{' '}
                         {q.einheit ?? ''}
                       </Feld>
                       <Feld label={t.eintragstext}>{q.beschreibung ?? '—'}</Feld>
@@ -557,7 +574,7 @@ export default async function MeinBautagebuch(
                 Falschmeldung.
               */}
               <p className="m-0 mb-s3 max-w-prose text-base text-text">
-                {abgleichSatz[abgleich.befund] ?? abgleich.befund}
+                {abgleichSatz[abgleich.befund] ?? '—'}
               </p>
               <Felder>
                 <Feld label={t.mannstunden}>

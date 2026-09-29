@@ -102,6 +102,18 @@ select cron.schedule('cse_einsatz_abschluss', '15 * * * *', $cse$
   );
 $cse$);
 
+-- Berliner Feiertage in den Kalender schreiben (laufendes Jahr und zwei weitere) (plattform)
+select cron.unschedule('cse_feiertage_pflegen')
+  where exists (select 1 from cron.job where jobname = 'cse_feiertage_pflegen');
+select cron.schedule('cse_feiertage_pflegen', '50 1 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/feiertage_pflegen',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Abgelaufene Einspruchsfenster freigeben (APR-05) (uebergreifend)
 select cron.unschedule('cse_freigabe_fenster')
   where exists (select 1 from cron.job where jobname = 'cse_freigabe_fenster');
@@ -300,6 +312,18 @@ select cron.unschedule('cse_urlaubskonten_jahr')
 select cron.schedule('cse_urlaubskonten_jahr', '45 0 * * *', $cse$
   select net.http_post(
     url     := 'https://basis-einsetzen.invalid/api/jobs/urlaubskonten_jahr',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
+-- Wetter vom DWD an die offenen Bautage der letzten Tage heften (je_mandant)
+select cron.unschedule('cse_wetter_zuordnung')
+  where exists (select 1 from cron.job where jobname = 'cse_wetter_zuordnung');
+select cron.schedule('cse_wetter_zuordnung', '40 4 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/wetter_zuordnung',
     headers := jsonb_build_object('content-type', 'application/json',
                                   'x-job-token', current_setting('cse.job_token')),
     body    := '{}'::jsonb

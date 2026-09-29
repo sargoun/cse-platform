@@ -2,7 +2,8 @@ import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { autorisierungsAntwort } from '@/server/auth/antwort';
-import { datenbankGrund, zurMaske } from '@/app/api/mein/formular';
+import { grundAufsFormularweg, type FormularRueckweg } from '@/app/api/formular-antwort';
+import { datenbankGrund, datenbankStatus } from '@/app/api/mein/formular';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
@@ -38,15 +39,17 @@ import {
  * Personen-RLS, eine fremde id liefert null Zeilen —, dann `withTenant` mit
  * genau diesem Mandanten neu betreten.
  *
- * **Ein Formular bekommt eine Seite zurueck, kein JSON** (V-189, D-599). Die
- * beiden Formulare — der Einwand zu einem Eintrag und „Eine Zeit fehlt" ohne
- * Eintrag — schicken `maske` (ihr eigener Pfad) und `zurueck` (wohin nach
- * dem Absenden). Mit ihnen fuehrt eine Abweisung als Grund auf die Maske
- * zurueck und ein Erfolg mit `?gemeldet=1` auf die Seite, die die Meldung
- * zeigt. Vorher endete das Absenden auf einer weissen Seite mit
- * `{"einwand": "…"}`, und ein Ende vor dem Beginn (`ze_fenster`) als 500.
- * Ohne die beiden Felder antwortet die Route wie bisher mit JSON — fuer
- * einen JSON-Aufrufer ist das die richtige Antwort.
+ * **Ein Formular bekommt eine Seite zurueck, kein JSON** (V-189, V-198,
+ * D-599, D-692). Die beiden Formulare — der Einwand zu einem Eintrag und
+ * „Eine Zeit fehlt" ohne Eintrag — schicken `fehlerweg` (ihr eigener Pfad)
+ * und `zurueck` (wohin nach dem Absenden, mit `?gesendet=1`, das die Seite
+ * als Bestaetigung liest). Mit ihnen fuehrt eine Abweisung als Grund auf die
+ * Maske zurueck (`grundAufsFormularweg`, samt Tag, Uhrzeiten und Pause) und
+ * ein Erfolg auf die Seite, die die Meldung zeigt. Vorher endete das Absenden
+ * auf einer weissen Seite mit `{"einwand": "…"}`, und ein Ende vor dem
+ * Beginn (`ze_fenster`) als 500. Ohne die beiden Felder antwortet die Route
+ * wie bisher mit JSON — fuer einen JSON-Aufrufer ist das die richtige
+ * Antwort.
  */
 export const dynamic = 'force-dynamic';
 
@@ -94,37 +97,42 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const betrifftDatum = textOder(daten, 'datum');
   const begruendung = textOder(daten, 'begruendung');
   const pauseRoh = textOder(daten, 'pause');
-  const maskePfad = textOder(daten, 'maske');
-  const zurueck = textOder(daten, 'zurueck');
 
   /**
-   * Die Abweisung: auf die Maske, wenn ein Formular fragt, sonst JSON.
+   * Die Abweisung: auf die Maske, wenn ein Formular fragt, sonst JSON
+   * (`grundAufsFormularweg`: `fehlerweg` vor `zurueck`, ohne beide JSON).
    *
    * Was zurueckreist, sind Beschaeftigung, Tag, Uhrzeiten und Pause — die
    * Begruendung NICHT: sie ist Freitext ueber einen Lohnstreit, und eine
    * Adresse landet in Verlauf und Protokollen. Die Maske bittet darum, sie
    * noch einmal einzugeben.
    */
-  const abweisen = (grund: string, status = 400): NextResponse => (maskePfad === null
-    ? NextResponse.json({ fehler: grund }, { status })
-    : zurMaske(anfrage, maskePfad, grund, {
+  const rueckweg: FormularRueckweg = {
+    werte: {
       anstellung: anstellungId, datum: betrifftDatum,
       beginn: textOder(daten, 'beginn'), ende: textOder(daten, 'ende'), pause: pauseRoh,
       begruendung_neu: begruendung === null ? null : 'ja',
-    }));
+    },
+  };
 
-  if (anstellungId === null) return abweisen('keine_anstellung');
-  if (art === null || !ARTEN.includes(art as EinwandArt)) return abweisen('unbekannte_art');
-  if (betrifftDatum === null || !DATUM.test(betrifftDatum)) return abweisen('kein_datum');
+  if (anstellungId === null) {
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400, rueckweg);
+  }
+  if (art === null || !ARTEN.includes(art as EinwandArt)) {
+    return grundAufsFormularweg(anfrage, daten, 'unbekannte_art', 400, rueckweg);
+  }
+  if (betrifftDatum === null || !DATUM.test(betrifftDatum)) {
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400, rueckweg);
+  }
   if (begruendung === null) {
     // Ohne Begruendung ist es keine Meldung, sondern ein Klick — und die
     // Planung haette nichts, worueber sie entscheiden koennte.
-    return abweisen('keine_begruendung');
+    return grundAufsFormularweg(anfrage, daten, 'keine_begruendung', 400, rueckweg);
   }
 
   const pause = pauseRoh === null ? null : Number(pauseRoh);
   if (pause !== null && (!Number.isInteger(pause) || pause < 0)) {
-    return abweisen('pause_ungueltig');
+    return grundAufsFormularweg(anfrage, daten, 'pause_ungueltig', 400, rueckweg);
   }
   const behauptetBeginn = zeitpunktOder(daten, 'beginn');
   const behauptetEnde = zeitpunktOder(daten, 'ende');
@@ -132,7 +140,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   // Satz ankommt und nicht als `check_violation` durch die Route faellt.
   if (behauptetBeginn !== null && behauptetEnde !== null
       && behauptetEnde.getTime() <= behauptetBeginn.getTime()) {
-    return abweisen('fenster_verkehrt');
+    return grundAufsFormularweg(anfrage, daten, 'fenster_verkehrt', 400, rueckweg);
   }
 
   try {
@@ -161,25 +169,40 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         eingereichtVonBenutzerId: sitzung.benutzerId,
       }));
     });
-    if (zurueck === null) return NextResponse.json({ einwand: id }, { status: 201 });
-    const ziel = new URL(internesZiel(zurueck, '/portal/mein/zeiten', anfrage));
-    ziel.searchParams.set('gemeldet', '1');
-    return NextResponse.redirect(ziel, 303);
+    /*
+     * **Ein Browser bekommt eine Seite** (V-189, V-198, D-599). Hier stand auch
+     * im ERFOLGSfall `{"einwand":"<uuid>"}` mit 201 — der einzige Aufrufer ist
+     * ein gewöhnliches Formular, und der Mensch sah nach dem Absenden eine
+     * weisse Seite mit einer Kennung. Das Formular schickt `zurueck` — die
+     * Seite, die die Meldung zeigt, samt `?gesendet=1` für die Bestätigung;
+     * die Route folgt ihm, wie es ist (ohne eigenes Anhängsel). Ohne das Feld
+     * ist der Aufrufer ein Programm und bekommt weiter JSON.
+     */
+    const zurueck = daten.get('zurueck');
+    if (typeof zurueck === 'string' && zurueck !== '') {
+      return NextResponse.redirect(internesZiel(zurueck, '/portal/mein/zeiten', anfrage), 303);
+    }
+    return NextResponse.json({ einwand: id }, { status: 201 });
   } catch (fehler) {
-    // Eine fremde Beschaeftigung bietet kein Formular an (AUT-06).
     if (fehler instanceof KeineAnstellungFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
+      /* Eine fremde Beschäftigung ist für diese Anmeldung nicht vorhanden (AUT-06). */
+      return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404, rueckweg);
     }
     const auth = autorisierungsAntwort(fehler);
     if (auth !== null) return auth;
-    if (fehler instanceof EinwandOhneBezugFehler) return abweisen('kein_zeiteintrag');
+    if (fehler instanceof EinwandOhneBezugFehler) {
+      return grundAufsFormularweg(anfrage, daten, 'kein_zeiteintrag', 400, rueckweg);
+    }
     // Tag und behauptete Zeit gegen die Uhr der Datenbank (V-193, Invariante 5).
-    if (fehler instanceof EinwandZeitFehler) return abweisen(fehler.grund, 422);
+    if (fehler instanceof EinwandZeitFehler) {
+      return grundAufsFormularweg(anfrage, daten, fehler.grund, fehler.status, rueckweg);
+    }
     // Die zweite Linie: Pruefbedingung, Fremdschluessel (ein Eintrag einer
     // anderen Beschaeftigung), ein Tag, den es nicht gibt.
     const ausDatenbank = datenbankGrund(fehler);
     if (ausDatenbank !== null) {
-      return abweisen(ausDatenbank === 'ueberlappt' ? 'ungueltige_eingabe' : ausDatenbank);
+      const grund = ausDatenbank === 'ueberlappt' ? 'ungueltige_eingabe' : ausDatenbank;
+      return grundAufsFormularweg(anfrage, daten, grund, datenbankStatus(grund), rueckweg);
     }
     throw fehler;
   }

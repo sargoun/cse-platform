@@ -983,6 +983,20 @@ export const ROUTEN: readonly RouteEintrag[] = [
       + 'Schreibrecht machte aus dieser Route eine Kontouebernahme.',
   },
   {
+    pfad: 'api/geraetesprache',
+    recht: null,
+    grund:
+      'EMP-12, SEITENKARTE §12, V-200, D-694. Die Sprache der Flaechen OHNE Sitzung — '
+      + 'Stempeluhr (`/check-in/[token]`) und Anmeldung der Beschaeftigten. Vor der '
+      + 'Anmeldung gibt es niemanden, dessen Recht sich pruefen liesse, und die Stempeluhr '
+      + 'loest ihre Marke vor dem Antippen absichtlich nicht auf (AUT-06). Die Route setzt '
+      + 'nur einen Keks mit einem von vier Werten (de/en/ar/tr) und leitet zurueck; sie '
+      + 'liest und schreibt keine Zeile und gibt nichts heraus. Sie ist ein GET, weil die '
+      + 'Wahl als Verweisreihe auf der Stempelflaeche steht, die genau einen Knopf hat '
+      + '(DESIGN §8). Riegel: kein Keks, wenn `Sec-Fetch-Site` eine fremde Seite meldet, und '
+      + 'der Rueckweg bleibt im eigenen Ursprung (`internesZiel`).',
+  },
+  {
     /**
      * TIM-07 — die AUSGABE der Check-in-Marke, und ihr Widerruf.
      *
@@ -1193,6 +1207,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * SEC-01, SEC-04, SEC-08 (V-179) — einen verlangten Nachweis eines
+     * Postens, einer Veranstaltung, ihres Objekts oder der Gesellschaft
+     * eintragen oder archivieren. `security.schreiben`: dasselbe Recht, das
+     * die `WITH CHECK`-Hälfte von `einsatzanforderung.t_mandant` verlangt
+     * (0031). Ohne diese Adresse hatte das SEC-04-Tor nie eine Zeile.
+     */
+    pfad: 'api/sicherheit/anforderungen',
+    recht: 'security.schreiben',
+  },
+  {
+    /**
      * SEC-05, TIM-08, TIM-10 — eine Wachbuchseite schreiben oder
      * richtigstellen.
      *
@@ -1381,6 +1406,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * speichert trotzdem, und nichts wird erfunden.
      */
     pfad: 'api/bau/bautagebuch/[id]/wetter',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
+     * Den Gewerkekatalog pflegen — eintragen, ändern, archivieren (BAU-07,
+     * V-182). `bau.schreiben`: dasselbe Recht, das die `WITH CHECK`-Hälfte
+     * von `gewerk.t_mandant` verlangt (0082) und das eine Mannstundenzeile
+     * braucht. Ohne diese Adresse füllte nur der Seed den Katalog, und in
+     * jedem echten Bau-Mandanten blieb das Bautagebuch ohne Mannstunden.
+     */
+    pfad: 'api/bau/gewerke',
     recht: 'bau.schreiben',
   },
   {

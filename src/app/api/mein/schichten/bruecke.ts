@@ -10,6 +10,7 @@ import {
 import {
   KeineEigeneSchicht, schichtBezugOderFehler, type SchichtBezug,
 } from '@/server/services/mitarbeiter/schicht-zugang';
+import { grundAufsFormularweg } from '../../formular-antwort';
 
 /**
  * Die eine Bruecke, ueber die jeder Schreibweg der Schichtseiten faehrt
@@ -114,9 +115,23 @@ export async function aufDerSchicht<T>(
  * beides traegt, ist eine Aussage fuer den Menschen davor; alles andere ist ein
  * Programmfehler und gehoert in die Protokolle, nicht auf den Bildschirm.
  */
-export function dienstFehlerAntwort(fehler: unknown): NextResponse | null {
-  const f = fehler as { status?: unknown; code?: unknown; message?: unknown };
+export function dienstFehlerAntwort(
+  fehler: unknown,
+  /**
+   * Das Formular, aus dem der Aufruf kam (V-198, D-692). Mit ihm geht ein
+   * fachlicher Fehler als `?fehler=<grund>` zurück auf die Seite, statt als
+   * JSON auf einer weissen Seite zu enden — auf Arabisch wie auf Deutsch
+   * dieselbe Sackgasse. Der Grund ist `grund`, wo der Dienst einen trägt
+   * (`WachbuchEingabeFehlt`), sonst `code`; die Seite schlägt ihn nach.
+   */
+  formular?: { readonly anfrage: NextRequest; readonly daten: FormData },
+): NextResponse | null {
+  const f = fehler as { status?: unknown; code?: unknown; grund?: unknown; message?: unknown };
   if (typeof f.status === 'number' && typeof f.code === 'string') {
+    if (formular !== undefined) {
+      const grund = typeof f.grund === 'string' && f.grund !== '' ? f.grund : f.code;
+      return grundAufsFormularweg(formular.anfrage, formular.daten, grund, f.status);
+    }
     return NextResponse.json(
       { fehler: f.code, meldung: typeof f.message === 'string' ? f.message : '' },
       { status: f.status },

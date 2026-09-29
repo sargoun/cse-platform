@@ -8,6 +8,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
+import { tagDeutsch } from '../../src/lib/datum/kalendertag.js';
 import postgres from 'postgres';
 
 const DSN = process.env['DATABASE_URL']
@@ -111,7 +112,9 @@ test.describe('Abwesenheiten — die Liste der Planung', () => {
     await page.goto(`/portal/reinigung/personal/abwesenheiten?woche=${VON}`);
 
     const tabelle = page.locator('[data-cse="tabelle"]');
-    await expect(tabelle).toContainText(VON);
+    // Der Tag steht in der Hausschreibweise TT.MM.JJJJ (V-197, D-690) — die
+    // Adresse (`?woche=`) behält den ISO-Tag.
+    await expect(tabelle).toContainText(tagDeutsch(VON));
 
     /**
      * Der Kern des Tests: das Wort „Krankheit" steht auf diesem Bildschirm

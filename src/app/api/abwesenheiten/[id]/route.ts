@@ -9,7 +9,7 @@ import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
   from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { liesRumpf } from '../../rumpf';
-import { fehlerAufsFormular } from '../../formular-antwort';
+import { grundAufsFormular } from '../../formular-antwort';
 import {
   genehmigeAbwesenheit, lehneAbwesenheitAb, storniereAbwesenheit,
 } from '@/server/services/abwesenheit/index';
@@ -91,13 +91,20 @@ export async function POST(
     if (typeof status === 'number' && typeof code === 'string') {
       const meldung = (fehler as Error).message;
       /*
-       * **Ein fachlicher Fehler geht auf die Seite zurueck, die ihn ausloeste.**
-       * `GrundFehlt` ist eine Auskunft und kein Serverfehler; das Formular hat
-       * kein JavaScript, und ein `{"fehler":"…"}` auf weissem Grund hat den
-       * Menschen verloren. Die Seiten lesen `?meldung=` und sagen den Satz.
+       * **Ein fachlicher Fehler geht auf die Seite zurueck, die ihn ausloeste**
+       * — als GRUND, nicht als Satz (D-753). `GrundFehlt` ist eine Auskunft
+       * und kein Serverfehler; das Formular hat kein JavaScript, und ein
+       * `{"fehler":"…"}` auf weissem Grund hat den Menschen verloren. Der Satz
+       * des Dienstes reiste bis hierhin als `?meldung=` mit und stand roh auf
+       * der Liste — nach einer schon getroffenen Entscheidung „Abwesenheit
+       * <uuid> gibt es in dieser Gesellschaft nicht.". Jetzt reist der Grund
+       * der Fehlerklasse (sonst ihr `code`), und die Seite schlägt ihn in
+       * `ENTSCHEIDUNG_FEHLER_TEXTE` nach.
        */
-      const aufsFormular = fehlerAufsFormular(anfrage, {
-        json: rumpf.json, zurueck: rumpf.felder['zurueck'], meldung,
+      const grund = (fehler as { grund?: unknown }).grund;
+      const aufsFormular = grundAufsFormular(anfrage, {
+        json: rumpf.json, zurueck: rumpf.felder['zurueck'],
+        grund: typeof grund === 'string' ? grund : code,
       });
       if (aufsFormular !== null) return aufsFormular;
       return NextResponse.json({ fehler: code, meldung }, { status });

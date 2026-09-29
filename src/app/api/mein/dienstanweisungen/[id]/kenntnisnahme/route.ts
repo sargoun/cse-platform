@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -77,7 +78,7 @@ export async function POST(
   const daten = await anfrage.formData();
   const versionId = uuidOder(daten, 'fassung');
   if (versionId === null) {
-    return NextResponse.json({ fehler: 'keine_fassung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_fassung', 400);
   }
   const spracheRoh = daten.get('sprache');
   const sprache = istDaSprache(spracheRoh) ? spracheRoh : null;
@@ -102,7 +103,7 @@ export async function POST(
         throw Object.assign(new Error(
           'Es gibt inzwischen eine neuere Fassung. Bitte laden Sie die Seite neu '
           + 'und bestätigen Sie den Text, der jetzt gilt.',
-        ), { code: 'ungueltiger_zustand', status: 409 });
+        ), { code: 'ungueltiger_zustand', grund: 'neue_fassung', status: 409 });
       }
 
       const imMandanten: Sitzung = {
@@ -130,8 +131,15 @@ export async function POST(
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     if (typeof status === 'number' && typeof code === 'string') {
-      return NextResponse.json(
-        { fehler: code, meldung: (fehler as Error).message }, { status });
+      /*
+       * „Es gibt inzwischen eine neuere Fassung" ist der häufige Fall: der
+       * Text wurde neu gefasst, während die Seite offen war. Er geht zurück
+       * auf das Blatt der Anweisung, in der Sprache der Person (V-198) —
+       * hier stand JSON mit dem deutschen Satz.
+       */
+      const grund = (fehler as { grund?: unknown }).grund;
+      return grundAufsFormularweg(
+        anfrage, daten, typeof grund === 'string' ? grund : code, status);
     }
     throw fehler;
   }

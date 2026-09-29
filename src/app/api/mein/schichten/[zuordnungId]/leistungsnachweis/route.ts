@@ -1,8 +1,9 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest, NextResponse } from 'next/server';
 import {
   erstelleEntwurf, legeVor, type PositionEingabe,
 } from '@/server/services/reinigung/leistungsnachweis';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/leistungsnachweis` — die Kraft legt
@@ -83,7 +84,7 @@ export async function POST(
     if (bezeichnung === null) continue;
     const mengeRoh = textOder(daten, `menge_${String(i)}`) ?? '1';
     if (!MENGE.test(mengeRoh)) {
-      return NextResponse.json({ fehler: 'menge_ungueltig' }, { status: 400 });
+      return grundAufsFormularweg(anfrage, daten, 'menge_ungueltig', 400);
     }
     positionen.push({
       bezeichnung,
@@ -101,7 +102,7 @@ export async function POST(
   if (positionen.length === 0) {
     // Ein Nachweis ohne Position ist ein leeres Blatt — und genau das soll
     // niemand unterschreiben.
-    return NextResponse.json({ fehler: 'keine_position' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_position', 400);
   }
 
   try {
@@ -125,10 +126,10 @@ export async function POST(
     });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_objekt' }, { status: 422 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_objekt', 422);
     }
   } catch (fehler: unknown) {
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

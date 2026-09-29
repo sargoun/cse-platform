@@ -22,6 +22,7 @@ import { BELEGE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/belege';
 import { AUSGABE_ERFASSEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/ausgabe-erfassen';
 import { Button } from '@/components/ui/Button';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/finanzen/ausgaben/[id]` — eine Ausgabe im Detail
@@ -89,9 +90,21 @@ const INDEX_QUELLE_AUSGABE_UK = 'quelle_ausgabe_uk';
 const AUSLOESER_AUSGABE_UEBERGANG = 'fin.ausgabe_uebergang';
 
 export default async function Ausgabenblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  /*
+   * **Der Rückweg der drei Formulare dieses Blatts** (V-197). Freigeben,
+   * Ablehnen und Buchen schicken `fehlerweg` hierher, und die Route hängt
+   * den Grund als `?fehler=` an (`kein_beleg`, `kein_uebergang`,
+   * `grund_fehlt` …). Das Blatt nahm keine Suchparameter an: „Freigeben" ohne
+   * Beleg endete auf derselben Seite, nichts war geschehen, und kein Satz
+   * sagte, warum.
+   */
+  const fehler = (await searchParams)['fehler'];
   kennungOder404(id);
   const pfad = `/portal/${mandant}/finanzen/ausgaben/${id}`;
   const tor = await mandantTor(pfad, mandant);
@@ -169,6 +182,12 @@ export default async function Ausgabenblatt(
        */
       zurueck={{ ziel: `/portal/${mandant}/finanzen/ausgaben`, text: t.ausgabenTitel }}
     >
+      {typeof fehler === 'string' && (
+        <Hinweis art="warnung" cse="ausgabe-fehler" rolle="alert" className="mb-s5 max-w-prose">
+          {eigenerEintrag(e.fehler, fehler) ?? e.fehlerAllgemein}
+        </Hinweis>
+      )}
+
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">{a.bezeichnung}</h1>
         <span className="inline-flex flex-wrap items-center gap-s2">

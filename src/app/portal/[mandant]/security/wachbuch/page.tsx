@@ -14,6 +14,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import {
   ART_TEXT, WACHBUCH_ARTEN, istWachbuchArt, leseBuch, type EintragZeile,
 } from '@/server/services/security/wachbuch';
+import { listeWachbuchMedien } from '@/server/services/mitarbeiter/medien';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
 
 /**
  * `/portal/[mandant]/security/wachbuch` — das Buch über alle Objekte
@@ -64,20 +67,27 @@ export default async function Wachbuch(
   const artRoh = einzeln('art');
   const artFilter = istWachbuchArt(artRoh) ? artRoh : null;
 
-  const { eintraege, objekte } = await (db().begin(
+  const { eintraege, objekte, fotos } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-      withTenant(tx, sitzung, async (kontext) => ({
-        eintraege: await leseBuch(kontext, {
+      withTenant(tx, sitzung, async (kontext) => {
+        const buch = await leseBuch(kontext, {
           objektId: objektFilter, art: artFilter,
           von: einzeln('von'), bis: einzeln('bis'),
-        }),
-        objekte: await kontext.abfrage<Objektzeile>(
-          `select id, bezeichnung from objekt
-            where archiviert_am is null order by bezeichnung`,
-        ),
-      }))) as Promise<{
+        });
+        return {
+          eintraege: buch,
+          objekte: await kontext.abfrage<Objektzeile>(
+            `select id, bezeichnung from objekt
+              where archiviert_am is null order by bezeichnung`,
+          ),
+          /* V-181: wie viele Fotos an jeder Seite hängen — geöffnet werden sie am Blatt. */
+          fotos: await listeWachbuchMedien(kontext, buch.map((e) => e.id)),
+        };
+      })) as Promise<{
         eintraege: readonly EintragZeile[]; objekte: readonly Objektzeile[];
+        fotos: ReadonlyMap<string, readonly unknown[]>;
       }>);
+  const tW = nachSprache(WACHBUCH_TEXTE, zugang.sprache);
 
   /**
    * Die Filterpille als LINK, nicht als Knopf.
@@ -182,6 +192,12 @@ export default async function Wachbuch(
                 {' · '}
                 {e.urheber ?? '—'}
                 {e.nachgetragen && ' · nachgetragen'}
+                {(fotos.get(e.id)?.length ?? 0) > 0 && (
+                  <span data-cse="wachbuch-fotoanzahl">
+                    {' · '}
+                    {tW.fotoAnzahl(fotos.get(e.id)?.length ?? 0)}
+                  </span>
+                )}
                 {e.storniert && (
                   <span className="ml-s2 text-danger">Storniert: {e.stornoGrund}</span>
                 )}

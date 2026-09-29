@@ -2,6 +2,9 @@ import Link from 'next/link';
 import type postgres from 'postgres';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
+import { STATUS_TEXT as BEWACHER_STATUS_TEXT } from '@/server/services/security/bewacherregister';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
@@ -190,8 +193,8 @@ export default async function Personenblatt(
               kopf: 'Zeitraum',
               zelle: (a) => (
                 <span className="tabular-nums">
-                  {a.eintritt}
-                  {a.austritt !== null && ` – ${a.austritt}`}
+                  {tagDeutsch(a.eintritt)}
+                  {a.austritt !== null && ` – ${tagDeutsch(a.austritt)}`}
                 </span>
               ),
             },
@@ -263,15 +266,15 @@ export default async function Personenblatt(
               kopf: 'Gültig',
               zelle: (n) => (
                 <span className="tabular-nums">
-                  {n.gueltigAb}
+                  {tagDeutsch(n.gueltigAb)}
                   {' – '}
-                  {n.gueltigBis ?? 'unbefristet'}
+                  {n.gueltigBis === null ? 'unbefristet' : tagDeutsch(n.gueltigBis)}
                 </span>
               ),
             },
             {
               schluessel: 'heute',
-              kopf: `Deckt ${heute}`,
+              kopf: `Deckt ${tagDeutsch(heute)}`,
               zelle: (n) => (n.gueltigAmStichtag
                 ? <span className="text-success">Ja</span>
                 : (
@@ -288,7 +291,7 @@ export default async function Personenblatt(
       <h2 className="mb-s3 mt-s6 text-h3 text-text">Bewacherregister</h2>
       <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
         {lage.bewacher.vorhanden
-          ? `Bewacher-ID ${lage.bewacher.bewacherId ?? '—'} · Status ${lage.bewacher.status ?? '—'} · gültig bis ${lage.bewacher.gueltigBis ?? 'unbefristet'}.`
+          ? `Bewacher-ID ${lage.bewacher.bewacherId ?? '—'} · Status ${eigenerEintrag(BEWACHER_STATUS_TEXT, lage.bewacher.status) ?? '—'} · gültig bis ${lage.bewacher.gueltigBis === null ? 'unbefristet' : tagDeutsch(lage.bewacher.gueltigBis)}.`
           : 'Kein Eintrag erfasst.'}
         {' '}
         <strong className="text-text">Nicht verbunden</strong> — es gibt keine

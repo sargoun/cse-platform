@@ -44,6 +44,19 @@ export interface SchichtKontrollpunkt {
 
 export const SCHICHT_KONTROLLPUNKT_FELDER = ['id', 'bezeichnung'] as const;
 
+/**
+ * Ein Schluessel dieses Objekts (V-180, SEC-05 „key", SEC-07) — Kennung und
+ * Bezeichnung, nicht der Halter: wer den Schluessel gerade hat, ist eine
+ * Auskunft ueber eine benannte Person (EMP-13) und gehoert nicht in das
+ * Formular der Wache.
+ */
+export interface SchichtSchluessel {
+  readonly id: string;
+  readonly bezeichnung: string;
+}
+
+export const SCHICHT_SCHLUESSEL_FELDER = ['id', 'bezeichnung'] as const;
+
 export interface Schichtbuch {
   /** Was diese Anmeldung an diesem Objekt sehen darf, neueste zuerst. */
   readonly eintraege: readonly EintragZeile[];
@@ -58,6 +71,13 @@ export interface Schichtbuch {
    * Kontrollpunkt ohnehin ab.
    */
   readonly kontrollpunkte: readonly SchichtKontrollpunkt[];
+  /**
+   * Die Schluessel DIESES Objekts, fuer die Seite der Art `schluessel`
+   * (V-180). `schluessel.t_person` (0079) grenzt im Personen-Scope auf
+   * Objekte ein, auf denen dieser Mensch eingesetzt ist — dieselbe Quelle wie
+   * die Kontrollpunkte darueber.
+   */
+  readonly schluessel: readonly SchichtSchluessel[];
   /**
    * Das Uebergabefenster dieser Gesellschaft als Text (`12:00:00`) — oder
    * `null`, wenn es gar nicht eingestellt ist.
@@ -94,6 +114,17 @@ export async function leseSchichtbuch(
     [bezug.objektId],
   );
 
+  const schluessel = await kontext.abfrage<SchichtSchluessel>(
+    `select s.id,
+            s.bezeichnung || coalesce(' · ' || s.schluessel_nummer, '') as bezeichnung
+       from schluessel s
+      where s.objekt_id = $1::uuid
+        and s.archiviert_am is null
+        and s.status <> 'vernichtet'
+      order by s.bezeichnung`,
+    [bezug.objektId],
+  );
+
   const [fenster] = await kontext.abfrage<{ wert: string | null; gesetzt: boolean }>(
     `select app.uebergabe_fenster($1::uuid)::text as wert,
             (app.einstellung($1::uuid, 'wachbuch.uebergabe_fenster') is not null) as gesetzt`,
@@ -102,7 +133,7 @@ export async function leseSchichtbuch(
 
   const wert = fenster?.gesetzt === true ? fenster.wert : null;
   return {
-    eintraege, kontrollpunkte,
+    eintraege, kontrollpunkte, schluessel,
     uebergabeFenster: wert, uebergabeOffen: istFensterOffen(wert),
   };
 }

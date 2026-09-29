@@ -5,6 +5,8 @@ import {
   type EigeneAbwesenheit, type EigenerAntrag,
 } from '@/server/services/mitarbeiter/antraege';
 import { artInSprache } from '@/server/services/abwesenheit/antrag';
+import { tageAusPostgres } from '@/server/services/finanz/menge';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../rahmen';
 import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
@@ -122,10 +124,14 @@ export default async function MeineAntraege() {
                       {artInSprache(a.antrag, basis.sprache)}
                     </Feld>
                     <Feld label={t.von}>
-                      <span className="cse-zahl">{a.antrag.vonDatum ?? '—'}</span>
+                      <span className="cse-zahl">
+                        {a.antrag.vonDatum === null ? '—' : tagInSprache(a.antrag.vonDatum, basis.sprache)}
+                      </span>
                     </Feld>
                     <Feld label={t.bis}>
-                      <span className="cse-zahl">{a.antrag.bisDatum ?? '—'}</span>
+                      <span className="cse-zahl">
+                        {a.antrag.bisDatum === null ? '—' : tagInSprache(a.antrag.bisDatum, basis.sprache)}
+                      </span>
                     </Feld>
                     {a.antrag.entscheidungKommentar !== null && (
                       <Feld label={t.nachricht}>{a.antrag.entscheidungKommentar}</Feld>
@@ -167,13 +173,15 @@ export default async function MeineAntraege() {
                   </div>
                   <Felder>
                     <Feld label={t.von}>
-                      <span className="cse-zahl">{a.abwesenheit.von}</span>
+                      <span className="cse-zahl">{tagInSprache(a.abwesenheit.von, basis.sprache)}</span>
                     </Feld>
                     <Feld label={t.bis}>
-                      <span className="cse-zahl">{a.abwesenheit.bis}</span>
+                      <span className="cse-zahl">{tagInSprache(a.abwesenheit.bis, basis.sprache)}</span>
                     </Feld>
                     <Feld label={t.tage}>
-                      <span className="cse-zahl">{a.abwesenheit.tageAngerechnet ?? '—'}</span>
+                      <span className="cse-zahl">
+                        {tageAusPostgres(a.abwesenheit.tageAngerechnet, basis.sprache)}
+                      </span>
                     </Feld>
                   </Felder>
                 </Link>

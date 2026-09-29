@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
 import {
   BESTAETIGUNGSTEXT, bereiteUnterschriftVor, type Unterschriftsvorschau,
 } from '@/server/services/reinigung/leistungsnachweis';
@@ -13,6 +14,7 @@ import {
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { FormularFehler } from '../../../FormularAntwort';
 
 /**
  * `/portal/mein/schichten/[zuordnungId]/leistungsnachweis` — der Nachweis auf
@@ -84,6 +86,8 @@ export default async function MeinLeistungsnachweis(
 ) {
   const { zuordnungId } = await params;
   const suche = await searchParams;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = suche['fehler'];
   /*
    * Die Wahl kommt aus der Adresse und wird gegen die OFFENE LISTE geprüft,
    * nie geglaubt: eine fremde Kennung ergibt keine Vorschau, kein 403 und
@@ -196,6 +200,8 @@ export default async function MeinLeistungsnachweis(
       <p className="mb-s5 text-base text-text-muted">
         {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
+
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
 
       {schicht.objektId === null ? <Leer text={t.keineEintraege} /> : (
         <>
@@ -410,7 +416,16 @@ export default async function MeinLeistungsnachweis(
                     {vorschau.positionen.map((p) => (
                       <tr key={p.reihenfolge} className="border-b border-line">
                         <td className="py-s2 pe-s3">{p.bezeichnung}</td>
-                        <td className="cse-zahl py-s2 pe-s3">{p.menge}</td>
+                        {/*
+                          Die Menge in der deutschen Form (V-194), in JEDER
+                          Sprache der Oberfläche: die Tabelle gehört zu dem,
+                          was der Kunde unter dem deutschen Bestätigungstext
+                          unterschreibt. Roh stand hier „12.500" — deutsch
+                          gelesen zwölftausendfünfhundert.
+                        */}
+                        <td className="cse-zahl py-s2 pe-s3">
+                          {formatiereMenge(mengeAusPostgres(p.menge))}
+                        </td>
                         <td className="py-s2">{p.einheit}</td>
                       </tr>
                     ))}
@@ -445,6 +460,15 @@ export default async function MeinLeistungsnachweis(
                   type="hidden"
                   name="zurueck"
                   value={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis`}
+                />
+                {/*
+                  Eine abgewiesene Unterschrift (Name fehlt, Blatt geändert)
+                  kommt auf DIESES Blatt zurück, nicht auf die Liste (V-198).
+                */}
+                <input
+                  type="hidden"
+                  name="fehlerweg"
+                  value={`/portal/mein/schichten/${zuordnungId}/leistungsnachweis?nachweis=${vorschau.kopf.id}`}
                 />
                 {/*
                   Die Pruefsumme reist MIT und wird beim Unterschreiben gegen

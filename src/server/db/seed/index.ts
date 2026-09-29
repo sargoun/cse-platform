@@ -16,14 +16,14 @@
 import postgres from 'postgres';
 import { DATENSCHUTZ_VERSION, FORMULARE } from './formulare.js';
 import { seedOperations } from './operations.js';
-import { seedDienstplan } from './dienstplan.js';
+import { seedDienstplan, seedFeiertage } from './dienstplan.js';
 import { seedQualifikationen } from './qualifikation.js';
 import { seedAuftrag } from './auftrag.js';
 import { seedZeit } from './zeit.js';
 import { seedKonten } from './konto.js';
 import { normalisiereTelefon } from '../../../lib/telefon.js';
-import { seedBewacherUndEvents, seedSecurity } from './security.js';
-import { seedWachbuch } from './wachbuch.js';
+import { seedAnforderung, seedBewacherUndEvents, seedSecurity } from './security.js';
+import { seedSchluesselImWachbuch, seedWachbuch, seedWachbuchFoto } from './wachbuch.js';
 import { seedReinigung, seedSonderUndQualitaet } from './reinigung.js';
 import { seedVertrieb } from './vertrieb.js';
 import { seedBau } from './bau.js';
@@ -1640,6 +1640,21 @@ async function main(): Promise<void> {
   );
 
   /**
+   * Der Feiertagskalender VOR jedem Generatorlauf (V-178): der Generator
+   * liest die Feiertage ausschliesslich aus `feiertag`. Kaeme er danach,
+   * planten Reinigung und Security ihre acht Wochen ohne einen einzigen
+   * Feiertag — genau der Befund, der hier behoben ist.
+   */
+  const kalender = await seedFeiertage(sql);
+  process.stdout.write(
+    `  Feiertagskalender BE ${kalender.jahre.join(', ')}: ${String(kalender.eingetragen)} `
+    + `eingetragen, ${String(kalender.unveraendert)} schon vorhanden`
+    + (kalender.abweichungen.length === 0
+      ? '' : `, ${String(kalender.abweichungen.length)} ABWEICHEND (nicht ueberschrieben)`)
+    + '\n',
+  );
+
+  /**
    * Der Dienstplan kommt NACH den Objekten und laesst den echten Generator
    * laufen. Er braucht das Raumbuch nicht, wohl aber ein Objekt mit Kunden —
    * die Reihenfolge ist deshalb eine Abhaengigkeit, keine Vorliebe.
@@ -1712,6 +1727,31 @@ async function main(): Promise<void> {
   );
 
   /**
+   * V-180: der Schluesselbund, von dem die Uebergabeseite spricht — einmal
+   * ausgegeben und zurueckgenommen, beide Quittungen zugleich als Seite
+   * `schluessel` im Wachbuch (und die Quittung zeigt auf ihre Seite).
+   */
+  const bund = await seedSchluesselImWachbuch(sql, ids.get('security')!, sec.objektId);
+  process.stdout.write(
+    `  ${String(bund.schluessel)} Schlüssel, ${String(bund.quittungen)} Quittungen `
+    + 'zugleich im Wachbuch (Art „Schlüssel", SEC-05/SEC-07)\n',
+  );
+
+  /**
+   * V-181: eine Seite MIT Foto — nur mit verbundenem Speicher. Ohne ihn
+   * keine Seite: ein Foto kommt mit der Seite, nie danach (0467).
+   */
+  const buchFoto = await seedWachbuchFoto(
+    sql, ids.get('security')!, sec.postenId, sec.objektId, verbundenerSpeicher);
+  process.stdout.write(
+    buchFoto.grund === 'nicht_verbunden'
+      ? '  · Wachbuchfoto: KEINES — Medienspeicher nicht verbunden (SUPABASE_URL / '
+        + 'SUPABASE_SERVICE_ROLE_KEY oder Vorführordner)\n'
+      : `  ${String(buchFoto.seiten)} Wachbuchseite mit ${String(buchFoto.fotos)} Foto `
+        + '(Platzhalterbild, als DEMODATEN beschriftet)\n',
+  );
+
+  /**
    * Und daneben das Bewacherregister und die Eventdienste — NACH `seedSecurity`,
    * weil beide an derselben Belegschaft und demselben Objekt haengen.
    *
@@ -1727,6 +1767,16 @@ async function main(): Promise<void> {
     + `kein Registerabgleich: nicht verbunden, O-40), `
     + `${String(reg.veranstaltungen)} Veranstaltungen `
     + `(Herkunft eines Eventauftrags offen: O-703)\n`,
+  );
+
+  /**
+   * V-179: ein verlangter Nachweis am Demoposten — NACH der Einteilung, damit
+   * der Ausloeser aus 0465 zeigt, was er tut (kuenftige Schichten neu
+   * bewertet). Eine Warnung, unbestaetigt: welche Sperre gilt, sagt O-342.
+   */
+  const anforderung = await seedAnforderung(sql, ids, sec.postenId);
+  process.stdout.write(
+    `  ${String(anforderung)} verlangter Nachweis am Posten (Warnung, unbestätigt: O-342)\n`,
   );
 
   /**

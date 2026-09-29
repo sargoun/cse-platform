@@ -18,7 +18,9 @@ const KLASSE: Record<HinweisArt, string> = {
   erfolg: 'border-success bg-success-soft text-success',
 };
 
-export function Hinweis({ art = 'hinweis', cse, rolle, children, className = '' }: {
+export function Hinweis({
+  art = 'hinweis', cse, rolle, groesse = 'sm', children, className = '',
+}: {
   readonly art?: HinweisArt;
   /** Der `data-cse`-Anker fuer die Browsersuite. */
   readonly cse: string;
@@ -30,12 +32,19 @@ export function Hinweis({ art = 'hinweis', cse, rolle, children, className = '' 
    * `role="alert"` ersetzt, fuer einen Screenreader stumm (V-217).
    */
   readonly rolle?: 'alert' | 'status';
+  /**
+   * `sm` nach DESIGN §5 „Notices"; `base` in den Bildschirmen der
+   * Beschäftigten, wo Fliesstext nie kleiner als 16 px ist (§8, D-738). Eine
+   * Klasse `text-base` über `className` stritte mit `text-sm` um dieselbe
+   * Eigenschaft — gewinnen würde die Reihenfolge im erzeugten CSS (V-198).
+   */
+  readonly groesse?: 'sm' | 'base';
   readonly children: ReactNode;
   readonly className?: string;
 }) {
   return (
     <section data-cse={cse} data-art={art} role={rolle}
-             className={`rounded-lg border p-s5 text-sm ${KLASSE[art]} ${className}`}>
+             className={`rounded-lg border p-s5 ${groesse === 'base' ? 'text-base' : 'text-sm'} ${KLASSE[art]} ${className}`}>
       {children}
     </section>
   );

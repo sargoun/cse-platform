@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { stundenMinutenText } from '@/lib/datum/stunden';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   findeEigenenZeiteintrag, type EigenerZeiteintrag,
 } from '@/server/services/mitarbeiter/zeiten';
@@ -66,7 +67,8 @@ export default async function MeinZeiteintrag(
 
       <div className="mb-s5 flex flex-wrap items-center gap-s3">
         <h1 className="m-0 text-h1 text-text">
-          <span className="cse-zahl">{z.tag}</span>
+          {/* Der Tag in derselben Schreibweise wie Beginn und Ende darunter (V-199). */}
+          <span className="cse-zahl">{tagInSprache(z.tag, basis.sprache)}</span>
         </h1>
         <StatusPill sprache={basis.sprache}
           zustand={

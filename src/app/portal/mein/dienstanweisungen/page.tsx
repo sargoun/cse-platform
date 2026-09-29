@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   listeEigeneDienstanweisungen, type EigeneDienstanweisung,
 } from '@/server/services/mitarbeiter/dienstanweisungen';
@@ -77,7 +78,8 @@ export default async function MeineDienstanweisungen() {
                   {' · '}
                   {t.fassung} <span className="cse-zahl">{d.version}</span>
                   {' · '}
-                  {t.giltAb} <span className="cse-zahl">{d.gueltigAb}</span>
+                  {t.giltAb}{' '}
+                  <span className="cse-zahl">{tagInSprache(d.gueltigAb, basis.sprache)}</span>
                 </p>
                 {d.naechsteSchichtLokal !== null && (
                   <p className="m-0 mt-s1 text-sm text-text-muted" data-cse="naechste-schicht">

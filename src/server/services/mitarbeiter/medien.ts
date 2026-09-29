@@ -67,26 +67,58 @@ interface RohMedium {
 export async function listeSchichtMedien(
   kontext: LeseKontext, einsatzId: string,
 ): Promise<readonly SchichtMedium[]> {
-  const zeilen = await kontext.abfrage<RohMedium>(
-    `select e.id, e.art::text as art, e.mime_typ, e.beschreibung,
+  return (await listeMedienZu(kontext, 'einsatz', [einsatzId])).get(einsatzId) ?? [];
+}
+
+/**
+ * Die Fotos an Wachbuchseiten (SEC-05, V-181) — je Seite, fuer eine ganze
+ * Liste in EINER Abfrage.
+ *
+ * Wer was sieht, sagt die Sitzung: die Leitstelle mit `wachbuch.lesen` alle
+ * Fotos der Seiten dieser Gesellschaft (`t_wachbuch_medien_lesen`, 0467), die
+ * Wache im eigenen Portal ihre eigenen Aufnahmen (`t_person`, 0041). Eine
+ * Seite ohne sichtbares Foto fehlt in der Karte — und die Seite sagt dann
+ * nichts ueber Fotos, statt „keine" zu behaupten.
+ */
+export async function listeWachbuchMedien(
+  kontext: LeseKontext, eintragIds: readonly string[],
+): Promise<ReadonlyMap<string, readonly SchichtMedium[]>> {
+  return listeMedienZu(kontext, 'wachbuch_eintrag', eintragIds);
+}
+
+/** Beide Lesewege, eine Abfrage — der Bezug ist eine Registerzeile (0041). */
+async function listeMedienZu(
+  kontext: LeseKontext,
+  bezugTabelle: 'einsatz' | 'wachbuch_eintrag',
+  bezugIds: readonly string[],
+): Promise<ReadonlyMap<string, readonly SchichtMedium[]>> {
+  const karte = new Map<string, SchichtMedium[]>();
+  if (bezugIds.length === 0) return karte;
+  const zeilen = await kontext.abfrage<RohMedium & { readonly bezug_id: string }>(
+    `select e.id, e.bezug_id, e.art::text as art, e.mime_typ, e.beschreibung,
             to_char(e.erstellt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
               as erfasst_lokal,
             to_char(e.aufgenommen_am_geraet at time zone 'Europe/Berlin',
                     'DD.MM.YYYY HH24:MI') as geraete_lokal,
             (e.storage_geloescht_am is not null) as entfernt
        from einsatz_medien e
-      where e.bezug_tabelle = 'einsatz' and e.bezug_id = $1::uuid
+      where e.bezug_tabelle = $1 and e.bezug_id = any($2::uuid[])
         and e.archiviert_am is null
-      order by e.erstellt_am desc`,
-    [einsatzId],
+      order by e.erstellt_am desc, e.id`,
+    [bezugTabelle, bezugIds],
   );
-  return zeilen.map((z) => ({
-    id: z.id,
-    art: z.art,
-    mimeTyp: z.mime_typ,
-    beschreibung: z.beschreibung,
-    erfasstLokal: z.erfasst_lokal,
-    geraeteZeitLokal: z.geraete_lokal,
-    entfernt: z.entfernt,
-  }));
+  for (const z of zeilen) {
+    const liste = karte.get(z.bezug_id) ?? [];
+    liste.push({
+      id: z.id,
+      art: z.art,
+      mimeTyp: z.mime_typ,
+      beschreibung: z.beschreibung,
+      erfasstLokal: z.erfasst_lokal,
+      geraeteZeitLokal: z.geraete_lokal,
+      entfernt: z.entfernt,
+    });
+    karte.set(z.bezug_id, liste);
+  }
+  return karte;
 }

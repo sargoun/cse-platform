@@ -24,6 +24,8 @@ import {
 } from '@/server/services/reinigung/turnus';
 import type { VorschauTermin } from '@/server/services/reinigung/turnusvorschau';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { FEIERTAG_TEXTE } from '@/lib/i18n/verwaltung/feiertage';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/[id]` — eine Regel und was aus ihr
@@ -132,7 +134,11 @@ export default async function TurnusBlattSeite(
       readonly geprueft?: Readonly<Record<string, boolean>>;
       readonly kaputt?: string | null;
       readonly ausnahmen?: readonly AusnahmeZeile[];
-      readonly vorschau?: { readonly termine: readonly VorschauTermin[]; readonly bundesland: string } | null;
+      readonly vorschau?: {
+        readonly termine: readonly VorschauTermin[];
+        readonly bundesland: string;
+        readonly feiertageFehlen: readonly number[];
+      } | null;
       readonly einsaetze?: readonly TurnusEinsatzZeile[] | null;
     }>);
 
@@ -148,6 +154,7 @@ export default async function TurnusBlattSeite(
     (v) => v.dauerInstant !== null && v.dauerInstant !== v.dauerNominal).length;
 
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';
+  const tF = nachSprache(FEIERTAG_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -298,6 +305,15 @@ export default async function TurnusBlattSeite(
           in den zwei Umstellungsnächten weichen die beiden voneinander ab, und
           das ist der ganze Zweck dieser Spalte.
         </p>
+
+        {(daten.vorschau?.feiertageFehlen.length ?? 0) > 0 && (
+          <Hinweis art="warnung" cse="turnus-feiertagskalender-fehlt"
+                   className="mb-s4 max-w-prose">
+            <strong>{tF.kalenderFehltTitel}.</strong>{' '}
+            {tF.kalenderFehlt(daten.vorschau?.bundesland ?? 'BE',
+              daten.vorschau?.feiertageFehlen ?? [])}
+          </Hinweis>
+        )}
 
         {(anomalien > 0 || abweichendeDauer > 0) && (
           <Hinweis art="warnung" cse="turnus-dst" className="mb-s4 max-w-prose">

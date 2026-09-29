@@ -592,6 +592,16 @@ survive a middle-click and a copied link; and the current one carries
 reader **is**, not what they have switched on. Colour alone never marks it
 (§9) — `aria-current` is the second signal.
 
+**The device-language row of the worker surfaces without a session** — the
+check-in screen and the worker sign-in (SEITENKARTE §12) — is such a row:
+four `<a>` in the pill rail, each at least `44×44px` and in `base` type (§8),
+each language named in itself („العربية", not „Arabisch") with its own `lang`
+and `dir`, the current one `aria-current`. Links and not buttons, because the
+check-in screen has exactly one button (§8); and a plain `<a>`, not a
+prefetching one, because the target sets the language cookie. Component:
+`components/sprache/GeraeteSprachwahl.tsx` (`data-cse="geraete-sprachwahl"`),
+V-200.
+
 ### Filter line
 
 A list that opens **already filtered** — from a dashboard figure (DSH-04) or a
@@ -624,6 +634,11 @@ scrollbar on a data table on a phone.
 Input: `--surface-3` bg, `1px solid --border`, `--r-md`, `12px 14px`, min
 height `44px`. Focus: border `--red` + ring. Error: border `--danger`, message
 below in `--danger` at `xs`. Label above, always — never placeholder-as-label.
+Component: `components/ui/FormField.tsx`. On the worker screens (the sign-in
+`/auth/mitarbeiter/**`, `/portal/mein/**`) label, hint and error message set
+`base` type instead of `xs` — `groesse="base"` — because body text there is
+never below `16px` (§8, D-738); the input itself is `base` everywhere. Same
+rule as for notices (V-200).
 
 ### Notices
 
@@ -639,7 +654,9 @@ carries `rolle` — `alert` for a rejection, `status` for a confirmation — so 
 is announced (§9, errors announced via `aria-live`). A page does not rebuild a
 notice from its classes (`border-warning bg-warning-soft …`); it uses the
 component. Older pages that still do are moved over when they are touched
-(V-217).
+(V-217). On the worker screens (`/portal/mein/**`) a notice sets `base` type
+instead of `sm` — `groesse="base"` — because body text there is never below
+`16px` (§8, D-738); everything else about it stays the same (V-198).
 
 ### Status pages — 404 and error
 

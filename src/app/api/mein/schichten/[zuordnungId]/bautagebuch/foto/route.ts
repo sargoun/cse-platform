@@ -7,6 +7,8 @@ import {
 } from '@/server/services/zeit/medien';
 import { findeOderLegeBautagAn, hefteTagesfotoAn } from '@/server/services/bau/bautagebuch';
 import { aufDerSchicht, dienstFehlerAntwort, zurueckZu } from '../../../bruecke';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
+import { internesZiel } from '@/server/auth/ursprung';
 
 /**
  * `POST /api/mein/schichten/[zuordnungId]/bautagebuch/foto` — ein Tagesfoto
@@ -55,6 +57,17 @@ export async function POST(
   /* Die Grösse VOR dem Lesen — sonst liegt die ganze Datei schon im Speicher. */
   const angekuendigt = Number(anfrage.headers.get('content-length') ?? '0');
   if (Number.isFinite(angekuendigt) && angekuendigt > MEDIEN_MAX_BYTES) {
+    /*
+     * Ein Formular des Portals (V-198) bekommt seine Seite zurück — erkannt am
+     * Rumpf `multipart/form-data`, denn gelesen wird der Rumpf gerade NICHT:
+     * die Grösse wird geprüft, bevor die Datei im Speicher liegt.
+     */
+    if ((anfrage.headers.get('content-type') ?? '').startsWith('multipart/form-data')) {
+      const ziel = internesZiel(
+        `/portal/mein/schichten/${zuordnungId}/bautagebuch`, '/portal/mein', anfrage);
+      ziel.searchParams.set('fehler', 'zu_gross');
+      return NextResponse.redirect(ziel, 303);
+    }
     return fehlerAntwort('zu_gross',
       `Die Datei überschreitet ${String(MEDIEN_MAX_BYTES / 1_048_576)} MB.`, 413);
   }
@@ -67,7 +80,7 @@ export async function POST(
   }
   const datei = daten.get('datei');
   if (!(datei instanceof File)) {
-    return fehlerAntwort('ungueltige_eingabe', 'Es wurde keine Datei übertragen.', 422);
+    return grundAufsFormularweg(anfrage, daten, 'keine_datei', 422);
   }
 
   const speicher = verzoegerterSpeicher(waehleSpeicher());
@@ -113,19 +126,17 @@ export async function POST(
     });
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
-      return NextResponse.json({ fehler: 'kein_projekt' }, { status: 422 });
+      return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);
     }
   } catch (fehler: unknown) {
     if (fehler instanceof NichtVerbundenFehler) {
-      return fehlerAntwort(fehler.code,
-        'Der Medienspeicher ist nicht verbunden. Das Foto wurde NICHT gespeichert.',
-        fehler.status);
+      return grundAufsFormularweg(anfrage, daten, 'nicht_verbunden', fehler.status);
     }
     if (fehler instanceof MedienFehler) {
-      return fehlerAntwort(fehler.grund, fehler.message,
+      return grundAufsFormularweg(anfrage, daten, fehler.grund,
         fehler.grund === 'zu_gross' ? 413 : fehler.status);
     }
-    const antwort = dienstFehlerAntwort(fehler);
+    const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

@@ -1,11 +1,13 @@
 import { Geraetezeit } from '../../Geraetezeit';
 import { notFound } from 'next/navigation';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import {
   findeEigeneDienstanweisung, type EigeneDienstanweisung,
 } from '@/server/services/mitarbeiter/dienstanweisungen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../rahmen';
 import { Feld, Felder, Gesellschaft } from '../../bausteine';
+import { FormularFehler } from '../../FormularAntwort';
 
 /**
  * `/portal/mein/dienstanweisungen/[id]` — lesen und mit EINEM Tipp bestätigen
@@ -33,9 +35,14 @@ import { Feld, Felder, Gesellschaft } from '../../bausteine';
 export const dynamic = 'force-dynamic';
 
 export default async function MeineDienstanweisung(
-  { params }: { params: Promise<{ id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { id } = await params;
+  /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
+  const fehler = (await searchParams)['fehler'];
   const ergebnis = await meinPortal<EigeneDienstanweisung | null>(
     `/portal/mein/dienstanweisungen/${id}`,
     async (kontext, basis) => findeEigeneDienstanweisung(kontext, basis.sprache, id),
@@ -64,6 +71,8 @@ export default async function MeineDienstanweisung(
 
       <h1 className="mb-s4 text-h1 text-text">{daten.titel}</h1>
 
+      <FormularFehler sprache={basis.sprache} grund={fehler} />
+
       <section className="mb-s5 rounded-lg border border-line bg-surface p-s4">
         <Felder>
           <Feld label={t.objekt}>{daten.objekt ?? '—'}</Feld>
@@ -71,7 +80,7 @@ export default async function MeineDienstanweisung(
             <span className="cse-zahl">{daten.version}</span>
           </Feld>
           <Feld label={t.giltAb}>
-            <span className="cse-zahl">{daten.gueltigAb}</span>
+            <span className="cse-zahl">{tagInSprache(daten.gueltigAb, basis.sprache)}</span>
           </Feld>
           {daten.naechsteSchichtLokal !== null && (
             <Feld label={t.vorNaechsterSchicht}>
@@ -113,6 +122,8 @@ export default async function MeineDienstanweisung(
           <input type="hidden" name="fassung" value={daten.versionId} />
           <input type="hidden" name="sprache" value={daten.angezeigteSprache} />
           <input type="hidden" name="zurueck" value="/portal/mein/dienstanweisungen" />
+          {/* Eine neuere Fassung schickt HIERHER zurück — das Blatt zeigt sie (V-198). */}
+          <input type="hidden" name="fehlerweg" value={`/portal/mein/dienstanweisungen/${daten.id}`} />
           {/*
             EIN Tipp — und der Knopf ist so breit wie die Spalte und 44 px hoch
             (DESIGN §8).
