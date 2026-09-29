@@ -7,10 +7,8 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { fuehreLaufAus, type AgentKennung } from '@/server/agent/orchestrator';
-import {
-  ENTWURF_AUFTRAEGE, KeineOffeneAnfrage, fuelleTatsachen,
-} from '@/server/agent/auftraege';
+import type { AgentKennung, LaufErgebnis } from '@/server/agent/orchestrator';
+import { ENTWURF_AUFTRAEGE, starteLaufAufKnopfdruck } from '@/server/agent/auftraege';
 import { slugFuer } from '../../../portal/[mandant]/agenten/kennung';
 import { alsAntwort } from '../../sicherheit/antwort';
 
@@ -104,31 +102,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
         /*
          * **Ohne offene Anfrage gibt es keinen Akquise-Entwurf** (V-230,
-         * D-724): ein Entwurf „an die anfragende Stelle" wäre einer an
-         * niemanden. Die Tatsachen kommen VOR der Aufgabe — es entsteht keine
-         * Zeile, und die Seite sagt, warum.
+         * D-724): die Tatsachen kommen VOR der Aufgabe — es entsteht keine
+         * Zeile, und die Seite sagt, warum (`starteLaufAufKnopfdruck`,
+         * geprüft in `tests/isolation/akquise-tatsachen.test.ts` (6)).
          */
-        let tatsachen: Readonly<Record<string, string>>;
-        try {
-          // Die Tatsachen kommen aus DIESER Gesellschaft, durch RLS begrenzt.
-          tatsachen = await fuelleTatsachen({ abfrage: kontext.abfrage.bind(kontext) }, agent);
-        } catch (fehler) {
-          if (fehler instanceof KeineOffeneAnfrage) {
-            return { lauf: null, code: fehler.code, slug: bereich.slug };
-          }
-          throw fehler;
-        }
-        const lauf = await fuehreLaufAus(kontext, {
-          ...auftrag,
-          agent,
-          tatsachen,
-          idempotenzSchluessel: `${agent}:${schluessel}`,
-          angefordertVon: sitzung.benutzerId,
-          codeVersion: codeVersion(),
+        const { lauf, code } = await starteLaufAufKnopfdruck(kontext, {
+          agent, schluessel, angefordertVon: sitzung.benutzerId, codeVersion: codeVersion(),
         });
-        return { lauf, code: null, slug: bereich.slug };
+        return { lauf, code, slug: bereich.slug };
       }))) as {
-        lauf: Awaited<ReturnType<typeof fuehreLaufAus>> | null; code: string | null; slug: string;
+        lauf: LaufErgebnis | null; code: string | null; slug: string;
       };
 
     /*

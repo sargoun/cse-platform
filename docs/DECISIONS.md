@@ -20195,6 +20195,13 @@ erfassten Seed-Fall.
    Budgetstopp, keine Anfrage — in dieser Reihenfolge, und nur ohne Sperre
    ein Formular. Den Grund „keine Anfrage" nennt der Abschnitt „Womit er
    formuliert" darüber.
+6. **„Keine Anfrage → kein Lauf" ist ein Dienst, kein Absatz der Route.**
+   D-724 Nr. 1 versprach: die Laufroute legt keine Aufgabe an und leitet mit
+   `KEINE_ANFRAGE` zurück — geprüft war nur, dass `fuelleTatsachen` wirft, und
+   der Kerntest verwies auf einen Abschnitt „agent-lauf.test.ts (10)", den es
+   nicht gab. Die Reihenfolge (erst die Tatsachen, dann die Aufgabe) steht
+   jetzt in `starteLaufAufKnopfdruck` (`agent/auftraege.ts`); die Route ruft
+   ihn und leitet um.
 
 **Geprüft:** `tests/isolation/akquise-tatsachen.test.ts` (4) jüngere Leads
 aus Handerfassung, Recherche und Radar werden übergangen, ohne Einsendung
@@ -20203,9 +20210,11 @@ der öffentliche Titel des Formulars schon; `tests/isolation/agent-lauf.test.ts`
 (9) läuft den Akquise-Agenten gegen eine Einsendung; der Demo-Seed legt die
 Webanfrage an und findet sie beim zweiten Lauf wieder;
 `tests/kern/agent-start-sperre.test.ts` (Nr. 5: kein Knopf ohne Anfrage, die
-übrigen Gründe in ihrer Reihenfolge, das Formular nur ohne Sperre).
+übrigen Gründe in ihrer Reihenfolge, das Formular nur ohne Sperre);
+`tests/isolation/akquise-tatsachen.test.ts` (6) (Nr. 6: ohne offene Anfrage
+`KEINE_ANFRAGE` und keine `agent_aufgabe`, mit einer entsteht sie).
 
-| Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/app/portal/[mandant]/agenten/darstellung.ts`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/{akquise-entwurf,agent-start-sperre}.test.ts` |
+| Betrifft | §17, AGT-07, Invariante 7, D-631, D-724, O-907, O-940, V-230, V-271, `src/server/agent/auftraege.ts`, `src/lib/i18n/beschriftung/agent.ts`, `src/app/portal/[mandant]/agenten/[agent]/start/page.tsx`, `src/app/portal/[mandant]/agenten/darstellung.ts`, `src/app/api/agenten/lauf/route.ts`, `src/server/db/seed/{webanfrage,operations,index}.ts`, `tests/isolation/{akquise-tatsachen,agent-lauf}.test.ts`, `tests/kern/{akquise-entwurf,agent-start-sperre}.test.ts` |
 |---|---|
 
 ### D-765 · Das Druckblatt eines Berichts zeigt die Werte der Datei mit derselben Genauigkeit und setzt Zahlen rechts, weil die Spalte es sagt (V-269)

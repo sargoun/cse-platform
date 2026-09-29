@@ -2,6 +2,8 @@ import 'server-only';
 import type { VorgangTyp } from '../services/freigabe/posteingang.js';
 import { anfrageLuecken, lueckenText } from '../services/lead/einsendung.js';
 import { Felder } from '../../lib/formular/schema.js';
+import type { SchreibKontext } from '../kontext/index.js';
+import { fuehreLaufAus, type AgentKennung, type LaufErgebnis } from './orchestrator.js';
 
 /**
  * **Was ein Agent formulieren darf — die Liste, nicht der Rumpf der Anfrage.**
@@ -93,6 +95,50 @@ export class KeineOffeneAnfrage extends Error {
 
 export interface Leser {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
+}
+
+/**
+ * **Ein Lauf auf Knopfdruck** — was `POST /api/agenten/lauf` tut, ohne HTTP
+ * (V-230, V-271, D-724 Nr. 1).
+ *
+ * **Erst die Tatsachen, dann die Aufgabe.** Findet `fuelleTatsachen` keine
+ * offene Anfrage, entsteht KEINE Zeile: die Antwort ist `{ lauf: null, code:
+ * 'KEINE_ANFRAGE' }`, und die Route leitet mit diesem Code zurück. Ein Entwurf
+ * „an die anfragende Stelle" wäre einer an niemanden. Die Reihenfolge stand
+ * bis V-271 in der Route und war nur dort — geprüft wurde sie nie; jetzt
+ * prüft sie `tests/isolation/akquise-tatsachen.test.ts` (6) an echten Zeilen.
+ */
+export async function starteLaufAufKnopfdruck(
+  kontext: SchreibKontext,
+  eingabe: {
+    readonly agent: AgentKennung;
+    /** Der Schlüssel des Formulars — derselbe bei jeder Wiederholung (Idempotenz). */
+    readonly schluessel: string;
+    readonly angefordertVon: string;
+    readonly codeVersion: string;
+  },
+): Promise<{ readonly lauf: LaufErgebnis | null; readonly code: string | null }> {
+  const auftrag = ENTWURF_AUFTRAEGE[eingabe.agent];
+  if (auftrag === undefined) {
+    throw new Error(`Für den Agenten „${eingabe.agent}" gibt es keinen Auftrag.`);
+  }
+  let tatsachen: Readonly<Record<string, string>>;
+  try {
+    // Die Tatsachen kommen aus DIESER Gesellschaft, durch RLS begrenzt.
+    tatsachen = await fuelleTatsachen({ abfrage: kontext.abfrage.bind(kontext) }, eingabe.agent);
+  } catch (fehler) {
+    if (fehler instanceof KeineOffeneAnfrage) return { lauf: null, code: fehler.code };
+    throw fehler;
+  }
+  const lauf = await fuehreLaufAus(kontext, {
+    ...auftrag,
+    agent: eingabe.agent,
+    tatsachen,
+    idempotenzSchluessel: `${eingabe.agent}:${eingabe.schluessel}`,
+    angefordertVon: eingabe.angefordertVon,
+    codeVersion: eingabe.codeVersion,
+  });
+  return { lauf, code: null };
 }
 
 /**

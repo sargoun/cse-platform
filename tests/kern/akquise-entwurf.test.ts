@@ -11,8 +11,10 @@ import type { FormularFeld } from '../../src/lib/formular/schema.js';
  * wirklich leer sind — und keine interne Zahl (§17 „names gaps", Invariante
  * 6/7, V-230, D-724).
  *
- * Die Abfrage selbst (nur offene Anfragen, Formular gegen Daten, keine
- * Anfrage → kein Lauf) prüft `tests/isolation/agent-lauf.test.ts` (10).
+ * Die Abfrage selbst (nur offene Anfragen, Formular gegen Daten, nur echte
+ * Einsendungen) prüft `tests/isolation/akquise-tatsachen.test.ts` (1) bis (5);
+ * dass ein Lauf ohne offene Anfrage keine Aufgabe anlegt, (6). Hier stand bis
+ * V-271 ein Abschnitt „agent-lauf.test.ts (10)", den es nie gab.
  */
 
 const feld = (

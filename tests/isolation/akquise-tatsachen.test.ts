@@ -1,7 +1,10 @@
 import type postgres from 'postgres';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
-import { KeineOffeneAnfrage, fuelleTatsachen } from '../../src/server/agent/auftraege.js';
+import {
+  KeineOffeneAnfrage, fuelleTatsachen, starteLaufAufKnopfdruck,
+} from '../../src/server/agent/auftraege.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
 
 /**
  * Die Tatsachen des Akquise-Entwurfs gegen echte Zeilen (§17 „names gaps",
@@ -21,6 +24,9 @@ import { KeineOffeneAnfrage, fuelleTatsachen } from '../../src/server/agent/auft
  *     steht.
  *  5. Kein interner Betreff: der Text nennt den öffentlichen Titel des
  *     Formulars, nie `lead.betreff`.
+ *  6. Kein Lauf ohne Anfrage (V-271, D-724 Nr. 1): der Weg der Laufroute
+ *     (`starteLaufAufKnopfdruck`) legt ohne offene Anfrage KEINE Aufgabe an
+ *     und antwortet `KEINE_ANFRAGE`; mit einer entsteht die Aufgabe.
  */
 
 let f: Fixtur;
@@ -202,5 +208,66 @@ describe('(5) kein interner Betreff im Text an den Anfragenden', () => {
     expect(t['zusammenfassung']).toBe(
       'Ihre Anfrage über unser Formular „Angebot für Gebäudereinigung anfragen" ist bei uns '
       + 'aufgenommen.');
+  });
+});
+
+describe('(6) der Weg der Laufroute: ohne offene Anfrage kein Lauf und keine Zeile', () => {
+  async function aufgaben(): Promise<number> {
+    const [z] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from agent_aufgabe a join agent g on g.id = a.agent_id
+        where a.mandant_id = $1 and g.kennung = 'akquise'`, [f.reinigung]);
+    return Number(z?.n ?? '-1');
+  }
+
+  function knopfdruck(schluessel: string): Promise<{ lauf: unknown; code: string | null }> {
+    return alsApp({
+      scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+      portal: 'intern', readonly: false,
+    }, async (tx: postgres.TransactionSql) => {
+      const abfrage = async <T>(a: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+        (await tx.unsafe(a, (w ?? []) as never[])) as unknown as readonly T[];
+      const kontext: SchreibKontext = {
+        scope: 'mandant', portal: 'intern', benutzerId: benutzer,
+        aktiverMandantId: f.reinigung, mandantIds: [f.reinigung], abfrage, schreibe: abfrage,
+      };
+      return starteLaufAufKnopfdruck(kontext, {
+        agent: 'akquise', schluessel, angefordertVon: benutzer, codeVersion: 'test',
+      });
+    }) as Promise<{ lauf: unknown; code: string | null }>;
+  }
+
+  /* Eingeschaltet — sonst hielte schon der abgeschaltete Agent den Lauf auf
+     (D-435), und die Prüfung bewiese nichts über die Anfrage. `agent` gehört
+     keinem Mandanten und wird von `seed()` nicht zurückgesetzt: der Stand
+     davor kommt danach wieder. */
+  let vorherAktiv = false;
+  beforeEach(async () => {
+    const [a] = await sql.unsafe<{ ist_aktiv: boolean }[]>(
+      `select ist_aktiv from agent where kennung = 'akquise'`);
+    vorherAktiv = a?.ist_aktiv ?? false;
+    await sql.unsafe(`update agent set ist_aktiv = true where kennung = 'akquise'`);
+  });
+  afterEach(async () => {
+    await sql.unsafe(`update agent set ist_aktiv = $1 where kennung = 'akquise'`,
+      [vorherAktiv]);
+  });
+
+  it('nur eine gewonnene Anfrage: KEINE_ANFRAGE, und es entsteht keine Aufgabe', async () => {
+    await webAnfrage({ firma: 'Gewonnen GmbH' }, 'gewonnen', 1);
+    await leadOhneAnfrage('akquise', 'Recherchiert AG', 2);
+    const vorher = await aufgaben();
+    expect(await knopfdruck(`k-${zufall()}`)).toEqual({ lauf: null, code: 'KEINE_ANFRAGE' });
+    expect(await aufgaben()).toBe(vorher);
+  });
+
+  it('mit einer offenen Anfrage entsteht die Aufgabe — derselbe Weg, dieselbe Funktion', async () => {
+    await webAnfrage({ firma: 'Offen GmbH', flaeche_qm: 400 }, 'neu', 1);
+    const vorher = await aufgaben();
+    const ergebnis = await knopfdruck(`k-${zufall()}`);
+    expect(ergebnis.code).toBeNull();
+    expect(ergebnis.lauf).not.toBeNull();
+    /* Ob der Lauf vorlegt oder mangels Modell und Budget gestört endet, ist
+       hier nicht die Frage — die Aufgabe entsteht in beiden Fällen. */
+    expect(await aufgaben()).toBe(vorher + 1);
   });
 });
