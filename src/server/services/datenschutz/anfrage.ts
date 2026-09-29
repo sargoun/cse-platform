@@ -537,9 +537,15 @@ export async function ordneZu(
       `select id from ansprechpartner
         where id = $1::uuid and mandant_id = app.aktiver_mandant()`, [ziel]);
     if (treffer === undefined) {
+      /*
+       * Das Recht steht als Satz da, nicht als Schlüssel (D-741; Nachrunde zu
+       * V-272): hier stand „dass Ihnen crm.lesen fehlt" — Quelltext für den
+       * Menschen, der die Anfrage zuordnet. Der Name ist der der Rechtematrix
+       * (`rechtName('crm.lesen')`).
+       */
       throw new AnfrageFehler(
         'Zu dieser Kennung gibt es in dieser Gesellschaft keinen Ansprechpartner. '
-        + 'Möglich ist auch, dass Ihnen crm.lesen fehlt.',
+        + 'Möglich ist auch, dass Ihnen das Recht „Kundendaten lesen" fehlt.',
         'kontakt_unbekannt', 404);
     }
   }

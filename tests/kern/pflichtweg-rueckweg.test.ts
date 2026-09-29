@@ -67,6 +67,8 @@ const barriere = await import('../../src/app/api/barrierefreiheit/meldung/route.
 const { AnfrageSeiteFuer } = await import('../../src/app/(public)/datenschutz/anfrage/Anfrage.js');
 const { FeedbackSeiteFuer } =
   await import('../../src/app/(public)/barrierefreiheit/feedback/Feedback.js');
+const { AnfrageFehler, ordneZu } = await import('../../src/server/services/datenschutz/anfrage.js');
+const { rechtName } = await import('../../src/lib/i18n/rechtname.js');
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 const HIER = 'http://localhost:3001';
@@ -371,5 +373,34 @@ describe('die Seiten zeigen nur den nachgeschlagenen Satz', () => {
     const s = readFileSync(join(WURZEL, datei), 'utf8');
     expect(s).not.toMatch(/meldung=/u);
     expect(s).not.toMatch(/encodeURIComponent\(/u);
+  });
+});
+
+/* ── Nachrunde: ein Recht steht als Satz im Satz des Dienstes ──────────── */
+
+/**
+ * **`kontakt_unbekannt` nennt das Recht als Satz, nicht als Schlüssel**
+ * (D-741; Nachrunde zu V-272).
+ *
+ * Die Zuordnung einer Betroffenenanfrage zu einem Ansprechpartner sagte
+ * „Möglich ist auch, dass Ihnen crm.lesen fehlt." — Quelltext für den
+ * Menschen, der die Anfrage bearbeitet. Geprüft am echten Dienst; der
+ * Kontext findet keinen Ansprechpartner.
+ */
+describe('Nachrunde: der Satz zu „kontakt_unbekannt"', () => {
+  it('nennt das Recht mit dem Namen der Rechtematrix — ohne Schlüssel', async () => {
+    const kontext = {
+      abfrage: () => Promise.resolve([]),
+      schreibe: () => Promise.reject(new Error('Die Zuordnung darf hier nicht schreiben.')),
+    };
+    const f: unknown = await ordneZu(kontext as never, MANDANT, 'ansprechpartner', MANDANT)
+      .then(() => null, (e: unknown) => e);
+    expect(f).toBeInstanceOf(AnfrageFehler);
+    const fehler = f as InstanceType<typeof AnfrageFehler>;
+    expect(fehler.grund).toBe('kontakt_unbekannt');
+    expect(fehler.status).toBe(404);
+    expect(fehler.message).toContain(`das Recht „${rechtName('crm.lesen')}"`);
+    expect(fehler.message).not.toMatch(/\b[a-z_]+\.[a-z_]+\b/u);
+    expect(fehler.message).not.toMatch(UUID);
   });
 });
