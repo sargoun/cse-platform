@@ -29,10 +29,21 @@ export const BEWERBUNG_TEXT: Readonly<Record<BewerbungStatus, string>> = {
   zurueckgezogen: 'Zurückgezogen',
 };
 
+/**
+ * Die drei Zustände eines Gesprächs auf die Marken aus DESIGN §5.
+ *
+ * **Abgesagt ist nicht „Abgelehnt"** (V-267, Prüfung der Gruppe
+ * kalender-dokumente). Im Recruiting heisst „abgelehnt", dass die
+ * Gesellschaft die BEWERBUNG abgelehnt hat — eine Aussage über die
+ * Bewerberin, die § 22 AGG heikel macht. Ein abgesagter Termin sagt darüber
+ * nichts; er ist erledigt, ohne stattgefunden zu haben. Die Marke ist deshalb
+ * die neutrale „Archiviert" (wie ein stornierter Einsatz im Dienstplan der
+ * Gruppe), und der Kasten auf dem Gesprächsblatt nennt Absage und Grund.
+ */
 export const GESPRAECH_MARKE: Readonly<Record<string, PillZustand>> = {
   geplant: 'Geplant',
   stattgefunden: 'Abgeschlossen',
-  abgesagt: 'Abgelehnt',
+  abgesagt: 'Archiviert',
 };
 
 /**
