@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { AngebotSeiteFuer, angebotMetadaten, felderAus } from './Angebot';
+import { AngebotSeiteFuer, angebotMetadaten } from './Angebot';
 
 /**
  * `/angebot/[bereich]` — die deutsche Route (REQ-01).
@@ -25,16 +25,16 @@ export default async function AnfrageSeite(
 ) {
   const { bereich } = await params;
   /*
-   * **Die Meldung kommt aus der Adresse, weil das Formular kein JavaScript
+   * **Die Abweisung kommt aus der Adresse, weil das Formular kein JavaScript
    * hat.** Schlaegt die Annahme fehl, schickt `/api/anfrage` den Browser
-   * hierher zurueck — mit dem Grund im Klartext. Vorher antwortete sie mit
-   * JSON, und der Besucher sah `{"ok":false,…}` statt seines Formulars.
+   * hierher zurueck. Vorher antwortete sie mit JSON, und der Besucher sah
+   * `{"ok":false,…}` statt seines Formulars.
    *
-   * Der TEXT reist mit und nicht ein Schluessel: die Meldungen entstehen in
-   * der Formulardefinition (`formular_definition.felder`), und eine zweite
-   * Liste hier waere eine, die auseinanderlaeuft.
+   * **Es reisen nur SCHLUESSEL** (`?fehler=<grund>&felder=<k1,k2,…>`, D-769):
+   * `Angebot.tsx` schlaegt den Sammelsatz nach und nimmt die Meldung je Feld
+   * aus derselben Formulardefinition, die es ohnehin laedt — es gibt keine
+   * zweite Liste, die auseinanderlaufen koennte. Bis D-769 reiste der Text
+   * selbst, und jeder praeparierte Link schrieb seinen eigenen.
    */
-  const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AngebotSeiteFuer(bereich, undefined, meldung, felderAus(suche['felder']), suche);
+  return AngebotSeiteFuer(bereich, undefined, await searchParams);
 }

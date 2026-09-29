@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/Button';
 import type { FormularFeld } from '@/lib/formular/schema';
 import { UTM_SCHLUESSEL, type Herkunft } from '@/lib/formular/herkunft';
 import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
@@ -26,7 +27,13 @@ export interface AnfrageFormularProps {
   readonly bereich: string;
   readonly titel: string;
   readonly felder: readonly FormularFeld[];
+  /**
+   * Feldschlüssel → Meldung am Feld. Die Seite nimmt sie aus der Definition
+   * (`fehlermeldung`), nie aus der Adresse — dort stehen nur die Schlüssel
+   * (D-769).
+   */
   readonly fehler?: Readonly<Record<string, string>> | undefined;
+  /** Der Sammelsatz einer Abweisung — nachgeschlagen von der Seite, nie aus der Adresse (D-769). */
   readonly meldung?: string | undefined;
   /** Woher der Besuch kam (REQ-07) — gelesen von der Seite, nicht vom POST. */
   readonly herkunft?: Herkunft | undefined;
@@ -260,8 +267,10 @@ export function AnfrageFormular(
           />
         </div>
 
+        {/* Nur ein EIGENER Eintrag (D-728): ein Feld `constructor` fände sonst die Funktion. */}
         {sortiert.map((f) => (
-          <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} t={t} />
+          <Feld key={f.schluessel} f={f} t={t}
+                fehler={fehler === undefined ? undefined : eigenerEintrag(fehler, f.schluessel)} />
         ))}
 
         {/* Der eine Primaerknopf der Seite — aus der Komponente, nicht nachgebaut. */}

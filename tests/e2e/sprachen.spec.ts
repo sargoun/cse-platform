@@ -220,6 +220,20 @@ test.describe('(5) das englische Formular ist englisch — Felder wie Knopf', ()
     await expect(feld).toHaveAttribute('aria-invalid', 'true');
     await expect(page.locator('#f_anzahl_objekte_fehler'))
       .toHaveText('Please tell us how many properties this concerns.');
+
+    /*
+     * **Die Adresse trägt nur Schlüssel** (D-769, D-770): den Grund und das
+     * Feld, keinen Satz. Bis dahin reisten Sammelsatz und Feldmeldungen als
+     * Text durch die Adresse, und jeder präparierte Link schrieb seinen
+     * eigenen. Beide Sätze schlägt die Seite nach — der über dem Formular aus
+     * `API_TEXTE`, der am Feld aus der Definition.
+     */
+    const adresse = new URL(page.url());
+    expect(adresse.searchParams.get('fehler')).toBe('pruefen');
+    expect((adresse.searchParams.get('felder') ?? '').split(',')).toContain('anzahl_objekte');
+    expect(adresse.searchParams.has('meldung')).toBe(false);
+    await expect(page.locator('[data-cse="formular-meldung"]'))
+      .toHaveText('Please check the highlighted fields.');
   });
 });
 
@@ -322,5 +336,42 @@ test.describe('(7) barrierefrei in beiden Sprachen', () => {
     await page.locator('[data-cse="menue"] summary').click();
     await page.locator('[data-cse="menue-sprache"][data-sprache="de"]').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE');
+  });
+});
+
+/**
+ * **Die Pflichtformulare nennen eine Abweisung in der Sprache der Seite — aus
+ * einem Grund, nie aus der Adresse** (D-769, D-770, V-272).
+ *
+ * Datenschutzanfrage und Barriere-Meldung schickten ihre Abweisung als Satz
+ * im Parameter `meldung` zurück, und die Seite zeigte ihn: jeder präparierte
+ * Link schrieb seine eigene Systemmeldung auf einen gesetzlichen Pflichtweg.
+ * Jetzt reist `?fehler=<grund>`, die Seite schlägt den Satz nach.
+ */
+test.describe('(8) die Pflichtformulare schlagen ihren Satz nach (D-769)', () => {
+  test('ein Grund wird der Satz der Seite — deutsch und englisch', async ({ page }) => {
+    await page.goto('/datenschutz/anfrage?fehler=email_ungueltig');
+    await expect(page.locator('[data-cse="anfrage-meldung"]'))
+      .toHaveText('Bitte prüfen Sie die E-Mail-Adresse — an sie geht die Antwort.');
+    await page.goto('/en/datenschutz/anfrage?fehler=email_ungueltig');
+    await expect(page.locator('[data-cse="anfrage-meldung"]'))
+      .toHaveText('Please check the e-mail address — our reply goes to it.');
+    await page.goto('/en/barrierefreiheit/feedback?fehler=bereich_fehlt');
+    await expect(page.locator('[data-cse="barriere-meldung"]'))
+      .toHaveText('Please choose one of the divisions.');
+    await page.goto('/barrierefreiheit/feedback?ok=1');
+    await expect(page.locator('[data-cse="barriere-danke"]'))
+      .toHaveText('Vielen Dank. Ihre Meldung ist angekommen.');
+  });
+
+  test('ein präparierter Link schreibt keinen eigenen Text', async ({ page }) => {
+    const falsch = 'Ihre Daten wurden entfernt, Rueckruf unter 0900 555';
+    await page.goto(`/datenschutz/anfrage?meldung=${encodeURIComponent(falsch)}`);
+    await expect(page.locator('[data-cse="anfrage-meldung"]')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText('0900 555');
+    await page.goto(`/en/barrierefreiheit/feedback?fehler=${encodeURIComponent(falsch)}`);
+    await expect(page.locator('[data-cse="barriere-meldung"]'))
+      .toHaveText('Your report could not be accepted. Please check your entries.');
+    await expect(page.locator('body')).not.toContainText('0900 555');
   });
 });

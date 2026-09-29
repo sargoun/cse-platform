@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
-import {
-  AngebotSeiteFuer, angebotMetadaten, felderAus,
-} from '../../../angebot/[bereich]/Angebot';
+import { AngebotSeiteFuer, angebotMetadaten } from '../../../angebot/[bereich]/Angebot';
 
 /** Dasselbe Formular, dieselbe Felddefinition, englische Beschriftungen. */
 export const dynamic = 'force-dynamic';
@@ -22,11 +20,11 @@ export default async function EnglishEnquiry(
   const { bereich } = await params;
   /*
    * Dieselbe Weiche wie auf der deutschen Route: eine abgewiesene Eingabe
-   * kommt als Adresse zurueck, mit dem Grund UND den Feldmeldungen. Ohne
-   * diese Zeilen saehe der englische Besucher ein leeres Formular und wuesste
-   * nicht, warum es nicht durchging (D-599).
+   * kommt als Adresse zurueck, mit dem Grund UND den Schluesseln der Felder
+   * (D-769). Die Saetze schlaegt `Angebot.tsx` englisch nach — auch die der
+   * Dateifelder, die vorher deutsch aus der Definition kamen. Ohne diese
+   * Weiche saehe der englische Besucher ein leeres Formular und wuesste nicht,
+   * warum es nicht durchging (D-599).
    */
-  const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AngebotSeiteFuer(bereich, 'en', meldung, felderAus(suche['felder']), suche);
+  return AngebotSeiteFuer(bereich, 'en', await searchParams);
 }

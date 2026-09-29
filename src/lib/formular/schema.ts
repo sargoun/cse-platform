@@ -15,8 +15,15 @@
  */
 import { z } from 'zod';
 
+/**
+ * Die Form eines Feldschlüssels — an EINER Stelle, weil sie zweimal gebraucht
+ * wird: die Definition wird gegen sie geprüft, und eine Abweisung schickt nur
+ * Schlüssel dieser Form zurück auf das Formular (`?felder=`, D-769).
+ */
+export const FELDSCHLUESSEL = /^[a-z][a-z0-9_]{1,40}$/u;
+
 const FeldBasis = z.object({
-  schluessel: z.string().regex(/^[a-z][a-z0-9_]{1,40}$/u),
+  schluessel: z.string().regex(FELDSCHLUESSEL),
   label: z.string().min(1),
   hilfetext: z.string().optional(),
   // WCAG 3.3.1/3.3.3: was ist zu tun, nicht dass etwas falsch ist.

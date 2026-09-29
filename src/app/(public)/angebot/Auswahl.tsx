@@ -4,7 +4,8 @@ import { basisAusAnfrage, herkunftDerAnfrage } from '@/server/inhalt/seiten-date
 import { herkunftAlsSuche } from '@/lib/formular/herkunft';
 import { FORMULAR_SCHLUESSEL, angebotPfad } from '@/lib/formular/bereiche';
 import { bereicheLesen, oeffentlichLesen } from '@/server/inhalt/lesen';
-import { AUSWAHL_TEXTE } from '@/lib/i18n/texte';
+import { ANGEBOT_FEHLER_TEXTE, AUSWAHL_TEXTE } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 import { BereichsAvatar } from '@/components/ui/AreaBadge';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -63,6 +64,16 @@ export async function Angebotsauswahl(
 
   const t = AUSWAHL_TEXTE[sprache];
   /*
+   * **Ein Rückweg der Annahme landet hier** (D-769, V-272): kennt
+   * `/api/anfrage` den Bereich nicht oder hat er kein Formular zu zeigen,
+   * führte ein Rücksprung auf `/angebot/<bereich>` ins 404 — die Route schickt
+   * den Besucher deshalb mit dem GRUND hierher. Bis dahin kam er ohne Satz an:
+   * die Auswahl las die Adresse nicht. Nachgeschlagen wird nur ein eigener
+   * Eintrag (D-728); ein fremder Grund bekommt den allgemeinen Satz.
+   */
+  const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerTexte = ANGEBOT_FEHLER_TEXTE[sprache];
+  /*
    * **Die Herkunft reist an den Links mit (REQ-07, D-631).** Sonst hielte die
    * Formularseite diese Auswahl für den Einstieg und verlöre die
    * Kampagnenparameter, mit denen der Besuch hier ankam.
@@ -73,6 +84,14 @@ export async function Angebotsauswahl(
     <section className="mx-auto flex max-w-content flex-col gap-s5 px-s5 py-s6">
       <h1 className="text-h1 text-text [hyphens:auto] break-words">{t.titel}</h1>
       <p className="max-w-[72ch] text-base text-text-muted">{t.einleitung}</p>
+
+      {/* Derselbe Kasten wie über dem Formular (`AnfrageFormular`), mit `role="alert"`. */}
+      {grund !== null && (
+        <p role="alert" data-cse="angebot-auswahl-meldung"
+           className="max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+          {eigenerEintrag(fehlerTexte.fehler, grund) ?? fehlerTexte.sonst}
+        </p>
+      )}
 
       <ul data-cse="angebot-auswahl" className="grid gap-s4 sm:grid-cols-2">
         {mitFormular.map((b) => (
