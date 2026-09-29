@@ -373,6 +373,39 @@ describe('die Wege, die die Route selbst abweist', () => {
     expect(zustand.setzeKondition).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['38,5', 38_500n], ['38.5', 38_500n], ['40', 40_000n], ['0', 0n],
+  ] as const)('Entgelt: Wochenstunden „%s" kommen gelesen beim Dienst an (%s Tausendstel)', async (eingabe, tausendstel) => {
+    const route = ROUTEN[3]!;
+    const r = await route.aufruf(formular(route.pfad,
+      { ...route.felder, wochenstunden: eingabe, arbeitstageWoche: '4,5' }));
+    expect(r.headers.get('location')).toBe(`${HIER}${route.erfolg}`);
+    expect(zustand.setzeKondition).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      wochenstunden: tausendstel, arbeitstageWoche: 4_500n,
+    }));
+  });
+
+  it('Entgelt: leere Felder heissen „nicht hinterlegt" — null, keine Null', async () => {
+    const route = ROUTEN[3]!;
+    await route.aufruf(formular(route.pfad, { ...route.felder, wochenstunden: '', arbeitstageWoche: '  ' }));
+    expect(zustand.setzeKondition).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      wochenstunden: null, arbeitstageWoche: null,
+    }));
+  });
+
+  it.each([
+    ['wochenstunden', 'abc', 'wochenstunden_ungueltig'],
+    ['wochenstunden', '38,5555', 'wochenstunden_ungueltig'],
+    ['wochenstunden', '1.234,5', 'wochenstunden_ungueltig'],
+    ['arbeitstageWoche', 'fünf', 'arbeitstage_ungueltig'],
+  ] as const)('Entgelt: %s „%s" ist keine Zahl → `%s`, vor dem Dienst, ohne die Eingabe', async (feld, eingabe, grund) => {
+    const route = ROUTEN[3]!;
+    const r = await route.aufruf(formular(route.pfad, { ...route.felder, [feld]: eingabe }));
+    expect(r.headers.get('location')).toBe(erwartet(route, grund));
+    expect(decodeURIComponent(r.headers.get('location') ?? '')).not.toContain(eingabe);
+    expect(zustand.setzeKondition).not.toHaveBeenCalled();
+  });
+
   it('Zusammenführen: ohne zwei gewählte Datensätze `keine_auswahl` — vor dem Dienst', async () => {
     const route = ROUTEN[5]!;
     const r = await route.aufruf(formular(route.pfad, { ...route.felder, dublette: '' }));

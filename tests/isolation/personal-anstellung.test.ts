@@ -24,6 +24,7 @@ import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index
 import { beendigungsfolgen, setzeKondition, VertragEingabeFehler }
   from '../../src/server/services/personal/anstellung.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
+import { mengeAusEingabe, milliMenge } from '../../src/server/services/finanz/menge.js';
 
 let f: Fixtur;
 let personal = '';   // personal.schreiben + anstellung_beenden + entgelt_*
@@ -601,6 +602,37 @@ describe('(4d) setzeKondition beantwortet eine Ueberschneidung mit einem Satz', 
       `select count(*)::text as n from anstellung_kondition where anstellung_id = $1`,
       [f.jonasReinigung]);
     expect(Number(zeilen[0]?.n)).toBe(2);
+  });
+});
+
+describe('(4f) Wochenstunden und Arbeitstage: gelesen bis in die Spalte, die Grenzen der Datenbank als Grund (D-771 Nachtrag)', () => {
+  it('„38,5" Stunden und „4,5" Tage — wie das Formular sie schickt — stehen als 38.500 und 4.500 in der Kondition', async () => {
+    await als(personal, (tx) => setzeKondition(kontextAus(tx, personal, f.reinigung), {
+      anstellungId: f.jonasReinigung, giltAb: '2025-01-01', stundensatzCent: null,
+      wochenstunden: mengeAusEingabe('38,5'), arbeitstageWoche: mengeAusEingabe('4,5'),
+    }));
+    const [z] = await sql.unsafe<{ stunden: string; tage: string }[]>(
+      `select wochenstunden::text as stunden, arbeitstage_woche::text as tage
+         from anstellung_kondition where anstellung_id = $1`, [f.jonasReinigung]);
+    expect(z).toEqual({ stunden: '38.500', tage: '4.500' });
+  });
+
+  it('die Grenze der Datenbank selbst geht; eine Tausendstel darüber ist ein Grund, und nichts wird geschrieben', async () => {
+    /* 168 und 7 nimmt `ak_stunden_plausibel`/`ak_arbeitstage_plausibel` an — der Dienst ist nicht strenger. */
+    await als(personal, (tx) => setzeKondition(kontextAus(tx, personal, f.reinigung), {
+      anstellungId: f.jonasReinigung, giltAb: '2025-01-01', stundensatzCent: null,
+      wochenstunden: milliMenge(168_000n), arbeitstageWoche: milliMenge(7_000n),
+    }));
+    const zuViel = await als(personal, (tx) => setzeKondition(kontextAus(tx, personal, f.reinigung), {
+      anstellungId: f.jonasReinigung, giltAb: '2025-02-01', stundensatzCent: null,
+      wochenstunden: milliMenge(168_001n),
+    })).catch((fehler: unknown) => fehler);
+    expect(zuViel).toBeInstanceOf(VertragEingabeFehler);
+    expect((zuViel as VertragEingabeFehler).grund).toBe('wochenstunden_ungueltig');
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from anstellung_kondition where anstellung_id = $1`,
+      [f.jonasReinigung]);
+    expect(n?.n, 'die abgewiesene Kondition hat die laufende nicht geschlossen').toBe('1');
   });
 });
 

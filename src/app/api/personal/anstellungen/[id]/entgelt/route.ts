@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { GeldFehler, parseGeld, type Cent } from '@/server/services/finanz/geld';
+import { MengeFehler, mengeAusEingabe, type MilliMenge } from '@/server/services/finanz/menge';
 import { setzeKondition, VertragEingabeFehler } from '@/server/services/personal/anstellung';
 import { fuehrePersonalAus } from '../../../gemeinsam';
 import { UUID } from '../../../../rumpf';
@@ -14,6 +15,13 @@ import { UUID } from '../../../../rumpf';
  * und es als eins zwo drei vier zu lesen ist die Sorte Fehler, die erst in
  * einer Projektmarge auffaellt. Eine Zahl, die nicht dieser Form entspricht,
  * wird abgewiesen und nicht geraten.
+ *
+ * **Wochenstunden und Arbeitstage werden hier ebenso gelesen** (D-771
+ * Nachtrag), mit `mengeAusEingabe`, dem Leser der Plattform für getippte
+ * Mengen: „38,5" und „38.5" meinen dasselbe, eine vierte Nachkommastelle oder
+ * „abc" werden ein Grund. Vorher ging der rohe Text an `numeric` — ein
+ * deutsches Komma war ein 22P02 und damit eine 500. Die Grenzen (0 bis 168
+ * Stunden, 0 bis 7 Tage) prüft der Dienst, wie die Datenbank sie setzt.
  *
  * **Geschrieben wird eine KONDITION und nicht der Spiegel.** Der Satz auf
  * `anstellung` ist ein Spiegel mit genau einem Schreiber
@@ -32,6 +40,10 @@ export async function POST(
   return fuehrePersonalAus(anfrage, {
     recht: 'personal.entgelt_schreiben',
     handle: async (kontext, rumpf) => {
+      const text = (name: string): string | null => {
+        const wert = (rumpf.felder[name] ?? '').trim();
+        return wert === '' ? null : wert;
+      };
       const roh = (rumpf.felder['stundensatz'] ?? '').trim();
       let satz: Cent | null = null;
       if (roh !== '') {
@@ -46,18 +58,33 @@ export async function POST(
           throw fehler;
         }
       }
-      const text = (name: string): string | null => {
-        const wert = (rumpf.felder[name] ?? '').trim();
-        return wert === '' ? null : wert;
+      /** Eine getippte Menge — leer heisst „nicht hinterlegt", keine Zahl ist ein Grund. */
+      const menge = (
+        name: 'wochenstunden' | 'arbeitstageWoche',
+        grund: 'wochenstunden_ungueltig' | 'arbeitstage_ungueltig',
+      ): MilliMenge | null => {
+        const wert = text(name);
+        if (wert === null) return null;
+        try {
+          return mengeAusEingabe(wert);
+        } catch (fehler) {
+          if (fehler instanceof MengeFehler) {
+            throw new VertragEingabeFehler(grund,
+              `„${wert}" ist keine Zahl mit höchstens drei Nachkommastellen.`);
+          }
+          throw fehler;
+        }
       };
+      const wochenstunden = menge('wochenstunden', 'wochenstunden_ungueltig');
+      const arbeitstageWoche = menge('arbeitstageWoche', 'arbeitstage_ungueltig');
       await setzeKondition(kontext, {
         anstellungId: id,
         giltAb: (rumpf.felder['giltAb'] ?? '').trim(),
         stundensatzCent: satz,
         ...(text('arbeitszeitmodell') === null
           ? {} : { arbeitszeitmodell: text('arbeitszeitmodell') as string }),
-        wochenstunden: text('wochenstunden'),
-        arbeitstageWoche: text('arbeitstageWoche'),
+        wochenstunden,
+        arbeitstageWoche,
         tarifgruppe: text('tarifgruppe'),
         kostenstelle: text('kostenstelle'),
         grund: text('grund'),

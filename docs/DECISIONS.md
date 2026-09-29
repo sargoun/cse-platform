@@ -23388,6 +23388,22 @@ demselben Zweig):
    „gespeichert" zu sagen, ohne zu wissen, was geschah, wäre eine Bestätigung,
    die ein Link erfinden kann. Die Sätze nennen keinen Wert; Personalnummer,
    Eintritt und Austritt zeigt das Blatt darunter aus seinen Daten.
+10. **Wochenstunden und Arbeitstage werden gelesen, bevor sie die Datenbank
+    sehen.** Die beiden Felder der Entgeltseite sind frei, und die Route
+    reichte den rohen Text an `$5::numeric` — „38,5", wie ein deutsches
+    Tastenfeld es schreibt, war ein 22P02 und eine 500. Jetzt liest die Route
+    beide mit `mengeAusEingabe` (`finanz/menge.ts`, der vorhandene Leser für
+    getippte Mengen: Komma und Punkt, höchstens drei Nachkommastellen, nie eine
+    Gleitkommazahl); was keine Zahl ist, wird `wochenstunden_ungueltig` bzw.
+    `arbeitstage_ungueltig`. Der Dienst nimmt nur noch `MilliMenge` — eine rohe
+    Zeichenkette kommt bei ihm nicht mehr an — und fragt VOR jeder Abfrage die
+    Grenzen, die die Datenbank setzt: `ak_stunden_plausibel` (0 bis 168) und
+    `ak_arbeitstage_plausibel` (0 bis 7) aus 0192, als `KONDITION_GRENZEN`
+    abgelesen und von einer Prüfung gegen die Migration festgehalten. Keine
+    Grenze ist erfunden; die Wahrheit bleibt die Prüfung der Datenbank, der
+    Dienst macht aus ihrem 23514 nur vorher einen Satz. „38.5" gilt wie
+    „38,5" (so liest `mengeAusEingabe` jede Menge), leer heisst weiter „nicht
+    hinterlegt".
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts` |
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/personal-anstellung.test.ts` |
 |---|---|

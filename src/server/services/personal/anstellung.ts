@@ -26,6 +26,7 @@
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
+import { mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
 
 export type AnstellungStatus = 'geplant' | 'aktiv' | 'ruhend' | 'beendet';
 
@@ -104,12 +105,14 @@ export const VERTRAG_AENDERN_GRUENDE = [
 /** Was `beendeAnstellung` an der Eingabe abweist — `austritt_ungueltig` auch `beendigungsfolgen`. */
 export const BEENDEN_EINGABE_GRUENDE = ['austritt_ungueltig', 'grund_fehlt'] as const;
 /**
- * Was eine neue Kondition abweist: `betrag_ungueltig` die Entgeltroute selbst
- * (`parseGeld`), die übrigen `setzeKondition`.
+ * Was eine neue Kondition abweist: `betrag_ungueltig` und — für eine Eingabe,
+ * die keine Zahl ist — `wochenstunden_ungueltig`/`arbeitstage_ungueltig` die
+ * Entgeltroute selbst (`parseGeld`, `mengeAusEingabe`), die übrigen
+ * `setzeKondition` (dort auch eine Zahl ausserhalb der Grenzen der Datenbank).
  */
 export const KONDITION_GRUENDE = [
-  'betrag_ungueltig', 'gilt_ab_ungueltig', 'satz_negativ', 'vor_eintritt', 'periode_belegt',
-  'nicht_nach_laufender',
+  'betrag_ungueltig', 'gilt_ab_ungueltig', 'satz_negativ', 'wochenstunden_ungueltig',
+  'arbeitstage_ungueltig', 'vor_eintritt', 'periode_belegt', 'nicht_nach_laufender',
 ] as const;
 /**
  * Der Stichtag von `leseEntgelt` — ein LESEweg: die Entgeltseite prüft ihn,
@@ -579,11 +582,37 @@ export interface KonditionEingabe {
   /** Ganze Cent (Invariante 1) — `null` heisst „kein Satz hinterlegt". */
   readonly stundensatzCent: Cent | null;
   readonly arbeitszeitmodell?: string;
-  readonly wochenstunden?: string | null;
-  readonly arbeitstageWoche?: string | null;
+  /**
+   * Tausendstel (K-16) — GELESEN, bevor der Dienst sie sieht: die Route nimmt
+   * die Eingabe mit `mengeAusEingabe` („38,5" und „38.5"), und eine rohe
+   * Zeichenkette kommt hier gar nicht erst an. `null` heisst „nicht
+   * hinterlegt".
+   */
+  readonly wochenstunden?: MilliMenge | null;
+  readonly arbeitstageWoche?: MilliMenge | null;
   readonly tarifgruppe?: string | null;
   readonly kostenstelle?: string | null;
   readonly grund?: string | null;
+}
+
+/**
+ * Die Grenzen, die die Datenbank einer Kondition setzt — `ak_stunden_plausibel`
+ * und `ak_arbeitstage_plausibel` (0192): von 0 bis hierher, beide Enden
+ * eingeschlossen. Hier werden sie nur VORHER gefragt, damit eine Zahl
+ * ausserhalb ein Satz wird und kein roher 23514; die Wahrheit bleibt die
+ * Prüfung der Datenbank. `tests/kern/personal-gruende.test.ts` liest sie aus
+ * der Migration und hält beide Stellen gleich.
+ */
+export const KONDITION_GRENZEN = { wochenstunden: 168, arbeitstageWoche: 7 } as const;
+
+/** Liegt eine Menge ausserhalb von 0 bis `bis` (ganze Einheiten)? `null` ist keine Angabe. */
+function ausserhalb(wert: MilliMenge | null | undefined, bis: number): boolean {
+  return wert !== undefined && wert !== null && (wert < 0n || wert > BigInt(bis) * 1000n);
+}
+
+/** Die Form, die `numeric` liest (`38.500`) — keine Angabe bleibt `null`. */
+function alsNumeric(wert: MilliMenge | null | undefined): string | null {
+  return wert === undefined || wert === null ? null : mengeNachPostgres(wert);
 }
 
 /**
@@ -604,6 +633,14 @@ export async function setzeKondition(
   }
   if (eingabe.stundensatzCent !== null && eingabe.stundensatzCent < 0n) {
     throw new VertragEingabeFehler('satz_negativ', 'Ein negativer Stundensatz ist kein Kostensatz.');
+  }
+  if (ausserhalb(eingabe.wochenstunden, KONDITION_GRENZEN.wochenstunden)) {
+    throw new VertragEingabeFehler('wochenstunden_ungueltig',
+      `Die Wochenstunden liegen zwischen 0 und ${String(KONDITION_GRENZEN.wochenstunden)}.`);
+  }
+  if (ausserhalb(eingabe.arbeitstageWoche, KONDITION_GRENZEN.arbeitstageWoche)) {
+    throw new VertragEingabeFehler('arbeitstage_ungueltig',
+      `Die Arbeitstage pro Woche liegen zwischen 0 und ${String(KONDITION_GRENZEN.arbeitstageWoche)}.`);
   }
 
   const vorher = await findeAnstellung(kontext, eingabe.anstellungId);
@@ -677,7 +714,8 @@ export async function setzeKondition(
     [
       kontext.aktiverMandantId, eingabe.anstellungId, eingabe.giltAb,
       eingabe.arbeitszeitmodell ?? null,
-      eingabe.wochenstunden ?? null, eingabe.arbeitstageWoche ?? null,
+      /* Die Datenbank liest Punkte: `mengeNachPostgres`, nie die deutsche Anzeige. */
+      alsNumeric(eingabe.wochenstunden), alsNumeric(eingabe.arbeitstageWoche),
       eingabe.stundensatzCent === null ? null : String(eingabe.stundensatzCent),
       eingabe.tarifgruppe ?? null, eingabe.kostenstelle ?? null,
       eingabe.grund ?? null, kontext.benutzerId,

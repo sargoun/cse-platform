@@ -170,6 +170,13 @@ export const ENTGELT_RUECKWEG: NurDeutsch<PersonalRueckwegTexte<EntgeltSeitenGru
         + '„17,50" — Komma vor den Cent, Punkt für die Tausender.',
       gilt_ab_ungueltig: '„Gilt ab" erwartet einen Kalendertag (JJJJ-MM-TT).',
       satz_negativ: 'Ein negativer Stundensatz ist kein Kostensatz.',
+      /* Die Grenzen sind die der Datenbank (`KONDITION_GRENZEN`, 0192). */
+      wochenstunden_ungueltig:
+        'Die Wochenstunden sind eine Zahl von 0 bis 168 mit höchstens drei '
+        + 'Nachkommastellen — etwa „38,5". Leer lassen heisst „nicht hinterlegt".',
+      arbeitstage_ungueltig:
+        'Die Arbeitstage pro Woche sind eine Zahl von 0 bis 7 mit höchstens drei '
+        + 'Nachkommastellen — etwa „5" oder „4,5". Leer lassen heisst „nicht hinterlegt".',
       vor_eintritt:
         'Eine Kondition kann nicht vor dem Eintritt gelten, den der Kopf dieser Seite nennt.',
       periode_belegt:

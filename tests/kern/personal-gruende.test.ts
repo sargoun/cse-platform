@@ -16,9 +16,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
+import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import {
   AnstellungNichtGefunden, BEENDEN_EINGABE_GRUENDE, BEENDIGUNG_GRUENDE, BeendigungFehler,
-  KONDITION_GRUENDE, KeinEntgeltRecht, PersonalnummerVergeben, STICHTAG_GRUENDE,
+  KONDITION_GRENZEN, KONDITION_GRUENDE, KeinEntgeltRecht, PersonalnummerVergeben,
+  STICHTAG_GRUENDE,
   VERTRAG_AENDERN_GRUENDE, VertragEingabeFehler, aendereVertrag, beendeAnstellung,
   beendigungsfolgen, leseEntgelt, setzeKondition,
 } from '../../src/server/services/personal/anstellung.js';
@@ -189,6 +191,17 @@ describe('setzeKondition und leseEntgelt — VertragEingabeFehler, KeinEntgeltRe
       () => setzeKondition(kontext(() => []), { ...eingabe, giltAb: '2025-5-1' })],
     ['ein negativer Satz', VertragEingabeFehler, 'satz_negativ',
       () => setzeKondition(kontext(() => []), { ...eingabe, stundensatzCent: cent(-1n) })],
+    ['Wochenstunden über der Grenze der Datenbank', VertragEingabeFehler, 'wochenstunden_ungueltig',
+      () => setzeKondition(kontext(() => []), { ...eingabe, wochenstunden: milliMenge(168_001n) })],
+    ['negative Wochenstunden', VertragEingabeFehler, 'wochenstunden_ungueltig',
+      () => setzeKondition(kontext(() => []), { ...eingabe, wochenstunden: milliMenge(-1n) })],
+    ['Arbeitstage über der Grenze der Datenbank', VertragEingabeFehler, 'arbeitstage_ungueltig',
+      () => setzeKondition(kontext(() => []), { ...eingabe, arbeitstageWoche: milliMenge(7_001n) })],
+    /* Die Grenze selbst ist erlaubt: der Dienst fragt danach die Zeile (die es hier nicht gibt). */
+    ['genau 168 Stunden und 7 Tage gehen durch bis zur Zeile', AnstellungNichtGefunden, 'nicht_gefunden',
+      () => setzeKondition(kontext(() => []), {
+        ...eingabe, wochenstunden: milliMenge(168_000n), arbeitstageWoche: milliMenge(7_000n),
+      })],
     ['die Beschäftigung ist nicht da', AnstellungNichtGefunden, 'nicht_gefunden',
       () => setzeKondition(kontext(() => []), eingabe)],
     ['vor dem Eintritt', VertragEingabeFehler, 'vor_eintritt',
@@ -252,6 +265,18 @@ describe('die Gründe selbst', () => {
       ...KONDITION_GRUENDE, ...STICHTAG_GRUENDE, ...BEENDIGUNG_GRUENDE,
       ...ZUSAMMENFUEHREN_GRUENDE, ...STAMMDATEN_GRUENDE,
     ]) expect(g).toMatch(/^[a-z][a-z0-9_]{0,63}$/u);
+  });
+
+  it('die Grenzen einer Kondition sind die der Datenbank (0192) — an einer Stelle abgelesen', () => {
+    const migration = readFileSync(resolve(WURZEL, 'drizzle/0192_anstellung_kondition.sql'), 'utf8');
+    const grenze = (spalte: string): number => {
+      const m = new RegExp(`${spalte} >= 0 and ${spalte} <= (\\d+)\\)`, 'u').exec(migration);
+      expect(m, spalte).not.toBeNull();
+      return Number(m?.[1]);
+    };
+    expect(KONDITION_GRENZEN).toEqual({
+      wochenstunden: grenze('wochenstunden'), arbeitstageWoche: grenze('arbeitstage_woche'),
+    });
   });
 
   it('jede Fehlerklasse der vier Dienste trägt einen Grund — die nächste auch', () => {
