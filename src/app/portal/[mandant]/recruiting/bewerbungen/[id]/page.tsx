@@ -302,7 +302,9 @@ export default async function Bewerbungsblatt(
                   <input type="hidden" name="stand" value={k.abdruck} />
                   <p className="m-0 text-xs text-text-muted">{kt.kBestaetigenHinweis}</p>
                   <div>
-                    <Button type="submit" variante="primary" data-cse="kandidat-bestaetigen-knopf">
+                    {/* Ein Primary je Ansicht (DESIGN §5): das ist „Termin anlegen" (V-267). */}
+                    <Button type="submit" variante="secondary"
+                            data-cse="kandidat-bestaetigen-knopf">
                       {kt.kBestaetigen}
                     </Button>
                   </div>

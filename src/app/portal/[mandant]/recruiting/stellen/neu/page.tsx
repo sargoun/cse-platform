@@ -194,7 +194,9 @@ export default async function NeueStelle(
                     <p className="text-xs text-text-subtle">{t.fristHinweis}</p>
                   </div>
                   <div>
-                    <Button type="submit" variante="primary" data-cse="stelle-agent-anlegen">
+                    {/* Ein Primary je Ansicht (DESIGN §5): primär ist „Entwurf anlegen" —
+                        der Weg von Hand geht immer; dieser nur mit Modell (V-267). */}
+                    <Button type="submit" variante="secondary" data-cse="stelle-agent-anlegen">
                       {t.agentKnopf}
                     </Button>
                   </div>
