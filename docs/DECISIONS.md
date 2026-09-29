@@ -23272,3 +23272,105 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 
 | Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
 |---|---|
+
+### D-771 · Die sechs Personalformulare kommen mit einem Grund zurück — das Recht vor der Abweisung, kein Satz, keine Kennung und keine Eingabe in der Adresse (V-273, Teil „personal" von D-769)
+
+**Der Befund** (Schlussdurchgang, Gruppe rueckweg-schluessel). `fuehrePersonalAus`
+(`api/personal/gemeinsam.ts`), das Gerüst von sechs Schreibwegen, schickte die
+`message` JEDES Fehlers mit numerischem `status` und einem `code` als
+`?meldung=` auf die Seite des Formulars zurück. Einstellen, Vertrag, Entgelt,
+Beenden, Stammdaten und Zusammenführen zeigten den Text roh im Warnkasten:
+zwei Sätze mit voller Kennung („Beschäftigung 5b0d6c1e-… gibt es in dieser
+Gesellschaft nicht.", „Diesen Menschen gibt es in dieser Gesellschaft nicht
+(…)."), vier mit der Eingabe (die Personalnummer auf zwei Wegen, der getippte
+Betrag, der Tag „gilt ab"), zwei mit einem Namen aus der Datenbank (Dublette,
+zusammengeführte Zeile), sechs mit einem Datum der Zeile (Ein- und Austritt,
+Perioden der Konditionen), einer mit einem Namen aus dem Quelltext („`person`
+trägt keinen Mandanten") — und jeder präparierte Link schrieb seine eigene
+Systemmeldung in den Kasten. Keine der 14 Fehlerklassen der vier Dienste trug
+einen Grund. Und weil diese allgemeine Weiche VOR `autorisierungsAntwort`
+stand, wurde ein fehlendes Recht (`NichtGefundenFehler` trägt `status` 404 und
+einen `code`) zu `?meldung=Nicht gefunden` auf dem Formular statt der
+byte-gleichen 404 aller Schreibwege (AUT-06, D-656 Nr. 2).
+
+**Die Entscheidung** (setzt D-769 für diesen Teil um):
+
+1. **Das Recht zuerst.** Der Fangzweig von `fuehrePersonalAus` fragt
+   `autorisierungsAntwort` vor der allgemeinen `status`/`code`-Weiche: ein
+   fehlendes Recht ist die 404 aller Schreibwege, auch hinter einem Formular;
+   ohne Sitzung oder zweiten Faktor geht es auf die Anmeldung bzw. den
+   Faktor-Schritt mit `weiter=` (D-766), nie auf den Rückweg des Formulars.
+2. **Jede Fehlerklasse trägt einen getypten Grund.** In
+   `services/personal/{einstellung,anstellung,dublette,stammdaten}.ts` hat
+   jede der 14 Klassen einen `grund`. Eine Klasse mit mehreren Anlässen nimmt
+   ihn im Konstruktor, als Vereinigungstyp aus einer Liste
+   (`EINSTELLUNG_GRUENDE`, `VERTRAG_AENDERN_GRUENDE`,
+   `BEENDEN_EINGABE_GRUENDE`, `KONDITION_GRUENDE`, `STICHTAG_GRUENDE`,
+   `BEENDIGUNG_GRUENDE`, `ZUSAMMENFUEHREN_GRUENDE`, `STAMMDATEN_GRUENDE`);
+   eine Klasse mit einem Anlass trägt ihn fest (`nicht_gefunden`,
+   `personalnummer_vergeben`, `dublette_im_haus`, `person_nicht_sichtbar`,
+   `bestaetigung_falsch`, `kein_recht`). `VertragEingabeFehler` hat vier
+   Listen, eine je Weg, der ihn wirft — damit jede Seite genau die Sätze
+   führt, die ihre Route schicken kann, und keinen der Nachbarseite. Die zwei
+   `kein_recht`-Klassen schickt keine Route (Entgelt- und Stammdatenseite
+   fragen das Recht vorher bzw. fangen die Klasse selbst); sie tragen den
+   Grund, damit keine Klasse dieser Dateien ohne einen ist. Der deutsche Satz
+   jeder Klasse bleibt unverändert — er geht nur noch an eine Schnittstelle.
+3. **Die Route schickt den Grund**, über `grundAufsFormular` als
+   `?fehler=<grund>` an `zurueck`: den `grund` der Klasse, sonst ihren `code`
+   (wie D-753). Es reist nur, was ein Schlüssel ist: ein `grund`, der ein Satz
+   ist (anderswo heissen so Texte einer SQL-Funktion), fällt auf den `code`
+   zurück, und ist auch der keiner, reist `abgewiesen`, den keine Seite kennt.
+   Ein Fehler ohne `status` bleibt ein Wurf und damit ein Serverfehler — keine
+   erfundene Abweisung. Der Erfolg reist wie bisher als Schlüssel
+   (`eingestellt=1`, `gespeichert=1`, `zusammengefuehrt=1`) oder ohne
+   Parameter.
+4. **Die Seite schlägt nach.** Je Seite eine Tabelle in
+   `lib/i18n/verwaltung/personal-rueckweg.ts` (`titel`, `sonst`, `fehler`),
+   gezeigt von EINEM Kasten, `PersonalAbweisung`
+   (`portal/[mandant]/personal/abweisung.tsx`): nur `eigenerEintrag`, ein
+   unbekannter Grund (auch `__proto__`, `constructor`) wird `sonst`, der Wert
+   aus der Adresse steht nie auf dem Schirm; `Hinweis` `warnung` mit
+   `role="alert"`. Keine der sechs Seiten liest `?meldung=` noch. Die drei
+   Erfolgskästen (Entgelt, Stammdaten, Zusammenführen) sagen sich mit
+   `role="status"` an. Die `data-cse`-Anker bleiben, wie sie waren.
+5. **Deutsch.** Die sechs Seiten stehen auf der Ausnahmeliste der
+   Übersetzungswache und folgen nicht der Sitzungssprache; ihre Tabellen sind
+   deutsch, aber nach Sprache geschlüsselt wie `ENTSCHEIDUNG_FEHLER_TEXTE`
+   (`NurDeutsch<…>`) — wer eine Seite umstellt, ergänzt `en` und wählt mit
+   `nachSprache`.
+6. **Werte aus den Daten der Seite, nicht aus der Adresse** (D-769 Nr. 5). Die
+   Sätze nennen keinen Wert; was der Satz des Dienstes trug, zeigt die Seite
+   selbst: den Eintritt der Kopf von „Beenden" (schon bisher) und von
+   „Entgelt" (neu: eine Angabe im Kopf, aus der Zeile, die die Seite ohnehin
+   liest), den Austritt die Vertragsseite unter „Nicht hier zu ändern", die
+   Perioden die Tabelle „Konditionen", den gleichnamigen Menschen die
+   Trefferliste der Einstellung. Personalnummer, Betrag, Tag und Name reisen
+   nicht mehr mit.
+7. **Programme bekommen weiter JSON**: `{ fehler: code, meldung }` mit Status
+   (D-599).
+8. **Nicht Teil dieses Schritts:** `fehlerAufsFormular` bleibt stehen, und die
+   Wache `adressparameter` bleibt, wie sie ist — beides macht der Schritt, der
+   die fünf Teile zusammenführt (D-769).
+
+**Geprüft:** `tests/kern/personal-rueckweg.test.ts` — die sechs ECHTEN Routen
+(ersetzt sind Sitzung, Datenbank, Tor und Dienst): jeder Grund jeder
+Fehlerklasse → 303 auf `zurueck` mit genau `fehler=<grund>`, ohne `meldung=`
+und ohne Kennung; ein Fehler ohne eigenen Grund reist mit seinem `code`, ein
+Satz als Grund nie; Erfolg → Ziel mit Schlüssel oder ohne Parameter; JSON wie
+bisher; fehlendes Recht → die byte-gleiche 404; ohne Sitzung bzw. Faktor →
+Anmeldung bzw. Faktor-Schritt, nie der Rückweg; `zurueck` nie nach draussen;
+die zwei Abweisungen der Routen selbst (`betrag_ungueltig` ohne die Eingabe,
+`keine_auswahl` vor dem Dienst); ein Fehler ohne `status` bleibt ein Wurf.
+Dazu die Tabellen (jeder Grund der Route hat einen Satz, keiner ohne Route;
+ohne Kennung, Platzhalter, Datum, Backtick; kein Prototyp-Treffer), der Kasten
+(gerendert: bekannter Grund, unbekannte und präparierte Werte, kein Kasten
+ohne Grund) und der Quelltext der sechs Seiten samt `rohAusDerAdresse` (keine
+Meldung, kein Erfolg, kein Rückfall mehr aus der Adresse; es bleiben die
+Suchwörter). `tests/kern/personal-gruende.test.ts` — die echten Dienste an
+jeder der 41 Wurfstellen (ein Kontext liefert die Zeilen, die dorthin führen)
+mit dem richtigen Grund, und eine Sperrklinke: jede Fehlerklasse der vier
+Dateien trägt einen.
+
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/abweisung.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts` |
+|---|---|

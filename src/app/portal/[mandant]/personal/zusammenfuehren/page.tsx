@@ -9,7 +9,9 @@ import { DataTable } from '@/components/ui/DataTable';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { sucheKandidaten, type DublettenKandidat } from '@/server/services/personal/dublette';
+import { ZUSAMMENFUEHREN_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { PersonalAbweisung } from '../abweisung';
 
 /**
  * `/portal/[mandant]/personal/zusammenfuehren` — zwei `person`-Zeilen sind ein
@@ -67,7 +69,6 @@ export default async function Zusammenfuehren({
 
   const suche = await searchParams;
   const begriff = typeof suche['q'] === 'string' ? suche['q'] : '';
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const fertig = suche['zusammengefuehrt'] === '1';
 
   const kandidaten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -108,18 +109,15 @@ export default async function Zusammenfuehren({
       </nav>
 
       {fertig && (
-        <Hinweis art="erfolg" cse="merge-fertig" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="merge-fertig" className="mb-s5 max-w-prose">
           <strong>Zusammengeführt.</strong> Die veraltete Zeile bleibt lesbar und
           zeigt jetzt auf die führende; ihre Geschichte — Zeiteinträge,
           Wachbuch, Nachweise — bleibt unverändert dort, wo sie entstanden ist.
           Auswertungen je Mensch zählen beide Zeilen als eine Person.
         </Hinweis>
       )}
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="merge-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht zusammengeführt.</strong> {meldung}
-        </Hinweis>
-      )}
+      <PersonalAbweisung texte={ZUSAMMENFUEHREN_RUECKWEG.de} grund={suche['fehler']}
+                         cse="merge-meldung" />
 
       <h2 className="mb-s3 text-h2 text-text">1. Finden</h2>
       <form

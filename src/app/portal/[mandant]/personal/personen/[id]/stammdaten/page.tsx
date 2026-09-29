@@ -14,9 +14,11 @@ import {
   KeinStammdatenRecht, leseStammdaten, type Stammdaten,
 } from '@/server/services/personal/stammdaten';
 import { bewacherregisterErreichbar } from '@/server/services/security/bewacherregister';
+import { STAMMDATEN_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import { lesePerson, type PersonZeile } from '../../daten';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { PersonalAbweisung } from '../../../abweisung';
 
 /**
  * `/portal/[mandant]/personal/personen/[id]/stammdaten` — Geburtsdatum,
@@ -74,7 +76,6 @@ export default async function Stammdatenblatt({
     zugang.sitzung, 'personal.lesen', 'personal.schreiben');
 
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const gespeichert = suche['gespeichert'] === '1';
 
   const heute = await berlinHeute();
@@ -156,17 +157,14 @@ export default async function Stammdatenblatt({
       </nav>
 
       {gespeichert && (
-        <Hinweis art="erfolg" cse="stammdaten-gespeichert" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="stammdaten-gespeichert" className="mb-s5 max-w-prose">
           <strong>Gespeichert.</strong> Die Felder unten sind gleich neu über
           die geschützte Lesefunktion geholt — das Formular liest nichts zurück,
           was es selbst geschrieben hat.
         </Hinweis>
       )}
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="stammdaten-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {meldung}
-        </Hinweis>
-      )}
+      <PersonalAbweisung texte={STAMMDATEN_RUECKWEG.de} grund={suche['fehler']}
+                         cse="stammdaten-meldung" />
 
       <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5">
         <h2 className="mb-s4 text-h3 text-text">Angaben des Bewacherregisters</h2>

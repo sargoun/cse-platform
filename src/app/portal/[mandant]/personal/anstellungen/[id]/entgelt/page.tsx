@@ -14,12 +14,14 @@ import { formatiereGeld, type Cent } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { Recht } from '@/components/ui/Recht';
+import { ENTGELT_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import {
   findeAnstellung, leseEntgelt, leseKonditionen,
   type AnstellungZeile, type KonditionZeile,
 } from '@/server/services/personal/anstellung';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { PersonalAbweisung } from '../../../abweisung';
 
 /**
  * `/portal/[mandant]/personal/anstellungen/[id]/entgelt` — der interne
@@ -83,7 +85,6 @@ export default async function Entgeltblatt({
   const entgeltRecht = darf['personal.entgelt_lesen'] === true;
 
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const gespeichert = suche['gespeichert'] === '1';
   const heute = await berlinHeute();
   const rohStichtag = typeof suche['stichtag'] === 'string' ? suche['stichtag'] : null;
@@ -137,8 +138,13 @@ export default async function Entgeltblatt({
     >
       <div data-cse="entgelt-kopf" className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="m-0 text-h1 text-text">Entgelt — {zeile.personName}</h1>
+        {/* Der Eintritt steht im Kopf, weil eine Kondition nicht vor ihm gelten
+            kann: der Satz dieser Abweisung verweist hierher, statt das Datum
+            durch die Adresse zu tragen (D-771). */}
         <p className="m-0 text-sm text-text-muted">
           Personalnummer <span className="tabular-nums">{zeile.personalnummer}</span>
+          {' · '}
+          Eintritt <span className="tabular-nums">{tagDeutsch(zeile.eintritt)}</span>
           {' · '}
           Stichtag <span className="tabular-nums">{tagDeutsch(stichtag)}</span>
         </p>
@@ -163,17 +169,14 @@ export default async function Entgeltblatt({
       </nav>
 
       {gespeichert && (
-        <Hinweis art="erfolg" cse="entgelt-gespeichert" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="entgelt-gespeichert" className="mb-s5 max-w-prose">
           <strong>Kondition eingetragen.</strong> Die vorige offene Periode ist
           am Tag davor geschlossen; der Spiegel auf der Beschäftigung folgt der
           heute gültigen Kondition.
         </Hinweis>
       )}
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="entgelt-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {meldung}
-        </Hinweis>
-      )}
+      <PersonalAbweisung texte={ENTGELT_RUECKWEG.de} grund={suche['fehler']}
+                         cse="entgelt-meldung" />
 
       <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5">
         <h2 className="mb-s4 text-h3 text-text">Interner Kostensatz</h2>
