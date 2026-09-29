@@ -23334,6 +23334,37 @@ daraus konkret gemacht hat.
      Absage weiter, am `cause`. Dazu: jeder Grund der Abweisungen, die er
      schon auslöste, und neu `gesellschaft_fehlt` und `kundenkonto` — damit
      ist jeder der sechs Sätze gegen die echte Funktion geprüft.
+3. **Ablegen** (`POST /api/dokumente/upload`, `…/dokumente/upload`).
+   - **Anmeldung und Recht gehen durch.** Der Fangzweig ersetzte, was
+     `alsAntwort` lieferte, für ein Formular durch
+     `?fehler=eingabe&meldung=<message>` — auch die Umleitung auf die
+     Anmeldung oder den Faktor-Schritt (D-766) und die byte-gleiche 404 eines
+     fehlenden Rechts (AUT-06): „Nichts abgelegt. Nicht gefunden".
+     `autorisierungsAntwort` läuft jetzt zuerst, mit den gelesenen Feldern.
+   - **Jede Fehlerklasse der Ablage trägt ihren Grund.** `AblageFehler`
+     bekommt einen getypten (`titel_fehlt`, `titel_zu_lang`,
+     `kategorie_unbekannt`, `beschreibung_zu_lang`, `kunde_unbekannt`,
+     `objekt_unbekannt`, `auftrag_unbekannt`, `datei_leer`,
+     `datei_zu_gross`); `BezugUnbekannt` trägt `<bezug>_unbekannt` — eine
+     Kennung, die schon an der Form scheitert, und eine, die die Sitzung nicht
+     sieht, sind für den Menschen, der aus der Liste gewählt hat, derselbe
+     Fall. `MimeFehler` reist als `datei_<grund>` (wie beim Blatt der Fassung,
+     `fassungGrund`), `ExifFehler` als `datei_metadaten`, der fehlende
+     Speicher als `speicher`. Ein Dienstfehler ohne eigenen Grund reist mit
+     seinem `code`; die Seite hat dafür ihren allgemeinen Satz.
+   - **Ein Programm ohne `zurueck`** bekommt, was es bekam: ein Dienstfehler
+     ist JSON mit Status (D-599), Speicher und Datei führen ins Portal — jetzt
+     mit dem Grund und ohne Satz.
+   - Die Seite steht auf der Ausnahmeliste der Übersetzungswache: ihre Tabelle
+     ist deutsch, in der Form der zweisprachigen (`UPLOAD_RUECKWEG_TEXTE` in
+     `lib/i18n/verwaltung/dokument-rueckweg.ts`, `{ de: … }`); die Sätze der
+     Prüfkette nimmt sie vom Blatt der Fassung (eine Quelle, D-759). Sie
+     ersetzt `FEHLER_TEXT` im Seitenrumpf; `datei` und `eingabe` schickt keine
+     Route mehr. Warnkasten `rolle="alert"`.
+   - `tests/kern/dokument-ablage-rueckweg.test.ts` BEWUSST angepasst: er las
+     die Tabelle am Quelltext der Seite; sie steht jetzt unter `lib/i18n`, und
+     geprüft wird dort — dazu, dass der Satz derselbe Wert wie auf dem Blatt
+     ist und die Seite ihn nachschlägt.
 
-| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|
