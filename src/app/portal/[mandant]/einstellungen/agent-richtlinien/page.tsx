@@ -7,10 +7,11 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
-  HINWEIS_TEXT, ladeRichtlinien, WIRKUNG_TEXT, type RichtlinienZeile, type Wirkung,
+  ladeRichtlinien, WIRKUNG_TEXT, type RichtlinienZeile, type Wirkung,
 } from '@/server/services/agent/richtlinie';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { richtlinienHinweis } from '../../agenten/richtlinien/hinweis';
 
 /**
  * `/portal/[mandant]/einstellungen/agent-richtlinien` — das Ausgangs-Gate als
@@ -60,9 +61,7 @@ export default async function AgentRichtlinien(
    * sich ueber einen Link jeder beliebige Satz in der Oberflaeche erscheinen
    * lassen. Der Handler schickt jetzt nur noch den Namen.
    */
-  const { hinweis } = await searchParams;
-  const hinweisText = typeof hinweis === 'string'
-    ? HINWEIS_TEXT[hinweis] ?? null : null;
+  const hinweisText = richtlinienHinweis(await searchParams);
   const tor = await mandantTor(
     `/portal/${mandant}/einstellungen/agent-richtlinien`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

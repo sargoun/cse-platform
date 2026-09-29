@@ -9,9 +9,10 @@ import { Button } from '@/components/ui/Button';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
-  HINWEIS_TEXT, ladeRichtlinie, WIRKUNG_TEXT, type RichtlinieBlick, type Wirkung,
+  ladeRichtlinie, WIRKUNG_TEXT, type RichtlinieBlick, type Wirkung,
 } from '@/server/services/agent/richtlinie';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { richtlinienHinweis } from '../hinweis';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
 
@@ -76,8 +77,7 @@ export default async function Richtlinie(
   const suche = await searchParams;
   /* Ein CODE aus geschlossenem Satz, kein Text aus der Adresse — siehe
      `HINWEIS_TEXT`. */
-  const hinweis = typeof suche['hinweis'] === 'string'
-    ? HINWEIS_TEXT[suche['hinweis']] ?? null : null;
+  const hinweis = richtlinienHinweis(suche);
 
   const tor = await mandantTor(`/portal/${mandant}/agenten/richtlinien/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

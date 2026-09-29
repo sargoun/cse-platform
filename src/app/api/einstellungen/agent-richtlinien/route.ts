@@ -12,6 +12,7 @@ import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import { HINWEIS_TEXT, RichtlinieFehler, setzeRichtlinie }
   from '@/server/services/agent/richtlinie';
 import { AKTIONEN, type Aktion } from '@/server/agent/policy';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `POST /api/einstellungen/agent-richtlinien` — eine Richtlinie des
@@ -57,9 +58,14 @@ const ZIELE: Readonly<Record<string, (slug: string) => string>> = {
  */
 function zurueck(anfrage: NextRequest, ziel: string, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const bauer = ZIELE[ziel] ?? ZIELE['einstellungen']!;
+  /*
+   * Nur ein EIGENER Eintrag (D-728): `ziel` kommt aus dem Formular, und
+   * `ZIELE['__proto__']` war `Object.prototype` — kein Bauer, sondern ein
+   * „bauer is not a function" und damit ein 500 (D-774 Nachrunde).
+   */
+  const bauer = eigenerEintrag(ZIELE, ziel) ?? ZIELE['einstellungen']!;
   const url = new URL(bauer(slug), erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined && HINWEIS_TEXT[hinweis] !== undefined) {
+  if (hinweis !== undefined && eigenerEintrag(HINWEIS_TEXT, hinweis) !== undefined) {
     url.searchParams.set('hinweis', hinweis);
   }
   return NextResponse.redirect(url, 303);
