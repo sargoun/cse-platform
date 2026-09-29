@@ -21,6 +21,9 @@
  */
 import type { InternSprache } from '../intern.js';
 import type { RevierGrund } from '../../../server/services/reinigung/revier.js';
+import type {
+  SonderleistungErfolg, SonderleistungGrund,
+} from '../../../server/services/reinigung/sonderleistung.js';
 
 export interface RevierTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
@@ -266,6 +269,100 @@ export const REVIER_FEHLER_TEXTE: Readonly<Record<InternSprache, RevierFehlerTex
       revier_unbekannt:
         'This Revier no longer exists in this Gesellschaft, or it has been archived — the '
         + 'list shows the current state.',
+    },
+  },
+};
+
+/**
+ * Was nach einem Schreibversuch auf `/reinigung/sonderleistungen` oben steht —
+ * nachgeschlagen nach dem SCHLÜSSEL aus `?erfolg=` bzw. dem GRUND aus
+ * `?fehler=` (V-275, D-773, D-769).
+ *
+ * Bis dahin schickte `POST /api/reinigung/sonderleistungen` die Sätze selbst
+ * in `?ok=` und `?fehler=`, und die Seite zeigte sie roh. **Nur deutsch, in
+ * derselben Form wie die zweisprachigen Tabellen:** die Seite steht noch auf
+ * der Ausnahmeliste der Übersetzungswache; stellt jemand sie um, kommt hier
+ * nur `en` dazu.
+ *
+ * **Ohne die Werte, die der Satz der Route einsetzte:** „jetzt" und „vorher"
+ * beim Zustandswechsel — der neue Zustand steht in der Liste darunter, und
+ * er ist die Eingabe des Formulars, die nie zurück in die Adresse reist
+ * (D-769 Nr. 5). Ein unbekannter Erfolgsschlüssel zeigt keinen Kasten, ein
+ * unbekannter Grund bekommt `sonst`. Kein Satz nennt ein Recht als
+ * Schlüssel (D-741).
+ */
+export interface SonderleistungTexte {
+  /** Die ersten Worte des Erfolgskastens. */
+  readonly gespeichert: string;
+  readonly erfolg: Readonly<Record<SonderleistungErfolg, string>>;
+  /** Die ersten Worte des Warnkastens. */
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<SonderleistungGrund, string>>;
+}
+
+export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> = {
+  de: {
+    gespeichert: 'Gespeichert.',
+    erfolg: {
+      abruf_erfasst: 'Der Abruf ist erfasst.',
+      status_gesetzt: 'Der Zustand des Abrufs ist geändert — die Liste unten zeigt ihn.',
+      abruf_storniert: 'Der Abruf ist storniert — mit Grund und Urheber, und nicht gelöscht.',
+      zeitwert_gesetzt: 'Der Zeitwert der Katalogzeile ist gesetzt.',
+    },
+    titel: 'Nicht gespeichert.',
+    sonst: 'Es wurde nichts gespeichert. Prüfen Sie die Angaben und versuchen Sie es noch '
+      + 'einmal.',
+    fehler: {
+      position_fehlt: 'Die Katalogposition fehlt.',
+      zustand_unvollstaendig: 'Abruf und Zustand sind Pflicht.',
+      storno_unvollstaendig: 'Abruf und Stornogrund sind Pflicht.',
+      abruf_unvollstaendig:
+        'Objekt, Katalogposition, Bezeichnung und „Beauftragt am" sind Pflicht.',
+      objekt_unbekannt:
+        'Das Objekt gehört nicht zu dieser Gesellschaft, oder Ihrem Konto fehlt das Recht, '
+        + 'Objekte zu lesen — ohne das Objekt ist kein Kunde bekannt.',
+      objekt_ohne_kunde:
+        'An diesem Objekt hängt kein Kunde. Ein Abruf ohne Kunde lässt sich nicht abrechnen — '
+        + 'bitte zuerst den Kunden am Objekt hinterlegen.',
+      bezeichnung_fehlt: 'Ein Abruf braucht eine Bezeichnung.',
+      beauftragt_am_ungueltig: '„Beauftragt am" ist ein Kalendertag.',
+      ausfuehrung_ungueltig: '„Ausführung von" und „Ausführung bis" sind Kalendertage.',
+      ausfuehrung_fenster: 'Das Ausführungsende liegt vor dem Beginn.',
+      menge_ohne_einheit:
+        'Menge und Einheit gehören zusammen — eine Menge ohne Einheit ist keine Menge.',
+      menge_ungueltig: 'Die Menge ist eine Zahl mit höchstens drei Dezimalstellen.',
+      nicht_angelegt:
+        'Der Abruf wurde nicht angelegt — Objekt, Kunde, Revier oder Katalogposition gehört '
+        + 'nicht zu dieser Gesellschaft, oder Ihr Konto darf hier nicht schreiben.',
+      stornogrund_fehlt: 'Ein Storno braucht einen Grund.',
+      zeitwert_ungueltig:
+        'Der Zeitwert ist eine Zahl in Minuten mit höchstens drei Dezimalstellen.',
+      zeitwert_nicht_positiv: 'Der Zeitwert ist grösser als null.',
+      status_unveraendert: 'Der Abruf steht schon in diesem Zustand.',
+      abgerechnet_unveraenderlich:
+        'Ein abgerechneter Abruf ist unveränderlich — er steht in einer festgeschriebenen '
+        + 'Rechnung. Korrigiert wird die Rechnung (Storno), nicht der Abruf.',
+      storniert_endgueltig:
+        'Ein stornierter Abruf wird nicht wiederbelebt. Für eine erneute Beauftragung '
+        + 'entsteht ein neuer Abruf.',
+      abgerechnet_nur_rechnung:
+        'Den Stempel „Abgerechnet" setzt die Rechnungsübernahme und nur sie. Von Hand gesetzt '
+        + 'behauptete er eine Rechnung, die es nicht gibt.',
+      storno_ueber_status:
+        'Ein Storno braucht einen Grund und einen Urheber — es läuft über „Abruf stornieren", '
+        + 'nicht über den Status.',
+      status_beim_erfassen: 'Dieser Zustand lässt sich beim Erfassen nicht setzen.',
+      bereits_storniert: 'Dieser Abruf ist bereits storniert.',
+      abgerechnet_kein_storno:
+        'Ein abgerechneter Abruf lässt sich nicht stornieren — er steht in einer '
+        + 'festgeschriebenen Rechnung. Korrigiert wird durch Storno der Rechnung.',
+      abruf_unbekannt:
+        'Diesen Abruf gibt es in dieser Gesellschaft nicht mehr — die Liste zeigt den '
+        + 'aktuellen Stand.',
+      katalogzeile_unbekannt:
+        'Diese Katalogzeile gibt es in dieser Gesellschaft nicht — die Liste zeigt den '
+        + 'aktuellen Stand.',
     },
   },
 };

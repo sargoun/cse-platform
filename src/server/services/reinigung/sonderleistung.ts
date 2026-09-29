@@ -70,11 +70,26 @@ export const PFLEGBARE_STATUS: readonly SonderleistungStatus[] = [
   'angefragt', 'beauftragt', 'geplant', 'erbracht',
 ];
 
-export interface Statusbefund {
-  readonly erlaubt: boolean;
-  /** Warum nicht — in dem Satz, den die Oberfläche anzeigt. */
-  readonly grund: string | null;
-}
+/**
+ * Warum ein Statuswechsel NICHT erlaubt ist — als Schlüssel (V-275, D-773).
+ * Die Seite zeigt den Satz daneben (`Statusbefund.grund`) dort, wo sie den
+ * Befund selbst ausrechnet; über die Adresse reist nur dieser Schlüssel.
+ */
+export const STATUS_ABWEISUNGEN = [
+  'status_unveraendert', 'abgerechnet_unveraenderlich', 'storniert_endgueltig',
+  'abgerechnet_nur_rechnung', 'storno_ueber_status',
+] as const;
+export type StatusAbweisung = (typeof STATUS_ABWEISUNGEN)[number];
+
+export type Statusbefund =
+  | { readonly erlaubt: true; readonly grund: null; readonly abweisung: null }
+  | {
+    readonly erlaubt: false;
+    /** Warum nicht — in dem Satz, den die Oberfläche anzeigt. */
+    readonly grund: string;
+    /** Dasselbe als Schlüssel — für den Rückweg (`?fehler=`, V-275). */
+    readonly abweisung: StatusAbweisung;
+  };
 
 /**
  * Darf dieser Statuswechsel von Hand gemacht werden?
@@ -99,40 +114,92 @@ export function statuswechsel(
   von: SonderleistungStatus, nach: SonderleistungStatus,
 ): Statusbefund {
   if (von === nach) {
-    return { erlaubt: false, grund: `Der Abruf steht schon auf „${STATUS_TEXT[von]}".` };
+    return {
+      erlaubt: false, abweisung: 'status_unveraendert',
+      grund: `Der Abruf steht schon auf „${STATUS_TEXT[von]}".`,
+    };
   }
   if (ENDZUSTAENDE.includes(von)) {
-    return {
-      erlaubt: false,
-      grund: von === 'abgerechnet'
-        ? 'Ein abgerechneter Abruf ist unveränderlich — er steht in einer '
+    return von === 'abgerechnet'
+      ? {
+        erlaubt: false, abweisung: 'abgerechnet_unveraenderlich',
+        grund: 'Ein abgerechneter Abruf ist unveränderlich — er steht in einer '
           + 'festgeschriebenen Rechnung. Korrigiert wird die Rechnung (Storno), '
-          + 'nicht der Abruf.'
-        : 'Ein stornierter Abruf wird nicht wiederbelebt. Für eine erneute '
+          + 'nicht der Abruf.',
+      }
+      : {
+        erlaubt: false, abweisung: 'storniert_endgueltig',
+        grund: 'Ein stornierter Abruf wird nicht wiederbelebt. Für eine erneute '
           + 'Beauftragung entsteht ein neuer Abruf.',
-    };
+      };
   }
   if (nach === 'abgerechnet') {
     return {
-      erlaubt: false,
+      erlaubt: false, abweisung: 'abgerechnet_nur_rechnung',
       grund: 'Den Stempel „Abgerechnet" setzt die Rechnungsübernahme und nur sie. '
         + 'Von Hand gesetzt behauptete er eine Rechnung, die es nicht gibt.',
     };
   }
   if (nach === 'storniert') {
     return {
-      erlaubt: false,
+      erlaubt: false, abweisung: 'storno_ueber_status',
       grund: 'Ein Storno braucht einen Grund und einen Urheber — es läuft über '
         + '„Abruf stornieren", nicht über den Status.',
     };
   }
-  return { erlaubt: true, grund: null };
+  return { erlaubt: true, grund: null, abweisung: null };
 }
+
+/**
+ * Warum ein Abruf, ein Zustand, ein Storno oder ein Zeitwert NICHT gespeichert
+ * wurde — als Schlüssel (V-275, D-773, D-769). `POST /api/reinigung/
+ * sonderleistungen` schickt ihn als `?fehler=<grund>` zurück auf die Seite,
+ * und die schlägt ihn nach (`SONDERLEISTUNG_TEXTE`). Bis dahin stand der Satz
+ * dieses Dienstes roh in `?fehler=` — bei einem unbekannten Abruf mit dessen
+ * voller Kennung.
+ *
+ * Die ersten sechs stellt die Route fest (das Formular kam unvollständig, das
+ * Objekt trägt keinen Kunden), die übrigen dieser Dienst.
+ */
+export const ABRUF_FORMULAR_GRUENDE = [
+  'position_fehlt', 'zustand_unvollstaendig', 'storno_unvollstaendig', 'abruf_unvollstaendig',
+  'objekt_unbekannt', 'objekt_ohne_kunde',
+] as const;
+export const ABRUF_EINGABE_GRUENDE = [
+  'bezeichnung_fehlt', 'beauftragt_am_ungueltig', 'ausfuehrung_ungueltig',
+  'ausfuehrung_fenster', 'menge_ohne_einheit', 'menge_ungueltig', 'nicht_angelegt',
+  'stornogrund_fehlt', 'zeitwert_ungueltig', 'zeitwert_nicht_positiv',
+] as const;
+export const STATUS_NICHT_ERLAUBT_GRUENDE = [
+  ...STATUS_ABWEISUNGEN, 'status_beim_erfassen', 'bereits_storniert', 'abgerechnet_kein_storno',
+] as const;
+export const SONDERLEISTUNG_GRUENDE = [
+  ...ABRUF_FORMULAR_GRUENDE, ...ABRUF_EINGABE_GRUENDE, ...STATUS_NICHT_ERLAUBT_GRUENDE,
+  'abruf_unbekannt', 'katalogzeile_unbekannt',
+] as const;
+export type AbrufFormularGrund = (typeof ABRUF_FORMULAR_GRUENDE)[number];
+export type AbrufEingabeGrund = (typeof ABRUF_EINGABE_GRUENDE)[number];
+export type StatusNichtErlaubtGrund = (typeof STATUS_NICHT_ERLAUBT_GRUENDE)[number];
+export type SonderleistungGrund = (typeof SONDERLEISTUNG_GRUENDE)[number];
+
+/** Was nach einem gespeicherten Vorgang als `?erfolg=` zurückkommt (V-275) — nie ein Satz. */
+export const SONDERLEISTUNG_ERFOLGE = [
+  'abruf_erfasst', 'status_gesetzt', 'abruf_storniert', 'zeitwert_gesetzt',
+] as const;
+export type SonderleistungErfolg = (typeof SONDERLEISTUNG_ERFOLGE)[number];
 
 export class AbrufNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
-  constructor(id: string) {
+  /**
+   * `katalogzeile_unbekannt`, wenn `setzeZeitwert` die Katalogzeile nicht
+   * trifft — derselbe Fehler, aber nicht derselbe Satz: dort gab es keinen
+   * Abruf.
+   */
+  constructor(
+    id: string,
+    readonly grund: 'abruf_unbekannt' | 'katalogzeile_unbekannt' = 'abruf_unbekannt',
+  ) {
     super(`Den Abruf ${id} gibt es in dieser Gesellschaft nicht.`);
     this.name = 'AbrufNichtGefunden';
   }
@@ -141,7 +208,7 @@ export class AbrufNichtGefunden extends Error {
 export class StatusNichtErlaubt extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 422;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: StatusNichtErlaubtGrund) {
     super(nachricht);
     this.name = 'StatusNichtErlaubt';
   }
@@ -150,7 +217,7 @@ export class StatusNichtErlaubt extends Error {
 export class AbrufEingabeFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: AbrufEingabeGrund) {
     super(nachricht);
     this.name = 'AbrufEingabeFehlt';
   }
@@ -349,22 +416,22 @@ export async function erfasseAbruf(
   kontext: SchreibKontext, e: AbrufEingabe,
 ): Promise<{ readonly id: string }> {
   if (e.bezeichnung.trim() === '') {
-    throw new AbrufEingabeFehlt('Ein Abruf braucht eine Bezeichnung.');
+    throw new AbrufEingabeFehlt('Ein Abruf braucht eine Bezeichnung.', 'bezeichnung_fehlt');
   }
   if (!DATUM.test(e.beauftragtAm)) {
-    throw new AbrufEingabeFehlt('„Beauftragt am" ist ein Kalendertag.');
+    throw new AbrufEingabeFehlt('„Beauftragt am" ist ein Kalendertag.', 'beauftragt_am_ungueltig');
   }
   for (const [wert, feld] of [
     [e.ausfuehrungVon, 'Ausführung von'], [e.ausfuehrungBis, 'Ausführung bis'],
   ] as const) {
     if (wert !== undefined && wert !== null && wert !== '' && !DATUM.test(wert)) {
-      throw new AbrufEingabeFehlt(`„${feld}" ist ein Kalendertag.`);
+      throw new AbrufEingabeFehlt(`„${feld}" ist ein Kalendertag.`, 'ausfuehrung_ungueltig');
     }
   }
   const von = e.ausfuehrungVon === undefined || e.ausfuehrungVon === '' ? null : e.ausfuehrungVon;
   const bis = e.ausfuehrungBis === undefined || e.ausfuehrungBis === '' ? null : e.ausfuehrungBis;
   if (von !== null && bis !== null && bis < von) {
-    throw new AbrufEingabeFehlt('Das Ausführungsende liegt vor dem Beginn.');
+    throw new AbrufEingabeFehlt('Das Ausführungsende liegt vor dem Beginn.', 'ausfuehrung_fenster');
   }
   const mengeRoh = e.menge === undefined || e.menge === null || e.menge.trim() === ''
     ? null : e.menge.trim().replace(',', '.');
@@ -372,15 +439,20 @@ export async function erfasseAbruf(
     ? null : e.einheit.trim();
   if ((mengeRoh === null) !== (einheit === null)) {
     throw new AbrufEingabeFehlt(
-      'Menge und Einheit gehören zusammen — eine Menge ohne Einheit ist keine Menge.');
+      'Menge und Einheit gehören zusammen — eine Menge ohne Einheit ist keine Menge.',
+      'menge_ohne_einheit');
   }
   if (mengeRoh !== null && !MENGE.test(mengeRoh)) {
-    throw new AbrufEingabeFehlt('Die Menge ist eine Zahl mit höchstens drei Dezimalstellen.');
+    throw new AbrufEingabeFehlt(
+      'Die Menge ist eine Zahl mit höchstens drei Dezimalstellen.', 'menge_ungueltig');
   }
   const status = e.status ?? 'angefragt';
   if (!PFLEGBARE_STATUS.includes(status)) {
-    throw new StatusNichtErlaubt(statuswechsel('angefragt', status).grund
-      ?? 'Dieser Zustand lässt sich beim Erfassen nicht setzen.');
+    const befund = statuswechsel('angefragt', status);
+    throw befund.erlaubt
+      ? new StatusNichtErlaubt(
+        'Dieser Zustand lässt sich beim Erfassen nicht setzen.', 'status_beim_erfassen')
+      : new StatusNichtErlaubt(befund.grund, befund.abweisung);
   }
 
   const [zeile] = await kontext.schreibe<{ id: string }>(
@@ -403,7 +475,8 @@ export async function erfasseAbruf(
   if (zeile === undefined) {
     throw new AbrufEingabeFehlt(
       'Der Abruf wurde nicht angelegt — Objekt, Kunde, Revier oder Katalogposition '
-      + 'gehört nicht zu dieser Gesellschaft, oder die Sitzung darf hier nicht schreiben.');
+      + 'gehört nicht zu dieser Gesellschaft, oder die Sitzung darf hier nicht schreiben.',
+      'nicht_angelegt');
   }
   return { id: zeile.id };
 }
@@ -426,7 +499,7 @@ export async function setzeStatus(
   if (vorher === undefined) throw new AbrufNichtGefunden(e.id);
   const von = SONDERLEISTUNG_STATUS.find((s) => s === vorher.status) ?? 'angefragt';
   const befund = statuswechsel(von, e.status);
-  if (!befund.erlaubt) throw new StatusNichtErlaubt(befund.grund ?? 'Nicht erlaubt.');
+  if (!befund.erlaubt) throw new StatusNichtErlaubt(befund.grund, befund.abweisung);
 
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update sonderleistung
@@ -452,7 +525,7 @@ export async function storniereAbruf(
   kontext: SchreibKontext, e: { readonly id: string; readonly grund: string },
 ): Promise<void> {
   if (e.grund.trim() === '') {
-    throw new AbrufEingabeFehlt('Ein Storno braucht einen Grund.');
+    throw new AbrufEingabeFehlt('Ein Storno braucht einen Grund.', 'stornogrund_fehlt');
   }
   const [vorher] = await kontext.schreibe<{ status: string; storniert: boolean }>(
     `select status::text as status, (storniert_am is not null) as storniert
@@ -461,13 +534,13 @@ export async function storniereAbruf(
   );
   if (vorher === undefined) throw new AbrufNichtGefunden(e.id);
   if (vorher.storniert) {
-    throw new StatusNichtErlaubt('Dieser Abruf ist bereits storniert.');
+    throw new StatusNichtErlaubt('Dieser Abruf ist bereits storniert.', 'bereits_storniert');
   }
   if (vorher.status === 'abgerechnet') {
     throw new StatusNichtErlaubt(
       'Ein abgerechneter Abruf lässt sich nicht stornieren — er steht in einer '
       + 'festgeschriebenen Rechnung. Korrigiert wird durch Storno der Rechnung '
-      + '(Invariante 4).');
+      + '(Invariante 4).', 'abgerechnet_kein_storno');
   }
   await kontext.schreibe(
     `update sonderleistung
@@ -594,10 +667,12 @@ export async function setzeZeitwert(
     ? null : e.zeitwertMinuten.trim().replace(',', '.');
   if (wert !== null && !ZEITWERT.test(wert)) {
     throw new AbrufEingabeFehlt(
-      'Der Zeitwert ist eine Zahl in Minuten mit höchstens drei Dezimalstellen.');
+      'Der Zeitwert ist eine Zahl in Minuten mit höchstens drei Dezimalstellen.',
+      'zeitwert_ungueltig');
   }
   if (wert !== null && Number(wert) <= 0) {
-    throw new AbrufEingabeFehlt('Der Zeitwert ist grösser als null (lkp_zeitwert_positiv).');
+    throw new AbrufEingabeFehlt(
+      'Der Zeitwert ist grösser als null (lkp_zeitwert_positiv).', 'zeitwert_nicht_positiv');
   }
   const einheit = e.einheit === undefined || e.einheit === null || e.einheit.trim() === ''
     ? null : e.einheit.trim();
@@ -612,7 +687,7 @@ export async function setzeZeitwert(
     [e.id, wert, einheit, e.istPlatzhalter ?? null],
   );
   if (zeilen.length === 0) {
-    throw new AbrufNichtGefunden(e.id);
+    throw new AbrufNichtGefunden(e.id, 'katalogzeile_unbekannt');
   }
 }
 

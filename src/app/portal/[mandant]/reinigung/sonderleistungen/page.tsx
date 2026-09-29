@@ -23,6 +23,8 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_ENTWURF_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-entwurf';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgres } from '@/server/services/finanz/menge';
+import { SONDERLEISTUNG_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /** Ganze Cent als Betrag — `formatiereGeld`, mit Tausenderpunkt (Invariante 1, V-233). */
 function geldText(roh: string | null): string {
@@ -86,8 +88,16 @@ export default async function Sonderleistungen(
 ) {
   const { mandant } = await params;
   const suche = await searchParams;
-  const meldung = typeof suche['ok'] === 'string' ? suche['ok'] : null;
+  /*
+   * Erfolg und Abweisung kommen als SCHLÜSSEL (`?erfolg=`, `?fehler=`; V-275,
+   * D-769) und werden hier ein Satz — nur als eigener Eintrag nachgeschlagen
+   * (D-728). Ein unbekannter Erfolg zeigt keinen Kasten, ein unbekannter Grund
+   * den allgemeinen Satz; nie steht, was in der Adresse stand.
+   */
+  const tS = SONDERLEISTUNG_TEXTE.de;
+  const erfolgText = eigenerEintrag(tS.erfolg, suche['erfolg']) ?? null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerText = fehler === null ? null : (eigenerEintrag(tS.fehler, fehler) ?? tS.sonst);
 
   const tor = await mandantTor(`/portal/${mandant}/reinigung/sonderleistungen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -181,14 +191,16 @@ export default async function Sonderleistungen(
         {weg.wegAbrufNach}
       </p>
 
-      {meldung !== null && (
-        <Hinweis art="erfolg" cse="sonderleistung-ok" className="mb-s5 max-w-prose">
-          <strong>Gespeichert.</strong> {meldung}
+      {erfolgText !== null && (
+        <Hinweis art="erfolg" rolle="status" cse="sonderleistung-erfolg"
+                 className="mb-s5 max-w-prose">
+          <strong>{tS.gespeichert}</strong> {erfolgText}
         </Hinweis>
       )}
-      {fehler !== null && (
-        <Hinweis art="warnung" cse="sonderleistung-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {fehler}
+      {fehlerText !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="sonderleistung-fehler"
+                 className="mb-s5 max-w-prose">
+          <strong>{tS.titel}</strong> {fehlerText}
         </Hinweis>
       )}
 
