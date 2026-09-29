@@ -20988,7 +20988,9 @@ Seite, die ohne Sitzung gar nicht geht.
    Benachrichtigungswege (`gelesen`, `praeferenz`, `[id]/oeffnen`), die nur
    Formulare rufen, schrieben `nicht_angemeldet` und schreiben jetzt
    denselben Code wie alle. Lesewege (`GET`: Belege, Exporte, Downloads) sind
-   kein Formular und unverändert — offen als V-258.
+   kein Formular und unverändert — offen als V-258. **Nachsatz:** nachgezogen
+   in D-768 — eine Navigation per `GET` bekommt dieselbe Weiche, V-258 ist
+   erledigt.
 8. **Tote Zweige entfernt (geprüft).** `mein/abwesenheit` ruft `authorize`
    mit der geprüften Sitzung und ohne `erfordert2fa`: es übersetzt nur noch
    das 404 (`nichtGefundenAntwort`). `mein/antraege` und `zeit/einwand`
@@ -21109,4 +21111,91 @@ die Gerätesprache an ihrer Hülle an (D-694), `<html>` blieb dort `de-DE`.
    unverändert streng; jeder neue Wert ist ein gültiges Tag.
 
 | Betrifft | D-82, D-84, D-592, D-688, D-694, D-751, O-886, V-257, WCAG 3.1.1, 3.1.2, `src/app/layout.tsx`, `src/lib/i18n/html-sprache.ts`, `src/components/portal/{PortalRahmen,Zurueck}.tsx`, `src/components/portal/rahmen-sprache.ts`, `src/server/registry/seitensprache.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` (gelesen, nicht geändert), `src/app/portal/{huellen-speicher.ts,konto/konto.ts}`, `src/app/portal/mein/monatsnachweis/page.tsx`, `tests/kern/{seitensprache,html-sprache}.test.ts`, `tests/e2e/sprachumschalter.spec.ts` |
+|---|---|
+
+### D-768 · Ein Leseweg ohne Sitzung oder ohne zweiten Faktor gibt einer Navigation die Anmeldung, nicht JSON — dieselbe Weiche wie D-766 (V-258)
+
+**Der Befund** (V-258, beim Bau von V-256 gefunden): 22 `GET`-Routen —
+Belege, DATEV-, Z3- und Lohnexport, Jahrespaket, Verfahrensdokumentation,
+Datenschutzberichte, Dokumente und Bündel, Medien, XRechnung/ZUGFeRD in
+beiden Portalen, Freigaben, Berichts-CSV, Nachtragswarnungen — schrieben ihr
+401 selbst (`{"fehler":"keine_sitzung"}`, die Berichts-CSV
+`nicht_angemeldet`) und in 12 Fangzweigen das 403 (`zweiter_faktor`). Wer nach
+abgelaufener Sitzung auf „Herunterladen" tippte, sah eine weisse JSON-Seite.
+D-766 Nr. 7 hatte die Lesewege offen gelassen, weil ihr Kriterium einen
+Formularrumpf verlangt; die Wache nahm jede `route.ts` ohne Schreib-Handler
+aus.
+
+**Die Entscheidung.**
+
+1. **Eine Navigation erkennt die Plattform an `Accept` mit ausdrücklichem
+   `text/html` bei `GET`/`HEAD`** (`istBrowserNavigation`,
+   `server/auth/antwort.ts`) — dasselbe `willSeite`, das D-766 für Formulare
+   benutzt, ohne den Rumpf, den ein `GET` nicht hat. `fetch()` ohne Angabe
+   (`*/*`), ein `<img>` (Bildtypen und `*/*`), `text/html;q=0` und jedes
+   Programm bleiben bei JSON. `HEAD` antwortet wie `GET` (RFC 9110).
+2. **Kein zweites Merkmal.** `Sec-Fetch-Mode`/`Sec-Fetch-Dest` wertet die
+   Plattform nirgends aus. Ausgewertet wird nur `Sec-Fetch-Site` — als Riegel
+   gegen fremde Einbettung, und dort ausdrücklich „fehlt er, geht die Anfrage
+   durch", weil ältere Diensttelefone ihn nicht schicken
+   (`api/mein/dokumente/[id]/datei`). Ein Merkmal, das genau diesen Telefonen
+   fehlt, wäre ein neues — also keines.
+3. **Die Rückkehr** (`rueckkehrAdresse`): eine Navigation will zuerst dorthin
+   zurück, wohin sie wollte — die angefragte Adresse, wenn sie eine Seite
+   ist. Ein Download unter `/api/…` ist keine: dann gilt die Seite, von der er
+   kam (`Referer`; eigenen Seiten schickt die Plattform ihn vollständig,
+   SEC-A7), und fehlt auch die, reist kein `weiter` mit — die Anmeldung führt
+   dann ins Portal (`/portal` bzw. `/portal/mein`). Jeder Kandidat geht durch
+   `internerPfad` wie in D-766: fremder Ursprung, Schema- oder Portwechsel,
+   `//…`, `/api/…` und `/auth/…` fallen durch.
+4. **Die Antworten sind die von D-766, an derselben Stelle.**
+   `ohneSitzungAntwort`, `ohneFaktorAntwort` und damit `anmeldungsAntwort`
+   fragen jetzt „Formular ODER Navigation" (`bekommtSeite`): ohne Sitzung 303
+   auf `/auth/login` bzw. für die Beschäftigten `/auth/mitarbeiter`
+   (`ohneSitzungBeschaeftigte`) mit `weiter=`; eine Sitzung ohne aktiven
+   Bereich 303 auf `/portal`; ohne Faktor 303 auf
+   `/auth/zwei-faktor/einrichten?weiter=`. Ein Programm bekommt byte-gleich
+   das JSON von vorher; die Berichts-CSV schreibt `keine_sitzung` wie alle —
+   ihr `nicht_angemeldet` war das letzte. JSON bleiben: ein fehlendes Recht
+   (404 byte-gleich, AUT-06), der Riegel gegen fremde Einbettung (403
+   `fremder_ursprung`, `mein/dokumente`) und die fachlichen Fehler
+   (400/409/503).
+5. **Umgestellt: 22 Routen** — 22 Wächter vor dem Rumpf auf
+   `ohneSitzungAntwort` (die Unterlage der Beschäftigten auf
+   `ohneSitzungBeschaeftigte`), 15 Fangzweige (12 Paare, 3 nur
+   `NichtAngemeldetFehler`) auf `anmeldungsAntwort`. Keine der 22 ruft
+   `authorize` mit `erfordert2fa`: der Zweig „zweiter Faktor" ist heute nicht
+   erreichbar und bleibt trotzdem die zentrale Übersetzung, damit ein
+   künftiges `erfordert2fa` sofort den Faktor-Schritt zeigt (wie D-766 Nr. 8
+   für die Verwaltungsrouten).
+6. **Die eine Ausnahme der Wache:** `api/marke/[mandant]/[art]/[version]` —
+   ein öffentliches Bild. Die Sitzung ist dort nur der zweite Schlüssel für
+   die Vorschau eines unveröffentlichten Bildes der eigenen Gesellschaft; ohne
+   sie antwortet die Route 404 wie für jedes fremde Bild (AUT-06). Eine
+   Anmeldung statt des 404 verriete, dass dort etwas liegt.
+7. **Der CSV-Knopf der Berichte verliert `download`.** Mit dem Attribut
+   behandelt der Browser jede Antwort als Datei, auch die einer abgelaufenen
+   Sitzung: statt der Anmeldung gäbe es einen fehlgeschlagenen Download oder
+   die Anmeldeseite als Datei. Die Route liefert
+   `Content-Disposition: attachment` — die Datei bleibt ein Download ohne
+   Seitenwechsel. Alle anderen Download-Links waren schon gewöhnliche Links;
+   eine Prüfung hält den Baum frei von `download` an Links auf `/api/…`.
+8. **Die Wache** (`tests/kern/hilfen/sitzungswache.ts`) nimmt Lesewege nicht
+   mehr aus und liest jetzt jede Datei unter `src/app/api` und jede
+   `route.ts` sonst unter `src/app`. Eine Ausnahme (Nr. 6), begründet; eine
+   Ausnahme, die keinen Befund mehr deckt, fällt selbst auf.
+9. **Geprüft:** `tests/kern/sitzung-leseweg.test.ts` — das Merkmal
+   (`GET`/`HEAD` mit Browser-`Accept` ja; `fetch()`, `<img>`, `q=0`,
+   `Sec-Fetch-Mode` allein und `POST` nein), die Rückkehr (Seite des Links,
+   angefragte Seite vor dem `Referer`; `https://evil.example/…`,
+   `//evil.example/…`, `http://`, fremder Port, `/api/…`, `/auth/…`: keine),
+   die Weiche (beide Anmeldungen, Portal, Faktor-Schritt, JSON byte-gleich,
+   404), echte Lesewege (Lohnexport samt Fangzweig 403/404, Dokumentdatei,
+   XRechnung des Kundenportals, Unterlage der Beschäftigten samt
+   `fremder_ursprung`, Berichts-CSV, Freigaben) und der `download`-Riegel mit
+   Gegenprobe. `tests/kern/sitzung-formularweg.test.ts` (6) und „die Wache
+   sagt auch Nein" über Lesewege. Browserprüfungen laufen in diesem Zweig
+   nicht.
+
+| Betrifft | D-599, D-766, D-692, D-656, D-682, AUT-06, SEC-A7, V-256, V-258, `src/server/auth/antwort.ts`, `src/app/api/mein/formular.ts`, `src/app/api/{bau/nachtrag-warnungen,berichte/[bericht]/csv,buchhaltung/{buchungen/[id]/beleg,datev/[id]/datei,jahrespaket,lohnexport,verfahrensdokumentation,z3-export},datenschutz/{auskunft,loeschkonzept,verarbeitungsverzeichnis},dokumente/{[id]/datei,buendel},einstellungen/protokoll/export,finanzen/rechnungen/[id]/{xrechnung.xml,zugferd.pdf},freigaben,freigaben/[id],kunde/rechnungen/[id]/{xrechnung.xml,zugferd.pdf},medien/[id],mein/dokumente/[id]/datei}/route.ts`, `src/app/portal/[mandant]/berichte/rahmen.tsx`, `tests/kern/hilfen/sitzungswache.ts`, `tests/kern/{sitzung-leseweg,sitzung-formularweg}.test.ts` |
 |---|---|

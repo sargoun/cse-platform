@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungBeschaeftigte } from '@/app/api/mein/formular';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
@@ -97,7 +98,7 @@ export async function GET(
 
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungBeschaeftigte(anfrage);
   }
   /*
    * Ein Konto ohne Person hat keine Beschaeftigung, also auch keine

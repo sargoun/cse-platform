@@ -177,13 +177,19 @@ export async function BerichtsSeite({
           * darf, darf sie nicht schon aus dem Haus tragen — eine CSV-Datei
           * verlässt das Portal und jede Zugriffskontrolle darin. Ohne das
           * Recht erscheint kein Knopf statt eines Knopfes, der 403 antwortet.
+          *
+          * **Ein gewöhnlicher Link, kein `download`** (D-768). Die Datei kommt
+          * als Anhang (`Content-Disposition: attachment`) und bleibt damit ein
+          * Download, ohne die Seite zu verlassen. Mit `download` behandelt der
+          * Browser JEDE Antwort als Datei, auch die einer abgelaufenen
+          * Sitzung: statt der Anmeldung, die danach hierher zurückführt, gäbe
+          * es einen fehlgeschlagenen Download oder die Anmeldeseite als Datei.
           */}
         {darfExportieren && (
           <a
             href={`/api/berichte/${bericht}/csv?jahr=${String(lage.jahr)}`
               + `&koernung=${lage.koernung}&mandant=${mandant}`}
             data-cse="csv-export"
-            download
             className="ms-auto inline-flex min-h-11 items-center rounded-md border border-line
                        px-s4 text-sm text-text transition-colors duration-fast ease-brand
                        hover:border-line-strong"

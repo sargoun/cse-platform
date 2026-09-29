@@ -1,10 +1,11 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler } from '@/server/auth/fehler';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant, type LeseKontext } from '@/server/kontext/index';
 import {
   abschnitte, ganzesJahr, jahrAus, type Granularitaet,
@@ -176,7 +177,7 @@ export async function GET(
   }
 
   const sitzung = await aktuelleSitzung();
-  if (sitzung === null) return NextResponse.json({ fehler: 'nicht_angemeldet' }, { status: 401 });
+  if (sitzung === null) return ohneSitzungAntwort(anfrage, sitzung);
   // Invariante 10: ohne genau einen aktiven Bereich gibt es diesen Bericht nicht.
   if (sitzung.aktiverMandantId === null) {
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
@@ -238,9 +239,8 @@ export async function GET(
       },
     });
   } catch (fehler) {
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'nicht_angemeldet' }, { status: 401 });
-    }
+    const anmeldung = anmeldungsAntwort(fehler, anfrage);
+    if (anmeldung !== null) return anmeldung;
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

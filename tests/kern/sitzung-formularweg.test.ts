@@ -11,8 +11,10 @@
  * Geprüft werden (1) die Weiche selbst — Formular oder Programm, 401 oder
  * 403, und die Rückkehr NUR auf eigene Pfade —, (2) echte Routen jeder Bauart
  * (eigener Wächter, Gerüst, Arbeiterportal, Schichtbrücke) mit ersetzter
- * Sitzung, und (3) der ganze Baum: keine Schreibroute unter `src/app/api`
- * antwortet ohne Sitzung selbst (`hilfen/sitzungswache.ts`).
+ * Sitzung, und (3) der ganze Baum: keine Route unter `src/app/api` — seit
+ * D-768 auch kein Leseweg — antwortet ohne Sitzung selbst
+ * (`hilfen/sitzungswache.ts`). Die Navigation per `GET` selbst prüft
+ * `sitzung-leseweg.test.ts`.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -365,9 +367,9 @@ describe('(5a) die Anmeldungen führen zurück — auch die der Beschäftigten',
   });
 });
 
-describe('(6) die Wache über den ganzen Baum: keine Schreibroute antwortet ohne Sitzung selbst', () => {
+describe('(6) die Wache über den ganzen Baum: keine Route antwortet ohne Sitzung selbst', () => {
   const WURZEL = resolve(import.meta.dirname, '../..');
-  const API = join(WURZEL, 'src/app/api');
+  const APP = join(WURZEL, 'src/app');
 
   function dateien(verzeichnis: string): string[] {
     const treffer: string[] = [];
@@ -380,22 +382,41 @@ describe('(6) die Wache über den ganzen Baum: keine Schreibroute antwortet ohne
   }
 
   /**
-   * Die begründeten Ausnahmen — Datei → Grund. Heute keine: jeder Schreibweg
-   * und jedes Gerüst geht über die Weiche. Wer hier eine Zeile einträgt,
+   * Die begründeten Ausnahmen — Datei → Grund. Wer hier eine Zeile einträgt,
    * schreibt den Grund dazu, und der Grund ist nie „es war schon so".
+   * Jeder Schreibweg, jedes Gerüst und seit D-768 jeder Leseweg geht über die
+   * Weiche; übrig ist eine Route, deren Sitzung kein Schloss ist.
    */
-  const AUSNAHMEN: Readonly<Record<string, string>> = {};
+  const AUSNAHMEN: Readonly<Record<string, string>> = {
+    'src/app/api/marke/[mandant]/[art]/[version]/route.ts':
+      'Ein öffentliches Bild (Logo, Avatar, Titelbild der Website). Die Sitzung ist nur der '
+      + 'zweite Schlüssel für die Vorschau eines UNVERÖFFENTLICHTEN Bildes der eigenen '
+      + 'Gesellschaft; ohne sie antwortet die Route 404 wie für jedes fremde Bild (AUT-06). '
+      + 'Eine Anmeldung statt des 404 verriete, dass dort ein Bild liegt (D-768 Nr. 6).',
+  };
 
-  const alle = dateien(API).map((d) => ({
-    rel: relative(WURZEL, d), quelle: readFileSync(d, 'utf8'),
-  }));
+  /** Alles unter `src/app/api` und jede `route.ts` sonst unter `src/app`. */
+  const alle = dateien(APP)
+    .map((d) => relative(WURZEL, d))
+    .filter((rel) => rel.startsWith('src/app/api/') || /\/route\.tsx?$/u.test(rel))
+    .map((rel) => ({ rel, quelle: readFileSync(join(WURZEL, rel), 'utf8') }));
 
-  it('die Wache sieht den Baum — Schreibwege, Gerüste und die Sitzungsfragen darin', () => {
+  it('die Wache sieht den Baum — Schreib- und Lesewege, Gerüste und die Sitzungsfragen darin', () => {
+    const istRoute = (d: { rel: string }): boolean => /\/route\.tsx?$/u.test(d.rel);
     const schreibend = alle.filter((d) =>
-      /\/route\.ts$/u.test(d.rel) && /export\s+(?:async\s+)?function\s+POST\b/u.test(d.quelle));
+      istRoute(d) && /export\s+(?:async\s+)?function\s+POST\b/u.test(d.quelle));
     expect(schreibend.length).toBeGreaterThan(180);
+    const lesend = alle.filter((d) => istRoute(d)
+      && /export\s+(?:async\s+)?function\s+GET\b/u.test(d.quelle)
+      && !/export\s+(?:async\s+)?function\s+(?:POST|PUT|PATCH|DELETE)\b/u.test(d.quelle));
+    expect(lesend.length).toBeGreaterThanOrEqual(25);
+    /* Die 22 Lesewege aus V-258 fragen jetzt die Weiche. */
+    expect(lesend.filter((d) => /\bohneSitzung(?:Antwort|Beschaeftigte)\(/u.test(d.quelle)).length)
+      .toBeGreaterThanOrEqual(22);
     const mitWeiche = alle.filter((d) => /\bohneSitzung(?:Antwort|Beschaeftigte)\(/u.test(d.quelle));
-    expect(mitWeiche.length).toBeGreaterThan(140);
+    expect(mitWeiche.length).toBeGreaterThan(160);
+    /* Auch die Routen ausserhalb von `api/` liegen im Blick. */
+    expect(alle.some((d) => d.rel === 'src/app/auth/callback/route.ts')).toBe(true);
   });
 
   it('kein Befund ausserhalb der begründeten Ausnahmen', () => {
@@ -406,10 +427,13 @@ describe('(6) die Wache über den ganzen Baum: keine Schreibroute antwortet ohne
       + '`ohneSitzungAntwort`/`anmeldungsAntwort` (server/auth/antwort.ts) nehmen').toEqual([]);
   });
 
-  it('jede Ausnahme hat einen Grund und trifft eine Datei, die es gibt', () => {
+  it('jede Ausnahme hat einen Grund, trifft eine Datei, die es gibt, und wird noch gebraucht', () => {
     for (const [datei, grund] of Object.entries(AUSNAHMEN)) {
       expect(grund.length, datei).toBeGreaterThan(20);
-      expect(alle.some((d) => d.rel === datei), datei).toBe(true);
+      const d = alle.find((x) => x.rel === datei);
+      expect(d, datei).toBeDefined();
+      /* Eine Ausnahme ohne Befund ist eine offene Tür für die nächste Route. */
+      expect(pruefeQuelle(datei, d?.quelle ?? '').length, datei).toBeGreaterThan(0);
     }
   });
 });
@@ -442,14 +466,25 @@ describe('die Wache sagt auch Nein', () => {
       }`).map((x) => x.art)).toEqual(['ohne_weiche']);
   });
 
-  it('die Weiche, Kommentare und Lesewege sind kein Befund', () => {
+  it('die Weiche und Kommentare sind kein Befund', () => {
     expect(pruefeQuelle('src/app/api/x/route.ts', route(`
       // früher: { status: 401 } mit 'keine_sitzung'
       const sitzung = await aktuelleSitzung();
       if (sitzung === null) return ohneSitzungAntwort(anfrage, sitzung);`))).toEqual([]);
-    expect(pruefeQuelle('src/app/api/x/route.ts', `
-      export async function GET() {
-        return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-      }`)).toEqual([]);
+  });
+
+  it('ein Leseweg ist seit D-768 kein Freibrief mehr — mit der Weiche kein Befund', () => {
+    const leseweg = (rumpf: string): string =>
+      `import { NextResponse } from 'next/server';\nexport async function GET(anfrage) {\n${rumpf}\n}`;
+    expect(pruefeQuelle('src/app/api/x/datei/route.ts', leseweg(`
+      const sitzung = await aktuelleSitzung();
+      if (sitzung === null) return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });`))
+      .map((x) => x.art).sort()).toEqual(['anmeldecode', 'ohne_weiche', 'status_401']);
+    expect(pruefeQuelle('src/app/portal/x/export/route.ts', leseweg(`
+      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });`))
+      .map((x) => x.art)).toEqual(['anmeldecode']);
+    expect(pruefeQuelle('src/app/api/x/datei/route.ts', leseweg(`
+      const sitzung = await aktuelleSitzung();
+      if (sitzung === null) return ohneSitzungAntwort(anfrage, sitzung);`))).toEqual([]);
   });
 });

@@ -26,6 +26,12 @@ import { erwarteterUrsprung, internerPfad } from './ursprung.js';
  * `ohneSitzungAntwort`, `ohneFaktorAntwort` und `anmeldungsAntwort`
  * entscheiden, ob ein Formular fragt, und wohin es dann geht.
  * `tests/kern/sitzung-formularweg.test.ts` hält den Baum dagegen.
+ *
+ * **Und die Lesewege** (D-768, V-258): ein Download-Link nach abgelaufener
+ * Sitzung endete genauso — 22 `GET`-Routen (Belege, Exporte, Rechnungsdateien)
+ * schrieben ihr 401 selbst. Eine Navigation des Browsers bekommt jetzt
+ * dieselbe Anmeldung, und zurück geht es auf die Seite, von der der Download
+ * kam (`tests/kern/sitzung-leseweg.test.ts`).
  */
 
 // ---------------------------------------------------------------------------
@@ -112,6 +118,34 @@ export function istBrowserFormular(anfrage: Request, felder?: GeleseneFelder): b
   return FORMULAR_RUMPF.has(medientyp(anfrage.headers.get('content-type'))) && willSeite(anfrage);
 }
 
+/** `HEAD` antwortet wie `GET`, nur ohne Rumpf (RFC 9110) — also mit demselben Status. */
+const LESE_METHODEN: ReadonlySet<string> = new Set(['GET', 'HEAD']);
+
+/**
+ * Ist dieser Aufruf eine NAVIGATION des Browsers — ein Verweis, ein
+ * Download-Link, eine eingetippte Adresse (D-768, V-258)?
+ *
+ * **Dasselbe Merkmal wie beim Formular, nur ohne Rumpf.** Ein `GET` trägt
+ * keinen; es bleibt `Accept` mit AUSDRÜCKLICHEM `text/html` (`willSeite`).
+ * Das schickt jeder Browser, wenn er eine Adresse aufruft; `fetch()` ohne
+ * Angabe schickt nur den Platzhalter, ein `<img>` Bildtypen und den
+ * Platzhalter — beide bleiben ein Programm und bekommen JSON.
+ *
+ * **Kein zweites Merkmal.** `Sec-Fetch-Mode`/`Sec-Fetch-Dest` wertet die
+ * Plattform nirgends aus (nur `Sec-Fetch-Site`, als Riegel gegen fremde
+ * Einbettung, und dort ausdrücklich „fehlt er, geht die Anfrage durch" —
+ * ältere Telefone schicken ihn nicht). Ein Merkmal, das ausgerechnet diesen
+ * Telefonen fehlt, wäre hier ein neues und das falsche.
+ */
+export function istBrowserNavigation(anfrage: Request): boolean {
+  return LESE_METHODEN.has(anfrage.method.toUpperCase()) && willSeite(anfrage);
+}
+
+/** Bekommt dieser Aufrufer eine Seite statt JSON: ein Formular (D-766) oder eine Navigation (D-768)? */
+function bekommtSeite(anfrage: Request, felder?: GeleseneFelder): boolean {
+  return istBrowserFormular(anfrage, felder) || istBrowserNavigation(anfrage);
+}
+
 // ---------------------------------------------------------------------------
 // Wohin es zurückgeht
 // ---------------------------------------------------------------------------
@@ -126,6 +160,11 @@ export function istBrowserFormular(anfrage: Request, felder?: GeleseneFelder): b
  * `strict-origin-when-cross-origin`, SEC-A7), sonst `zurueck` — das Ziel des
  * Erfolgs, meist die Liste daneben.
  *
+ * Eine NAVIGATION (D-768) will zuerst dorthin zurück, wohin sie wollte — die
+ * angefragte Adresse selbst, wenn sie eine Seite ist. Ein Download unter
+ * `/api/…` ist keine: dann gilt die Seite, von der er kam (`Referer`), und
+ * fehlt auch die, reist kein `weiter` mit und die Anmeldung führt ins Portal.
+ *
  * Jeder Kandidat geht durch `internerPfad`: ein fremder Ursprung, ein
  * Schema-Wechsel, `//boese.example`, `/\boese.example` und `/.//boese.example`
  * fallen durch. Und er muss eine SEITE sein — `/api/…` ist keine, und
@@ -134,6 +173,8 @@ export function istBrowserFormular(anfrage: Request, felder?: GeleseneFelder): b
 export function rueckkehrAdresse(anfrage: NextRequest, felder?: GeleseneFelder): string | null {
   const kandidaten = [
     felder === undefined ? undefined : feld(felder, 'fehlerweg'),
+    istBrowserNavigation(anfrage)
+      ? `${anfrage.nextUrl.pathname}${anfrage.nextUrl.search}` : undefined,
     anfrage.headers.get('referer') ?? undefined,
     felder === undefined ? undefined : feld(felder, 'zurueck'),
   ];
@@ -187,7 +228,7 @@ function weiterleitung(anfrage: NextRequest, pfad: string, rueckkehr: string | n
 
 /**
  * Ohne brauchbare Sitzung (401) — für ein Programm JSON wie bisher, für ein
- * Browserformular eine Seite (D-766).
+ * Browserformular (D-766) und eine Navigation per `GET` (D-768) eine Seite.
  *
  * `sitzung` ist, was `aktuelleSitzung()` lieferte:
  *
@@ -207,7 +248,7 @@ export function ohneSitzungAntwort(
   sitzung: { readonly aktiverMandantId: string | null } | null,
   weg: Formularweg = {},
 ): NextResponse {
-  if (!istBrowserFormular(anfrage, weg.felder)) {
+  if (!bekommtSeite(anfrage, weg.felder)) {
     return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
   }
   if (sitzung !== null) return weiterleitung(anfrage, '/portal', null);
@@ -216,9 +257,9 @@ export function ohneSitzungAntwort(
 }
 
 /**
- * Ohne zweiten Faktor (403, AUT-02) — für ein Browserformular der
- * Faktor-Schritt mit Rückkehr, wie die Pforte es für Seiten tut
- * (`portal/zugang.ts`, V-136); für ein Programm JSON wie bisher.
+ * Ohne zweiten Faktor (403, AUT-02) — für ein Browserformular und eine
+ * Navigation (D-768) der Faktor-Schritt mit Rückkehr, wie die Pforte es für
+ * Seiten tut (`portal/zugang.ts`, V-136); für ein Programm JSON wie bisher.
  *
  * **`einrichten`, nicht `pruefen`.** Die Pforte fragt die Datenbank, ob ein
  * Faktor hinterlegt ist; eine Route, deren Transaktion gerade abgebrochen
@@ -227,7 +268,7 @@ export function ohneSitzungAntwort(
  * Ende wie bei der Pforte, einen Schritt später.
  */
 export function ohneFaktorAntwort(anfrage: NextRequest, weg: Formularweg = {}): NextResponse {
-  if (!istBrowserFormular(anfrage, weg.felder)) {
+  if (!bekommtSeite(anfrage, weg.felder)) {
     return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
   }
   return weiterleitung(anfrage, FAKTOR_SCHRITT, rueckkehrAdresse(anfrage, weg.felder));

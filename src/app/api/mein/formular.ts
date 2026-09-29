@@ -37,6 +37,10 @@ import { ohneSitzungAntwort } from '@/server/auth/antwort';
  * Die Entscheidung selbst steht in `ohneSitzungAntwort`; hier steht nur,
  * welche Anmeldung diese Routen haben. `daten` sind die schon gelesenen
  * Felder, wo die Route den Rumpf vor der Sitzung liest (die Schichtwege).
+ *
+ * Auch der Leseweg der Beschäftigten ruft sie (D-768): der Link auf eine
+ * freigegebene Unterlage (`mein/dokumente/[id]/datei`) führt ohne Sitzung
+ * auf dieselbe Anmeldung und danach zurück auf die Seite mit dem Link.
  */
 export function ohneSitzungBeschaeftigte(anfrage: NextRequest, daten?: FormData): NextResponse {
   return ohneSitzungAntwort(anfrage, null, { anmeldung: 'beschaeftigte', felder: daten });
