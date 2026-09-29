@@ -56,9 +56,6 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'ZUGFeRD — Rechnung' };
 
-/* Ein Befehl, kein Wort — er lautet in beiden Sprachen gleich. */
-const BEFEHL_COMPLIANCE = 'pnpm test:compliance';
-
 interface Kopf {
   readonly id: string;
   readonly nummer: string | null;
@@ -93,9 +90,7 @@ function Zustand(
       <h2 className="mb-s2 text-h3 text-text">{t.pruefstand}</h2>
       <p className={`m-0 max-w-prose text-sm ${ton}`}>{text}</p>
       <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-        {t.veraPdfVor}
-        <code>{BEFEHL_COMPLIANCE}</code>
-        {t.veraPdfNach}
+        {t.veraPdf}
       </p>
       {regelwerk === null ? null : (
         <p className="m-0 mt-s2 text-xs text-text-muted">{t.regelwerk}: {regelwerk}</p>
@@ -272,8 +267,7 @@ export default async function ZugferdBlatt(
             <div>
               <dt className="text-xs text-text-muted">{t.nachlassZuschlag}</dt>
               <dd className="cse-zahl text-sm text-text">
-                −{formatiereGeld(lage.v.summen.nachlass)} / +
-                {formatiereGeld(lage.v.summen.zuschlag)}
+                −{formatiereGeld(lage.v.summen.nachlass)} / +{formatiereGeld(lage.v.summen.zuschlag)}
               </dd>
             </div>
             <div>

@@ -160,9 +160,10 @@ export default async function Loeschkonzeptseite(
       <section className="mb-s7">
         <h2 className="mb-s2 text-h3 text-text">3. Was NICHT gelöscht wird — und warum</h2>
         <p className="mb-s4 max-w-prose text-sm text-text-muted">
-          Diese Tabellen tragen den Riegel `kern.verhindere_loeschung()` und
-          haben keine `DELETE`-Erlaubnis (K-16). Jede Zeile nennt ihren Grund;
-          „aus gesetzlichen Gründen" steht hier bei keiner.
+          Diese Tabellen sind doppelt gegen Löschen gesperrt: die Datenbank weist
+          jeden Löschversuch ab, und keine Rolle der Anwendung darf überhaupt löschen
+          (K-16). Jede Zeile nennt ihren Grund; „aus gesetzlichen Gründen" steht hier
+          bei keiner.
         </p>
         {k.sperren.map((g) => (
           <div key={g.art} className="mb-s5">

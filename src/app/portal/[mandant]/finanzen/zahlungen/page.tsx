@@ -183,7 +183,10 @@ export default async function Zahlungen(
         >
           {hinweis === 'bauabzug' ? t.bauabzugGebucht
             : hinweis === 'ausgeglichen' ? t.ausgeglichen
-            : hinweis}
+            : hinweis === 'erfasst' ? t.zahlungErfasst
+            : hinweis === 'guthaben' ? t.zahlungGuthaben
+            : hinweis === 'storniert' ? t.zahlungStorniert
+            : t.hinweisSonst}
         </Hinweis>
       )}
 

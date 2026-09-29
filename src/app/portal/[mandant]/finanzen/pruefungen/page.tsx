@@ -48,14 +48,11 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Vorab-Prüfungen — Finanzen' };
 
 /*
- * Funktions-, Sicht- und Rechtenamen lauten in beiden Sprachen gleich und
- * stehen deshalb hier und nicht in der Texttabelle (siehe deren Kopf).
+ * Rechteschlüssel lauten in beiden Sprachen gleich und stehen deshalb hier und
+ * nicht in der Texttabelle; auf dem Schirm stehen sie als Satz (`<Recht>`).
+ * Funktions- und Sichtnamen stehen seit V-251 gar nicht mehr da.
  */
-const FN_AUFTRAEGE_OHNE_ZEIT = 'fin.auftraege_ohne_zeit()';
-const SICHT_ZEITEINTRAG_AUFTRAG = 'zeiteintrag_auftrag';
-const SICHT_INVOKER = 'security_invoker';
 const RECHT_ZEIT_LESEN = 'zeit.lesen';
-const FN_ERFASSTE_MINUTEN = 'fin.auftrag_erfasste_minuten()';
 const RECHT_FESTSCHREIBEN = 'finanzen.festschreiben';
 const RECHT_FINANZEN_LESEN = 'finanzen.lesen';
 
@@ -273,12 +270,8 @@ export default async function Pruefungsblatt(
       </section>
 
       <p className="mt-s7 max-w-prose text-xs text-text-muted">
-        {t.fin18MengeVor} <code>{FN_AUFTRAEGE_OHNE_ZEIT}</code>{' '}
-        {t.fin18MengeNachFunktion} <code>{SICHT_ZEITEINTRAG_AUFTRAG}</code>
-        {t.fin18MengeNachSicht}
-        <code> {SICHT_INVOKER}</code>{t.fin18MengeNachInvoker}{' '}
+        {t.fin18MengeVor}{' '}
         <Recht schluessel={RECHT_ZEIT_LESEN} sprache={zugang.sprache} /> {t.fin18MengeNachRecht}{' '}
-        <code>{FN_ERFASSTE_MINUTEN}</code>{t.fin18MengeNachMinuten}{' '}
         <Recht schluessel={RECHT_FESTSCHREIBEN} sprache={zugang.sprache} />{t.fin18MengeNachFestschreiben}{' '}
         <Recht schluessel={RECHT_FINANZEN_LESEN} sprache={zugang.sprache} /> {t.fin18MengeSchluss}
       </p>

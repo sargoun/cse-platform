@@ -130,8 +130,8 @@ export default async function Arbeitszeit(
               : `${String(offeneModelle)} von ${String(laufendeModelle.length)} `
                 + 'laufenden Modellen sind unbestätigt (O-18).'}{' '}
           <strong>Solange die Sollzeitregel „offen" ist, führt das Stundenkonto
-          soll_minuten = 0 — und 0 heisst dort „nicht hinterlegt", nicht „nichts
-          geschuldet".</strong> Ein Saldo aus einer geratenen Sollzeit machte jede
+          eine Sollzeit von 0 Minuten — und 0 heisst dort „nicht hinterlegt", nicht
+          „nichts geschuldet".</strong> Ein Saldo aus einer geratenen Sollzeit machte jede
           geleistete Minute zur Überstunde, und das fiele nicht auf: das Konto zeigte
           eine plausible Zahl, jeden Monat, jahrelang.
         </p>
@@ -271,9 +271,9 @@ export default async function Arbeitszeit(
             <input id="schluessel" name="schluessel" type="text" required className={feld}
                    placeholder="vollzeit_39" />
             <p className="mt-s2 text-xs text-text-muted">
-              Der Schlüssel ist das Ziel von{' '}
-              <code>anstellung_kondition.arbeitszeitmodell</code>. Ob er den Lohncodes
-              entsprechen muss, ist offen (O-18, ACC-12).
+              Über diesen Schlüssel verweisen die Vertragsbedingungen einer Anstellung
+              auf das Modell. Ob er den Lohncodes entsprechen muss, ist offen (O-18,
+              ACC-12).
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="bezeichnung">

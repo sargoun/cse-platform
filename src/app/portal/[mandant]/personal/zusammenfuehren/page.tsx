@@ -112,8 +112,7 @@ export default async function Zusammenfuehren({
           <strong>Zusammengeführt.</strong> Die veraltete Zeile bleibt lesbar und
           zeigt jetzt auf die führende; ihre Geschichte — Zeiteinträge,
           Wachbuch, Nachweise — bleibt unverändert dort, wo sie entstanden ist.
-          Aggregationen je Mensch lesen beide Kennungen über
-          <span className="font-mono"> app.person_identitaeten</span>.
+          Auswertungen je Mensch zählen beide Zeilen als eine Person.
         </Hinweis>
       )}
       {meldung !== null && (
@@ -140,8 +139,8 @@ export default async function Zusammenfuehren({
         <p className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Zwei Zeichen genügen. Gesucht wird unter den Menschen, die in{' '}
           <strong className="text-text">dieser</strong> Gesellschaft beschäftigt
-          sind — `person` trägt keinen Mandanten (D-09), sichtbar ist ein Mensch
-          hier, weil er hier arbeitet.
+          sind — ein Mensch gehört keiner einzelnen Gesellschaft (D-09), sichtbar
+          ist er hier, weil er hier arbeitet.
         </p>
       ) : kandidaten.length === 0 ? (
         <p data-cse="merge-leer" className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
@@ -326,11 +325,10 @@ export default async function Zusammenfuehren({
         deshalb nicht sehen kann. Ausgeliefert ist die engste Annahme: beide
         Zeilen müssen in dieser Gesellschaft beschäftigt sein, kein Feld wird
         übernommen, kein Zugang widerrufen. Was die Zusammenführung heute leistet,
-        ist die Identität: die ArbZG-Leser <span className="font-mono">app.arbzg_belastung</span>{' '}
-        und der Nachtlauf aggregieren seit 0195 über{' '}
-        <span className="font-mono">app.person_identitaeten</span>, die Gruppen­auslastung
-        gruppiert auf <span className="font-mono">app.person_kanonisch</span> — Arbeitszeitgrenzen
-        gelten damit je Mensch und nicht je Zeile (Invariante 9). Jeder ANDERE Lesepfad
+        ist die Identität: die Prüfung der Arbeitszeitgrenzen und der Nachtlauf zählen
+        beide Zeilen als einen Menschen, und die Gruppen­auslastung fasst sie unter der
+        führenden Zeile zusammen — Arbeitszeitgrenzen gelten damit je Mensch und nicht
+        je Zeile (Invariante 9). Jeder ANDERE Lesepfad
         zeigt weiter zwei Zeilen; die Zusammenführung ist die Identität, nicht ein
         Umschreiben der Geschichte.
         {/* TODO(client, O-611): Welche Angaben gewinnen beim Zusammenfuehren zweier Personenzeilen, welcher Portalzugang ueberlebt, laesst sich eine Zusammenfuehrung zuruecknehmen — und darf eine Gesellschaft eine Dublette zusammenfuehren, deren zweite Beschaeftigung bei einer Schwestergesellschaft liegt? */}

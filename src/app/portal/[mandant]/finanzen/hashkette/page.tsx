@@ -50,12 +50,6 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Hashkette — Finanzen' };
 
 /*
- * Der Jobname lautet in beiden Sprachen gleich und steht deshalb hier und
- * nicht in der Texttabelle (siehe den Kopf von `i18n/verwaltung/finanzen/uebersicht.ts`).
- */
-const JOB_KETTE_PRUEFEN = 'kette_pruefen';
-
-/*
  * `'Fehler'` ist hier der SCHLUESSEL einer Pille (DESIGN §5) und keine
  * Beschriftung — die Pille uebersetzt sich selbst. Ueber eine Konstante
  * gelesen bleibt der Schluessel das, was er ist: `fehler` ist zudem ein Wert
@@ -185,7 +179,7 @@ export default async function Hashkettenblatt(
           <Hinweis art="warnung" cse="hashkette-kein-lauf">
             <p className="m-0 max-w-prose">
               <strong>
-                {t.keinLaufVor} <code>{JOB_KETTE_PRUEFEN}</code> {t.keinLaufNach}
+                {t.keinLauf}
               </strong>{' '}
               {t.keinLaufMitte}
               <strong> {t.keinLaufNicht}</strong>{t.keinLaufSchluss}

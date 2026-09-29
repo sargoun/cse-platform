@@ -16,6 +16,7 @@ import { ABLEHNUNG_GRUENDE, offeneAnsprueche, type OfflineWartend }
   from '@/server/services/zeit/offline';
 import { BEGRUENDUNG_MINDESTLAENGE } from '@/server/services/zeit/nacherfassung';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/zeiten/nacherfassung` — was ein Telefon ohne Netz
@@ -70,6 +71,23 @@ const STATUS_TEXT: Readonly<Record<string, string>> = {
   empfangen: 'Empfangen',
   zugeordnet: 'Zugeordnet',
   manuelle_pruefung: 'Manuelle Prüfung',
+};
+
+/**
+ * Die Wörter, die `api/offline-ereignis/[id]` zurückschickt (`?fehler=`), als
+ * Satz. Vorher stand für jedes Wort ausser den ersten beiden das Wort selbst
+ * im Satz („Der Anspruch wurde nicht übernommen: beginn_fehlt"); ein Wort, das
+ * hier fehlt, wird jetzt ein allgemeiner Satz und nie, was in der Adresse
+ * steht (V-250).
+ */
+const ANSPRUCH_FEHLER: Readonly<Record<string, string>> = {
+  begruendung_zu_kurz:
+    'Die Begründung ist zu kurz. Eine Entscheidung ohne Grund ist im Streit nichts wert — mindestens zehn Zeichen.',
+  bereits_entschieden: 'Über diesen Anspruch hat jemand anders bereits entschieden.',
+  beginn_fehlt:
+    'Der Beginn fehlt oder ist kein lesbarer Zeitpunkt. Ohne Beginn entsteht kein Zeiteintrag.',
+  grund_unbekannt: 'Wählen Sie einen der angebotenen Gründe für die Ablehnung.',
+  nicht_gefunden: 'Diesen Anspruch gibt es in dieser Gesellschaft nicht.',
 };
 
 function dauerText(sekunden: number): string {
@@ -297,11 +315,9 @@ export default async function Nacherfassung({
           data-cse="anspruch-fehler"
           className="mb-s5 rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
         >
-          {fehler === 'begruendung_zu_kurz'
-            ? 'Die Begründung ist zu kurz. Eine Entscheidung ohne Grund ist im Streit nichts wert — mindestens zehn Zeichen.'
-            : fehler === 'bereits_entschieden'
-              ? 'Über diesen Anspruch hat jemand anders bereits entschieden.'
-              : `Der Anspruch wurde nicht übernommen: ${fehler}`}
+          {eigenerEintrag(ANSPRUCH_FEHLER, fehler)
+            ?? 'Der Anspruch wurde nicht übernommen. Prüfen Sie die Angaben und entscheiden Sie '
+              + 'noch einmal.'}
         </p>
       )}
 

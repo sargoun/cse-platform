@@ -135,12 +135,11 @@ export default async function WebsiteProfil(
           <strong className="block">
             Für diese Gesellschaft ist kein Profil angelegt.
           </strong>
-          Erwartet wird je Sprache eine Zeile in{' '}
-          <code className="font-mono">unternehmensprofil</code>. Ohne sie zeigt die
+          Erwartet wird je Sprache ein Unternehmensprofil. Ohne es zeigt die
           Markenkarte der Gruppe keinen Kurztext, und{' '}
           <code className="font-mono">/unternehmen/{mandant}</code> fällt auf die
-          Angaben aus <code className="font-mono">mandant</code> zurück. Der
-          Erstbestand entsteht über <code className="font-mono">pnpm db:seed</code>.
+          Stammdaten der Gesellschaft zurück. Den Erstbestand legt die technische
+          Betreuung beim Einrichten an.
         </Hinweis>
       ) : (
         <div className="grid grid-cols-1 gap-s5 lg:grid-cols-2">
@@ -244,9 +243,8 @@ export default async function WebsiteProfil(
         <h2 className="mb-s3 mt-0 text-h3 text-text">Logo und Coverbild</h2>
         <Hinweis art="warnung" cse="bilder-nicht-verbunden" className="mb-s4 max-w-prose">
           <strong className="block">Nicht gebaut — und zwar mit Absicht.</strong>
-          Es gibt im Portal keinen Weg, eine Datei entgegenzunehmen:{' '}
-          <code className="font-mono">medien</code>-Zeilen entstehen über{' '}
-          <code className="font-mono">pnpm content:import</code>. Diese Gesellschaft
+          Es gibt im Portal keinen Weg, eine Datei entgegenzunehmen: Bilder kommen nur
+          über den Inhaltsimport der technischen Betreuung ins System. Diese Gesellschaft
           führt{' '}
           {daten.bilder.length === 1
             ? 'genau ein Bild' : `${String(daten.bilder.length)} Bilder`}

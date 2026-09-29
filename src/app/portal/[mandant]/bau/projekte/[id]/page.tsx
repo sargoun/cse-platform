@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -239,7 +240,8 @@ export default async function ProjektDetail(
     /** `null`: die Kachel zeigt ihre Zahl, fuehrt aber nirgendwohin. */
     readonly ziel: string | null;
     readonly wert: string;
-    readonly hinweis: string;
+    /** Ein Satz — mit einem Recht darin als `<Recht>` (V-250), deshalb kein `string`. */
+    readonly hinweis: ReactNode;
     readonly ton?: 'warnung';
   }[] = [
     {
@@ -287,7 +289,7 @@ export default async function ProjektDetail(
         : null,
       wert: p.abgenommen_lokal ?? String(p.abnahmen),
       hinweis: darf['bau.schreiben'] !== true
-        ? 'Das Protokoll nach § 12 VOB/B verlangt bau.schreiben'
+        ? <>Das Protokoll nach § 12 VOB/B verlangt <Recht schluessel="bau.schreiben" /></>
         : p.abgenommen_lokal === null
           ? 'Protokolle nach § 12 VOB/B — noch keine Abnahme'
           : 'abgenommen; Gefahr, Frist und Fälligkeit sind umgeschlagen',
@@ -434,7 +436,11 @@ export default async function ProjektDetail(
               </dt>
               <dd className="m-0 mt-s1 tabular-nums text-sm text-text" data-cse="marge">
                 {deckungCent === null
-                  ? <span className="text-text-subtle">Recht kalkulation.lesen</span>
+                  ? (
+                    <span className="text-text-subtle">
+                      Recht <Recht schluessel="kalkulation.lesen" /> fehlt
+                    </span>
+                  )
                   : `${formatiereGeld(cent(deckungCent))}${
                     margeBp === null ? '' : ` · ${prozent(margeBp)}`}`}
               </dd>

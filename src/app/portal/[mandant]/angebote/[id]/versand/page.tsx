@@ -317,8 +317,8 @@ export default async function Versand(
         {kopf.hat_nummernkreis ? null : (
           <Hinweis art="warnung" cse="ohne-nummernkreis" className="mt-s3">
             <strong>Kein Angebotskreis in dieser Gesellschaft.</strong> Ein
-            Entwurf hat keine Nummer, und sie entsteht in demselben UPDATE wie{' '}
-            <code className="text-text">versendet_am</code> (FIN-03). Ohne Kreis
+            Entwurf hat keine Nummer; sie entsteht im selben Schritt, in dem der
+            Versand eingetragen wird (FIN-03). Ohne Kreis
             gibt es nichts zu ziehen — der Versand würde abgewiesen, bevor er
             beginnt. Erst einen Angebotskreis unter <em>Finanzen › Nummernkreise</em>{' '}
             eröffnen.

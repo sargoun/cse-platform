@@ -67,9 +67,8 @@ export function AnmeldungNoetig({ keksAbgelehnt = false }: { readonly keksAbgele
             </>
           ) : (
             <>
-              Diese Installation setzt den Sitzungskeks ohne{' '}
-              <span className="font-mono">Secure</span>, an der Adresse liegt es also
-              nicht. Bleibt: Cookies sind für diese Adresse abgeschaltet, oder das Fenster
+              Diese Installation verlangt für den Sitzungskeks keine verschlüsselte
+              Verbindung, an der Adresse liegt es also nicht. Bleibt: Cookies sind für diese Adresse abgeschaltet, oder das Fenster
               ist ein privates. Schalten Sie Cookies ein oder öffnen Sie ein gewöhnliches
               Fenster und melden Sie sich erneut an.
             </>

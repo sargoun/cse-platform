@@ -1,10 +1,12 @@
 import type postgres from 'postgres';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
@@ -82,7 +84,7 @@ const FELD = 'min-h-11 w-full rounded-md border border-line bg-surface px-s3 py-
  * Adresszeile nehmen liesse, koennte jemandem einen Link schicken, auf dem im
  * eigenen Portal ein fremder Text steht.
  */
-const FEHLER: Readonly<Record<string, string>> = {
+const FEHLER: Readonly<Record<string, ReactNode>> = {
   falscher_status: 'Aus dem jetzigen Zustand führt dieser Schritt nicht weiter. '
     + 'Vermutlich hat jemand anderes den Beitrag inzwischen weitergeschoben — '
     + 'laden Sie die Seite neu.',
@@ -93,8 +95,13 @@ const FEHLER: Readonly<Record<string, string>> = {
    * den Menschen zum Neuladen, wo ihm ein RECHT fehlt. Neu laden zeigt
    * denselben Zustand, er versucht es wieder, und nichts erklärt ihm, warum.
    */
-  kein_recht: 'Dieser Schritt verlangt zusätzlich das Recht, Beiträge zu bearbeiten '
-    + '(social.schreiben). Am Beitrag hat sich nichts geändert.',
+  // Das Recht steht als Satz (`<Recht>`, V-250) — deshalb ist ein Eintrag ein `ReactNode`.
+  kein_recht: (
+    <>
+      Dieser Schritt verlangt zusätzlich das Recht <Recht schluessel="social.schreiben" />.
+      Am Beitrag hat sich nichts geändert.
+    </>
+  ),
   grund_fehlt: 'Ein Rückzug ohne Grund ist keine Auskunft — er steht im Protokoll, '
     + 'und jemand wird danach fragen.',
   nicht_bearbeitbar: 'Bearbeitet wird nur der Entwurf. Nach dem Vorlegen bindet die '

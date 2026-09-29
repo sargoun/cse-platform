@@ -30,6 +30,7 @@ import {
   ANTRAG_FORM_TEXTE, ANTRAG_GRUENDE, MELDUNG_FORM_TEXTE, MELDUNG_GRUENDE,
 } from '../../src/lib/i18n/mein-formulare.js';
 import { formularFehlerSatz, MEIN_FORMULAR_TEXTE } from '../../src/lib/i18n/mein-formular.js';
+import { setzeEin } from '../../src/lib/i18n/vorlage.js';
 import { PORTAL_SPRACHEN } from '../../src/lib/i18n/texte.js';
 import { datenbankGrund } from '../../src/app/api/mein/formular.js';
 import {
@@ -208,7 +209,10 @@ describe('die Sätze der Maske — vier Sprachen, jeder Grund, keine Kennung', (
       for (const g of ANTRAG_GRUENDE) expect(t.gruende[g].trim(), `${sprache}/${g}`).not.toBe('');
       const m = MELDUNG_FORM_TEXTE[sprache];
       for (const g of MELDUNG_GRUENDE) expect(m.gruende[g].trim(), `${sprache}/${g}`).not.toBe('');
-      const alles = JSON.stringify(t) + JSON.stringify(m) + t.nichtMoeglich('X') + t.pflichtBei('Y');
+      // „Pflicht bei: …" zeigt die Seite aus `MEIN_FORMULAR_TEXTE` (`setzeEin`), nicht aus
+      // dieser Maske — geprüft wird der Satz, der tatsächlich auf dem Telefon steht (V-249).
+      const alles = JSON.stringify(t) + JSON.stringify(m) + t.nichtMoeglich('X')
+        + setzeEin(MEIN_FORMULAR_TEXTE[sprache].pflichtBei, { arten: 'Y' });
       // Keine Entwurfskennung auf dem Telefon der Kraft (D-663).
       expect(alles).not.toMatch(/\b[ODVK]-\d/u);
     }

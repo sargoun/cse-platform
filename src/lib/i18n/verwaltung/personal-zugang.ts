@@ -61,6 +61,9 @@ export interface ZugangTexte {
   readonly codeFormularOhneSms: string;
   readonly codeAusstellen: string;
   readonly codeGrund: Readonly<Record<string, string>>;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly codeGrundSonst: string;
 
   /* ── Einrichten, umschreiben, sperren, entsperren (V-014) ────────────── */
   readonly einrichtenTitel: string;
@@ -88,6 +91,9 @@ export interface ZugangTexte {
   readonly erledigt: string;
   readonly keinSchreibrecht: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly fehlerSonst: string;
 }
 
 export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
@@ -169,6 +175,7 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
         'Es sind schon drei Codes offen. Warten Sie, bis einer abgelaufen ist (zehn '
         + 'Minuten), oder lösen Sie einen ein.',
     },
+    codeGrundSonst: 'Es wurde kein Code ausgestellt. Versuchen Sie es noch einmal.',
 
     einrichtenTitel: 'Zugang einrichten',
     einrichtenErklaerung:
@@ -239,6 +246,9 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
         'Die Datenbank hat den Schreibversuch abgewiesen. Fehlt das Recht in dieser '
         + 'Gesellschaft, oder steht die Ansicht auf „nur lesen"?',
     },
+    fehlerSonst:
+      'Der Zugang wurde nicht geändert. Prüfen Sie die Angaben und versuchen Sie es noch '
+      + 'einmal.',
   },
 
   en: {
@@ -316,6 +326,7 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
         'Three codes are already open. Wait until one expires (ten minutes) or have one '
         + 'redeemed.',
     },
+    codeGrundSonst: 'No code was issued. Try again.',
 
     einrichtenTitel: 'Set up access',
     einrichtenErklaerung:
@@ -383,5 +394,6 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
         'The database refused the write. Is the right missing in this Gesellschaft, or '
         + 'is the view read-only?',
     },
+    fehlerSonst: 'The access was not changed. Check the entries and try again.',
   },
 };

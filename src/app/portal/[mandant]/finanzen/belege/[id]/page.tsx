@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
@@ -48,13 +49,11 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Beleg — Finanzen' };
 
 /*
- * Spalten-, Tabellen- und Rechtenamen lauten in beiden Sprachen gleich und
- * stehen deshalb hier und nicht in der Texttabelle (siehe den Kopf von
- * `i18n/verwaltung/finanzen/belege.ts`). `kB` ist eine Einheit, keine Sprache.
+ * Der Rechteschlüssel lautet in beiden Sprachen gleich und steht deshalb hier
+ * und nicht in der Texttabelle; auf dem Schirm steht er als Satz (`<Recht>`).
+ * Spalten- und Tabellennamen stehen seit V-251 gar nicht mehr da. `kB` ist
+ * eine Einheit, keine Sprache.
  */
-const SPALTE_DOKUMENT_VERSION_ID = 'beleg.dokument_version_id';
-const TABELLE_DOKUMENT = 'dokument';
-const SPALTE_AUFBEWAHRUNG_BIS = 'aufbewahrung_bis';
 const RECHT_DOKUMENT_LESEN = 'dokument.lesen';
 const EINHEIT_KB = 'kB';
 
@@ -176,11 +175,7 @@ export default async function Belegblatt(
       {dokv === null ? (
         <Hinweis art="warnung" cse="beleg-kein-dokument" className="mb-s5">
           <p className="m-0 max-w-prose">
-            {t.keineDokumentversionVor}{' '}
-            <code>{SPALTE_DOKUMENT_VERSION_ID}</code>{' '}
-            {t.keineDokumentversionMitte}{' '}
-            <code>{TABELLE_DOKUMENT}</code>{' '}
-            {t.keineDokumentversionNach}
+            {t.keineDokumentversion}
           </p>
         </Hinweis>
       ) : (
@@ -248,7 +243,8 @@ export default async function Belegblatt(
             </p>
           ) : (
             <p className="mb-s5 max-w-prose text-sm text-text-muted">
-              {t.diesemKontoFehlt} <strong>{RECHT_DOKUMENT_LESEN}</strong>
+              {t.diesemKontoFehlt}{' '}
+              <Recht schluessel={RECHT_DOKUMENT_LESEN} sprache={zugang.sprache} />
               {t.dateiBleibtZu}
             </p>
           )}
@@ -368,9 +364,7 @@ export default async function Belegblatt(
       )}
 
       <p className="mt-s7 max-w-prose text-xs text-text-muted">
-        {t.belegFussnoteVor}{' '}
-        <code>{SPALTE_AUFBEWAHRUNG_BIS}</code>{' '}
-        {t.belegFussnoteNach}
+        {t.belegFussnote}
         {darf['buchhaltung.lesen'] === true ? (
           <>
             {' '}

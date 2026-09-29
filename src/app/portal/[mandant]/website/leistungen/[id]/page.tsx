@@ -126,8 +126,8 @@ export default async function WebsiteLeistungsAbschnitt(
         <strong className="block">
           Diese Einträge sind zugleich die strukturierten Daten für Suchmaschinen.
         </strong>
-        Was hier steht, gibt <code className="font-mono">jsonld.ts</code> als{' '}
-        <code className="font-mono">Service</code>-Block der Gesellschaft aus (PUB-11) —
+        Was hier steht, gibt die Website als „Service"-Block der Gesellschaft aus
+        (PUB-11) —
         es ist eine Aussage des Unternehmens, nicht nur ein Text auf einer Seite.
       </Hinweis>
 

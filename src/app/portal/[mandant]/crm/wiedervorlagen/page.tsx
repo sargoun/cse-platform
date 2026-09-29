@@ -318,7 +318,7 @@ export default async function Wiedervorlagen(
 
       {darf['system.benutzer_lesen'] === true ? null : (
         <p className="mt-s5 max-w-prose text-xs text-text-muted" data-cse="wv-namen-hinweis">
-          Die Namen der Zuständigen sind Ihnen nicht sichtbar — dafür fehlt
+          Die Namen der Zuständigen sind Ihnen nicht sichtbar — dafür fehlt{' '}
           <Recht schluessel="system.benutzer_lesen" />. Ein „—" in dieser
           Spalte heisst deshalb nicht „niemand zuständig"; wo wirklich niemand
           eingetragen ist, steht es in Worten.

@@ -91,8 +91,8 @@ export default async function KundeNeu(
                   ))}
               </fieldset>
               <p className="m-0 text-xs text-text-muted">
-                „Behörde" setzt <code className="font-mono">ist_oeffentlicher_auftraggeber</code>
-                {' '}— davon hängt ab, ob eine Rechnung als XRechnung gestellt werden muss.
+                „Behörde" kennzeichnet den Kunden als öffentlichen Auftraggeber — davon
+                hängt ab, ob eine Rechnung als XRechnung gestellt werden muss.
               </p>
             </div>
           </Card>

@@ -20,6 +20,20 @@ describe('rechtName', () => {
     expect(rechtName('eingang.schreiben')).toBe('den Rechnungseingang bearbeiten');
   });
 
+  /*
+   * V-250: seit diese Namen auf mehr Seiten als Satz stehen, müssen sie
+   * sagen, was die Seite meint — „die Prüffrist" auf der Seite „Prüfdauer",
+   * „das Konto" neben „Benutzerkonten" und „Kunden freigeben" für die
+   * Freigabe eines DOKUMENTS an den Kunden taten es nicht.
+   */
+  it('nennt Prüfdauer, Zeitkonten und die Dokumentfreigabe, wie die Seiten sie meinen', () => {
+    expect(rechtName('freigabe.pruefdauer_lesen')).toBe('die Prüfdauer lesen');
+    expect(rechtName('zeit.konto_lesen')).toBe('Zeitkonten lesen');
+    expect(rechtName('zeit.konto_korrigieren', 'en')).toBe('correct time accounts');
+    expect(rechtName('dokument.kunde_freigeben')).toBe('Dokumente für Kunden freigeben');
+    expect(rechtName('dokument.kunde_freigeben', 'en')).toBe('approve documents for customers');
+  });
+
   it('dreht die Wortstellung im Englischen um', () => {
     expect(rechtName('kalkulation.lesen', 'en')).toBe('read costings');
     expect(rechtName('bau.preis_lesen', 'en')).toBe('read prices');

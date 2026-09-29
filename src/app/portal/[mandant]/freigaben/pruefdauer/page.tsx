@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -120,9 +121,9 @@ export default async function Pruefdauer(
           className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"
         >
           Keine Zahlen — entweder wurde in dieser Gesellschaft noch nichts
-          entschieden, oder dieses Konto hält das Recht
-          „freigabe.pruefdauer_lesen" nicht. Die Seite unterscheidet das
-          bewusst nicht: die Unterscheidung wäre selbst die Auskunft.
+          entschieden, oder dieses Konto hält das Recht{' '}
+          <Recht schluessel="freigabe.pruefdauer_lesen" /> nicht. Die Seite unterscheidet
+          das bewusst nicht: die Unterscheidung wäre selbst die Auskunft.
         </p>
       ) : (
         <>

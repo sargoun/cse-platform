@@ -11,7 +11,5 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   schon_so: 'Der Schalter stand schon so; es wurde nichts geändert.',
   geloescht: 'Dieses Dokument ist gelöscht und wird nicht freigegeben.',
   nicht_gefunden: 'Dieses Dokument gibt es nicht.',
-  kein_recht:
-    'Ihnen fehlt dokument.kunde_freigeben. Dokumente ablegen zu dürfen (dokument.schreiben) '
-    + 'ist nicht dasselbe wie zu entscheiden, was ein Kunde sieht.',
+  // `kein_recht` setzt die Seite selbst: die Rechte stehen als Satz (`<Recht>`, V-250).
 };

@@ -160,7 +160,7 @@ export default async function PruefungNeu(
         <Hinweis art="warnung" cse="pruefung-kein-objektrecht" className="mb-s5 max-w-prose">
           <strong>Die Objektauswahl ist leer, weil <Recht schluessel="objekt.lesen" /> fehlt.</strong>{' '}
           Eine Prüfung braucht zwingend ein Objekt (oder ein Projekt) als Bezug —
-          <code> qp_ein_anker</code> lässt nichts anderes zu.
+          ohne ihn nimmt die Datenbank sie nicht an.
         </Hinweis>
       )}
 
@@ -335,7 +335,7 @@ export default async function PruefungNeu(
             Ein Befund je Zeile. Leere Zeilen werden verworfen. Bei
             „{ERGEBNIS_TEXT.nio}" ist die Mangelbeschreibung{' '}
             <strong className="text-text">Pflicht</strong> — das verlangt die
-            Datenbank (<code>qpp_nio_beschrieben</code>), und eine Prüfung mit
+            Datenbank, und eine Prüfung mit
             einem Mangel ohne Beschreibung belegt nichts.
           </p>
           <p className="mb-s4 max-w-prose text-xs text-text-subtle">

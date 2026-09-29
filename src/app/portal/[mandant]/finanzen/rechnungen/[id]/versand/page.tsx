@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { pruefstand } from '@/server/services/finanz/xrechnung/pruefstand';
 import {
@@ -63,15 +64,13 @@ const STATUS_PILLE: Readonly<Record<VersandStatus, PillZustand>> = {
 };
 
 /*
- * Kennungen, keine Woerter. Rechtename, Dateipfad und Spaltenname lauten in
- * beiden Sprachen gleich; sie stehen deshalb hier und nicht in der
- * Texttabelle, wo eine zweite Spalte nur eine Erfindung waere.
+ * Kennungen, keine Woerter. Rechteschlüssel lauten in beiden Sprachen gleich;
+ * sie stehen deshalb hier und nicht in der Texttabelle, und auf dem Schirm als
+ * Satz (`<Recht>`). Dateipfade und Spaltennamen stehen seit V-251 gar nicht
+ * mehr da.
  */
-const POLICY_DATEI = 'server/agent/policy.ts';
-const ERECHNUNG_DIENST = 'services/crm/erechnung.ts';
 const RECHT_HERUNTERLADEN = 'finanzen.herunterladen';
 const RECHT_VERSAND_FREIGEBEN = 'versand.freigeben';
-const SPALTE_NUTZLAST_HASH = 'nutzlast_sha256';
 
 interface Kopf {
   readonly id: string;
@@ -191,9 +190,7 @@ export default async function Versandblatt(
       ) : (
         <Hinweis art="hinweis" cse="versand-verbunden" className="mb-s5">
           <p className="m-0 max-w-prose">
-            {t.verbundenVor}
-            <code>{POLICY_DATEI}</code>
-            {t.verbundenNach}
+            {t.verbundenHinweis}
           </p>
         </Hinweis>
       )}
@@ -325,8 +322,6 @@ export default async function Versandblatt(
             )}
             <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
               {t.bewertetVonVor}
-              <code>{ERECHNUNG_DIENST}</code>
-              {t.bewertetVonMitte}
               <strong>{t.blockiert}</strong>
               {t.bewertetVonNach}
             </p>
@@ -383,7 +378,7 @@ export default async function Versandblatt(
                   ) : (
                     <span className="text-xs text-text-muted">
                       {t.diesemKontoFehlt}
-                      <strong>{RECHT_HERUNTERLADEN}</strong>
+                      <Recht schluessel={RECHT_HERUNTERLADEN} sprache={zugang.sprache} />
                       {t.dateiBleibtZu}
                     </span>
                   )}
@@ -513,15 +508,13 @@ export default async function Versandblatt(
       {festgeschrieben && verbunden && darf['versand.freigeben'] !== true ? (
         <p className="mt-s5 max-w-prose text-sm text-text-muted">
           {t.diesemKontoFehlt}
-          <strong>{RECHT_VERSAND_FREIGEBEN}</strong>
+          <Recht schluessel={RECHT_VERSAND_FREIGEBEN} sprache={zugang.sprache} />
           {t.versandFreigebenFehltNach}
         </p>
       ) : null}
 
       <p className="mt-s5 max-w-prose text-xs text-text-muted">
-        {t.versandstandFussVor}
-        <code>{SPALTE_NUTZLAST_HASH}</code>
-        {t.versandstandFussNach}
+        {t.versandstandFuss}
       </p>
     </PortalRahmen>
   );

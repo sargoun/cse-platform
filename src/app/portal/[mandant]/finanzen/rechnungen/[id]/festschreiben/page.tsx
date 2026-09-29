@@ -61,12 +61,6 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Festschreiben — Rechnung' };
 
-/*
- * Eine Kennung, kein Wort: der Name der Datenbankfunktion lautet in beiden
- * Sprachen gleich und wird deshalb nicht uebersetzt.
- */
-const FN_NUMMER_ZIEHEN = 'fin.rechnung_nummer_ziehen';
-
 interface Kopf {
   readonly id: string;
   readonly nummer: string | null;
@@ -428,8 +422,7 @@ export default async function Festschreibeblatt(
         <Hinweis art="warnung" cse="festschreiben-kein-kreis" className="mb-s5">
           <p className="m-0 max-w-prose">
             {t.keinKreisVor} <strong>{t.ausgangsrechnungen}</strong>{' '}
-            {t.keinKreisMitte}{' '}
-            <code>{FN_NUMMER_ZIEHEN}</code> {t.keinKreisNach}
+            {t.keinKreisMitte} {t.keinKreisNach}
           </p>
         </Hinweis>
       ) : (

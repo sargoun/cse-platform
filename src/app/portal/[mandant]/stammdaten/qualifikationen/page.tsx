@@ -127,8 +127,8 @@ export default async function Qualifikationen(
 
       <Hinweis art="warnung" cse="qualifikationen-sperre" className="mb-s7 max-w-[72ch]">
         <strong>„Blockiert Einsatz" ist eine harte Sperre.</strong> Sie wirkt ab dem
-        Moment des Speicherns und wird in der Datenbank durchgesetzt
-        (<code>app.einsatz_qualifikation_erfuellt</code>, SEC-04): eine Einteilung auf
+        Moment des Speicherns und wird in der Datenbank durchgesetzt (SEC-04): eine
+        Einteilung auf
         einem Posten, der die Qualifikation verlangt, scheitert ohne gültigen
         Nachweis — im Dienstplan und in der Eventbesetzung.
         {' '}{sperrend === 0

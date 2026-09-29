@@ -544,7 +544,12 @@ export default async function ProfilBearbeiten(
             {namenSichtbar
               ? 'Kein weiteres Konto dieser Gesellschaft zum Eintragen — alle aktiven sind '
                 + 'schon Empfänger.'
-              : 'Ohne das Recht system.benutzer_lesen lässt sich hier niemand auswählen.'}
+              : (
+                <>
+                  Ohne das Recht <Recht schluessel="system.benutzer_lesen" /> lässt sich hier
+                  niemand auswählen.
+                </>
+              )}
           </p>
         ) : (
           <form method="post" action="/api/radar/profil" data-cse="profil-empfaenger-formular"

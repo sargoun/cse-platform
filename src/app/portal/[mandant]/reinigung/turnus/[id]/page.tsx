@@ -191,9 +191,7 @@ export default async function TurnusBlattSeite(
           <strong className="text-text">künftige</strong> Schichten des Tages
           werden dabei storniert, nicht gelöscht. Schichten, die bereits
           begonnen haben, und solche mit erfasster Zeit bleiben stehen — eine
-          geleistete Schicht verschwindet nicht, weil die Regel sich ändert
-          (<code>storniereVerwaiste</code>: nur <code>beginn_zeitpunkt &gt;
-          now()</code> und ohne Zeiterfassung).
+          geleistete Schicht verschwindet nicht, weil die Regel sich ändert.
         </Hinweis>
       )}
 
@@ -219,7 +217,12 @@ export default async function TurnusBlattSeite(
           </p>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {t.leistung === null
-              ? `Leistung ${UNGEPRUEFT} (Katalog liegt hinter katalog.lesen)`
+              ? (
+                <>
+                  Leistung {UNGEPRUEFT} (den Katalog liest nur, wer{' '}
+                  <Recht schluessel="katalog.lesen" /> hält)
+                </>
+              )
               : t.leistung}
             {t.leistungIstPlatzhalter === true && (
               <span className="ml-s2 text-warning">· Katalogwert unbestätigt</span>
@@ -266,7 +269,12 @@ export default async function TurnusBlattSeite(
           </div>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {!planbar
-              ? 'Die Planungsserie liegt hinter dienstplan.lesen. Keine Aussage heisst hier nicht „nichts geplant".'
+              ? (
+                <>
+                  Die Planungsserie sieht nur, wer <Recht schluessel="dienstplan.lesen" /> hält.
+                  Keine Aussage heisst hier nicht „nichts geplant".
+                </>
+              )
               : t.planungsserieId === null
                 ? 'Zu diesem Turnus gibt es keine Planungsserie — der Generator hat ihn noch nie gesehen.'
                 : `Der Turnus selbst ist bis ${t.letzteGenerierungBis ?? '—'} fortgeschrieben; `
@@ -575,7 +583,7 @@ export default async function TurnusBlattSeite(
 
         {einsaetze === null ? (
           <Hinweis art="hinweis" cse="einsaetze-ungeprueft" className="max-w-prose">
-            <strong>Nicht geprüft.</strong> Die Schichten liegen hinter dem Recht
+            <strong>Nicht geprüft.</strong> Die Schichten liegen hinter dem Recht{' '}
             <Recht schluessel="dienstplan.lesen" />, das dieses Konto hier nicht hält. Eine
             leere Liste hiesse „keine Schicht" und wäre an dieser Stelle falsch.
           </Hinweis>

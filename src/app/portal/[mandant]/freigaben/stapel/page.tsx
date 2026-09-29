@@ -274,8 +274,8 @@ export default async function Stapelmappe({
         Konfidenz. Wer danach genehmigt, hat gesehen, was er genehmigt (APR-02).
         Markierte Vorgänge und solche mit unsicheren Feldern sind ausgenommen und
         stehen unten mit ihrem Grund (APR-03, APR-04). Jede Genehmigung bekommt ihren
-        eigenen Schnappschuss und eine Ansichtszeile mit dem Kanal <code>stapel</code>{' '}
-        (APR-07, APR-08).
+        eigenen Schnappschuss und eine Ansichtszeile, die festhält, dass sie über
+        den Stapel kam (APR-07, APR-08).
       </p>
 
       {genehmigt !== null && (
@@ -312,8 +312,13 @@ export default async function Stapelmappe({
             ? `Mehr als ${String(STAPEL_HOECHSTZAHL)} auf einmal ist keine Prüfung mehr, `
               + 'sondern ein Häkchen bei „alle".'
             : fehler === 'kein_recht'
-              ? 'Stapelweise zu genehmigen ist eine eigene Befugnis '
-                + '(„freigabe.stapel_entscheiden"), und dieses Konto hält sie nicht.'
+              ? (
+                <>
+                  Stapelweise zu genehmigen ist eine eigene Befugnis
+                  (<Recht schluessel="freigabe.stapel_entscheiden" />), und dieses Konto hält
+                  sie nicht.
+                </>
+              )
               : 'Es war nichts ausgewählt.'}
         </Hinweis>
       )}

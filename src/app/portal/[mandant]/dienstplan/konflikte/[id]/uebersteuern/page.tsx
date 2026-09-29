@@ -199,9 +199,8 @@ export default async function ArbzgUebersteuern(
               {befund.quittierungBegruendung ?? 'Ohne Begründung — das sollte nicht vorkommen.'}
             </p>
             <p className="m-0 mt-s3 max-w-prose text-sm text-text-muted">
-              Die Spur steht im Prüfprotokoll neben dem Befund
-              (<code className="text-xs">arbzg.befund_quittiert</code>), gesetzt
-              von der Serveruhr.
+              Die Spur steht im Prüfprotokoll als Quittierung neben dem Befund,
+              gesetzt von der Serveruhr.
             </p>
           </div>
         ) : uebersteuerbar ? (

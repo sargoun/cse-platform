@@ -38,5 +38,5 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
     'Ein Zahlenfeld war nicht lesbar. Deutsch schreiben: 2.500,00 — der Punkt ist der '
     + 'Tausendertrenner.',
   nicht_gefunden: 'Diesen Auftrag gibt es nicht.',
-  kein_recht: 'Ihnen fehlt auftrag.abschliessen.',
+  // `kein_recht` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
 };

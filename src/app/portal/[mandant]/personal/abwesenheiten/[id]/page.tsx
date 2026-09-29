@@ -7,6 +7,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
@@ -244,7 +245,7 @@ export default async function Abwesenheitsblatt({
       {darf['zeit.konto_lesen'] !== true ? (
         <p data-cse="urlaub-kein-recht" className="mb-s6 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Kein Leserecht auf Urlaubskonten in dieser Gesellschaft
-          (<span className="font-mono">zeit.konto_lesen</span>). Das heisst
+          (Recht <Recht schluessel="zeit.konto_lesen" />). Das heisst
           nicht, dass keines hinterlegt ist — diese Seite kann es nur nicht
           sehen.
         </p>
@@ -304,7 +305,7 @@ export default async function Abwesenheitsblatt({
             </Link>
           ) : (
             <p className="mb-0 mt-s4 text-sm text-text-muted">
-              Diese Sitzung hält <span className="font-mono">zeit.abwesenheit_grund_lesen</span> nicht.
+              Diese Sitzung hält <Recht schluessel="zeit.abwesenheit_grund_lesen" /> nicht.
             </p>
           )}
         </div>
@@ -312,7 +313,7 @@ export default async function Abwesenheitsblatt({
         <Hinweis art="warnung" cse="grund-kein-recht" className="mb-s6 max-w-prose">
           <strong>Kein Recht auf den Grund.</strong> Das ist etwas anderes als
           „kein Grund hinterlegt": die Zeile trägt eine Art, diese Sitzung darf
-          sie nicht sehen (<span className="font-mono">zeit.abwesenheit_grund_lesen</span>,
+          sie nicht sehen (<Recht schluessel="zeit.abwesenheit_grund_lesen" />,
           Art. 9 DSGVO).
         </Hinweis>
       ) : grund === null ? (
@@ -347,7 +348,7 @@ export default async function Abwesenheitsblatt({
       {darf['zeit.abwesenheit_genehmigen'] !== true ? (
         <p data-cse="entscheidung-kein-recht" className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Über eine Abwesenheit entscheidet, wer{' '}
-          <span className="font-mono">zeit.abwesenheit_genehmigen</span> hält — wer
+          <Recht schluessel="zeit.abwesenheit_genehmigen" /> hält — wer
           eine Krankmeldung aufnehmen darf, darf darum noch keinen Urlaub
           genehmigen.
         </p>

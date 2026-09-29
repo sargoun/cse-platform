@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import {
   alsRoute, hebeAufAal2, loeseWiederherstellungscodeEin, offeneWiederherstellungscodes,
@@ -133,8 +134,9 @@ export default async function Wiederherstellung({ searchParams }: {
       {offen === 0 && (
         <Hinweis art="warnung" cse="keine-codes">
           <strong>Für dieses Konto sind keine Codes mehr offen.</strong> Ihre Verwaltung kann
-          den zweiten Faktor zurücksetzen (Recht <span className="font-mono">
-          system.zwei_faktor_zuruecksetzen</span>); danach richten Sie ihn neu ein.
+          den zweiten Faktor zurücksetzen (Recht{' '}
+          <Recht schluessel="system.zwei_faktor_zuruecksetzen" />); danach richten Sie ihn
+          neu ein.
         </Hinweis>
       )}
 

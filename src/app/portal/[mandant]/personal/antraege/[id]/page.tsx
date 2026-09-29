@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type postgres from 'postgres';
+import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
@@ -7,6 +8,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { ENTSCHEIDUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/personal-entscheidung';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
@@ -279,7 +281,7 @@ export default async function Antragsblatt({
             {darf['zeit.konto_lesen'] !== true ? (
               <Feld
                 label="Urlaubskonto"
-                wert="kein Leserecht (zeit.konto_lesen) — nicht prüfbar"
+                wert={<>kein Leserecht (<Recht schluessel="zeit.konto_lesen" />) — nicht prüfbar</>}
               />
             ) : konto === null ? (
               <Feld label="Urlaubskonto" wert="für dieses Jahr nicht hinterlegt" />
@@ -376,8 +378,8 @@ export default async function Antragsblatt({
           <p className="m-0 text-xs text-text-subtle">
             Eine Genehmigung schreibt die Abwesenheit, rechnet die Arbeitstage
             und bucht das Urlaubskonto des Jahres — in einer Transaktion. Das
-            Zurückziehen ist die Handlung des Antragstellers und steht unter
-            <span className="font-mono"> /portal/mein</span>, nicht hier.
+            Zurückziehen ist die Handlung des Antragstellers und steht in seinem
+            Arbeiterportal, nicht hier.
           </p>
         </form>
       )}
@@ -385,7 +387,7 @@ export default async function Antragsblatt({
   );
 }
 
-function Feld({ label, wert }: { readonly label: string; readonly wert: string }) {
+function Feld({ label, wert }: { readonly label: string; readonly wert: ReactNode }) {
   return (
     <div className="contents">
       <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">{label}</dt>

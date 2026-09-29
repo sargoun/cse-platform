@@ -109,7 +109,7 @@ export default async function Urlaubskonten(
       )}
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="anspruch-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
         </Hinweis>
       )}
 

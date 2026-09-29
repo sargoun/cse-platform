@@ -197,8 +197,7 @@ export default async function WebsiteNeuigkeit(
         <h2 className="mb-s3 mt-0 text-h3 text-text">Geändert wird unter Social Media</h2>
         <p className="mb-s4 mt-0 max-w-prose text-sm text-text-muted">
           Ein Beitrag hat EINEN Weg — Entwurf, vorgelegt, freigegeben, geplant,
-          veröffentlicht — und der steht in{' '}
-          <code className="font-mono">services/social/weg.ts</code>. Ein zweiter Editor
+          veröffentlicht — und der steht fest im Programm. Ein zweiter Editor
           hier wären zwei Oberflächen auf einer Regel, und die eine liefe ihr
           hinterher. Nichts geht hinaus, ohne dass ein Mensch es freigegeben hat
           (Invariante 7): entschieden wird im Freigabe-Posteingang, nicht auf einem
@@ -227,10 +226,8 @@ export default async function WebsiteNeuigkeit(
 
       <p className="max-w-prose text-xs text-text-subtle">
         <strong>Die englische Newsseite zeigt diese Zeile unverändert.</strong>{' '}
-        <code className="font-mono">beitrag</code> führt keine Sprachspalte — anders als{' '}
-        <code className="font-mono">seite</code> und{' '}
-        <code className="font-mono">unternehmensprofil</code>, wo eine englische Fassung
-        eine eigene Zeile ist (D-82). Ob Neuigkeiten zweisprachig geführt werden sollen,
+        Ein Beitrag hat keine Sprachfassungen — anders als eine Seite und ein
+        Unternehmensprofil, wo eine englische Fassung ein eigener Eintrag ist (D-82). Ob Neuigkeiten zweisprachig geführt werden sollen,
         ist offen (O-681).
       </p>
     </PortalRahmen>

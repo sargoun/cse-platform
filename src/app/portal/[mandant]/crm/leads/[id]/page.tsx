@@ -147,7 +147,8 @@ export default async function LeadDetail(
   /*
    * `?meldung=` trägt den SATZ, `?fehler=` einen Schlüssel (V-137). Die Route
    * `/api/crm/lead` schickte immer `meldung`, die Seite las nur `fehler` —
-   * jede Abweisung beim Setzen des Stands verschwand still.
+   * jede Abweisung beim Setzen des Stands verschwand still. Gezeigt wird der
+   * Satz zum Schlüssel; `meldung` sagt nur noch, DASS abgewiesen wurde (V-250).
    */
   const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   /* `?hinweis=` trägt einen Schlüssel für eine Auskunft, keine Abweisung (V-141). */
@@ -879,12 +880,13 @@ export default async function LeadDetail(
           </p>
         )}
 
-        {/* Der Schlüssel gewinnt, weil er übersetzt ist; der Satz der Route
-            ist deutsch und nur der Rückfall. Ein unbekannter Schlüssel ist nie
-            selbst der Text — `unbekannte_prioritaet` sagt niemandem etwas. */}
+        {/* Der Schlüssel wird ein Satz, weil er übersetzt ist. Weder ein
+            unbekannter Schlüssel noch der deutsche Satz der Route ist je selbst
+            der Text — `unbekannte_prioritaet` sagt niemandem etwas, und was in
+            der Adresse steht, kann jeder hineinschreiben (V-250). */}
         {(fehler !== null || meldung !== null) && ketteFehler === null && kontaktFehler === null && (
           <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
-            {(fehler === null ? undefined : eigenerEintrag(t.fehler, fehler)) ?? meldung ?? t.nichtGespeichert}
+            {(fehler === null ? undefined : eigenerEintrag(t.fehler, fehler)) ?? t.nichtGespeichert}
           </Hinweis>
         )}
 

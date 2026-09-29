@@ -22707,3 +22707,482 @@ Kein neuer Link trägt `download` (Nr. 7). Geprüft in
 
 | Betrifft | D-599, D-766, D-692, D-656, D-682, AUT-06, SEC-A7, V-256, V-258, `src/server/auth/antwort.ts`, `src/app/api/mein/formular.ts`, `src/app/api/{bau/nachtrag-warnungen,berichte/[bericht]/csv,buchhaltung/{buchungen/[id]/beleg,datev/[id]/datei,jahrespaket,lohnexport,verfahrensdokumentation,z3-export},datenschutz/{auskunft,loeschkonzept,verarbeitungsverzeichnis},dokumente/{[id]/datei,buendel},einstellungen/protokoll/export,finanzen/rechnungen/[id]/{xrechnung.xml,zugferd.pdf},freigaben,freigaben/[id],kunde/rechnungen/[id]/{xrechnung.xml,zugferd.pdf},medien/[id],mein/dokumente/[id]/datei}/route.ts`, `src/app/portal/[mandant]/berichte/rahmen.tsx`, `tests/kern/hilfen/sitzungswache.ts`, `tests/kern/{sitzung-leseweg,sitzung-formularweg}.test.ts`, `src/server/auth/vorschau-sitzung.ts`, `src/app/api/{marke/[mandant]/[art]/[version],beitragsbild/[id],agenten/assistent,agenten/werkzeug,dokumente/[id]/version,social/beitraege/[id]/bild}/route.ts` (Nachsatz) |
 |---|---|
+
+### D-740 · Der Satz „fehlt_einsatz" sagt, was das Antragsformular kann — und ein nie gezeigter Satz fällt weg (V-249)
+
+**Der Befund** (Durchgang über den sichtbaren Text): `MEIN_FORMULAR_TEXTE.gruende.fehlt_einsatz`
+sagte in vier Sprachen, ein Schichttausch brauche Schicht und Tauschpartner und
+„Beides lässt sich hier noch nicht wählen". Seit V-187 (D-681) bietet das
+Antragsformular die eigenen kommenden Schichten an (`name="einsatz"`,
+`listeTauschbareSchichten`); offen ist nur der Tauschpartner (O-925, O-613,
+V-260). Der Satz erscheint, wenn die zweite Linie greift — der Auslöser
+`antrag_pflichtfelder` meldet `einsatz_id`, `pflichtfeldGrund` macht daraus
+`fehlt_einsatz` — und schickte die Kraft für etwas an die Einsatzleitung, das
+sie auf derselben Seite selbst wählen kann. Daneben trug
+`ANTRAG_FORM_TEXTE.pflichtBei` (`mein-formulare.ts`) einen zweiten „Pflicht
+bei: …"-Satz in vier Sprachen, den keine Seite zeigt: das Formular setzt
+`MEIN_FORMULAR_TEXTE.pflichtBei` ein (`setzeEin`), und der einzige Leser war
+eine Prüfung, die den Satz nur aufrief.
+
+**Die Entscheidung.**
+
+1. **`fehlt_einsatz` schickt zur Schicht ins Formular** und nur für den
+   Tauschpartner an die Einsatzleitung — in allen vier Sprachen, derselbe
+   Ausweg wie `fehlt_tauschpartner`. Keine Entwurfskennung im Satz (D-663).
+2. **`ANTRAG_FORM_TEXTE.pflichtBei` entfällt** samt Eintrag im Typ; der
+   Kommentar an `nachrichtErneut` nennt, wo der gezeigte Satz steht.
+3. **Geprüft:** `tests/kern/mein-formular-rueckweg.test.ts` — das Formular
+   hat `name="einsatz"`, und `fehlt_einsatz` enthält in jeder Sprache den
+   Verweis aufs Formular und auf die Einsatzleitung, aber nicht mehr die
+   alte Aussage; `tests/kern/antrag-rueckweg.test.ts` prüft die
+   Entwurfskennung jetzt am tatsächlich gezeigten Satz
+   (`setzeEin(MEIN_FORMULAR_TEXTE[s].pflichtBei, …)`) statt an der
+   ungenutzten Funktion. Die Wache über den ganzen Baum — kein Feld einer
+   Satztabelle, das niemand liest — ist D-744.
+
+| Betrifft | EMP-10, D-663, D-681, D-692, O-613, O-925, V-187, V-260, `src/lib/i18n/mein-formular.ts` (`fehlt_einsatz`), `src/lib/i18n/mein-formulare.ts` (`AntragFormTexte`), `tests/kern/{mein-formular-rueckweg,antrag-rueckweg}.test.ts` |
+|---|---|
+
+### D-741 · Ein Recht steht als Satz auch ausserhalb von `<code>` — kein Schlüssel, kein Backtick, kein Stück Quelltext und kein roher Grund aus der Adresse im sichtbaren Text, geprüft am Syntaxbaum (V-250)
+
+**Der Befund** (Durchgang über den sichtbaren Text, Nutzerwunsch „wo auf einer
+Seite Quelltext steht, mach einen Rahmen und einen Satz daraus"): V-123 hatte
+die 141 Stellen `<code>kalkulation.lesen</code>` zu `<Recht>` gemacht, und
+`recht-im-satz.test.ts` hielt genau diese Hülle fest. Dieselben Schlüssel
+standen weiter roh da — als Text zwischen zwei Elementen, in
+`<span className="font-mono">`, als Zeichenkette in einem Ast, als
+`<strong>{RECHT_…}</strong>`, eingesetzt in eine Vorlage, als Feldwert und in
+den Satztabellen, aus denen die Seiten ihre Fehlersätze nehmen — und
+Markdown-Backticks um technische Namen, die im Browser Backticks bleiben. Auf
+main 21561fd 117 Befunde an 98 Stellen in 64 Dateien, dazu zwei ohne
+Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
+
+**Die Entscheidung.**
+
+1. **Jeder Schlüssel wird `<Recht schluessel=…>`.** Auf einer zweisprachigen
+   Seite mit der Sprache der Seite (`zugang.sprache`); auf einer Seite der
+   Ausnahmeliste der Übersetzungswache ohne `sprache` — der Satz darum ist
+   dort deutsch, ein englischer Rechtename darin wäre ein Sprachwechsel
+   mitten im Satz. `title` und `data-recht` tragen den Schlüssel weiter
+   (V-123); ein `title`, der ihn in einem Satz nennt, bleibt erlaubt.
+2. **Eine Satztabelle trägt keinen Schlüssel.** Wo ein Grund ein Recht nennt
+   (`kein_recht`, `recht`, `abgewiesen`, `gesperrt`, `dienstkonto` …), setzt
+   die Seite den Satz für diesen Grund selbst und das Recht als `<Recht>`
+   hinein; der Eintrag fällt aus der Tabelle, ein Kommentar sagt, wo er
+   steht. Steht die Tabelle in der Seite selbst (Zeitkorrektur,
+   `kein_kontorecht`; Beitragsblatt, `kein_recht`), bleibt der Satz in der
+   Tabelle, als `ReactNode` mit `<Recht>` — `zeit-korrektur-weg.test.ts` und
+   `formular-rueckwege.test.ts` verlangen dort für jedes Wort der Route einen
+   Eintrag, und das gilt weiter. Zweisprachige Tabellen bekommen die Teile um
+   das Recht herum (`abgewiesenFrageVor/Nach` im KI-Budget,
+   `LIEFERANT_FEHLT_RECHT`); wo der Satz davor das Recht schon nennt, sagt
+   die Tabelle „das Recht" (Nummernkreise). Einspruch und Rücknahme nennen
+   das Recht DIESES Vorgangs (`erforderlichesRecht`), nicht die Vorgabe.
+3. **Wo ein Satz ein Recht enthält, ist er kein `string` mehr**:
+   `hinweis` der Projektkacheln, `wert` im Antragsblatt und im
+   Beendigungsblatt und die Fehlersätze der Zeitkorrektur nehmen
+   `ReactNode`.
+4. **Technische Namen in denselben Sätzen werden Sätze an den Leser** —
+   gesagt wird die Wirkung, nicht der Mechanismus: `t_sitzung_eigene` →
+   „Die Sitzungen eines Kontos sieht nur sein Inhaber selbst";
+   `kern.verhindere_loeschung()`/`DELETE` → „die Datenbank weist jeden
+   Löschversuch ab"; `entscheidung_je_bewerbung` → „eine zweite nimmt die
+   Datenbank gar nicht erst an"; `pnpm content:import` → „spielt die
+   technische Betreuung einmalig mit dem Inhaltsimport ein" (Liste und Blatt
+   der Seiten); `person` → „ein Mensch gehört keiner einzelnen Gesellschaft";
+   `mandant.module` → „Modulliste der Gesellschaft";
+   `app.kunde_mahnsperre_aktiv` → „Die Sperre"; `fsb_umfang_auftrag` →
+   „Einen Auftrag nimmt die Datenbank genau dann an …"; die `einsatz`-Zeile
+   → „Schicht"; `nummernkreis.letzter_hash` → „am Nummernkreis gespeichert";
+   die Policy auf `freistellungsbescheinigung` → „gibt die Datenbank nur mit
+   genau diesem Recht heraus", „Route" → „Seite", „durch RLS geleert" → „so
+   geleert"; die Rollen `admin`/`leitung` → „Administration", „Leitung". Die
+   englische Fassung zieht mit, wo die Tabelle zweisprachig ist.
+5. **Drei Namen aus `rechtname.ts` sagten an den neuen Stellen Falsches** und
+   sind berichtigt — das ändert auch die Rechtematrix: `pruefdauer` „die
+   Prüffrist" → „die Prüfdauer" (“review times”), `konto` — nur
+   `zeit.konto_*` — „das Konto" → „Zeitkonten" (“time accounts”, neben
+   „Benutzerkonten" las es sich wie das Anmeldekonto), `kunde` — nur
+   `dokument.kunde_freigeben` — „Kunden freigeben" → „Dokumente für Kunden
+   freigeben".
+6. **Die Kein-Zugriff-Seite** zeigt das benötigte Recht als Satz; der
+   Schlüssel aus der Adresse steht im `title`.
+7. **Geprüft am Syntaxbaum** (`tests/kern/hilfen/sichtbarer-text.ts`,
+   `tests/kern/recht-im-satz.test.ts`): über `src/app` (ohne `api`),
+   `src/components` und `src/lib/i18n` jeder JSX-Text; jede Zeichenkette an
+   einer Stelle, deren Wert gerendert wird (Äste von `?:`, rechts von `&&`,
+   `||`/`??`/`+`, Vorlagen samt eingesetzter Werte, Listen, `.map`-Rückrufe,
+   Rückgaben einer Funktion derselben Datei, Konstanten der Datei und über
+   den Import); die Beschriftungen der Übersetzungswache ohne `title`, dazu
+   `wert`, `leer`, `was`, `weg`, `defaultValue`, `unterzeile`; Tabellenzellen
+   (`zelle`); die Werte jedes Objektfelds als Satztabelle — ein Wert, der NUR
+   ein Schlüssel ist, ist Steuerung (`recht: 'crm.lesen'`). Die Gegenprobe
+   findet jeden dieser Wege an einem Stück Quelltext und nichts an `<Recht>`,
+   `title`, `darf['…']`, `hatRecht('…')` und einem reinen Schlüsselwert.
+   `tests/kern/rechtname.test.ts` hält die drei Namen aus Nr. 5.
+
+   **Seit der zweiten Runde sieht sie auch Quelltext im Satz:** einen Namen
+   aus dem Quelltext — mit Unterstrich, mit Punkt davor oder dahinter, mit
+   Aufrufklammern (`quelle_ausgabe_uk`, `app.darf_kontaktiert_werden`,
+   `fuelleTatsachen()`, `gate()`) —, einen Dateipfad mit Endung des
+   Quelltexts (`server/benachrichtigung/registry.ts`, `docs/DESIGN.md`,
+   `docs/JOB-AUSLOESER.sql`) und ein SQL-Wort in Grossbuchstaben (`UPDATE`,
+   `NULL`, `CHECK`, `RLS`). Ein Platzhalter zeigt, was der Mensch tippt, und
+   zählt dafür nicht (`vollzeit_39`); `wert` und `defaultValue` als Objektfeld
+   und `defaultValue` einer Auswahlliste sind der Wert einer Option, kein
+   Text; in einer Satztabelle ist ein Wert, der nur ein Name ist, Steuerung,
+   und eine Kette aus `+` wird als EIN Satz gelesen (`'Ihnen fehlt ' +
+   'objekt.schreiben.'`). Auf 21561fd 265 Befunde in 106 Dateien (86
+   Schlüssel, 31 Backticks, 115 Namen, 14 Pfade, 19 SQL-Wörter), vor der
+   zweiten Runde noch 127 in 56 Dateien (100 Namen, 14 Pfade, 13 SQL-Wörter);
+   jetzt keiner.
+8. **Nicht erfasst, bewusst:** ein Schlüssel, der über einen
+   Funktionsparameter in eine Vorlage fliesst (das Beendigungsblatt fand die
+   Suche von Hand; die Wache verfolgt Aufrufargumente nicht, weil
+   `hatRecht('…')` dieselbe Form hat). Der Rückfall `?? fehler`, den die
+   erste Runde hier offen liess, ist Nr. 10.
+9. **Die zweite Runde: jedes Stück Quelltext im Satz ist ein Satz
+   geworden** — auf 56 Seiten und in fünf Satztabellen der Finanzen, de und,
+   wo die Tabelle zweisprachig ist, en. Gesagt wird, was geschieht und wer es
+   tut, nicht womit:
+   - Befehle und Dateien → wer es tut: `pnpm jobs:plan` →
+     `docs/JOB-AUSLOESER.sql`, `JOB_TOKEN` → „Den Zeitplan dafür erzeugt die
+     technische Betreuung aus dem Register der Wächter … ohne das vereinbarte
+     Zugangsgeheimnis nimmt der Server ohnehin keinen Auslöser an";
+     `server/agent/policy.ts`, `AKTIONEN`, `gate()` → „die acht Aktionen, die
+     das Gate im Programm kennt", „steht fest im Programm"; `docs/DESIGN.md`
+     → „die Gestaltungsvorgaben (DESIGN §1)";
+   - SQL → was die Datenbank tut: „Postgres wendet auf das `returning` eines
+     `insert` die Lesepolicy an" → „die Datenbank gibt eine neu angelegte
+     Klasse nur an ein Konto zurück, das den Katalog lesen darf"; „ein
+     `select *` auf dem Kundenstamm" → „jede Abfrage, die den ganzen
+     Kundenstamm liest"; „kein UPDATE" → „keine Änderung an dieser";
+   - Rollen und Adressen → ihr Name: `super_admin`, `admin`, `leitung` →
+     „die Super-Administration und die Administration … die Leitung";
+     `/portal/mein` → „Arbeiterportal", `/karriere` → „Karriereseite der
+     Website", `/auth/callback` → „die Rückkehr vom Anbieter";
+   - Migrationsnummern im Satz („seit 0195", „(0021)") fallen weg;
+   - die fünf Satztabellen `finanzen/{belege,eingangsrechnungen,uebersicht,
+     rechnung-akte,rechnung-ausgabe}.ts` hatten Stücke vor und hinter einem
+     `<code>`; sie sind je EIN Satz, und die Konstanten, die die Namen
+     hielten (`SPALTE_*`, `TABELLE_*`, `PFAD_STORNO`, `POLICY_DATEI`,
+     `BEFEHL_COMPLIANCE` …), fallen weg.
+10. **Ein Grund aus der Adresse wird ein Satz — ein unbekannter ein
+    allgemeiner, nie er selbst.** Den Rückfall `?? fehler` sah die erste
+    Runde an fünf Seiten; am Syntaxbaum gezählt standen auf 21561fd 17
+    Stellen auf 16 Seiten: `eigenerEintrag(t.fehler, fehler) ?? fehler`
+    (KI-Budget, Sprachmodelle, Lieferant neu und Blatt, Raum anlegen, Zugang
+    zweimal, Urlaubskonten), `FEHLER[roh] ?? roh` (Kennwortwechsel),
+    `KATEGORIE[gesetzt] ?? gesetzt` (Aufbewahrung), `?? meldung` (Lead neu
+    und Blatt), der Turnus-Ast `<>Nicht angelegt. {fehlerAusApi}</>`, Vorlagen
+    mit dem Wort darin („Die Korrektur wurde nicht geschrieben: ${fehler}",
+    „Der Anspruch wurde nicht übernommen: ${fehler}", „Der Modellaufruf
+    endete mit „${laufCode}"") — und die Zahlungsseite zeigte nach JEDER
+    erfassten Zahlung das Wort `erfasst` (ebenso `guthaben`, `storniert`).
+    Was in der Adresse steht, kann jeder in einen Link schreiben; die Seite
+    zeigte es unter dem Namen der Gruppe.
+    - Jede dieser Seiten schlägt den Grund nach und fällt sonst auf einen
+      eigenen Satz zurück (`fehlerSonst`, `codeGrundSonst`, `hinweisSonst`,
+      `LIEFERANT_FEHLER_SONST` de/en; auf den fest deutschen Seiten
+      deutsch).
+    - Gründe, die eine Route wirklich schickt und die keinen Satz hatten,
+      haben jetzt einen: `erfasst`, `guthaben`, `storniert` (Zahlungen),
+      `beginn_fehlt`, `grund_unbekannt`, `nicht_gefunden` (Nacherfassung),
+      die zehn Codes eines gestörten Agentenlaufs (die Gründe des
+      Modellzugangs aus §8, `PREIS_FEHLT`, `BUDGET`, `ZAHL_ERFUNDEN`).
+      Gegengelesen gegen die Gründe, die die Dienste werfen — KI-Budget (7),
+      Sprachmodelle (9), Lieferant (10), Raum anlegen (10), Zugang (10 und 4
+      für den Code), Urlaubskonten (3 über die Maske), Zeitkorrektur (10),
+      Lead (jeder `CrmFehler`-Grund der Lead-Dienste): keiner fällt auf den
+      allgemeinen Satz.
+    - **Der Kennwortwechsel** schickte die Schwäche des neuen Kennworts als
+      SATZ durch die Adresse; jetzt als Wort (`kurz`, `haeufig`,
+      `einfoermig` aus `kennwortSchwaeche()`), und die Seite setzt denselben
+      Satz ein (`schwaecheSatz()`; `kennwortFehler()` liefert unverändert
+      dieselben Sätze).
+    - **Lead und Turnus:** der deutsche Satz der Route (`?meldung=` beim
+      Lead, `?fehler=` beim Turnus für alles ausser dem Anker, D-599-Altlast)
+      ist kein Rückfall mehr. Beim Lead geht dabei nichts verloren, jeder
+      Grund der Route hat einen Satz. Beim Turnus sagt die Seite „Prüfen Sie
+      die Angaben in der Vorschau und legen Sie die Serie von dort noch
+      einmal an" — die Vorschau liest dieselbe Regel und nennt, was fehlt.
+    - **Geprüft am Syntaxbaum**, hart, ohne Bestand
+      (`tests/kern/hilfen/adressparameter.ts`,
+      `tests/kern/adressparameter.test.ts`): kein Rückfall auf einen
+      Adressparameter im sichtbaren Text, nirgends in `src/app` und
+      `src/components`. Adressparameter ist `searchParams` und die
+      Eigenschaft `suche` eines Bausteins, was daraus gelesen und
+      unverändert weitergereicht wird (`??`, `||`, `?:`, Vorlagen,
+      `String()`, `.trim()`, eine Funktion derselben Datei oder über den
+      Import, die ihn zurückgibt) — nicht mehr, was ihn nachschlägt
+      (`eigenerEintrag`, `T[f]`) oder was eine Bedingung geprüft hat (ein
+      Muster, eine Liste, eine Typprüfung, ein festes Wort). Rückfall heisst:
+      hinter `??`/`||` eines Satzes der Seite, oder in einer Datei, die für
+      denselben Parameter Gründe kennt (nachschlägt, mit einem Grund
+      vergleicht, `switch`). Die Gegenprobe findet jede Form oben und keinen
+      Satz der Seite, keine Meldung als solche, kein Suchwort, keinen
+      geprüften Wert, keine Anzahl.
+    - **Offen, bewusst ausserhalb:** 159 Stellen zeigen einen
+      Adressparameter ALS SOLCHEN — Suchwörter, vorbelegte Eingaben,
+      Anzahlen und, auf rund 40 Seiten, die Meldung, die eine Route als Satz
+      mitschickt (`?meldung=`, `?hinweis=`, `?fehler=`; D-599 hat das für
+      das öffentliche Angebotsformular so entschieden). Diese Sätze kommen
+      aus den Diensten, und 124 der 1259 Fehlertexte unter `src/server`
+      tragen selbst Quelltext (einen Schlüssel, einen Namen in Backticks,
+      ein SQL-Wort); wo eine Route einen davon weiterreicht, steht er so auf
+      dem Schirm. Das ist ein eigener Durchgang: die Routen schicken dann
+      Schlüssel, die Seiten übersetzen sie.
+
+| Betrifft | V-123, V-250, AUT-06, D-599, D-728, `src/components/ui/Recht.tsx`, `src/lib/i18n/rechtname.ts`, `src/lib/i18n/verwaltung/{agent-budget,raumbuch-neu}.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,uebersicht}.ts`, `src/app/auth/{kein-zugriff,zwei-faktor/wiederherstellung}/page.tsx`, 70 Seiten und Satztabellen unter `src/app/portal/[mandant]`, `tests/kern/{recht-im-satz,rechtname}.test.ts`, `tests/kern/hilfen/sichtbarer-text.ts` |
+|---|---|
+
+### D-742 · Eine Regel der Datenbank steht als Satz über ihre Wirkung — kein Datenbankname steht als Code auf dem Schirm, und jeder andere Code hat einen Grund (V-251)
+
+**Der Befund** (Durchgang über den sichtbaren Text): Das Kontaktblatt und die
+Rechtsgrundlagen-Seite erklärten der Vertriebskraft, warum ein
+Werbewiderspruch nicht zurückgenommen wird („der Auslöser
+`kern.erzwinge_widerspruch` lässt ihn nicht wieder leeren"), woher die Antwort
+des Sendetors kommt („aus `app.darf_kontaktiert_werden` — derselben Funktion,
+die der Sendepfad und der Auslöser `kern.uwg_sendetor` fragen") und warum eine
+Wiedervorlage einen Kunden braucht („`lead_aktivitaet_hat_bezug`") — elf
+`<code>`-Elemente mit Namen von Funktionen, Auslösern, Prüfbedingungen,
+Tabellen und Spalten. Wer das liest, erfährt, DASS etwas gilt, aber nicht,
+was es für ihn heisst.
+
+**Die Entscheidung.**
+
+1. **Gesagt wird die Wirkung, nicht der Mechanismus**, und genau so viel,
+   wie die Regel wirklich tut:
+   - `kern.erzwinge_widerspruch` → „ist er einmal eingetragen, lässt die
+     Datenbank ihn nicht wieder leeren" / „die Datenbank setzt sie beim
+     Speichern selbst darauf zurück" / „die Datenbank lässt das Datum nicht
+     wieder leeren";
+   - `app.darf_kontaktiert_werden`, `kern.uwg_sendetor` → „aus derselben
+     Prüfung, die jede Nachricht vor dem Versand bestehen muss: der
+     Versandweg fragt sie, und die Datenbank fragt sie beim Speichern der
+     Nachricht ein zweites Mal";
+   - `lead_aktivitaet_hat_bezug` → „eine ohne Bezug nimmt die Datenbank nicht
+     an";
+   - `geschehen_am` → „wann die Wiedervorlage eingetragen wurde, hält dagegen
+     die Uhr des Servers fest" (der Auslöser
+     `kern.erzwinge_serverzeit_geschehen`, Invariante 5);
+   - die Policy auf `ansprechpartner` → „gespeichert wird aber am
+     Ansprechpartner selbst, und den ändern darf nur, wer zusätzlich
+     „Kundendaten bearbeiten" hält";
+   - `ansprechpartner_kanaele_nur_bei_einwilligung` → „Unter einer anderen
+     Grundlage nimmt die Datenbank Kanäle ohnehin nicht an" (0020: Kanäle nur
+     bei `einwilligung`);
+   - `werbewiderspruch` → „Quelle, Eingang und Umfang stehen in einem eigenen
+     Nachweis zum Widerspruch".
+   Im umgeschriebenen Satz stehen die beiden Rechte der Rechtsgrundlagen-Seite
+   jetzt mit Leerzeichen davor („öffnet mit „Rechtsgrundlagen setzen"", vorher
+   „öffnet mit„…""; V-252).
+2. **Die Sätze bleiben deutsch.** Beide Seiten stehen auf der Ausnahmeliste
+   der Übersetzungswache; eine englische Fassung gibt es nicht, die hier
+   nachzuziehen wäre.
+3. **Was als Datenbankname gilt** (`tests/kern/hilfen/code-quelltext.ts`,
+   vorher `code-datenbankname.ts`), wenn es der ganze Inhalt eines `<code>`
+   oder eines `font-mono`-Elements ist — Text, Zeichenkette, Konstante
+   derselben Datei oder über den Import: ein Name mit Unterstrich;
+   `schema.name` oder `tabelle.spalte`, ausser einem Dateinamen und einem
+   Rechteschlüssel (den prüft D-741); der Name einer Tabelle, die `drizzle/`
+   anlegt. Ein Wert, der erst zur Laufzeit entsteht (`{b.dateiSha256}`,
+   `/unternehmen/{mandant}`), ist Anzeige und zählt nicht.
+4. **Hart, ohne Bestand** (`tests/kern/code-quelltext.test.ts`, vorher
+   `code-datenbankname.test.ts` mit dem Bestand
+   `code-datenbankname-bestand.ts`, beide entfallen): kein Datenbankname
+   steht als Code auf dem Schirm — nirgends. Die zweite Runde hat die 100
+   Namen auf den 46 übrigen Seiten zu Sätzen über ihre Wirkung gemacht (der
+   Bestand zählte 99; einen trug eine importierte Konstante, die die alte
+   Wache nicht las), de und, wo die Seite zweisprachig ist, en:
+   `kunde_debitor_uk` → „unter den nicht archivierten Kunden einer
+   Gesellschaft lässt die Datenbank jede Nummer nur einmal zu";
+   `kunde_zahlungsziel_plausibel` → „einen anderen Wert nimmt die Datenbank
+   nicht an"; `app.zahlungskondition_lesen` → „über eine eigene, geprüfte
+   Abfrage"; `app.freigabe_umkehrbar` → „die Datenbank beantwortet die
+   Frage, ob sich eine Freigabe zurücknehmen lässt, heute für jede
+   Vorgangsart mit „nein""; `app.person_identitaeten`,
+   `app.arbzg_belastung`, `app.person_kanonisch` → „die Prüfung der
+   Arbeitszeitgrenzen und der Nachtlauf zählen beide Zeilen als einen
+   Menschen"; `reinigungsklasse_code_uk` → „Die Datenbank lässt einen Code
+   nur einmal aktiv zu".
+5. **Jeder andere feste Code braucht einen Grund, oder er wird ein Satz.**
+   Wo ein `<code>` für den Menschen wirklich Code sein muss, steht es mit
+   seinem Grund in `tests/kern/code-quelltext-ausnahmen.ts` (17 Einträge, 33
+   Stellen): weil er die Zeichen TIPPT (Eingabebeispiele und -formen: `12,5`,
+   `1.234,5`, `schluessel=wert`, `189000` Cent, die Rechenzeichen `+ − × x *`,
+   `https://`, `Sommer2024!`, ein CPV-Code, die Schemakennungen `0204`, `EM`,
+   `0088` der elektronischen Adresse), weil er sie so WIEDERFINDET (`PDNG` in
+   der Datei der Bank, `index.xml`/`konten.csv` im Z3-Paket, `radar-v1` an
+   jeder Bewertung, `✔`/`○` der Rechtematrix, `+1` einer Schicht über
+   Mitternacht, der Modellname des Anbieters), weil es eine ADRESSE ist, die
+   er aufruft (`/angebot`, `/en/angebot`), oder weil die Fläche nicht zum
+   Produkt gehört (`src/app/dev/`). Ein Wert, der zur Laufzeit entsteht —
+   ein Kalender-Abo-Link, eine Kundennummer, eine IBAN, eine Prüfsumme —, ist
+   Anzeige eines Datums und steht nicht in der Liste. Die Liste ist genau:
+   ein Eintrag, dessen Code es nicht mehr gibt, bricht die Prüfung wie ein
+   Code ohne Eintrag, und jeder Grund ist ein Satz für den Menschen am
+   Schirm. Vor der zweiten Runde standen 192 feste Code-Stellen auf dem
+   Schirm (21561fd: 218, davon 114 Datenbanknamen); 159 sind Sätze
+   geworden — Datenbanknamen, Dateipfade, Befehle, SQL, Funktionsnamen,
+   Kopfzeilen (`x-cse-manifest-sha256`), Adressen, die eine Seite nur
+   erwähnt.
+6. **Die Gegenprobe** findet jede Form (Unterstrich, `schema.name`, mit
+   Aufrufklammern, Tabellenname, Konstante derselben Datei, Pfad aus einer
+   importierten Konstante, Befehl, SQL-Wort) und keinen Wert aus Anfrage
+   oder Datenbank.
+
+| Betrifft | V-251, V-252, D-741, Invariante 5, LEG-08, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage/page.tsx`, 46 weitere Seiten unter `src/app/portal/[mandant]`, `tests/kern/code-quelltext.test.ts`, `tests/kern/code-quelltext-ausnahmen.ts`, `tests/kern/hilfen/code-quelltext.ts` (vorher `code-datenbankname.test.ts`, `code-datenbankname-bestand.ts`, `hilfen/code-datenbankname.ts`) |
+|---|---|
+
+### D-743 · Wo ein Zeilenumbruch zwei Stücke eines Satzes trennt, steht `{' '}` — geprüft am Syntaxbaum über den ganzen Baum (V-252)
+
+**Der Befund** (Durchgang über den sichtbaren Text): JSX wirft Leerraum, der
+einen Zeilenumbruch enthält, am Rand eines Textstücks ganz weg — anders als
+HTML, das ihn zu einem Leerzeichen zusammenzieht. Aus
+
+    Die Schichten liegen hinter dem Recht
+    <Recht schluessel="dienstplan.lesen" />, das dieses Konto nicht hält.
+
+wird „hinter dem Recht„den Dienstplan lesen“", aus `<strong>im Code</strong>`
+vor einer Zeile `(<code>…</code>)` wird „im Code(…)". Der Quelltext sieht
+richtig aus; falsch ist erst der Schirm. Auf main 21561fd 31 solche Fugen in
+22 Dateien — neben einem Recht, einem `<code>`, einem `<strong>`, einer
+Platzhalterliste, einem Hinweis in einer Bedingung. Wo ein Rand (`mx-s1`)
+die Lücke auf dem Schirm vortäuschte, fehlte sie weiter beim Kopieren, beim
+Vorlesen und in der Suche.
+
+**Die Entscheidung.**
+
+1. **`{' '}` am Ende der Zeile** — die Konvention des Baums (auf 21561fd
+   stehen 756 von 851 `{' '}` dort). Keine Klasse wird angefasst: ein Rand,
+   der die Lücke bisher vortäuschte, bleibt, und das Leerzeichen kommt dazu.
+   25 verschluckte Leerzeichen: 23 in V-252, zwei fielen schon mit dem
+   Umschreiben in V-250 (Seitenblatt der Website) und V-251
+   (Rechtsgrundlagen-Seite).
+2. **Was gewollt aneinanderstösst, steht auf EINER Zeile**:
+   `<strong>Mindest</strong>stärke`, `−{nachlass} / +{zuschlag}`, das Datum
+   `TT.MM.JJJJ` aus drei `slice`. Gerendert wird wie vorher; die eine Zeile
+   ist die Absicht, die die Wache lesen kann.
+3. **Vor einer Übersetzung unbekannten Inhalts steht `{' '}` auch dann, wenn
+   sie selbst mit einem Leerzeichen beginnt** (`t.begruendungIst`,
+   `t.istGebucht`, `t.keineFreistellung` — zwei Stellen). Die Wache sieht
+   nicht in die Tabelle, und zwei Leerzeichen fallen im HTML zu einem
+   zusammen; ein Satz, der sich auf das führende Leerzeichen einer
+   Übersetzung verlässt, bricht beim nächsten Umformulieren.
+4. **Was die Wache liest** (`tests/kern/hilfen/jsx-leerraum.ts`): jede
+   Kinderliste eines JSX-Elements, Stück für Stück, mit dem, was jedes Stück
+   an seinem Rand rendert — ein Zeichen, Text unbekannten Inhalts
+   (`{t.satz}`), Leerraum, nichts (eine Bedingung, die leer bleiben kann,
+   lässt ihre Nachbarn aneinanderstossen), oder etwas, neben dem kein
+   Leerzeichen gebraucht wird (Block, `<br />`, Icon, Feld). Gemeldet wird
+   eine Fuge, an der der verschluckte Leerraum einen Zeilenumbruch enthielt,
+   mindestens eine Seite JSX-Text ist, links etwas endet, hinter dem im Satz
+   ein Leerzeichen steht, und rechts etwas beginnt, vor dem eines steht. Die
+   vorgegebenen Ausnahmen gelten: links `( „ ‚ / -`, ein Strich, der zwei
+   Wörter verbindet (`8–17`), und `“` als öffnendes Anführungszeichen;
+   rechts `) , . ; : ! ?` und `“` als schliessendes. Ein freistehender
+   Gedankenstrich („ — ") hat auf beiden Seiten Luft, ein Pfad
+   (`/datenschutz/anfrage`) ist ein Wort. `<Recht>` rendert „…“ (V-123); eigene Bausteine werden
+   über ihre Definition aufgelöst, in der Datei oder über den Import (Wurzel
+   inline → Text, Block → Block, `svg` → stumm, nicht auflösbar → Block). In
+   Flex-, Grid-, Listen- und Tabellenhüllen ist jedes Kind ein eigener
+   Kasten; ein Kind mit `block`, `flex`, `grid` oder `table` ist ein Block.
+5. **Geprüft** (`tests/kern/jsx-leerraum.test.ts`): über `src/app` und
+   `src/components` (596 Dateien) keine Fuge; die Gegenprobe findet jede Art
+   in beiden Richtungen (Text vor Recht und Code, Element vor Klammer und
+   Text, Bedingung, Ausdruck, Liste vor Strich, eigener Baustein in der Datei
+   und über den Import, leer bleibender Ausdruck) und nichts an `{' '}` am
+   Ende und am Anfang, an gewollt Verbundenem auf einer Zeile, an Komma,
+   Klammer und Bindestrich, in einer Flex-Hülle, an einem Block, an
+   `<br />`, in einer Liste und an einem Baustein, der sich nicht auflösen
+   lässt.
+6. **Nicht erfasst, bewusst:** zwei Ausdrücke nebeneinander über einen
+   Zeilenumbruch (`{t.vor}` ⏎ `{name}`) — dort tragen die Übersetzungen ihre
+   Leerzeichen selbst, und ohne Blick in die Tabelle wäre jede solche Fuge
+   ein blosser Verdacht; ein Leerzeichen, das einer Übersetzung am Rand
+   fehlt; eine Hülle, die erst ab einer Bildschirmbreite Flex ist
+   (`sm:flex`), gilt als Fliesstext und wird geprüft.
+
+| Betrifft | V-252, V-250, V-251, V-123, `tests/kern/jsx-leerraum.test.ts`, `tests/kern/hilfen/jsx-leerraum.ts`, 21 Seiten unter `src/app/portal/[mandant]` (Agentenlauf, Kontaktblatt, Rechtsgrundlagen, Konditionen, Steuer, Wiedervorlagen, Datenschutz ×3, Vorlagen, Eingangsrechnung-Freigabe, Rechnung, ZUGFeRD, Raum, Turnus, Security ×2, Reinigungsklassen, Zeitkorrektur, Zeiteintrag, Zeitfreigabe) |
+|---|---|
+
+### D-744 · Ein Satz, den keine Seite zeigt, fällt auf — Wache über jede Satztabelle bis zum gelesenen Feld (V-249)
+
+**Der Befund.** `ANTRAG_FORM_TEXTE.pflichtBei` (D-740) stand in vier
+Sprachen in der Tabelle der Antragsmaske und erschien nirgends; die einzige
+Prüfung daran bestätigte einen Satz, den kein Mensch liest. Die Frage
+dahinter: wie viele solche Sätze stehen in den Tabellen? Über den Baum
+gezählt: 87 Satztabellen unter `src/lib/i18n` mit 3450 Feldern. 98 Felder in
+21 Tabellen liest keine Seite, kein Baustein und kein Dienst — 48 davon im
+gemeinsamen Wortschatz der Verwaltung (`VERWALTUNG_TEXTE`, D-592), sieben in
+`MEIN_TEXTE` (`gesperrt`, `offen`, `vorlaeufig`, `sprache`, `summe`,
+`dienstanweisungLesen`, `zurueck`),
+dazu etwa `SHELL_TEXTE.menueSchliessen`, die Bearbeiten-Titel von Projekt,
+Revier und Veranstaltung, deren Seiten nur anlegen, und acht Felder in
+`KETTE_TEXTE` — zwei davon (`typWerte`, `richtungWerte`) prüft
+`crm-kette.test.ts` auf Vollständigkeit, gezeigt wird keines.
+
+**Die Entscheidung.**
+
+1. **Verfolgt wird der Weg bis zum Feld, nicht der Name**
+   (`tests/kern/hilfen/satztabellen.ts`). Eine Satztabelle ist eine
+   Konstante unter `src/lib/i18n` mit Sprachen als Schlüsseln; ihre Felder
+   sind die des ersten Spracheintrags. Ein Eintrag entsteht aus `T[sprache]`,
+   `T.de` oder einer Wahlfunktion (`nachSprache(T, …)`) und wird weiter
+   verfolgt: in eine Bindung (`const t`, `t = …`, ein Vorgabewert), in eine
+   Funktion und einen Baustein (auch über den Import, zerlegt, umbenannt oder
+   über `props`), aus einer Funktion an jeden ihrer Aufrufe (`meinTexte(…)`),
+   in jede Funktion einer Tabelle von Funktionen, aus der erst zur Laufzeit
+   gewählt wird (`ANTWORT_TEXT`), und in ein Objekt unter einem Namen, dann
+   an jedes `x.name` im Baum (`basis.texte` im Arbeiterportal — das zählt
+   eher zu viele Leser als zu wenige). Ein Vergleich, `!` und `typeof` lesen
+   nichts.
+2. **Wo die Verfolgung aufhört, gilt jedes Feld als gelesen** — ein
+   Schlüssel, der erst zur Laufzeit feststeht, ein Aufruf, der sich nicht
+   auflösen lässt. Lieber ein totes Feld übersehen als ein gelesenes für tot
+   erklären. Diese blinden Tabellen stehen mit Namen fest
+   (`NICHT_VERFOLGTE_SATZTABELLEN`, neun: die Beschriftungen der Navigation,
+   die Pillen, fünf Wertelisten des Arbeiterportals, die Dokumentkategorien,
+   die Rückmeldungen des Recruitings); eine Tabelle, die neu blind wird,
+   bricht die Prüfung, bis sie dort steht.
+3. **Eingefroren, nicht gelöscht.** Die 98 Felder stehen in
+   `tests/kern/satztabellen-bestand.ts` (`UNGELESENE_SATZFELDER`) und dürfen
+   nur weniger werden; der Bestand muss genau sein. Ein Feld zu entfernen ist
+   eine Entscheidung je Tabelle — der Wortschatz steht mit Absicht bereit, ein
+   Titel fürs Bearbeiten kündigt eine fehlende Seite an — und keine
+   Textkorrektur; dieser Durchgang ändert kein Verhalten.
+4. **Die vier Formulartabellen des Arbeiterportals** (`MEIN_FORMULAR_TEXTE`,
+   `ANTRAG_FORM_TEXTE`, `MELDUNG_FORM_TEXTE`, `EINWAND_FORM_TEXTE`) werden
+   ohne blinde Stelle bis zum Feld verfolgt, jedes Feld hat einen Leser, und
+   keine steht im Bestand. Auf 21561fd meldet die Prüfung gegenüber heute
+   genau ein Feld mehr: `ANTRAG_FORM_TEXTE.pflichtBei`.
+5. **Geprüft** (`tests/kern/satztabellen-leser.test.ts`): über den ganzen
+   Baum kein ungelesenes Feld ausserhalb des Bestands, der Bestand genau, die
+   blinden Tabellen genau; die Gegenprobe findet ein totes Feld und zählt
+   jeden Weg aus Nr. 1 als Leser (Feldzugriff, Sprache als Name, Zerlegung,
+   Wahlfunktion, Baustein zerlegt/umbenannt/`props`/Vorgabewert, Funktion,
+   Rückgabe über den Import, Objekt, Funktionstabelle, Vergleich), und eine
+   Tabelle mit Schlüssel zur Laufzeit oder unaufgelöstem Aufruf gilt als ganz
+   gelesen.
+6. **Nicht erfasst, bewusst:** Felder unterhalb der obersten Ebene
+   (`gruende.fehlt_einsatz`, `nachweisBlatt.summe`) — ein toter Grund in einer
+   Grundtabelle bleibt unsichtbar; Satztabellen neben den Seiten
+   (`FEHLERTEXT`), die ein Schlüssel aus der Adresse wählt; eine Prüfung, die
+   einen Satz aufruft, zählt nicht als Leser — sie ist keiner.
+7. **Beschriftungskarten und zweite Namen** (Zusammenführung mit Kalender,
+   Berichte und Sitzung). Eine Beschriftungskarte (`Karte<K>`, D-725, D-726) ist
+   kein Satz: sie hält das Wort zu einem Wert der Datenbank, und welcher
+   Eintrag erscheint, entscheidet der Wert (`beschriftung(K, zeile.status)`).
+   Ihr Schlüssel ist ein geschlossener Typ, jedes Feld steht für genau einen
+   Wert. Sie gilt als ganz gelesen, sobald eine Stelle sie liest, und als
+   ganz ungelesen, wenn keine es tut — eine Karte ohne Leser bricht die
+   Prüfung wie ein totes Feld. Ein zweiter Name für eine Tabelle
+   (`const T = RECRUITING_KANDIDAT_TEXTE`) wird wie die Tabelle verfolgt.
+   Damit kommen die 13 Karten und die Kandidatentabelle der Zusammenführung
+   ohne einen Eintrag in `NICHT_VERFOLGTE_SATZTABELLEN` aus; die Gegenprobe
+   hält beide Regeln (gelesene Karte, Karte ohne Leser, Tabelle ohne
+   `Karte<…>`, zweiter Name).
+
+| Betrifft | V-249, D-740, D-592, `tests/kern/satztabellen-leser.test.ts`, `tests/kern/satztabellen-bestand.ts`, `tests/kern/hilfen/satztabellen.ts`, `src/lib/i18n/**` |
+|---|---|

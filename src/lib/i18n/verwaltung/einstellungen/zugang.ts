@@ -44,7 +44,8 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
     grund: 'Grund',
     eigenesKonto:
       'Das ist Ihr eigenes Konto. Der Zugangsentzug und der Sitzungswiderruf '
-      + 'führen über ein anderes Konto — die eigenen Anmeldungen stehen unter',
+      + 'führen über ein anderes Konto — die eigenen Anmeldungen stehen unter '
+      + '„Ihr Konto › Sicherheit".',
 
     entsperrenTitel: 'Sperre aufheben',
     entsperrenText:
@@ -91,7 +92,8 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
     grund: 'Reason',
     eigenesKonto:
       'This is your own account. Withdrawing access and revoking sessions go '
-      + 'through a different account — your own sign-ins are listed under',
+      + 'through a different account — your own sign-ins are listed under '
+      + '“Your account › Security”.',
 
     entsperrenTitel: 'Lift the lock',
     entsperrenText:

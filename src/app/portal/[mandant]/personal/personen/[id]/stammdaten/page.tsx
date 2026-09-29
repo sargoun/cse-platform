@@ -6,6 +6,7 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
@@ -172,7 +173,7 @@ export default async function Stammdatenblatt({
         {keinRecht ? (
           <p data-cse="stammdaten-kein-recht" className="m-0 text-sm text-text-muted">
             <strong className="text-text">Gesperrt.</strong> Diese Sitzung hält{' '}
-            <span className="font-mono">personal.stammdaten_lesen</span> nicht.
+            <Recht schluessel="personal.stammdaten_lesen" /> nicht.
             Das ist etwas anderes als „nichts hinterlegt": die Zeile trägt
             möglicherweise ein Geburtsdatum, diese Sitzung darf es nicht sehen
             (SEC-03, LEG-09).
@@ -205,7 +206,7 @@ export default async function Stammdatenblatt({
       <h2 className="mb-s3 text-h2 text-text">Ändern</h2>
       {darf['personal.schreiben'] !== true ? (
         <p data-cse="stammdaten-kein-schreibrecht" className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Stammdaten pflegt, wer <span className="font-mono">personal.schreiben</span>{' '}
+          Stammdaten pflegt, wer <Recht schluessel="personal.schreiben" />{' '}
           hält. Wer sie lesen darf, darf sie darum noch nicht ändern.
         </p>
       ) : (
@@ -284,8 +285,8 @@ export default async function Stammdatenblatt({
         Gesellschaften der Gruppe denselben Menschen beschäftigen, darf dann
         jede von ihnen seine Stammdaten pflegen? Ausgeliefert ist die heutige
         Annahme: ja, solange die Beschäftigung in der eigenen Gesellschaft
-        besteht — `person` trägt keinen Mandanten (D-09), und der Mensch ist nur
-        einmal im System. Jede Änderung steht mit dem Konto im Protokoll.
+        besteht — ein Mensch gehört keiner einzelnen Gesellschaft (D-09), und er ist
+        nur einmal im System. Jede Änderung steht mit dem Konto im Protokoll.
       </p>
     </PortalRahmen>
   );

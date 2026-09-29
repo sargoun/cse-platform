@@ -235,9 +235,8 @@ export default async function Vertragsblatt({
         <p className="m-0 text-xs text-text-subtle">
           Arbeitszeitmodell, Wochenstunden und Arbeitstage sind ein{' '}
           <strong className="text-text">Spiegel der heute gültigen Kondition</strong>{' '}
-          (01-KERN §6.14) und haben genau einen Schreiber — den Auslöser, der
-          sie aus <span className="font-mono">anstellung_kondition</span>
-          {' '}ableitet. Geändert werden sie, indem eine neue datierte Kondition
+          (01-KERN §6.14) und haben genau einen Schreiber — die Datenbank, die sie
+          aus der datierten Kondition der Anstellung ableitet. Geändert werden sie, indem eine neue datierte Kondition
           entsteht; das verlangt <Recht schluessel="personal.entgelt_schreiben" />.
           Der Grund ist nicht Ordnungsliebe: eine Änderung an der Spalte
           bewertete jede vergangene Sollstunden- und Lohnkostenrechnung

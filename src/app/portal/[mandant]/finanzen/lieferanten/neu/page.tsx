@@ -6,7 +6,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LIEFERANTEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/lieferanten';
 import { LieferantFormular } from '../LieferantFormular';
-import { LIEFERANT_FEHLER } from '../fehler';
+import { LIEFERANT_FEHLER, LIEFERANT_FEHLER_SONST, LIEFERANT_FEHLT_RECHT } from '../fehler';
 import { Recht } from '@/components/ui/Recht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 
@@ -57,7 +57,13 @@ export default async function LieferantNeu(
 
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="lieferant-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(meldungen, fehler) ?? fehler}
+          {fehler === 'kein_schreibrecht' ? (
+            <>
+              {nachSprache(LIEFERANT_FEHLT_RECHT, zugang.sprache)}{' '}
+              <Recht schluessel={RECHT} sprache={zugang.sprache} />.
+            </>
+          ) : eigenerEintrag(meldungen, fehler)
+            ?? nachSprache(LIEFERANT_FEHLER_SONST, zugang.sprache)}
         </Hinweis>
       )}
 

@@ -18,12 +18,6 @@ import type { ZugangTexte } from '@/lib/i18n/verwaltung/einstellungen/zugang';
  * dritten Mal nicht mehr liest.
  */
 
-/**
- * Die Adresse der eigenen Sicherheitsseite — als Konstante, nicht als Text im
- * Rumpf. Sie ist ein WEG und keine Beschriftung: übersetzt würde sie falsch,
- * und die Übersetzungswache kann das am Syntaxbaum nicht unterscheiden.
- */
-const EIGENE_SICHERHEIT = '/portal/konto/sicherheit';
 
 const FELD = 'w-full rounded-md border border-line bg-surface px-s3 py-s2 text-sm text-text';
 
@@ -93,7 +87,6 @@ export function KontoHandlungen({
          */
         <Hinweis art="hinweis" cse="konto-selbst" className="max-w-prose">
           {t.eigenesKonto}
-          {' '}<code className="font-mono">{EIGENE_SICHERHEIT}</code>.
         </Hinweis>
       ) : (
         <div className="flex flex-col gap-s3">

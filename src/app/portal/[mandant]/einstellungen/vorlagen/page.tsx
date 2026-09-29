@@ -151,7 +151,7 @@ export default async function Vorlagen(
               Erlaubte Platzhalter:{' '}
               {uebersicht.erlaubtePlatzhalter.map((p) => (
                 <code key={p} className="mr-s2 text-xs">{`{${p}}`}</code>
-              ))}
+              ))}{' '}
               — genau die Angaben, die § 6 Abs. 1 VOB/B selbst verlangt, plus Absender.
               Ein anderer bleibt beim Versand als geschweifte Klammer im Schreiben
               stehen; deshalb weist der Dienst ihn ab.
@@ -160,7 +160,7 @@ export default async function Vorlagen(
         ) : (
           <Hinweis art="warnung" cse="behinderung-kein-recht" className="max-w-[72ch]">
             <strong>Diese Liste ist nicht leer — sie ist nicht sichtbar.</strong> Die
-            Vorlagen der Behinderungsanzeige gehören dem Bau und verlangen
+            Vorlagen der Behinderungsanzeige gehören dem Bau und verlangen{' '}
             <Recht schluessel="bau.lesen" />; Ihre Sitzung hält das Recht dieser Seite
             (<Recht schluessel="system.einstellung_verwalten" />), aber nicht das des Gewerks.
             Ohne diesen Satz stünde hier „keine Vorlage hinterlegt", und das wäre die
@@ -226,7 +226,7 @@ export default async function Vorlagen(
           )
         ) : (
           <Hinweis art="warnung" cse="mahntext-kein-recht" className="max-w-[72ch]">
-            <strong>Nicht sichtbar, nicht leer.</strong> Die Mahnstufen verlangen
+            <strong>Nicht sichtbar, nicht leer.</strong> Die Mahnstufen verlangen{' '}
             <Recht schluessel="mahnung.lesen" />; Ihre Sitzung hält es nicht.
           </Hinweis>
         )}
@@ -245,9 +245,9 @@ export default async function Vorlagen(
           </span>
         </p>
         <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
-          Titel und Text jeder Art stehen <strong>im Code</strong>
-          (<code>server/benachrichtigung/registry.ts</code>) und nicht in der Datenbank —
-          deshalb gibt es hier kein Formular, das nichts speichern würde. Zustellt wird
+          Titel und Text jeder Art stehen <strong>fest im Programm</strong> und nicht
+          in der Datenbank — deshalb gibt es hier kein Formular, das nichts speichern
+          würde. Zustellt wird
           in den Posteingang des Portals; nach draussen geht nichts, solange kein
           EU-gehosteter Versender mit Vertrag zur Auftragsverarbeitung gewählt ist
           (O-36), und welche Absenderadresse je Gesellschaft gilt sowie ob DKIM und

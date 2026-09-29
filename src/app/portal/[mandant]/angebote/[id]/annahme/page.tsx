@@ -203,8 +203,8 @@ export default async function Annahme(
         <Hinweis art="erfolg" cse="schon-gewandelt" className="mb-s5">
           <strong>Aus diesem Angebot ist bereits ein Auftrag entstanden</strong>
           {kopf.auftragsnummer === null ? '.' : ` — ${kopf.auftragsnummer}.`} Ein
-          zweiter entsteht nicht: <code className="text-text">auftrag_angebot_uk</code>{' '}
-          lässt genau einen zu.
+          zweiter entsteht nicht: die Datenbank lässt zu einem Angebot genau einen
+          Auftrag zu.
           {darf['auftrag.lesen'] === true && kopf.auftrag_id !== null ? (
             <p className="mt-s3 mb-0">
               <Link
@@ -280,8 +280,8 @@ export default async function Annahme(
               className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
             />
             <p className="mt-s1 text-xs text-text-muted">
-              Der Beleg der Zusage. Ein <code>angenommen</code> ohne Anlass ist im
-              Streit um den Vertragsschluss nichts.
+              Der Beleg der Zusage. Ein „angenommen" ohne Anlass ist im Streit um den
+              Vertragsschluss nichts.
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="art">
@@ -294,8 +294,8 @@ export default async function Annahme(
               <option value="projekt">Projekt</option>
             </select>
             <p className="mt-s1 text-xs text-text-muted">
-              Der Knopf auf der Detailseite setzt hier hart{' '}
-              <code>rahmenvertrag</code>. Darum gibt es diese Seite.
+              Der Knopf auf der Detailseite setzt hier immer „Rahmenvertrag". Darum
+              gibt es diese Seite.
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="verantwortlichBenutzerId">

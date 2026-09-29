@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Recht } from '@/components/ui/Recht';
 import { DataTable } from '@/components/ui/DataTable';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { haeltRechte } from '@/app/portal/rechte';
@@ -280,8 +281,9 @@ export default async function Benutzerblatt(
       <h2 className="mb-s3 text-h2 text-text">Sitzungen</h2>
       {!selbst ? (
         <p data-cse="sitzungen-fremd" className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-          Sitzungen sind nur für das eigene Konto lesbar (`t_sitzung_eigene`, AUT-08).
-          Das Widerrufen fremder Sitzungen kommt mit `system.sitzung_widerrufen`.
+          Die Sitzungen eines Kontos sieht nur sein Inhaber selbst — die Datenbank
+          zeigt keinem anderen Konto fremde Anmeldungen (AUT-08). Fremde Sitzungen
+          widerruft, wer <Recht schluessel="system.sitzung_widerrufen" /> hält.
         </p>
       ) : sitzungen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">Keine Sitzung.</p>

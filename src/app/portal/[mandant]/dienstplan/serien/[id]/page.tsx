@@ -400,7 +400,7 @@ export default async function Serienblatt(
           >
             Die Ausnahmen sind <strong>nicht einsehbar</strong> — dafür fehlt das
             Gewerkerecht{' '}
-            <code className="text-xs">{leserecht ?? 'reinigung.lesen'}</code>. Das
+            <Recht schluessel={leserecht ?? 'reinigung.lesen'} />. Das
             heißt <strong>nicht</strong>, dass es keine gibt.
           </p>
         ) : ausnahmen.length === 0 ? (

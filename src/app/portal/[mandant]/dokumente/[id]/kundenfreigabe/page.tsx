@@ -10,6 +10,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
@@ -105,7 +106,13 @@ export default async function Dokumentfreigabe(
       {fehler === null ? null : (
         <Hinweis art="warnung" cse="freigabe-fehler" className="mb-s5">
           <strong>Der Schalter wurde nicht umgelegt.</strong>{' '}
-          {eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
+          {fehler === 'kein_recht' ? (
+            <>
+              Ihnen fehlt <Recht schluessel="dokument.kunde_freigeben" />. Dokumente ablegen
+              zu dürfen (<Recht schluessel="dokument.schreiben" />) ist nicht dasselbe wie zu
+              entscheiden, was ein Kunde sieht.
+            </>
+          ) : eigenerEintrag(FEHLERTEXT, fehler) ?? 'Der Vorgang wurde abgewiesen.'}
         </Hinweis>
       )}
 
@@ -214,9 +221,9 @@ export default async function Dokumentfreigabe(
               className="mt-s2 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text"
             />
             <p className="mt-s1 text-xs text-text-muted">
-              Der Grund landet im <strong>Prüfprotokoll</strong>, nicht in einer
-              Spalte: <code>dokument</code> hat kein Feld dafür, und eines zu
-              erfinden wäre eine Schemaänderung für etwas, das ins Audit gehört.
+              Der Grund landet im <strong>Prüfprotokoll</strong>, nicht am Dokument:
+              das Dokument hat kein Feld dafür, und eines zu erfinden hiesse, die
+              Datenbank für etwas umzubauen, das ins Prüfprotokoll gehört.
             </p>
 
             <button
@@ -235,13 +242,12 @@ export default async function Dokumentfreigabe(
 
         <Hinweis art="hinweis" cse="o671" className="mt-s4">
           <strong>Was die Freigabe heute bewirkt.</strong> Sie ist die
-          Voraussetzung, nicht der Weg: das Kundenportal hat noch keinen
-          Dokumentpfad — <code>dokument</code> trägt keine permissive
-          Kundenrichtlinie, und ein Konto im Kundenportal sieht deshalb{' '}
-          <em>null</em> Dokumente, wie dieser Schalter auch steht. Ob Anlagen
-          dort herunterladbar werden, ist <strong>offen (O-671)</strong>. Wo die
-          Freigabe wirkt, wirkt sie seit 0297 nur für <strong>diesen</strong>{' '}
-          Kunden.
+          Voraussetzung, nicht der Weg: das Kundenportal hat noch keinen Weg zu
+          Dokumenten — die Datenbank gibt einem Konto im Kundenportal kein Dokument
+          heraus, und es sieht deshalb <em>null</em> Dokumente, wie dieser Schalter
+          auch steht. Ob Anlagen dort herunterladbar werden, ist{' '}
+          <strong>offen (O-671)</strong>. Wo die Freigabe wirkt, wirkt sie nur für{' '}
+          <strong>diesen</strong> Kunden.
         </Hinweis>
       </section>
 

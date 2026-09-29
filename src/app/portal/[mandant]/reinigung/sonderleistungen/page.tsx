@@ -227,8 +227,8 @@ export default async function Sonderleistungen(
       {ohneVertragszeile > 0 && (
         <Hinweis art="warnung" cse="abruf-ohne-vertragszeile" className="mb-s6 max-w-prose">
           <strong>{ohneVertragszeile} Abruf(e) hängen an keiner Vertragszeile.</strong>{' '}
-          Der Preis eines Abrufs kommt aus <code>auftrag_leistung</code> — dem mit
-          diesem Kunden vereinbarten Preis. Ohne Vertragszeile lässt sich der
+          Der Preis eines Abrufs kommt aus der Vertragszeile — dem mit diesem
+          Kunden vereinbarten Preis. Ohne Vertragszeile lässt sich der
           Abruf nicht abrechnen, auch wenn er erbracht ist.
         </Hinweis>
       )}
@@ -550,9 +550,8 @@ export default async function Sonderleistungen(
               <Recht schluessel="auftrag.lesen" /> fehlt.</strong>{' '}
               Die Auswahl bleibt deshalb leer — das heisst <em>nicht</em>, dass
               es keine Vertragszeilen gibt. Ein hier ohne Vertragszeile erfasster
-              Abruf ist nicht abrechenbar: die Rechnungsübernahme verbindet
-              <code> sonderleistung</code> per INNER JOIN mit
-              <code> auftrag_leistung</code>.
+              Abruf ist nicht abrechenbar: die Rechnungsübernahme nimmt nur Abrufe
+              mit, die an einer Vertragszeile hängen.
             </Hinweis>
           ) : daten.auswahl.vertragszeilen.length === 0 && (
             <Hinweis art="warnung" cse="abruf-keine-vertragszeilen" className="mb-s4 max-w-prose">
