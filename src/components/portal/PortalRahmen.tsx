@@ -10,6 +10,7 @@ import { istInterneLeiste, tableiste, type LeistenSchluessel } from '@/server/re
 import { Sprachumschalter } from './Sprachumschalter';
 import { BereichsWechsel } from './BereichsWechsel';
 import { kopfWechsel } from './kopf-wechsel';
+import { rahmenSprachen } from './rahmen-sprache';
 import { KUNDEN_NAVIGATION, NAVIGATION } from '@/server/registry/navigation';
 import { internBeschriftungen, internSprache } from '@/lib/i18n/intern';
 import { BEREICHSWECHSEL_TEXTE } from '@/lib/i18n/verwaltung/bereichswechsel';
@@ -120,6 +121,19 @@ export function PortalRahmen({
    * wuerde, ohne dass jemand einen Fehler saehe.
    */
   const stand = gemerkteHuelle();
+  /**
+   * **Die Sprache, die der Rahmen ansagt** (WCAG 3.1.1, 3.1.2; D-767).
+   *
+   * Hier stand keine — jede Seite trug nur `<html lang="de-DE">`, auch in
+   * einer englischen Sitzung. Jetzt sagt die Hülle die Sprache ihrer
+   * Beschriftungen an, Titel und `main` die des Inhalts: die der Sitzung, wo
+   * die Seite umgestellt ist, sonst Deutsch. Bringt der Aufrufer eigene
+   * Beschriftungen mit oder lief keine Pforte, sagt der Rahmen nichts — der
+   * Aufrufer setzt `lang` selbst (`rahmen-sprache.ts`).
+   */
+  const sprachen = rahmenSprachen(stand, beschriftungen !== undefined);
+  const huelleLang = sprachen === null ? {} : { lang: sprachen.huelleLang };
+  const inhaltLang = sprachen === null ? {} : { lang: sprachen.inhaltLang };
   const karte = beschriftungen ?? internBeschriftungen(stand.sprache);
   const abgeleitet = stand.rueckweg;
   const b = (schluessel: string, vorgabe: string): string =>
@@ -177,7 +191,8 @@ export function PortalRahmen({
      * Statusleiste. Der Inset ist dann nicht null, und der Identitaetsstreifen
      * verschwaende unter der Uhr (DESIGN §8).
      */
-    <div className="sicher-oben flex min-h-dvh flex-col bg-ink">
+    <div data-cse="portal-rahmen" {...huelleLang}
+         className="sicher-oben flex min-h-dvh flex-col bg-ink">
       <div
         aria-hidden="true"
         data-cse="identitaets-streifen"
@@ -255,7 +270,7 @@ export function PortalRahmen({
                           text-h3 text-text transition-colors duration-fast ease-brand
                           hover:bg-surface-2 ${logoKante}`}>
               {zeichen('sm')}
-              <span className="truncate">{titel}</span>
+              <span className="truncate" {...inhaltLang}>{titel}</span>
             </a>
           ) : (
             /*
@@ -267,7 +282,7 @@ export function PortalRahmen({
                   className={`flex min-h-11 min-w-11 items-center gap-s2 px-s2
                              text-h3 text-text ${logoKante}`}>
               {zeichen('sm')}
-              <span className="truncate">{titel}</span>
+              <span className="truncate" {...inhaltLang}>{titel}</span>
             </span>
           )
         ) : (
@@ -299,17 +314,17 @@ export function PortalRahmen({
                             transition-colors duration-fast ease-brand hover:text-text">
                 {zeichen('sm')}
                 <span aria-hidden="true">‹</span>
-                <span className="truncate">{wurzelTitel}</span>
+                <span className="truncate" {...inhaltLang}>{wurzelTitel}</span>
               </a>
             ) : (
               <span data-cse="spur-ohne-ziel"
                     className="flex min-h-11 min-w-11 items-center gap-s2 text-sm text-text-muted">
                 {zeichen('sm')}
-                <span className="truncate">{wurzelTitel}</span>
+                <span className="truncate" {...inhaltLang}>{wurzelTitel}</span>
               </span>
             )}
             <span aria-hidden="true" className="text-text-subtle">›</span>
-            <span className="truncate text-h3 text-text">{titel}</span>
+            <span className="truncate text-h3 text-text" {...inhaltLang}>{titel}</span>
           </nav>
         )}
         {nurLesen && (
@@ -565,7 +580,7 @@ export function PortalRahmen({
           * so breit wie das Fenster; was wirklich breiter ist (das Raster,
           * eine Tabelle ab `md`), rollt in seinem eigenen Behaelter (D-420).
           */}
-        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5">
+        <main className="ueber-tableiste sicher-seiten min-w-0 flex-1 p-s5" {...inhaltLang}>
           {/*
             * **Der Rueckweg — abgeleitet, wenn die Seite keinen nennt**
             * (DESIGN §5 „The way back", D-613, V-108).
@@ -585,13 +600,20 @@ export function PortalRahmen({
             * Eigenschaft schlaegt die Ableitung — etwa dort, wo das Ziel
             * nicht der Vorfahr in der Adresse ist.
             */}
+          {/*
+            * Das `aria-label` („Zurück"/„Back") in der Sprache seines Textes
+            * (D-767): der Rückweg der Seite in der ihres Inhalts, der
+            * abgeleitete in der der Hülle — er ist ein Wort der Hülle, auch
+            * über deutschem Inhalt, und sagt das mit `lang`.
+            */}
           {zurueck !== undefined ? (
             <Zurueck ziel={zurueck.ziel} text={zurueck.text}
-                     sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
+                     sprache={beschriftungen?.['sitzung.sprache'] ?? sprachen?.inhalt ?? null} />
           ) : abgeleitet !== null && (
             <Zurueck ziel={abgeleitet.ziel}
                      text={rueckzielName(abgeleitet.segment, internSprache(stand.sprache))}
-                     sprache={beschriftungen?.['sitzung.sprache'] ?? null} />
+                     sprache={beschriftungen?.['sitzung.sprache'] ?? sprachen?.huelle ?? null}
+                     {...(sprachen === null ? {} : { lang: sprachen.huelleLang })} />
           )}
           {children}
         </main>

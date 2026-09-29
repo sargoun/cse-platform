@@ -11,6 +11,7 @@ import { meinPortal } from '../rahmen';
 import Link from 'next/link';
 import { Monatswechsler } from '../bausteine';
 import { DruckKnopf } from './DruckKnopf';
+import { meinTexte, PORTAL_BCP47 } from '@/lib/i18n/texte';
 
 /**
  * `/portal/mein/monatsnachweis` — der Stundennachweis eines Monats, je
@@ -134,7 +135,15 @@ export default async function Monatsnachweis({
   if (ergebnis.daten === null) notFound();
 
   const { basis, daten } = ergebnis;
-  const t = basis.texte;
+  /*
+   * Die Sprache des Blatts — seine Wörter UND sein `lang` (D-767). Hier stand
+   * `lang="de"` fest am Blatt, während Überschriften und Erklärungen der
+   * Sprache der Person folgten: ein Screenreader las Englisch, Arabisch und
+   * Türkisch mit deutscher Aussprache. Tage und Zahlen bleiben in der
+   * deutschen Schreibweise (`tagDeutsch`, D-688) — das ist Form, nicht Sprache.
+   */
+  const blattSprache = basis.sprache;
+  const t = meinTexte(blattSprache);
   /*
    * TODO(client, O-886): Darf das Blatt, das die Arbeiterin abruft, in ihrer Sprache stehen — oder muss die Aufzeichnung nach § 17 MiLoG deutsch sein, um als Nachweis zu gelten?
    *
@@ -144,8 +153,8 @@ export default async function Monatsnachweis({
    * der Anzeige. Das folgt D-84 (Impressum/Datenschutz sind deutsch bindend,
    * die englische Fassung sagt es dazu) und ist damit kein erfundener Weg,
    * sondern der schon entschiedene. Sagt der Auftraggeber, das Blatt muesse
-   * deutsch bleiben, ist die Umkehr eine Zeile: `meinTexte('de')` statt
-   * `basis.texte`.
+   * deutsch bleiben, ist die Umkehr eine Zeile: `blattSprache = 'de'` —
+   * Wörter und `lang` folgen ihr gemeinsam.
    */
   const b = t.nachweisBlatt;
   const n = daten.nachweis;
@@ -153,7 +162,7 @@ export default async function Monatsnachweis({
   const stimmtUeberein = kontoIst !== null && kontoIst === n.summeNettoMinuten;
 
   return (
-    <article data-cse="monatsnachweis" className="cse-blatt" lang="de">
+    <article data-cse="monatsnachweis" className="cse-blatt" lang={PORTAL_BCP47[blattSprache]}>
       {/*
         Die Druckregeln stehen als Blatt-eigene Regel und nicht in der globalen
         CSS: ein `@page` im Anwendungsstil legte den A4-Rand auch auf jede

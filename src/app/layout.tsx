@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import type { Viewport } from 'next';
-import { headers } from 'next/headers';
-import { KOPF_SPRACHE } from '@/lib/kopf';
-import { BCP47, istSprache, VORGABE_SPRACHE } from '@/lib/sprache';
+import { cookies, headers } from 'next/headers';
+import { KOPF_PFAD, KOPF_SPRACHE } from '@/lib/kopf';
+import { SPRACH_KEKS } from '@/lib/i18n/geraetesprache';
+import { htmlSprache, sprichtGeraetesprache } from '@/lib/i18n/html-sprache';
 import '../styles/globals.css';
 
 export const metadata = { title: 'CSE Platform' };
@@ -33,12 +34,25 @@ export const viewport: Viewport = {
  * Die Sprache kommt aus dem Kopf, den `middleware.ts` setzt — das Layout
  * selbst kennt den Pfad nicht. Fehlt der Kopf (etwa weil eine Route aus dem
  * Matcher faellt), bleibt es bei Deutsch: die Vorgabe, nicht ein Raten.
+ *
+ * **Die Flächen mit Gerätesprache** — Anmeldung der Beschäftigten und
+ * Stempeluhr — sagen am `<html>` die Sprache des Geräts an, samt `dir`
+ * (D-767); das Portal sagt die Sprache der Sitzung an seiner Hülle an, weil
+ * nur die Pforte der Seite sie kennt (`html-sprache.ts`).
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const roh = (await headers()).get(KOPF_SPRACHE) ?? '';
-  const sprache = istSprache(roh) ? roh : VORGABE_SPRACHE;
+  const kopf = await headers();
+  const pfad = kopf.get(KOPF_PFAD);
+  const { lang, dir } = htmlSprache({
+    pfad,
+    pfadSprache: kopf.get(KOPF_SPRACHE),
+    /* Den Keks nur lesen, wo er zählt — jede andere Seite kommt ohne aus. */
+    keks: pfad !== null && sprichtGeraetesprache(pfad)
+      ? (await cookies()).get(SPRACH_KEKS)?.value : undefined,
+    acceptLanguage: kopf.get('accept-language'),
+  });
   return (
-    <html lang={BCP47[sprache]}>
+    <html lang={lang} {...(dir === undefined ? {} : { dir })}>
       <body>{children}</body>
     </html>
   );

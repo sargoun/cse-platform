@@ -105,6 +105,23 @@ export function merkeUmschalter(umschalter: UmschalterHuelle | null): void {
   kasten().umschalter = umschalter;
 }
 
+/**
+ * Nur die Sprache — fuer die Kontoseiten (`leseKonto`), die nicht durch das
+ * Tor gehen (D-767).
+ *
+ * **Der eine Wert, den die Kontoseiten doch brauchen.** Sie setzen `lang` um
+ * ihren Inhalt in der Sprache der Person; die Kopfzeile darin kam aber aus
+ * `internBeschriftungen(null)`, also deutsch — ein englisch eingestelltes
+ * Verwaltungskonto las auf `/portal/konto/*` deutsche Leisten unter
+ * `lang="en"`, und der Sprachumschalter zeigte „Deutsch" als gewaehlt.
+ * Pfad und Rueckweg bleiben unberuehrt (siehe `merkeUmschalter`): der Rahmen
+ * erkennt am fehlenden Pfad, dass keine Pforte lief, und ueberlaesst `lang`
+ * der Kontoseite.
+ */
+export function merkeSprache(sprache: PortalSprache | null): void {
+  kasten().sprache = sprache;
+}
+
 /** Von der Huelle aufgerufen, beim Rendern der Kopfzeile und der Leisten. */
 export function gemerkteHuelle(): Readonly<HuellenStand> {
   return kasten();

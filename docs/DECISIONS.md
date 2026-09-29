@@ -21020,3 +21020,93 @@ Seite, die ohne Sitzung gar nicht geht.
 
 | Betrifft | D-599, D-692, D-656, D-682, D-488, D-560, V-136, V-159, V-256, V-258, AUT-02, AUT-06, EMP-01, SEC-A7, `src/server/auth/{antwort,ursprung,kennwort-anmeldung}.ts`, `src/app/api/**` (Wächter, Gerüste, Übersetzer), `src/app/api/mein/formular.ts`, `src/app/api/mein/schichten/bruecke.ts`, `src/app/auth/mitarbeiter/{page,code/page}.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `src/app/portal/mein/page.tsx`, `tests/kern/sitzung-formularweg.test.ts`, `tests/kern/hilfen/sitzungswache.ts`, `tests/kern/{autorisierung-uebersetzt,mein-formular-rueckweg,auftrag-angaben,radar-plattform}.test.ts` |
 |---|---|
+
+### D-767 · Das Portal sagt die Sprache seiner Teile an — die Hülle die der Sitzung, der Inhalt seine eigene; `<html>` dort, wo das Layout sie kennt (V-257)
+
+**Der Befund** (V-257; von mehreren unabhängigen Prüfungen als eigene
+Aufgabe benannt): Alle Portalseiten trugen nur `<html lang="de-DE">`, auch
+wenn die Sitzung Englisch spricht — ein Screenreader las die englische Hülle
+(Kopfzeile, Leisten, Tab-Leiste, D-592) und den Inhalt der übersetzten Seiten
+mit deutscher Aussprache. Geprüft wurde auch, was schon stimmt: das
+Arbeiterportal (`MeinRahmen`) setzt `lang` und `dir` der Person um die ganze
+Hülle — auf jeder Seite ausser dem Druckblatt Monatsnachweis, das fest
+`lang="de"` trug, während seine Überschriften und Erklärungen seit O-886 der
+Sprache der Person folgen. Die Kontoseiten setzen `lang`/`dir` um ihren
+Inhalt; ihre Kopfzeile kam für ein Verwaltungskonto aber aus
+`internBeschriftungen(null)` — deutsch unter `lang="en"`, und der
+Sprachumschalter zeigte „Deutsch" als gewählt. Die Website stimmt (`/en/…`
+→ `lang="en"`, Middleware-Kopf, D-82), die Anmeldung der Verwaltung ist
+deutsch und trägt `de-DE`; Anmeldung der Beschäftigten und Stempeluhr sagen
+die Gerätesprache an ihrer Hülle an (D-694), `<html>` blieb dort `de-DE`.
+
+**Die Entscheidung.**
+
+1. **Das Portal sagt die Sprache an seiner Hülle an, nicht am `<html>`.**
+   Das Wurzel-Layout kennt die Adresse, nicht die Sitzung; deren Sprache
+   steht in der Datenbank und ist erst nach der Pforte der Seite bekannt
+   (`merkeHuelle`). Sie im Layout ein zweites Mal aufzulösen kostete jede
+   Portalseite eine weitere Transaktion samt Schreibzugriff
+   (`letzte_aktivitaet_am`) — und wüsste nicht, ob der Inhalt der Seite
+   übersetzt ist. `PortalRahmen` umschliesst den ganzen sichtbaren Inhalt.
+2. **Zwei Angaben, weil zwei Sprachen auf dem Bildschirm stehen**
+   (`rahmenSprachen`, `components/portal/rahmen-sprache.ts`): die Hülle
+   (`data-cse="portal-rahmen"`) sagt die Sprache der Sitzung an (de/en,
+   D-592); Titel, Spur und `main` die des Inhalts — die der Sitzung, wo die
+   Seite umgestellt ist, sonst Deutsch. Ein `lang="en"` über allem hätte den
+   Fehler nur umgedreht: 308 der 378 Seiten von Verwaltung, Kunden und
+   Gruppe tragen ihre Wörter noch fest deutsch.
+3. **Welche Seite umgestellt ist, sagt die Liste, die es schon weiss:** die
+   Ausnahmeliste der Sperrklinke `seite-ohne-uebersetzung`
+   (`scripts/guards/uebersetzung-ausnahmen.ts`), die die Wache in beide
+   Richtungen genau hält. `inhaltFolgtSitzung`
+   (`server/registry/seitensprache.ts`) findet die Seitendatei über das
+   Routenmanifest (`findeRoute`, dieselbe Schärferegel wie die Pforte); wer
+   eine Seite umstellt und ihre Zeile streicht, stellt ihre Sprachangabe mit
+   um. Eine Adresse ohne Manifestzeile gilt als deutsch — die Vorgabe, nicht
+   ein Raten.
+4. **Der abgeleitete Rückweg ist ein Wort der Hülle** (`rueckzielName` in der
+   Sprache der Sitzung): er trägt deren `lang` und `aria-label` („Back")
+   auch über deutschem Inhalt. Der Rückweg, den eine Seite selbst nennt,
+   spricht wie ihr Inhalt.
+5. **Wer seine Sprache selbst ansagt, bekommt vom Rahmen keine:** Aufrufer
+   mit eigenen Beschriftungen (`MeinRahmen`, die Kontoseiten einer
+   Beschäftigten — vier Sprachen, mit `dir`) und Seiten ohne Pforte (die
+   Kontoseiten, `/dev/portal`). Die Kontoseiten legen die Sprache der Person
+   jetzt ab (`merkeSprache` in `leseKonto`): die Kopfzeile eines
+   Verwaltungskontos folgt ihr wie der Inhalt darunter, der Sprachumschalter
+   zeigt die gewählte; Pfad und Rückweg bleiben unberührt.
+6. **Das Druckblatt Monatsnachweis** sagt die Sprache an, in der seine Wörter
+   stehen (`blattSprache` — Wörter und `lang` an EINER Stelle; die Antwort
+   auf O-886 ändert beides zugleich). Tage und Zahlen bleiben in deutscher
+   Schreibweise (D-688) — Form, nicht Sprache.
+7. **Am `<html>` steht die Sprache, wo das Layout sie kennt**
+   (`htmlSprache`, `lib/i18n/html-sprache.ts`): auf der Website die des
+   Pfads wie bisher; auf der Anmeldung der Beschäftigten
+   (`/auth/mitarbeiter`, `/auth/mitarbeiter/code`) und der Stempeluhr
+   (`/check-in/[token]`) die des Geräts (Keks, `Accept-Language` — ohne
+   Datenbank, dieselbe Funktion wie in den Seiten, D-694), samt `dir`, damit
+   auch Seitentitel, Bildlaufleiste und Seitenrand folgen. Nur genau diese
+   drei Adressen: eine Adresse daneben zeigt die deutsche 404.
+8. **Was bleibt:** im Portal trägt `<html>` weiter die Sprache des Pfads
+   (`de-DE`), damit auch der Seitentitel; Bausteine auf der Ausnahmeliste
+   (die Rahmen einzelner Bereiche, Kacheln, Hinweise) stehen in einer
+   übersetzten Seite deutsch unter deren Sprache, bis sie umgestellt sind;
+   ein Verwaltungskonto mit Arabisch oder Türkisch sieht die Hülle deutsch
+   (D-592) unter dem `lang` seiner Kontoseite.
+9. **Geprüft:** `tests/kern/seitensprache.test.ts` — jede der Seiten von
+   Verwaltung, Kunden und Gruppe findet über ihre Adresse sich selbst, jede
+   Manifestzeile dieser Portale hat ihre Seite, die Antwort folgt der Liste
+   über den ganzen Baum; die Entscheidung als reine Funktion; `PortalRahmen`
+   gerendert (übersetzt und unübersetzt, Titel und Spur, beide Rückwege,
+   deutsche Sitzung, eigene Beschriftungen, Kontoseite); Arbeiterportal,
+   Kontoseiten und Monatsnachweis am Quelltext. `tests/kern/html-sprache.test.ts`
+   — `htmlSprache` für alle drei Arten, die Liste der Gerätesprach-Flächen
+   gegen jede Seite, die `geraeteSprache(` ruft (in beide Richtungen), das
+   Wurzel-Layout mit ersetzten Köpfen und Keksen, die Middleware.
+   `tests/e2e/sprachumschalter.spec.ts` — nach dem Wechsel auf Englisch trägt
+   die Hülle `en` und `main` die Sprache nach der Liste (nicht lokal
+   gelaufen). Die axe-Prüfungen (`html-has-lang`, `valid-lang`) bleiben
+   unverändert streng; jeder neue Wert ist ein gültiges Tag.
+
+| Betrifft | D-82, D-84, D-592, D-688, D-694, D-751, O-886, V-257, WCAG 3.1.1, 3.1.2, `src/app/layout.tsx`, `src/lib/i18n/html-sprache.ts`, `src/components/portal/{PortalRahmen,Zurueck}.tsx`, `src/components/portal/rahmen-sprache.ts`, `src/server/registry/seitensprache.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` (gelesen, nicht geändert), `src/app/portal/{huellen-speicher.ts,konto/konto.ts}`, `src/app/portal/mein/monatsnachweis/page.tsx`, `tests/kern/{seitensprache,html-sprache}.test.ts`, `tests/e2e/sprachumschalter.spec.ts` |
+|---|---|

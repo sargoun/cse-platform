@@ -6,7 +6,7 @@ import { NAVIGATION } from '@/server/registry/navigation';
 import { modulAktiv, type Modulbuchung } from '@/server/registry/modul';
 import { istInterneLeiste, leisteFuer, tableiste } from '@/server/registry/tableiste';
 import { umschalterStand, type UmschalterStand } from '@/server/services/mandant/umschalter';
-import { merkeUmschalter } from '../huellen-speicher';
+import { merkeSprache, merkeUmschalter } from '../huellen-speicher';
 
 /**
  * Was eine Kontoseite ueber das angemeldete Konto wissen muss.
@@ -199,5 +199,7 @@ export async function leseKonto(sitzung: Parameters<typeof bindeAnfrage>[1]): Pr
     aktiverMandantId: sitzung.aktiverMandantId,
     gruppenansicht: sitzung.ansicht === 'gruppe',
   });
+  /* Die Kopfzeile in der Sprache der Person, wie um den Inhalt (D-767). */
+  merkeSprache(bild.sprache);
   return bild;
 }

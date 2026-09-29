@@ -1,5 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
+import { UEBERSETZUNG_AUSNAHMEN } from '../../scripts/guards/uebersetzung-ausnahmen.js';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
+
+/**
+ * Welches `lang` der Inhalt einer Seite in einer ENGLISCHEN Sitzung trägt
+ * (D-767): `en`, wo die Seite umgestellt ist, `de-DE`, solange sie auf der
+ * Ausnahmeliste der Sperrklinke steht. Aus derselben Liste gelesen wie in
+ * der Anwendung — wird die Seite umgestellt, stimmt die Erwartung weiter.
+ */
+function inhaltLang(datei: string): string {
+  return UEBERSETZUNG_AUSNAHMEN.includes(datei) ? 'de-DE' : 'en';
+}
 
 /**
  * **Beide Fassungen stehen gleichzeitig im Dokument.** Die der Kopfzeile ist
@@ -91,6 +102,15 @@ test('ein Klick auf English uebersetzt die Huelle und bleibt auf der Seite', asy
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Sign out');
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Account');
   await expect(page.locator(`${KOPF} button[value="en"]`)).toBeDisabled();
+
+  /*
+   * **Und sie SAGT es an** (WCAG 3.1.1, 3.1.2; D-767): die Hülle `lang="en"`,
+   * der Inhalt in seiner eigenen Sprache. `<html>` bleibt beim Pfad — die
+   * Sitzung kennt erst die Pforte der Seite.
+   */
+  await expect(page.locator('[data-cse="portal-rahmen"]')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('main')).toHaveAttribute('lang',
+    inhaltLang('src/app/portal/[mandant]/auftraege/page.tsx'));
 });
 
 test('die Wahl gilt auf der NAECHSTEN Seite weiter, nicht nur auf dieser', async ({ page }) => {
@@ -106,6 +126,14 @@ test('die Wahl gilt auf der NAECHSTEN Seite weiter, nicht nur auf dieser', async
   await page.goto('/portal/reinigung/objekte');
   await expect(page.locator('[data-cse="sitzungsnavigation"]')).toContainText('Sign out');
   await expect(page.locator(`${KOPF} button[value="en"]`)).toBeDisabled();
+  await expect(page.locator('[data-cse="portal-rahmen"]')).toHaveAttribute('lang', 'en');
+  await expect(page.locator('main')).toHaveAttribute('lang',
+    inhaltLang('src/app/portal/[mandant]/objekte/page.tsx'));
+
+  /* Eine umgestellte Seite: ihr Inhalt spricht die Sitzung (D-767). */
+  await page.goto('/portal/reinigung/finanzen/rechnungen');
+  await expect(page.locator('main')).toHaveAttribute('lang',
+    inhaltLang('src/app/portal/[mandant]/finanzen/rechnungen/page.tsx'));
 });
 
 test('die Gruppenansicht traegt den Umschalter ebenfalls', async ({ page }) => {
