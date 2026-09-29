@@ -21010,3 +21010,69 @@ Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
 
 | Betrifft | V-123, V-250, AUT-06, D-599, D-728, `src/components/ui/Recht.tsx`, `src/lib/i18n/rechtname.ts`, `src/lib/i18n/verwaltung/{agent-budget,raumbuch-neu}.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,uebersicht}.ts`, `src/app/auth/{kein-zugriff,zwei-faktor/wiederherstellung}/page.tsx`, 70 Seiten und Satztabellen unter `src/app/portal/[mandant]`, `tests/kern/{recht-im-satz,rechtname}.test.ts`, `tests/kern/hilfen/sichtbarer-text.ts` |
 |---|---|
+
+### D-742 · Eine Regel der Datenbank steht als Satz über ihre Wirkung — und kein Datenbankname kommt neu als Code auf den Schirm (V-251)
+
+**Der Befund** (Durchgang über den sichtbaren Text): Das Kontaktblatt und die
+Rechtsgrundlagen-Seite erklärten der Vertriebskraft, warum ein
+Werbewiderspruch nicht zurückgenommen wird („der Auslöser
+`kern.erzwinge_widerspruch` lässt ihn nicht wieder leeren"), woher die Antwort
+des Sendetors kommt („aus `app.darf_kontaktiert_werden` — derselben Funktion,
+die der Sendepfad und der Auslöser `kern.uwg_sendetor` fragen") und warum eine
+Wiedervorlage einen Kunden braucht („`lead_aktivitaet_hat_bezug`") — elf
+`<code>`-Elemente mit Namen von Funktionen, Auslösern, Prüfbedingungen,
+Tabellen und Spalten. Wer das liest, erfährt, DASS etwas gilt, aber nicht,
+was es für ihn heisst.
+
+**Die Entscheidung.**
+
+1. **Gesagt wird die Wirkung, nicht der Mechanismus**, und genau so viel,
+   wie die Regel wirklich tut:
+   - `kern.erzwinge_widerspruch` → „ist er einmal eingetragen, lässt die
+     Datenbank ihn nicht wieder leeren" / „die Datenbank setzt sie beim
+     Speichern selbst darauf zurück" / „die Datenbank lässt das Datum nicht
+     wieder leeren";
+   - `app.darf_kontaktiert_werden`, `kern.uwg_sendetor` → „aus derselben
+     Prüfung, die jede Nachricht vor dem Versand bestehen muss: der
+     Versandweg fragt sie, und die Datenbank fragt sie beim Speichern der
+     Nachricht ein zweites Mal";
+   - `lead_aktivitaet_hat_bezug` → „eine ohne Bezug nimmt die Datenbank nicht
+     an";
+   - `geschehen_am` → „wann die Wiedervorlage eingetragen wurde, hält dagegen
+     die Uhr des Servers fest" (der Auslöser
+     `kern.erzwinge_serverzeit_geschehen`, Invariante 5);
+   - die Policy auf `ansprechpartner` → „gespeichert wird aber am
+     Ansprechpartner selbst, und den ändern darf nur, wer zusätzlich
+     „Kundendaten bearbeiten" hält";
+   - `ansprechpartner_kanaele_nur_bei_einwilligung` → „Unter einer anderen
+     Grundlage nimmt die Datenbank Kanäle ohnehin nicht an" (0020: Kanäle nur
+     bei `einwilligung`);
+   - `werbewiderspruch` → „Quelle, Eingang und Umfang stehen in einem eigenen
+     Nachweis zum Widerspruch".
+   Im umgeschriebenen Satz stehen die beiden Rechte der Rechtsgrundlagen-Seite
+   jetzt mit Leerzeichen davor („öffnet mit „Rechtsgrundlagen setzen"", vorher
+   „öffnet mit„…""; V-252).
+2. **Die Sätze bleiben deutsch.** Beide Seiten stehen auf der Ausnahmeliste
+   der Übersetzungswache; eine englische Fassung gibt es nicht, die hier
+   nachzuziehen wäre.
+3. **Was als Datenbankname gilt** (`tests/kern/hilfen/code-datenbankname.ts`),
+   wenn es der ganze Inhalt eines `<code>` oder eines `font-mono`-Elements ist
+   — Text, Zeichenkette oder Konstante derselben Datei: ein Name mit
+   Unterstrich; `schema.name` oder `tabelle.spalte`, ausser einem Dateinamen
+   und einem Rechteschlüssel (den prüft D-741); der Name einer Tabelle, die
+   `drizzle/` anlegt. Ein Wert, der erst zur Laufzeit entsteht
+   (`{b.dateiSha256}`), ist Anzeige und zählt nicht.
+4. **Sperrklinke über den ganzen Baum** (`tests/kern/code-datenbankname.test.ts`):
+   die beiden Seiten zeigen keinen Datenbanknamen als Code; auf 46 weiteren
+   Seiten stehen beim Einfrieren noch 99, je Seite gezählt in
+   `tests/kern/code-datenbankname-bestand.ts`. Die Zahl einer Seite darf nur
+   sinken, eine Seite ausserhalb des Bestands bekommt keinen, und der Bestand
+   muss stimmen — wer eine Seite umschreibt, setzt ihre Zahl herunter (wie
+   `uebersetzung-ausnahmen.ts`).
+5. **Offen, bewusst ausserhalb dieses Durchgangs:** die 99 eingefrorenen
+   Namen, am dichtesten auf Nummernkreisen (6), Leistungskatalog (5 + 3 +
+   1), Konditionen, Datenschutzblatt, Finanzprüfungen und Zusammenführen
+   (je 4).
+
+| Betrifft | V-251, V-252, D-741, Invariante 5, LEG-08, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage/page.tsx`, `tests/kern/code-datenbankname.test.ts`, `tests/kern/code-datenbankname-bestand.ts`, `tests/kern/hilfen/code-datenbankname.ts` |
+|---|---|

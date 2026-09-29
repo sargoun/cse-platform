@@ -170,11 +170,11 @@ export default async function Rechtsgrundlage(
 
       {!darfSchreiben ? (
         <Hinweis art="warnung" cse="grundlage-kein-schreibrecht" className="mb-s5 max-w-prose">
-          <strong>Speichern geht so nicht durch.</strong> Diese Seite öffnet mit
-          <Recht schluessel="crm.rechtsgrundlage_setzen" />, die Policy auf
-          <code className="text-text"> ansprechpartner</code> verlangt zum Schreiben
-          zusätzlich <Recht schluessel="crm.schreiben" />. Beide Rechte
-          gehören zusammen erteilt — bis dahin ist das Formular unten nur Anzeige.
+          <strong>Speichern geht so nicht durch.</strong> Diese Seite öffnet mit{' '}
+          <Recht schluessel="crm.rechtsgrundlage_setzen" />; gespeichert wird aber am
+          Ansprechpartner selbst, und den ändern darf nur, wer zusätzlich{' '}
+          <Recht schluessel="crm.schreiben" /> hält. Beide Rechte gehören zusammen
+          erteilt — bis dahin ist das Formular unten nur Anzeige.
         </Hinweis>
       ) : null}
 
@@ -182,10 +182,9 @@ export default async function Rechtsgrundlage(
         <Hinweis art="warnung" cse="grundlage-widersprochen" className="mb-s5 max-w-prose">
           <strong>Dieser Kontakt hat nach Art. 21 DSGVO widersprochen.</strong> Der
           Widerspruch wird nicht zurückgenommen, und die Grundlage bleibt zwingend
-          „keine" — der Auslöser
-          <code className="text-text"> kern.erzwinge_widerspruch</code> setzt sie
-          zurück, was auch immer hier eingetragen wird. Rechnungen und
-          Terminbestätigungen gehen weiter.
+          „keine" — die Datenbank setzt sie beim Speichern selbst darauf zurück, was
+          auch immer hier eingetragen wird. Rechnungen und Terminbestätigungen gehen
+          weiter.
         </Hinweis>
       ) : null}
 
@@ -321,10 +320,9 @@ export default async function Rechtsgrundlage(
                 Bei einer Einwilligung: worein?
               </legend>
               <p className="m-0 mb-s2 text-xs text-text-muted">
-                Nur bei „Ausdrückliche Einwilligung". Der CHECK
-                <code className="text-text"> ansprechpartner_kanaele_nur_bei_einwilligung</code>
-                {' '}erzwingt das ohnehin — und ohne Kanal ist eine Einwilligung eine
-                Einwilligung in nichts.
+                Nur bei „Ausdrückliche Einwilligung". Unter einer anderen Grundlage nimmt
+                die Datenbank Kanäle ohnehin nicht an — und ohne Kanal ist eine
+                Einwilligung eine Einwilligung in nichts.
               </p>
               <div className="flex flex-wrap gap-s3">
                 {(['email', 'telefon', 'sms', 'post', 'whatsapp'] as const).map((k) => (
@@ -394,11 +392,10 @@ export default async function Rechtsgrundlage(
         <p className="mt-s2 max-w-prose text-sm text-text-muted">
           <strong>Ein eigener Vorgang mit eigenem Nachweis — und eine
           Einbahnstrasse.</strong> Was hier erfasst wird, wird nicht
-          zurückgenommen: der Auslöser
-          <code className="text-text"> kern.erzwinge_widerspruch</code> lässt das Datum
-          nicht wieder leeren. Die Nachweiszeile (Quelle, Eingang, Umfang) entsteht in
-          <code className="text-text"> werbewiderspruch</code>; ein zweiter Eingang
-          verschiebt das Datum nicht nach hinten — das erste „nein" gilt.
+          zurückgenommen: die Datenbank lässt das Datum nicht wieder leeren. Quelle,
+          Eingang und Umfang stehen in einem eigenen Nachweis zum Widerspruch; ein
+          zweiter Eingang verschiebt das Datum nicht nach hinten — das erste „nein"
+          gilt.
         </p>
 
         <div className="mt-s4 grid grid-cols-1 gap-s6 lg:grid-cols-2">
@@ -500,10 +497,10 @@ export default async function Rechtsgrundlage(
       <section aria-labelledby="wirkung" className="mt-s7">
         <h2 id="wirkung" className="text-h2 text-text">Was gilt jetzt?</h2>
         <p className="mt-s2 max-w-prose text-sm text-text-muted">
-          Die Antwort des WIRKSAMEN Tores, Kanal für Kanal — aus
-          <code className="text-text"> app.darf_kontaktiert_werden</code>. Nach dem
-          Speichern steht hier der neue Stand, und die Wirkung der Änderung ist sofort
-          zu sehen statt versprochen.
+          Die Antwort des WIRKSAMEN Tores, Kanal für Kanal — aus derselben Prüfung,
+          die jede Nachricht vor dem Versand bestehen muss. Nach dem Speichern steht
+          hier der neue Stand, und die Wirkung der Änderung ist sofort zu sehen statt
+          versprochen.
         </p>
         <DataTable
           beschriftung="Antwort des Sendetores je Kanal, nach dem heutigen Stand"
