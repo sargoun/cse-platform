@@ -16,7 +16,8 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 import { LokalerSpeicher, type Speicher } from '../../src/server/storage/adapter.js';
 import {
-  eigenesBeitragsbild, legeBeitragsbildAn, oeffentlichesBeitragsbild,
+  beitragDerFreigabe, bildDerFreigabe, eigenesBeitragsbild, legeBeitragsbildAn,
+  oeffentlichesBeitragsbild,
 } from '../../src/server/services/social/beitragsbild.js';
 import { ladeBeitrag, legeVor, setzeBeitragsbild } from '../../src/server/services/social/dienst.js';
 import { setzeGalerieRang } from '../../src/server/services/inhalt/redaktion.js';
@@ -436,5 +437,77 @@ describe('(5) die Mandantengrenze — fremde Gesellschaft, Gruppenansicht, Eigen
                           zurueckgezogen_grund = 'Motiv nicht mehr aktuell' where id = $1`,
       [b]);
     expect(await ohneSitzung((k) => oeffentlichesBeitragsbild(k, m))).toBeNull();
+  });
+});
+
+/**
+ * **Die Freigabe zeigt das Bild, das sie mitentscheidet** (V-268, D-761).
+ * Entschieden wird im Freigabe-Posteingang; wer dort entscheidet, hält
+ * `freigabe.lesen`, nicht unbedingt `social.lesen` — die Tür öffnet für jede
+ * Sitzung, die die Freigabe lesen darf, in deren Nutzlast das Bild steht.
+ */
+describe('(6) die Freigabe zeigt das Bild — und verweist auf den Beitrag', () => {
+  async function pruefer(mandant: string): Promise<string> {
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+       values ($1, $2, 'Prüfung', 'mandant', 'intern') returning id`,
+      [mandant, `pruefung_${zufall()}`]);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b
+        where b.schluessel in ('freigabe.lesen', 'freigabe.entscheiden')`, [r!.id, mandant]);
+    const email = `pruefung-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1,$2,'Prüfung','aktiv')`,
+      [u!.id, email]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [u!.id, mandant, r!.id]);
+    return u!.id;
+  }
+
+  it('ohne social.lesen: das Bild der Freigabe ja, ein anderes nein', async () => {
+    const speicher = new LokalerSpeicher();
+    const b = await entwurf();
+    const vorgelegt = await als((k) => legeBeitragsbildAn(k, speicher, { daten: PNG, alt: 'Vorgelegt' }));
+    const anderes = await als((k) => legeBeitragsbildAn(k, speicher, {
+      daten: PNG_MIT_ORT, alt: 'Nie vorgelegt',
+    }));
+    await als((k) => setzeBeitragsbild(k, b, vorgelegt));
+    const freigabe = await als((k) => legeVor(k, b));
+    const wer = await pruefer(f.reinigung);
+
+    expect(await als((k) => eigenesBeitragsbild(k, vorgelegt), wer)).toMatchObject({ bucket: 'marke' });
+    expect(await als((k) => eigenesBeitragsbild(k, anderes), wer)).toBeNull();
+    const fremd = await pruefer(f.security);
+    expect(await als((k) => eigenesBeitragsbild(k, vorgelegt), fremd, f.security)).toBeNull();
+
+    const [fr] = await sql.unsafe<{ nutzlast: unknown }[]>(
+      `select vorschau_payload as nutzlast from freigabe where id = $1`, [freigabe]);
+    expect(await als((k) => bildDerFreigabe(k, fr!.nutzlast), wer)).toEqual({
+      medienId: vorgelegt, alt: 'Vorgelegt', adresse: `/api/beitragsbild/${vorgelegt}`,
+      privat: true, platzhalter: false,
+    });
+    /* Der Verweis auf den Beitrag nur, wer Beiträge lesen darf (AUT-06). */
+    expect(await als((k) => beitragDerFreigabe(k, freigabe, b), wer)).toBeNull();
+    expect(await als((k) => beitragDerFreigabe(k, freigabe, b))).toBe(b);
+  });
+
+  it('ein Bild der Website zeigt seinen Pfad; eine fremde Kennung ist „fehlt"', async () => {
+    const [statisch] = await sql.unsafe<{ id: string }[]>(
+      `insert into medien (mandant_id, pfad, alt_text, ist_platzhalter)
+       values ($1, '/bilder/reinigung.jpg', 'Motiv der Reinigung', true) returning id`,
+      [f.reinigung]);
+    expect(await als((k) => bildDerFreigabe(k, { bild: { medien_id: statisch!.id, alt: 'Motiv' } })))
+      .toEqual({ medienId: statisch!.id, alt: 'Motiv', adresse: '/bilder/reinigung.jpg',
+                 privat: false, platzhalter: true });
+    const fremd = await als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+      daten: PNG, alt: 'Bild der Security',
+    }), await konto(f.security), f.security);
+    expect(await als((k) => bildDerFreigabe(k, { bild: { medien_id: fremd, alt: 'x' } })))
+      .toBe('fehlt');
+    expect(await als((k) => bildDerFreigabe(k, { titel: 'ohne Bild' }))).toBeNull();
   });
 });

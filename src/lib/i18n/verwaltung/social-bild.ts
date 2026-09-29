@@ -26,6 +26,11 @@ export interface SocialBildTexte {
   readonly fehler: Readonly<Record<string, string>>;
   readonly fehlerSonst: string;
   readonly neuHinweis: string;
+  /* ── Im Entscheidungsbildschirm der Freigabe (V-268, D-761) ─────────── */
+  readonly freigabeTitel: string;
+  readonly freigabeHinweis: string;
+  readonly freigabeFehlt: string;
+  readonly zumBeitrag: string;
 }
 
 export const SOCIAL_BILD_TEXTE: Readonly<Record<InternSprache, SocialBildTexte>> = {
@@ -63,6 +68,14 @@ export const SOCIAL_BILD_TEXTE: Readonly<Record<InternSprache, SocialBildTexte>>
     neuHinweis:
       'Ein Bild hängen Sie nach dem Anlegen am Entwurf an — mit Alternativtext; es geht beim '
       + 'Vorlegen mit in die Freigabe.',
+    freigabeTitel: 'Bild, das mit freigegeben wird',
+    freigabeHinweis:
+      'Freigegeben werden Text UND Bild. Das Bild ist nach dem Vorlegen fest — wer ein anderes '
+      + 'will, überarbeitet den Beitrag, und die Freigabe fällt weg.',
+    freigabeFehlt:
+      'Die Nutzlast nennt ein Bild, das in dieser Gesellschaft nicht zu finden ist. Nicht '
+      + 'freigeben, ohne es gesehen zu haben.',
+    zumBeitrag: 'Zum Beitrag',
   },
   en: {
     titel: 'Image',
@@ -98,5 +111,13 @@ export const SOCIAL_BILD_TEXTE: Readonly<Record<InternSprache, SocialBildTexte>>
     neuHinweis:
       'Attach an image to the draft after creating it — with alternative text; it goes into the '
       + 'approval on submission.',
+    freigabeTitel: 'Image approved along with the post',
+    freigabeHinweis:
+      'The approval covers the text AND the image. The image is fixed once submitted — whoever '
+      + 'wants another one revises the post, and the approval lapses.',
+    freigabeFehlt:
+      'The payload names an image that cannot be found in this company. Do not approve without '
+      + 'having seen it.',
+    zumBeitrag: 'To the post',
   },
 };

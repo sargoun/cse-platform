@@ -20025,7 +20025,9 @@ Beitragsseite zeigte nur Text.
    Route vorbei. Entfernen löst nur die Zuordnung — Datei und Zeile bleiben.
 4. **Das Bild gehört zur Entscheidung** (Invariante 7): `legeVor` nimmt es
    in die Nutzlast der Freigabe (`bild: { medien_id, alt }`); ohne Bild
-   bleibt die Nutzlast, wie sie war. Wer freigibt, gibt Text UND Bild frei.
+   bleibt die Nutzlast, wie sie war. Wer freigibt, gibt Text UND Bild frei —
+   und sieht das Bild seit D-761 Nr. 7 auf dem Entscheidungsbildschirm; das
+   Bild ist nach dem Vorlegen fest (D-761 Nr. 3 und 4).
 5. **Recht:** `social.schreiben` — dasselbe wie für den Entwurf; die neue
    Policy `t_medien_beitragsbild` lässt es dafür zu, nur für hochgeladene
    Bilder der eigenen Gesellschaft. Der Veröffentlichungslauf (`cse_job`)
@@ -20206,6 +20208,17 @@ des Anlegens (Policy, CHECK) hatte keine Isolationsprobe.
    Galeriepflege und Auswahl als kaputte Kacheln (der Bildoptimierer holt
    ohne Sitzung und folgt keiner Weiterleitung) und liessen sich öffentlich
    machen.
+7. **Wer freigibt, sieht das Bild** (V-268 c; Invariante 7). Entschieden wird
+   im Freigabe-Posteingang, und dort stand vom Bild nur eine gekürzte
+   Kennung im Nutzlastblatt. Jetzt zeigt `/freigaben/[id]` bei einem Beitrag
+   das Bild der Nutzlast (`bildDerFreigabe`: ein hochgeladenes über die Tür,
+   ein Website-Bild unter seinem Pfad, der Alternativtext der Nutzlast) und
+   verweist „Zum Beitrag" — der Verweis nur mit `social.lesen` (AUT-06). Die
+   Tür `/api/beitragsbild/[id]` öffnet dafür auch einer Sitzung ohne
+   `social.lesen`, wenn sie die Freigabe lesen darf, in deren Nutzlast das
+   Bild steht (`eigenesBeitragsbild`, unter `t_mandant` auf `freigabe`). Nennt
+   die Nutzlast ein Bild, das in dieser Gesellschaft nicht zu finden ist,
+   steht ein Warnkasten da: nicht freigeben, ohne es gesehen zu haben.
 
-| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/lib/i18n/verwaltung/website-referenz.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
+| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/lib/i18n/verwaltung/{website-referenz,social-bild}.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
 |---|---|
