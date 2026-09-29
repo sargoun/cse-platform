@@ -317,8 +317,20 @@ function mengeNachText(menge: MilliMenge): string {
  * Geschäftstag, kein Zeitpunkt.
  */
 
+/**
+ * Warum ein Revier NICHT angelegt, geändert oder archiviert wurde — als
+ * Schlüssel (V-275, D-773, D-769). `POST /api/reinigung/reviere` schickt ihn
+ * als `?fehler=<grund>` zurück aufs Formular, und die Seite schlägt ihn in
+ * der Sprache der Sitzung nach (`REVIER_FEHLER_TEXTE`).
+ */
+export const REVIER_GRUENDE = [
+  'id_fehlt', 'objekt_fehlt', 'bezeichnung_fehlt', 'sollzeit_ungueltig', 'nicht_angelegt',
+  'revier_unbekannt',
+] as const;
+export type RevierGrund = (typeof REVIER_GRUENDE)[number];
+
 export class RevierFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: RevierGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'RevierFehler';
   }

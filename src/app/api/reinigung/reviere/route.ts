@@ -7,6 +7,7 @@ import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { grundAufsFormular } from '../../formular-antwort';
 import {
   aendereRevier, archiviereRevier, legeRevierAn, RevierFehler,
 } from '@/server/services/reinigung/revier';
@@ -34,7 +35,8 @@ import {
  *
  * **Bei einem Fehler geht es ZURÜCK auf das Formular, mit dem Grund.** Die
  * Portalformulare laufen ohne JavaScript; eine JSON-Antwort wäre ein
- * Sackgassenbildschirm mit geschweiften Klammern.
+ * Sackgassenbildschirm mit geschweiften Klammern. Der Grund reist als
+ * Schlüssel (`?fehler=`, V-275), nie als Satz (D-769).
  */
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +51,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const daten = await anfrage.formData();
   const zurueck = String(daten.get('zurueck') ?? '/portal');
+  /* Das Feld, wie das Formular es schickt — fehlt es, fragt ein Programm (D-599). */
+  const zurueckFeld = daten.get('zurueck');
+  const formularZurueck = typeof zurueckFeld === 'string' && zurueckFeld !== ''
+    ? zurueckFeld : undefined;
   const wert = (name: string): string | undefined => {
     const t = String(daten.get(name) ?? '').trim();
     return t === '' ? undefined : t;
@@ -116,14 +122,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return `/portal/${bereich}/reinigung/reviere/${neu.id}/raeume`;
       }));
   } catch (fehler) {
-    if (fehler instanceof RevierFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
+    /*
+     * **Die Anmeldung zuerst** (D-766, D-769 Nr. 7): ein fehlendes Recht ist
+     * die byte-gleiche 404 (AUT-06), ohne zweiten Faktor geht es auf den
+     * Faktor-Schritt — keines davon wird ein Rückweg aufs Formular.
+     */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    /*
+     * **Eine Abweisung geht als GRUND zurück aufs Formular** (V-275, D-773,
+     * D-769): `?fehler=<grund>`, nie der Satz des Dienstes; die Seite schlägt
+     * ihn in der Sprache der Sitzung nach (`REVIER_FEHLER_TEXTE`). Ohne `zurueck`
+     * fragt ein Programm und bekommt `{ fehler, meldung }` mit Status (D-599).
+     */
+    if (fehler instanceof RevierFehler) {
+      return grundAufsFormular(anfrage, {
+        json: false, zurueck: formularZurueck, grund: fehler.grund,
+      }) ?? NextResponse.json(
+        { fehler: fehler.grund, meldung: fehler.message }, { status: fehler.status });
+    }
     throw fehler;
   }
 

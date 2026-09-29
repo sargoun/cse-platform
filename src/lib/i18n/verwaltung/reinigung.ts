@@ -20,6 +20,7 @@
  * genau die Verwechslung, die K-16 verhindern soll.
  */
 import type { InternSprache } from '../intern.js';
+import type { RevierGrund } from '../../../server/services/reinigung/revier.js';
 
 export interface RevierTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
@@ -207,5 +208,64 @@ export const REVIER_TEXTE: Readonly<Record<InternSprache, RevierTexte>> = {
     aenderungenSpeichern: 'Save changes',
     keinSchreibrechtAnlegen: 'Creating one requires',
     keinSchreibrechtAendern: 'Editing requires',
+  },
+};
+
+/**
+ * Warum ein Revier nicht gespeichert wurde — als SATZ, nachgeschlagen nach
+ * dem GRUND, den `POST /api/reinigung/reviere` als `?fehler=` zurückschickt
+ * (V-275, D-773, D-769).
+ *
+ * Bis dahin reiste der deutsche Satz des Dienstes als `?meldung=` mit und
+ * stand roh über dem Formular — deutsch auch in einer englischen Sitzung, und
+ * jeder präparierte Link schrieb seine eigene Warnung. Die Seite schlägt nur
+ * als eigenen Eintrag nach (D-728); ein Grund, den die Tabelle nicht kennt,
+ * bekommt `sonst`. Kein Satz nennt ein Recht als Schlüssel (D-741).
+ */
+export interface RevierFehlerTexte {
+  /** Die fett gesetzten ersten Worte des Kastens (DESIGN §5 „Notices"). */
+  readonly titel: string;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<RevierGrund, string>>;
+}
+
+export const REVIER_FEHLER_TEXTE: Readonly<Record<InternSprache, RevierFehlerTexte>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Das Revier wurde nicht gespeichert. Prüfen Sie die Angaben und versuchen Sie es '
+      + 'noch einmal.',
+    fehler: {
+      id_fehlt: 'Welches Revier gemeint ist, fehlt — öffnen Sie es aus der Liste heraus.',
+      objekt_fehlt: 'Ein Revier gehört zu einem Objekt — bitte eines auswählen.',
+      bezeichnung_fehlt: 'Ein Revier braucht eine Bezeichnung.',
+      sollzeit_ungueltig:
+        'Die Sollzeit ist eine Zahl grösser als null — sie ist die Minutenzahl, aus der die '
+        + 'Einsatzdauer und damit die Besetzung entsteht.',
+      nicht_angelegt:
+        'Das Revier wurde nicht angelegt. Gibt es das gewählte Objekt in dieser Gesellschaft '
+        + 'noch, und darf Ihr Konto hier die Reinigung bearbeiten?',
+      revier_unbekannt:
+        'Dieses Revier gibt es in dieser Gesellschaft nicht mehr, oder es ist archiviert — '
+        + 'die Liste zeigt den aktuellen Stand.',
+    },
+  },
+  en: {
+    titel: 'Not saved.',
+    sonst: 'The Revier was not saved. Check the details and try again.',
+    fehler: {
+      id_fehlt: 'Which Revier is meant is missing — open it from the list.',
+      objekt_fehlt: 'A Revier belongs to an Objekt (site) — please choose one.',
+      bezeichnung_fehlt: 'A Revier needs a name.',
+      sollzeit_ungueltig:
+        'The target minutes are a number greater than zero — they are what shift length and '
+        + 'staffing are derived from.',
+      nicht_angelegt:
+        'The Revier was not created. Does the chosen Objekt still exist in this Gesellschaft '
+        + '(legal entity), and may your account edit cleaning here?',
+      revier_unbekannt:
+        'This Revier no longer exists in this Gesellschaft, or it has been archived — the '
+        + 'list shows the current state.',
+    },
   },
 };

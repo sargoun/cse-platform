@@ -35,8 +35,24 @@ import type { SchreibKontext } from '../../kontext/index.js';
  * Abweisung und keine stille Annahme.
  */
 
+/**
+ * Warum ein Bauvorhaben NICHT angelegt, geändert oder archiviert wurde — als
+ * Schlüssel (V-275, D-773, D-769). `POST /api/bau/projekte` schickt ihn als
+ * `?fehler=<grund>` zurück aufs Formular, und die Seite schlägt ihn in der
+ * Sprache der Sitzung nach (`PROJEKT_FEHLER_TEXTE`). Die Auftragsnummer und
+ * die Zahl offener Nachträge, die zwei Sätze dieses Dienstes nennen, reisen
+ * nicht mit: die Nummer ist die Eingabe des Formulars, und die Seite zeigt
+ * den Satz ohne beides.
+ */
+export const PROJEKT_GRUENDE = [
+  'id_fehlt', 'auftrag_fehlt', 'bezeichnung_fehlt', 'art_unbekannt', 'vertragsgrundlage_fehlt',
+  'einbehalt_ungueltig', 'summe_ungueltig', 'auftrag_unbekannt', 'projekt_vorhanden',
+  'nicht_angelegt', 'status_unbekannt', 'projekt_unbekannt', 'nachtraege_offen',
+] as const;
+export type ProjektGrund = (typeof PROJEKT_GRUENDE)[number];
+
 export class ProjektFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: ProjektGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'ProjektFehler';
   }
