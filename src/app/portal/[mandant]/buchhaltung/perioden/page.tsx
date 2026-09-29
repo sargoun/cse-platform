@@ -28,6 +28,11 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  * (`?monat=`) nennt die Seite nur, wenn er einer IHRER Monate ist, mit dessen
  * Namen. Bis dahin stand ein fertiger Satz aus `?meldung=` im Kasten — der
  * Route, des Dienstes oder der Datenbank, und jeder eines präparierten Links.
+ *
+ * **Zurück geht es auf das Wirtschaftsjahr, aus dem das Formular kam** (D-774
+ * Nachrunde): das Formular schickt `z.jahr` mit. Ohne das kehrte die Route auf
+ * das Kalenderjahr des Monats zurück — in einem Wirtschaftsjahr, das nicht im
+ * Januar beginnt, ein anderes Jahr, in dem der Monat nicht steht.
  */
 export const dynamic = 'force-dynamic';
 
@@ -146,6 +151,8 @@ export default async function Perioden(
                 <input type="hidden" name="mandant" value={mandant} />
                 <input type="hidden" name="jahr" value={m.monat.slice(0, 4)} />
                 <input type="hidden" name="monat" value={String(Number(m.monat.slice(5, 7)))} />
+                {/* Zurück auf DIESES Wirtschaftsjahr, nicht auf das Kalenderjahr des Monats (D-774). */}
+                <input type="hidden" name="wirtschaftsjahr" value={String(z.jahr)} />
                 {status === 'geschlossen' ? (
                   <span className="text-xs text-text-subtle">{STATUS_TEXT[status]} — endgültig</span>
                 ) : status === 'vorlaeufig_geschlossen' ? (

@@ -20,6 +20,8 @@ import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import {
   PERIODE_ERFOLGE, PERIODE_FEHLER_GRUENDE, PERIODEN_RUECKWEG_TEXTE,
 } from '../../src/lib/i18n/verwaltung/buchhaltung-perioden.js';
+import { monateDesWirtschaftsjahrs } from '../../src/server/services/buchhaltung/monatszahlen.js';
+import type { Wirtschaftsjahr } from '../../src/server/services/buchhaltung/wirtschaftsjahr.js';
 
 const zustand = vi.hoisted(() => ({
   sitzung: null as null | Record<string, unknown>,
@@ -132,6 +134,76 @@ describe('POST /api/buchhaltung/perioden — jede Abweisung als Grund', () => {
     for (const g of ['laufend', 'endgueltig', 'zustand', 'recht', 'unklar', 'monat'] as const) {
       expect(PERIODE_FEHLER_GRUENDE).toContain(new PeriodenschlussFehler('x', g).grund);
     }
+  });
+});
+
+/**
+ * **Zurück auf das Wirtschaftsjahr der Seite** (D-774 Nachrunde). Das
+ * Formular schickte nur das Kalenderjahr des Monats, und die Route kehrte
+ * darauf zurück. Beginnt das Wirtschaftsjahr nicht im Januar, ist das ein
+ * anderes: März 2026 liegt im Wirtschaftsjahr 2025/2026, und `?jahr=2026`
+ * zeigte 2026/2027 — ohne den Monat, den die Seite hätte nennen sollen.
+ *
+ * Die Tabelle lässt jeden Beginn zu (`datev_konfiguration.wj_beginn_monat`,
+ * 1 bis 12, 0126); der Seed setzt keinen abweichenden, also prüft der Test
+ * mit einem Beginn im Juli und dem echten Monatsraster der Seite.
+ */
+describe('zurück auf das Wirtschaftsjahr der Seite — auch wenn es nicht im Januar beginnt', () => {
+  const JULI: Wirtschaftsjahr = { beginnMonat: 7, beginnTag: 1, istPlatzhalter: false };
+  const monate = (jahr: number): string[] => monateDesWirtschaftsjahrs(jahr, JULI).map((m) => m.monat);
+
+  it('März 2026 im Wirtschaftsjahr 2025/2026 → `?jahr=2025` — und dort steht der Monat', async () => {
+    zustand.schliesse.mockResolvedValue(geschlossen('vorlaeufig_geschlossen'));
+    expect(await ort(formular({ wirtschaftsjahr: '2025' })))
+      .toBe(`${HIER}${SEITE}?jahr=2025&monat=2026-03&erfolg=vorlaeufig_geschlossen`);
+    /* Der Dienst bekommt weiter den Kalendermonat. */
+    expect(zustand.schliesse).toHaveBeenCalledWith(
+      expect.anything(), { jahr: 2026, monat: 3, art: 'vorlaeufig' });
+    /* Unter `?jahr=2025` zeigt die Seite genau die Monate, aus denen sie `?monat=` nennt … */
+    expect(monate(2025)).toContain('2026-03');
+    /* … unter dem alten Ziel `?jahr=2026` nicht: dort fehlte der Monat. */
+    expect(monate(2026)).not.toContain('2026-03');
+  });
+
+  it('auch eine Abweisung kehrt dorthin zurück', async () => {
+    zustand.schliesse.mockRejectedValue(new PeriodenschlussFehler('Der Monat läuft noch.', 'laufend'));
+    expect(await ort(formular({ wirtschaftsjahr: '2025' })))
+      .toBe(`${HIER}${SEITE}?jahr=2025&monat=2026-03&fehler=laufend`);
+  });
+
+  it('ein Kalenderjahr-Wirtschaftsjahr kehrt auf sich selbst zurück', async () => {
+    zustand.schliesse.mockResolvedValue(geschlossen('geschlossen'));
+    expect(await ort(formular({ wirtschaftsjahr: '2026', art: 'endgueltig' })))
+      .toBe(`${HIER}${SEITE}?jahr=2026&monat=2026-03&erfolg=geschlossen`);
+  });
+
+  it('geprüft wie der Monat: eine falsche Form ist 400, und nichts wird geschlossen', async () => {
+    for (const roh of ['25', '2025/2026', '2025&x=1', 'zwanzig']) {
+      const r = await route.POST(formular({ wirtschaftsjahr: roh }));
+      expect(r.status, roh).toBe(400);
+      expect(await r.json()).toEqual({ fehler: 'unvollstaendig' });
+    }
+    expect(zustand.schliesse).not.toHaveBeenCalled();
+  });
+
+  it('ein Wirtschaftsjahr, das den Monat nicht enthalten kann, reist nicht mit', async () => {
+    zustand.schliesse.mockResolvedValue(geschlossen('vorlaeufig_geschlossen'));
+    for (const fremd of ['2019', '2027', '2024']) {
+      expect(await ort(formular({ wirtschaftsjahr: fremd })), fremd)
+        .toBe(`${HIER}${SEITE}?jahr=2026&monat=2026-03&erfolg=vorlaeufig_geschlossen`);
+    }
+  });
+
+  it('ohne das Feld wie bisher: zurück auf das Kalenderjahr', async () => {
+    zustand.schliesse.mockResolvedValue(geschlossen('vorlaeufig_geschlossen'));
+    expect(await ort(formular({})))
+      .toBe(`${HIER}${SEITE}?jahr=2026&monat=2026-03&erfolg=vorlaeufig_geschlossen`);
+  });
+
+  it('das Formular der Seite schickt ihr Wirtschaftsjahr mit', () => {
+    const seite = readFileSync(
+      join(WURZEL, 'src/app/portal/[mandant]/buchhaltung/perioden/page.tsx'), 'utf8');
+    expect(seite).toContain('<input type="hidden" name="wirtschaftsjahr" value={String(z.jahr)} />');
   });
 });
 

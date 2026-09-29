@@ -25,11 +25,12 @@ import type {
  *
  * **Zurück reisen Schlüssel und ein geprüfter Monat** (D-769, D-774): der
  * Erfolg als `?erfolg=<zustand>`, eine Abweisung als `?fehler=<grund>`, dazu
- * `?monat=JJJJ-MM`. Bis dahin reiste ein fertiger Satz als `?meldung=` — der
- * Erfolg („Monat 03/2026 vorläufig geschlossen.") ebenso wie der Satz des
- * Dienstes und die Meldung der Datenbank —, und die Seite zeigte ihn roh. Den
- * Monat nennt die Seite jetzt selbst, aus IHREN Monaten: ein Wert, der keiner
- * davon ist, bleibt ungenannt.
+ * `?monat=JJJJ-MM` — und als `?jahr=` das Wirtschaftsjahr der Seite, aus der
+ * das Formular kam (D-774 Nachrunde). Bis dahin reiste ein fertiger Satz als
+ * `?meldung=` — der Erfolg („Monat 03/2026 vorläufig geschlossen.") ebenso
+ * wie der Satz des Dienstes und die Meldung der Datenbank —, und die Seite
+ * zeigte ihn roh. Den Monat nennt die Seite jetzt selbst, aus IHREN Monaten:
+ * ein Wert, der keiner davon ist, bleibt ungenannt.
  */
 export const dynamic = 'force-dynamic';
 
@@ -74,13 +75,33 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const jahr = text('jahr') ?? '';
   const monat = text('monat') ?? '';
   const art = text('art');
+  const wirtschaftsjahr = text('wirtschaftsjahr');
   if (slug === '' || !/^\d{4}$/u.test(jahr) || !/^\d{1,2}$/u.test(monat)
+      || (wirtschaftsjahr !== null && !/^\d{4}$/u.test(wirtschaftsjahr))
       || art === null || !ARTEN.includes(art as SchlussArt)) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
   /* Nur ein Kalendermonat reist mit — gebildet aus den geprüften Feldern, nie weitergereicht. */
   const nummer = Number(monat);
   const monatSchluessel = nummer >= 1 && nummer <= 12 ? `${jahr}-${monat.padStart(2, '0')}` : null;
+  /*
+   * **Zurück auf das Wirtschaftsjahr der Seite, nicht auf das Kalenderjahr
+   * des Monats** (D-774 Nachrunde). `jahr` ist das Kalenderjahr des Monats —
+   * das braucht der Dienst. Die Seite zählt nach Wirtschaftsjahren (`?jahr=`
+   * ist das Jahr, in dem eines BEGINNT): beginnt es im Juli, liegt März 2026
+   * im Wirtschaftsjahr 2025/2026, und `?jahr=2026` zeigte nach dem Schliessen
+   * ein anderes, in dem der Monat nicht vorkommt — die Seite nannte ihn
+   * nicht, und der Mensch stand im falschen Jahr.
+   *
+   * Geprüft wie der Monat: die Form am Eingang (sonst 400), der Inhalt erst,
+   * wenn er mitreist. Ein Wirtschaftsjahr aus zwölf Monaten, das einen Monat
+   * des Kalenderjahrs J enthält, beginnt in J oder in J − 1 (so rechnet
+   * `wirtschaftsjahrZeitraum`); ein anderes Jahr reist nicht mit, und ein
+   * Formular ohne das Feld kehrt wie bisher auf das Kalenderjahr zurück.
+   */
+  const seitenjahr = wirtschaftsjahr !== null
+    && (Number(wirtschaftsjahr) === Number(jahr) || Number(wirtschaftsjahr) === Number(jahr) - 1)
+    ? wirtschaftsjahr : jahr;
 
   try {
     const g = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -91,17 +112,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
         return schliessePeriode(kontext, { jahr: Number(jahr), monat: Number(monat), art: art as SchlussArt });
       }))) as Geschlossen;
-    return zurueck(anfrage, slug, jahr, monatSchluessel, { erfolg: ERFOLG[g.periode.status] });
+    return zurueck(anfrage, slug, seitenjahr, monatSchluessel, { erfolg: ERFOLG[g.periode.status] });
   } catch (fehler: unknown) {
     /* Anmeldung und Recht zuerst (D-766, AUT-06): ein fehlendes Recht bleibt die byte-gleiche 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: daten });
     if (autorisierung !== null) return autorisierung;
     if (fehler instanceof PeriodenschlussFehler) {
-      return zurueck(anfrage, slug, jahr, monatSchluessel, { fehler: fehler.grund });
+      return zurueck(anfrage, slug, seitenjahr, monatSchluessel, { fehler: fehler.grund });
     }
     /* Die Meldung der Datenbank nennt Monat und Anzahl — die Seite hat beides selbst. */
     if (istRestriktion(fehler)) {
-      return zurueck(anfrage, slug, jahr, monatSchluessel, { fehler: 'datenbank' });
+      return zurueck(anfrage, slug, seitenjahr, monatSchluessel, { fehler: 'datenbank' });
     }
     throw fehler;
   }
