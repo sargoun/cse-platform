@@ -141,7 +141,8 @@ test.describe('Buchhaltung (PR 65)', () => {
       await expect(page.locator('[data-cse="periode-abgewiesen"]')).toContainText('ohne Konto');
       await expect(laufend()).toHaveAttribute('data-status', 'offen');
     } else {
-      await expect(page).toHaveURL(/geschlossen=/u);
+      // D-774: der Erfolg reist als Schlüssel (vorher `?geschlossen=MM/JJJJ` und ein Satz als `?meldung=`).
+      await expect(page).toHaveURL(/erfolg=vorlaeufig_geschlossen/u);
       await expect(laufend()).toHaveAttribute('data-status', 'vorlaeufig_geschlossen');
       await laufend().getByRole('button', { name: 'Wieder öffnen' }).click();
       await expect(page.locator('[data-cse="periode-vermerkt"]')).toContainText('wieder geöffnet');
@@ -152,7 +153,7 @@ test.describe('Buchhaltung (PR 65)', () => {
     const januar = `${heute.slice(0, 4)}-01`;
     const monat = () => page.locator(`[data-cse="periode"][data-monat="${januar}"]`);
     await monat().getByRole('button', { name: 'Vorläufig schließen' }).click();
-    await expect(page).toHaveURL(/geschlossen=/u);
+    await expect(page).toHaveURL(/erfolg=vorlaeufig_geschlossen/u);
     await expect(page.locator('[data-cse="periode-vermerkt"]')).toContainText('vorläufig geschlossen');
     await expect(monat()).toHaveAttribute('data-status', 'vorlaeufig_geschlossen');
 

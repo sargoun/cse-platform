@@ -23382,6 +23382,31 @@ daraus konkret gemacht hat.
    (`AUFBEWAHRUNG_RUECKWEG_TEXTE`, Ausnahmeliste), Warnkasten
    `rolle="alert"`, der Erfolgskasten (`?gesetzt=`, schon ein Schlüssel)
    `rolle="status"`.
+5. **Periodenschloss** (`POST /api/buchhaltung/perioden`,
+   `…/buchhaltung/perioden`).
+   - **Der Erfolg ist ein Schlüssel**: `?erfolg=<zustand>`
+     (`vorlaeufig_geschlossen`, `geschlossen`, `geoeffnet` — der Zustand, in
+     dem der Monat nach der Handlung steht). Vorher reiste der Satz „Monat
+     MM/JJJJ … ." als `?meldung=` und `?geschlossen=MM/JJJJ` als Auslöser.
+   - **Der Monat reist als geprüfter Wert** (`?monat=JJJJ-MM`, gebildet aus
+     den schon geprüften Feldern, nur für 1–12). Die Seite nennt ihn nur, wenn
+     er einer IHRER Monate ist — mit dessen eigenem Namen („März 2026");
+     sonst steht „Monat" bzw. gar nichts. Ein Wert aus der Adresse erscheint
+     so nie als solcher.
+   - Eine Abweisung reist als `?fehler=<grund>` — die sechs Gründe von
+     `PeriodenschlussFehler` und `datenbank` für die Abweisung der Datenbank
+     (23001), deren Meldung Monat und Anzahl nannte. Der Satz zu `recht`
+     nennt das Recht in Worten („wer Buchungen festschreiben darf"), nicht
+     als Schlüssel (D-741).
+   - Ein UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten (wie Nr. 2).
+   - `autorisierungsAntwort` läuft vor den Weichen der Fachklasse und der
+     Datenbank. Tabelle deutsch (`PERIODEN_RUECKWEG_TEXTE`, Ausnahmeliste),
+     `rolle="alert"`/`rolle="status"`.
+   - `tests/e2e/buchhaltung.spec.ts` BEWUSST angepasst: er erwartete
+     `?geschlossen=` in der Adresse; jetzt `?erfolg=vorlaeufig_geschlossen`.
+     Die Wörter im Kasten („vorläufig geschlossen", „wieder geöffnet",
+     „geschlossen", „ohne Konto") bleiben und sind im Kern-Test festgehalten.
+     Nicht lokal gelaufen.
 
-| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `tests/kern/{konto-sitzung,verwaltungskonto,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|
