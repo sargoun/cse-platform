@@ -5,7 +5,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { withTenant } from '@/server/kontext/index';
 import { istUuid } from '@/lib/uuid';
 import {
@@ -48,7 +48,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -100,7 +100,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * Auth-Würfe an EINER Stelle (V-217): von Hand übersetzt fehlten
      * `KontoGesperrtFehler` und `ZuVieleVersucheFehler`, sie endeten als 500.
      */
-    const auth = autorisierungsAntwort(fehler);
+    const auth = autorisierungsAntwort(fehler, anfrage);
     if (auth !== null) return auth;
     throw fehler;
   }

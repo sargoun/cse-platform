@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungBeschaeftigte } from '@/app/api/mein/formular';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -50,7 +51,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungBeschaeftigte(anfrage);
   }
   if (sitzung.personId === null || sitzung.personId === '') {
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });

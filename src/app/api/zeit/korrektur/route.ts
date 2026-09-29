@@ -1,12 +1,12 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import { herkunft } from '@/app/auth/mitarbeiter/anmeldung';
@@ -79,7 +79,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -155,6 +155,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       })) as Promise<KorrekturErgebnis>);
   } catch (fehler) {
+    /*
+     * Keine Sitzung, kein zweiter Faktor: nicht als `?fehler=` zurück auf ein
+     * Formular, das ohne beides nicht abgeschickt werden kann, sondern auf
+     * die Anmeldung bzw. den Faktor-Schritt (D-766).
+     */
+    const anmeldung = anmeldungsAntwort(fehler, anfrage, { felder: daten });
+    if (anmeldung !== null) return anmeldung;
     const schluessel = fehlerschluessel(fehler);
     if (schluessel === null) throw fehler;
     return zurueckMit(anfrage, daten, schluessel.wort, schluessel.status);
@@ -198,8 +205,6 @@ function fehlerschluessel(
     return { wort: 'kein_kontorecht', status: 403 };
   }
   if (fehler instanceof NichtGefundenFehler) return { wort: 'nicht_gefunden', status: 404 };
-  if (fehler instanceof NichtAngemeldetFehler) return { wort: 'keine_sitzung', status: 401 };
-  if (fehler instanceof ZweiterFaktorFehler) return { wort: 'zweiter_faktor', status: 403 };
 
   const pg = fehler as { code?: string; detail?: string };
   /*

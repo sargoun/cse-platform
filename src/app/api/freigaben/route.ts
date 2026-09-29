@@ -1,10 +1,11 @@
 import type postgres from 'postgres';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler } from '@/server/auth/fehler';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { ladePosteingang, type PosteingangEintrag } from '@/server/services/freigabe/laden';
 import { eintragAlsJson } from '@/server/services/freigabe/json';
@@ -18,10 +19,10 @@ import { eintragAlsJson } from '@/server/services/freigabe/json';
  */
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(anfrage: NextRequest): Promise<NextResponse> {
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
   try {
     const eintraege = await (db().begin(SCHNAPPSCHUSS,
@@ -32,9 +33,8 @@ export async function GET(): Promise<NextResponse> {
       }))) as readonly PosteingangEintrag[];
     return NextResponse.json({ eintraege: eintraege.map(eintragAlsJson) });
   } catch (fehler: unknown) {
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
+    const anmeldung = anmeldungsAntwort(fehler, anfrage);
+    if (anmeldung !== null) return anmeldung;
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

@@ -1,3 +1,6 @@
+import type { NextRequest, NextResponse } from 'next/server';
+import { ohneSitzungAntwort } from '@/server/auth/antwort';
+
 /**
  * Die zweite Linie der Formulare im Mitarbeiterportal: ein Fehler der
  * DATENBANK als Grund (V-187, V-188, V-189, D-599).
@@ -19,6 +22,29 @@
  * dieselbe Frage wären beim nächsten Umbau zwei verschiedene geworden
  * (D-692 Nachsatz).
  */
+
+/**
+ * Ohne Sitzung (401) auf einem Schreibweg der Beschäftigten (D-766, V-256).
+ *
+ * **Der Wächter vor dem Formular war JSON** — auch für die Kraft, deren
+ * Sitzung abgelaufen war, während sie im Treppenhaus das Wachbuch schrieb:
+ * `{"fehler":"keine_sitzung"}` auf weissem Grund, in keiner ihrer vier
+ * Sprachen, ohne Weg zurück (D-692 Nr. 7, abgelöst durch D-766). Jetzt geht
+ * ein Browserformular auf DIE Anmeldung, die sie hat — Mobilnummer und Code,
+ * `/auth/mitarbeiter` —, und von dort zurück auf die Seite des Formulars.
+ * Ein Programm bekommt dasselbe JSON wie bisher.
+ *
+ * Die Entscheidung selbst steht in `ohneSitzungAntwort`; hier steht nur,
+ * welche Anmeldung diese Routen haben. `daten` sind die schon gelesenen
+ * Felder, wo die Route den Rumpf vor der Sitzung liest (die Schichtwege).
+ *
+ * Auch der Leseweg der Beschäftigten ruft sie (D-768): der Link auf eine
+ * freigegebene Unterlage (`mein/dokumente/[id]/datei`) führt ohne Sitzung
+ * auf dieselbe Anmeldung und danach zurück auf die Seite mit dem Link.
+ */
+export function ohneSitzungBeschaeftigte(anfrage: NextRequest, daten?: FormData): NextResponse {
+  return ohneSitzungAntwort(anfrage, null, { anmeldung: 'beschaeftigte', felder: daten });
+}
 
 /** Ein Grund, den die Datenbank für eine Eingabe liefert. */
 export type DatenbankGrund = 'ueberlappt' | 'ungueltige_eingabe' | 'kein_datum';

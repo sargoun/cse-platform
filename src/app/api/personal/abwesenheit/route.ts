@@ -6,7 +6,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { AuBisVorBeginn, meldeAbwesenheit } from '@/server/services/abwesenheit/index';
 import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
 
@@ -47,7 +47,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -109,7 +109,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       }));
   } catch (fehler) {
-    const auth = autorisierungsAntwort(fehler);
+    const auth = autorisierungsAntwort(fehler, anfrage);
     if (auth !== null) return auth;
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;

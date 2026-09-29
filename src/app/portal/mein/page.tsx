@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { KpiStat } from '@/components/ui/KpiStat';
 import { Icon } from '@/components/ui/Icon';
 import { berlinHeute } from '@/server/db/heute';
@@ -13,6 +14,7 @@ import { leseEigeneNachweise, type EigeneNachweislage }
   from '@/server/services/mitarbeiter/nachweise';
 import { findeOffenenEintrag, type OffenerEintrag }
   from '@/server/services/mitarbeiter/stempeluhr';
+import { alsRoute, sichererRueckweg } from '@/server/auth/kennwort-anmeldung';
 import { AnmeldungNoetig } from '../Anmeldung';
 import { meinPortal, MeinRahmen } from './rahmen';
 import { Gesellschaft, Leer, SchichtKarte, StempelUhr } from './bausteine';
@@ -72,6 +74,15 @@ export default async function MeinPortal(
    */
   const kam = searchParams === undefined ? {} : await searchParams;
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig keksAbgelehnt={kam['angemeldet'] === '1'} />;
+  /*
+   * **Die Rückkehr nach der Anmeldung** (D-766): war die Sitzung abgelaufen,
+   * während ein Formular dieses Portals offen war, schickt die Codeseite mit
+   * `angemeldet=1` UND der Seite des Formulars hierher. Die Sitzung steht
+   * jetzt — also dorthin. Nur ein eigener Pfad, und nur auf diesem Weg
+   * (`angemeldet=1`): „Heute" wird kein allgemeiner Umleiter.
+   */
+  const weiter = kam['angemeldet'] === '1' ? sichererRueckweg(kam['weiter']) : null;
+  if (weiter !== null && weiter !== '/portal/mein') redirect(alsRoute(weiter));
 
   const { basis, daten } = ergebnis;
   const t = basis.texte;

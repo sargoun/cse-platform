@@ -1,10 +1,11 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtAngemeldetFehler, NichtGefundenFehler } from '@/server/auth/fehler';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { oeffneFreigabe, type FreigabeAnsicht } from '@/server/services/freigabe/laden';
 import { ansichtAlsJson } from '@/server/services/freigabe/json';
@@ -26,7 +27,7 @@ export const dynamic = 'force-dynamic';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 export async function GET(
-  _anfrage: NextRequest,
+  anfrage: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const { id } = await params;
@@ -35,7 +36,7 @@ export async function GET(
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
   try {
     const ansicht = await (db().begin(
@@ -49,9 +50,8 @@ export async function GET(
     }
     return NextResponse.json(ansichtAlsJson(ansicht));
   } catch (fehler: unknown) {
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
+    const anmeldung = anmeldungsAntwort(fehler, anfrage);
+    if (anmeldung !== null) return anmeldung;
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

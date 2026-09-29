@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungAntwort } from '@/server/auth/antwort';
 import { revalidatePath } from 'next/cache';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
@@ -32,7 +33,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'fremder_ursprung' }, { status: 403 });
   }
   const sitzung = await aktuelleSitzung();
-  if (sitzung === null) return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+  if (sitzung === null) return ohneSitzungAntwort(anfrage, sitzung);
 
   const daten = await anfrage.formData();
   const id = String(daten.get('id') ?? '');

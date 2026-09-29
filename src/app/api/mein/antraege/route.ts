@@ -9,9 +9,8 @@ import { KeineAnstellungFehler, mandantDerAnstellung }
 import {
   AntragAbgewiesen, pflichtfeldGrund, reicheAntragEin,
 } from '@/server/services/abwesenheit/antrag';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { grundAufsFormularweg, type FormularRueckweg } from '@/app/api/formular-antwort';
-import { datenbankGrund, datenbankStatus } from '../formular';
+import { datenbankGrund, datenbankStatus, ohneSitzungBeschaeftigte } from '../formular';
 
 /**
  * `POST /api/mein/antraege` — der Mensch reicht einen Antrag ein (EMP-10).
@@ -75,7 +74,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungBeschaeftigte(anfrage);
   }
   if (sitzung.personId === null || sitzung.personId === '') {
     // Ein Konto ohne Person hat keine Beschaeftigung — und damit nichts, wofuer
@@ -142,8 +141,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
        */
       return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404, rueckweg);
     }
-    const auth = autorisierungsAntwort(fehler);
-    if (auth !== null) return auth;
+    /*
+     * Kein `autorisierungsAntwort` mehr (D-766): dieser Weg ruft `authorize`
+     * nicht, und weder `reicheAntragEin` noch die Bindungen werfen einen
+     * seiner Fehler. Der Zweig „zweiter Faktor" dahinter hätte eine Kraft,
+     * die sich mit Mobilnummer und Code anmeldet, auf den Authenticator-
+     * Schritt der Verwaltung geschickt — tot, und falsch, falls er je lebte.
+     */
     // Die Vorpruefung des Dienstes nennt das Feld (V-187).
     if (fehler instanceof AntragAbgewiesen) {
       return grundAufsFormularweg(anfrage, daten, fehler.grund, fehler.status, rueckweg);

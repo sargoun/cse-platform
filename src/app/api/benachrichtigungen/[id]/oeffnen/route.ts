@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungAntwort } from '@/server/auth/antwort';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { bindePersoenlich } from '@/server/kontext/index';
@@ -41,7 +42,7 @@ export async function POST(
   if (!UUID.test(id)) return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
 
   const sitzung = await aktuelleSitzung();
-  if (sitzung === null) return NextResponse.json({ fehler: 'nicht_angemeldet' }, { status: 401 });
+  if (sitzung === null) return ohneSitzungAntwort(anfrage, sitzung);
 
   const ziel = await (db().begin(async (tx: postgres.TransactionSql) => {
     await bindePersoenlich(tx, sitzung);

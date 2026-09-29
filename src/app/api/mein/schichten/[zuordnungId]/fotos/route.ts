@@ -124,7 +124,7 @@ export async function POST(
       // Zeile gleich nicht mehr.
       await speicher.schreibeJetzt();
       return id;
-    });
+    }, daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
   } catch (fehler: unknown) {
     if (fehler instanceof NichtVerbundenFehler) {

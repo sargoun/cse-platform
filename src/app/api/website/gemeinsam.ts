@@ -2,7 +2,7 @@ import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { db } from '@/server/db/pool';
@@ -146,7 +146,7 @@ export async function fuehreWebsiteAus(
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
   const rumpf = await liesRumpfIntern(anfrage).catch(() => null);
   if (rumpf === null) {
@@ -167,7 +167,7 @@ export async function fuehreWebsiteAus(
     if (fehler instanceof RedaktionFehler) {
       return antwortNachAbweisung(anfrage, rumpf, fehler, lauf.rueckgabe?.(rumpf) ?? {});
     }
-    const autorisierung = autorisierungsAntwort(fehler);
+    const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: rumpf });
     if (autorisierung !== null) return autorisierung;
     throw fehler;
   }

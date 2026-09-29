@@ -5,7 +5,8 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { nichtGefundenAntwort } from '@/server/auth/antwort';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
@@ -14,7 +15,7 @@ import {
 } from '@/server/services/abwesenheit/index';
 import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
 import { grundAufsFormularweg, type FormularRueckweg } from '@/app/api/formular-antwort';
-import { datenbankGrund, datenbankStatus } from '../formular';
+import { datenbankGrund, datenbankStatus, ohneSitzungBeschaeftigte } from '../formular';
 
 /**
  * `POST /api/mein/abwesenheit` — der Mensch meldet eine Abwesenheit (EMP-10).
@@ -79,7 +80,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungBeschaeftigte(anfrage);
   }
   if (sitzung.personId === null || sitzung.personId === '') {
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
@@ -166,9 +167,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * Ein fehlendes Recht sieht auf jeder schreibenden Route gleich aus — ein
      * 404, byte-gleich, auch hinter einem Browserformular (D-656 Nr. 2,
      * D-682 Nr. 2).
+     *
+     * **Nur das 404** (D-766). `authorize` bekommt hier die geprüfte Sitzung
+     * und kein `erfordert2fa` — „keine Sitzung" und „zweiter Faktor" wirft es
+     * auf diesem Weg nie. Beide standen über `autorisierungsAntwort` trotzdem
+     * da, und der zweite hätte eine Kraft, die sich mit Mobilnummer und Code
+     * anmeldet, auf den Authenticator-Schritt der Verwaltung geschickt. Wirft
+     * es eines Tages doch etwas anderes, ist das ein Programmfehler und soll
+     * rot sein.
      */
-    const auth = autorisierungsAntwort(fehler);
-    if (auth !== null) return auth;
+    if (fehler instanceof NichtGefundenFehler) return nichtGefundenAntwort();
     /*
      * Die Abweisungen des Dienstes behalten ihren Grund (V-188): „Fuer diese
      * Art ist nicht hinterlegt, ob sie bezahlt ist" (O-139) ist eine Auskunft

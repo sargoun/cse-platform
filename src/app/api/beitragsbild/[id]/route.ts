@@ -2,7 +2,7 @@ import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
-import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
+import { vorschauSitzung } from '@/server/auth/vorschau-sitzung';
 import { oeffentlichLesen } from '@/server/inhalt/lesen';
 import { withTenant } from '@/server/kontext/index';
 import { NichtVerbundenFehler, SIGNATUR_SEKUNDEN, type Bucket } from '@/server/storage/adapter';
@@ -50,8 +50,9 @@ export async function GET(
 
   let ort = await oeffentlich(id);
   if (ort === null) {
-    const sitzung = await aktuelleSitzung();
-    if (sitzung !== null && sitzung.aktiverMandantId !== null) {
+    /* Die Sitzung ist nur der Schlüssel zur Vorschau — ohne sie 404, nie die Anmeldung (D-768). */
+    const sitzung = await vorschauSitzung();
+    if (sitzung !== null) {
       ort = await (db().begin(async (tx: postgres.TransactionSql) =>
         withTenant(tx, sitzung, (k) => eigenesBeitragsbild(k, id))) as Promise<MedienOrt | null>);
     }
