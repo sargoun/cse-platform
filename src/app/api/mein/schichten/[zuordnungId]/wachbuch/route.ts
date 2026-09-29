@@ -168,7 +168,7 @@ export async function POST(
         }
         await legeWachbuchFotosAb(k, { eintragId, dateien }, waehleSpeicher());
         return eintragId;
-      });
+      }, daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
       return grundAufsFormularweg(anfrage, daten, 'kein_objekt', 422);

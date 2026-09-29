@@ -123,7 +123,7 @@ export async function POST(
       });
       const { nummer, nummerOffen } = await legeVor(k, id);
       return { id, nummer, nummerOffen };
-    });
+    }, daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
       return grundAufsFormularweg(anfrage, daten, 'kein_objekt', 422);

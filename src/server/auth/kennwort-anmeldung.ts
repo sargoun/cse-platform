@@ -174,10 +174,16 @@ export function wegNachAnmeldung(a: Anmeldung, ziel: string | null): Route {
    * ins Portal.
    */
   const wechselAnhang = a.mussWechseln ? '?wechsel=1' : '';
+  /*
+   * **Die Rückkehr geht durch den zweiten Faktor mit** (D-766). Beide Stufen
+   * lesen `weiter` und führen danach dorthin; hier fiel es weg, und ein
+   * Formular, dessen Sitzung abgelaufen war, landete nach Kennwort und Code
+   * auf `/portal` statt wieder auf seiner Seite.
+   */
   if (a.brauchtFaktor && !a.faktorVorhanden) {
-    return alsRoute(`/auth/zwei-faktor/einrichten${wechselAnhang}`);
+    return mitWeiter(`/auth/zwei-faktor/einrichten${wechselAnhang}`, ziel);
   }
-  if (a.brauchtFaktor) return alsRoute(`/auth/zwei-faktor/pruefen${wechselAnhang}`);
+  if (a.brauchtFaktor) return mitWeiter(`/auth/zwei-faktor/pruefen${wechselAnhang}`, ziel);
   if (a.mussWechseln) return '/auth/kennwort-wechseln';
   return alsRoute(sichererRueckweg(ziel) ?? '/portal');
 }
@@ -185,6 +191,21 @@ export function wegNachAnmeldung(a: Anmeldung, ziel: string | null): Route {
 /** Die eine erlaubte Umdeutung — siehe `wegNachAnmeldung`. */
 export function alsRoute(pfad: string): Route {
   return pfad as Route;
+}
+
+/**
+ * Ein Schritt der Anmeldung MIT ihrer Rückkehr (D-766): `weiter=` reist nur,
+ * wenn es ein eigener Pfad ist (`sichererRueckweg`), sonst entfällt es still
+ * — wie auf `/auth/login`, das `weiter` seit AUT-01 so liest.
+ *
+ * Für die Anmeldung der Beschäftigten, die zwei Schritte und eine
+ * Sprachwahl hat: an jeder dieser Stellen muss die Rückkehr mitgehen, sonst
+ * endet sie beim ersten Sprachwechsel.
+ */
+export function mitWeiter(pfad: string, weiter: unknown): Route {
+  const sicher = sichererRueckweg(weiter);
+  if (sicher === null) return alsRoute(pfad);
+  return alsRoute(`${pfad}${pfad.includes('?') ? '&' : '?'}weiter=${encodeURIComponent(sicher)}`);
 }
 
 // ---------------------------------------------------------------------------

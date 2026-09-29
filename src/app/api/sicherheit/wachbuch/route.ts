@@ -4,7 +4,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import {
@@ -79,7 +79,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   /**
@@ -193,12 +193,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     const grund = grundVon(fehler);
     if (grund !== null) {
-      return abgewiesen(grund, () => alsAntwort(fehler) ?? NextResponse.json(
+      return abgewiesen(grund, () => alsAntwort(fehler, anfrage) ?? NextResponse.json(
         { fehler: grund }, { status: 400 }));
     }
-    const autorisierung = autorisierungsAntwort(fehler);
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
-    const antwort = alsAntwort(fehler);
+    const antwort = alsAntwort(fehler, anfrage);
     if (antwort !== null) return antwort;
     throw fehler;
   }

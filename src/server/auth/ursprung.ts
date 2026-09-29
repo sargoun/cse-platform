@@ -167,6 +167,26 @@ export function internesZiel(
 }
 
 /**
+ * Derselbe Riegel wie `internesZiel` — aber ohne Rückfall: der PFAD (samt
+ * Abfrage und Anker) einer Adresse dieser Anwendung, sonst `null` (D-766).
+ *
+ * **Wofür.** Eine Rückkehradresse, die als `weiter=` an die Anmeldung reist,
+ * hat kein Standardziel: fehlt sie oder zeigt sie nach draussen, reist sie
+ * gar nicht. `internesZiel` gäbe in beiden Fällen seinen Rückfall zurück, und
+ * der sähe aus wie eine Adresse, die jemand gewählt hat.
+ *
+ * Angenommen werden relative Pfade (`zurueck`, `fehlerweg`) und absolute
+ * Adressen des eigenen Ursprungs (`Referer`) — beides über `innerhalb`, also
+ * mit derselben Normalisierung, an der V-159 hing (`/.//boese.example`).
+ */
+export function internerPfad(
+  roh: string | null | undefined, anfrage: NextRequest,
+): string | null {
+  const ziel = innerhalb(roh, new URL(erwarteterUrsprung(anfrage)));
+  return ziel === null ? null : `${ziel.pathname}${ziel.search}${ziel.hash}`;
+}
+
+/**
  * **Der Rueckfall wird GENAUSO geprueft wie das Ziel** — und das war er nicht.
  *
  * Hier stand `return new URL(standard, basis)` an drei Stellen. Solange

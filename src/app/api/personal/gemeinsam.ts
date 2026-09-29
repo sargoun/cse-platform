@@ -2,7 +2,9 @@ import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import {
+  anmeldungsAntwort, autorisierungsAntwort, ohneSitzungAntwort,
+} from '@/server/auth/antwort';
 import { internesZiel, istGleicherUrsprung } from '@/server/auth/ursprung';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { db } from '@/server/db/pool';
@@ -55,7 +57,7 @@ export async function fuehrePersonalAus(
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
   const rumpf = await liesRumpf(anfrage).catch(() => null);
   if (rumpf === null) {
@@ -83,6 +85,14 @@ export async function fuehrePersonalAus(
         return m?.slug ?? '';
       }))) as string;
   } catch (fehler: unknown) {
+    /*
+     * Die Anmeldung ZUERST (D-766): `NichtAngemeldetFehler` und
+     * `ZweiterFaktorFehler` tragen `status` und `code` wie ein Dienstfehler
+     * und liefen unten als `?meldung=` zurück aufs Formular — ein Formular,
+     * das ohne Sitzung oder Faktor nicht abgeschickt werden kann.
+     */
+    const anmeldung = anmeldungsAntwort(fehler, anfrage, { felder: rumpf });
+    if (anmeldung !== null) return anmeldung;
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     const meldung = (fehler as { message?: string }).message ?? '';
@@ -101,7 +111,7 @@ export async function fuehrePersonalAus(
       }
       return NextResponse.json({ fehler: code, meldung }, { status });
     }
-    const autorisierung = autorisierungsAntwort(fehler);
+    const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: rumpf });
     if (autorisierung !== null) return autorisierung;
     throw fehler;
   }

@@ -11,6 +11,7 @@ import {
   KeineEigeneSchicht, schichtBezugOderFehler, type SchichtBezug,
 } from '@/server/services/mitarbeiter/schicht-zugang';
 import { grundAufsFormularweg } from '../../formular-antwort';
+import { ohneSitzungBeschaeftigte } from '../formular';
 
 /**
  * Die eine Bruecke, ueber die jeder Schreibweg der Schichtseiten faehrt
@@ -46,11 +47,17 @@ export type BrueckenErgebnis<T> =
  * Ergebnis samt aufgeloestem Bezug. Die Route entscheidet dann, ob sie 303
  * umleitet oder JSON schickt — das ist ihr Unterschied und nicht der dieser
  * Datei.
+ *
+ * **Ausser ohne Sitzung** (D-766): alle Schichtwege lesen ihr Formular VOR
+ * dieser Bruecke und reichen es als `daten` herein. Ein Formular mit
+ * `zurueck` geht dann auf die Anmeldung der Beschaeftigten und von dort
+ * zurueck auf seine Seite, statt `{"fehler":"keine_sitzung"}` zu zeigen.
  */
 export async function aufDerSchicht<T>(
   anfrage: NextRequest,
   zuordnungId: string,
   fn: (kontext: SchreibKontext, bezug: SchichtBezug, sitzung: Sitzung) => Promise<T>,
+  daten?: FormData,
 ): Promise<BrueckenErgebnis<T>> {
   if (!istGleicherUrsprung(anfrage)) {
     return {
@@ -60,10 +67,7 @@ export async function aufDerSchicht<T>(
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) {
-    return {
-      art: 'antwort',
-      antwort: NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 }),
-    };
+    return { art: 'antwort', antwort: ohneSitzungBeschaeftigte(anfrage, daten) };
   }
   if (sitzung.personId === null || sitzung.personId === '') {
     /*

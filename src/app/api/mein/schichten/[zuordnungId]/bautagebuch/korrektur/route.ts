@@ -104,7 +104,7 @@ export async function POST(
           taetigkeit: textOder(daten, 'taetigkeit'),
         },
       });
-    });
+    }, daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
       return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);

@@ -4,7 +4,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { waehleSpeicher } from '@/server/storage/waehle';
@@ -44,7 +44,7 @@ export async function POST(
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
   if (!UUID.test(id)) return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   const daten = await anfrage.formData().catch(() => null);
@@ -91,7 +91,7 @@ export async function POST(
         status: grund === 'bild_nicht_verbunden' ? 503 : grund === 'unbekannt' ? 404 : 409,
       });
     }
-    const antwort = autorisierungsAntwort(fehler);
+    const antwort = autorisierungsAntwort(fehler, anfrage, { felder: daten });
     if (antwort !== null) return antwort;
     throw fehler;
   }

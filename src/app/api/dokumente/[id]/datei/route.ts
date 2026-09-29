@@ -1,13 +1,13 @@
 import type postgres from 'postgres';
 import { erwarteterUrsprung } from '@/server/auth/ursprung';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withTenant } from '@/server/kontext/index';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { authorize } from '@/server/auth/authorize';
-import { NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { istUuid } from '@/lib/uuid';
 import { NichtVerbundenFehler, SIGNATUR_SEKUNDEN, type Bucket } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
@@ -48,7 +48,7 @@ export async function GET(
   if (!istUuid(id)) return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   /*
@@ -108,12 +108,8 @@ export async function GET(
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
+    const anmeldung = anmeldungsAntwort(fehler, anfrage);
+    if (anmeldung !== null) return anmeldung;
     throw fehler;
   }
 }

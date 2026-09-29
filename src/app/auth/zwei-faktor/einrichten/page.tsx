@@ -9,7 +9,7 @@ import { qrSvg } from '@/lib/qr';
 import { anfrageAdresse } from '@/server/auth/adresse';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import {
-  bestaetigeFaktorMitToken, gibWiederherstellungscodesAus, hebeAufAal2, pruefeFaktor,
+  bestaetigeFaktorMitToken, gibWiederherstellungscodesAus, hebeAufAal2, mitWeiter, pruefeFaktor,
   leseKennwortToken, richteFaktorEin, richteFaktorMitTokenEin, sichererRueckweg,
 } from '@/server/auth/kennwort-anmeldung';
 import { SITZUNG_COOKIE } from '@/server/auth/sitzung';
@@ -80,7 +80,12 @@ export default async function FaktorEinrichten({ searchParams }: {
 
   // `null` heisst: es gibt schon einen bestaetigten Faktor — oder der
   // Einladungslink gilt nicht mehr. Beide Male ist diese Seite die falsche.
-  if (einrichtung === null) redirect(einladung === null ? '/auth/zwei-faktor/pruefen' : '/auth/login');
+  // Die Rueckkehr geht mit (D-766): ein Formular, das ohne zweiten Faktor
+  // abgewiesen wurde, schickt hierher, und nach `pruefen` soll es zurueck
+  // auf seine Seite gehen — nicht ins Portal.
+  if (einrichtung === null) {
+    redirect(einladung === null ? mitWeiter('/auth/zwei-faktor/pruefen', ziel) : '/auth/login');
+  }
 
   async function bestaetigen(daten: FormData): Promise<void> {
     'use server';

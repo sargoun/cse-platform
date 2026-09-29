@@ -20515,6 +20515,17 @@ Zusammenführung den Rückfall gezeigt. (k) Das Postenblatt liest EIN
 `?fehler=`: ein Grund des Leistungsankers (`LEISTUNGSANKER_TEXTE`, D-686)
 steht im Kasten der Leistung, jeder andere im Anforderungsblock (D-673).
 
+**Nachsatz (D-766, V-256): Nr. 7 ist für Sitzung und zweiten Faktor
+abgelöst.** Die Wächter „keine Sitzung" (401) und „zweiter Faktor" (403)
+antworten einem Browserformular nicht mehr mit JSON, sondern mit einer
+Seite: der passenden Anmeldung bzw. dem Faktor-Schritt, jeweils mit der
+Rückkehr auf die Seite des Formulars; ein Programm bekommt JSON wie hier
+beschrieben. Die Weiche steht an EINER Stelle (`server/auth/antwort.ts`),
+das Arbeiterportal ruft sie über `ohneSitzungBeschaeftigte`
+(`api/mein/formular.ts`), die Schichtbrücke mit dem schon gelesenen
+Formular. JSON bleiben der fremde Ursprung (403, CSRF), das Konto ohne
+Person (404) und Eingaben, die kein Formular dieses Portals erzeugt.
+
 | Betrifft | D-599, D-728, D-691, EMP-07, EMP-09, EMP-10, EMP-11, EMP-12, SEC-05, CLN-04, BAU-07, TIM-10, O-139, V-198, `src/app/api/formular-antwort.ts`, `src/app/api/zeit/einwand/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/[id]/zurueckziehen/route.ts`, `src/app/api/mein/dienstanweisungen/[id]/kenntnisnahme/route.ts`, `src/app/api/mein/nachrichten/[id]/route.ts`, `src/app/api/mein/schichten/**`, `src/server/services/abwesenheit/antrag.ts` (`pflichtfeldGrund`), `src/server/services/security/wachbuch.ts`, `src/lib/i18n/mein-formular.ts`, `src/app/portal/mein/FormularAntwort.tsx`, `src/components/ui/Hinweis.tsx` (`groesse`), DESIGN §5 „Notices", `src/lib/i18n/wachbuch-schicht.ts` (`wachbuchSchichtMaske`), `src/lib/i18n/verwaltung/wachbuch.ts`, `src/app/portal/[mandant]/security/posten/[id]/page.tsx`, `tests/kern/mein-formular-rueckweg.test.ts`, `tests/kern/{wachbuch-schicht-route,wachbuch-schluessel-texte}.test.ts`, `tests/e2e/mitarbeiter.spec.ts` |
 |---|---|
 
@@ -22354,4 +22365,333 @@ des Anlegens (Policy, CHECK) hatte keine Isolationsprobe.
    selbst scheitert — der Fall, den `legeBeitragsbildAn` schon nennt.
 
 | Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/lib/i18n/verwaltung/{website-referenz,social-bild}.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
+|---|---|
+
+### D-766 · Ohne Sitzung und ohne zweiten Faktor bekommt ein Browserformular eine Seite — die Weiche steht an einer Stelle und ersetzt D-692 Nr. 7 (V-256)
+
+**Der Befund** (V-256; von mehreren unabhängigen Prüfungen als eigene
+Aufgabe benannt): Die Schreibwege antworteten einem nativen
+`<form method="post">` bei abgelaufener Sitzung mit
+`{"fehler":"keine_sitzung"}` (401) und ohne zweiten Faktor mit
+`{"fehler":"zweiter_faktor"}` (403) — der Browser zeigte eine weisse
+JSON-Seite, die Eingabe war weg. 218 Stellen in 170 Dateien unter
+`src/app/api` schrieben die Antwort selbst: 153 Wächter vor dem Rumpf,
+56 Fangzweige für `NichtAngemeldetFehler`/`ZweiterFaktorFehler`, die Gerüste
+(`fuehreUebergangAus`, `fuehrePersonalAus`, Recruiting, Social, Website), die
+Schichtbrücke `aufDerSchicht` und drei Übersetzer (`sicherheit/antwort.ts`,
+`zeit/korrektur` `fehlerschluessel`, `finanzen/eingangsrechnungen`
+`uebersetze`); `bau/bautagebuch/antwort.ts` reichte an
+`autorisierungsAntwort` weiter und bekommt jetzt die Anfrage mit. D-692 Nr. 7
+hatte die Wächter ausdrücklich bei JSON gelassen („wie auf allen
+Schreibwegen der Plattform").
+`fuehrePersonalAus` erkannte beide Würfe an `status` und `code` als
+Dienstfehler und schickte sie als `?meldung=` zurück aufs Formular — auf eine
+Seite, die ohne Sitzung gar nicht geht.
+
+**Die Entscheidung** (ersetzt D-692 Nr. 7 für Sitzung und zweiten Faktor):
+
+1. **Die Weiche steht in `src/server/auth/antwort.ts`**:
+   `ohneSitzungAntwort(anfrage, sitzung, weg?)`,
+   `ohneFaktorAntwort(anfrage, weg?)` und
+   `anmeldungsAntwort(fehler, anfrage, weg?)`; `autorisierungsAntwort`
+   nimmt die Anfrage jetzt als Pflicht — ohne sie lässt sich nicht
+   entscheiden, ob ein Formular fragt. Routen rufen die Weiche, statt die
+   Antwort zu schreiben; das Arbeiterportal über `ohneSitzungBeschaeftigte`
+   (`api/mein/formular.ts`), die Schichtbrücke mit dem schon gelesenen
+   Formular (`aufDerSchicht(…, daten)`), die Gerüste und Übersetzer vor
+   ihrer allgemeinen `status`/`code`-Weiche.
+2. **Das Kriterium ist das vorhandene, kein neues** (`istBrowserFormular`).
+   Sind die Felder gelesen, entscheiden `fehlerweg`/`zurueck`
+   (`grundAufsFormularweg`, D-692 Nr. 1; ein JSON-Rumpf nie). Vor dem Rumpf
+   — dort stehen fast alle Wächter — entscheidet der Rumpf selbst:
+   `application/x-www-form-urlencoded` oder `multipart/form-data`, wie die
+   Grössenprüfung der Schichtwege (D-692 Nachsatz (i)), und dazu
+   `Accept: text/html`, damit ein Skript, das `FormData` postet
+   (`Schichtfoto`), weiter JSON bekommt (`fetch` schickt nur den
+   Platzhalter). Der Wächter liest den Rumpf NICHT, um die Felder zu fragen:
+   wer keine Sitzung hat, bekommt keine Arbeit — ein `multipart`-Rumpf mit
+   Fotos wäre sonst ganz gelesen. D-599 hatte `Accept` als ALLEINIGE Weiche
+   des Erfolgswegs verworfen; hier gilt er nur, wo es keine Felder gibt, und
+   schickt ein Browser kein `text/html`, bekommt er die Antwort von vorher.
+3. **401 → die passende Anmeldung, 303**: `/auth/login` (Verwaltung,
+   Leitung, Kunden) oder `/auth/mitarbeiter` (Beschäftigte: `api/mein/**`,
+   `zeit/einwand`, die Schichtbrücke — und jede Route, deren Rückkehr unter
+   `/portal/mein` liegt, etwa der Sprachwechsel), mit
+   `weiter=<Rückkehradresse>`. Eine Sitzung OHNE aktiven Bereich
+   (Gruppenansicht, vor der Bereichswahl; Invariante 10) ist angemeldet: sie
+   geht auf `/portal`, den Wegweiser, nicht auf die Anmeldung.
+4. **403 zweiter Faktor → `/auth/zwei-faktor/einrichten?weiter=…`** — die
+   Route weiss nach dem Wurf nicht, ob ein Faktor hinterlegt ist; `einrichten`
+   reicht ein Konto mit bestätigtem Faktor an `pruefen` weiter und nimmt
+   `weiter` jetzt mit (vorher fiel es dort weg). Dasselbe Ende wie die Pforte
+   der Seiten (`portal/zugang.ts`, V-136), einen Schritt später.
+5. **Die Rückkehr führt nur auf eigene Pfade.** Gesucht wird die Seite des
+   Formulars: `fehlerweg`, sonst `Referer` (eigene Seiten schicken ihn ganz,
+   `strict-origin-when-cross-origin`, SEC-A7), sonst `zurueck`. Jeder
+   Kandidat geht durch `internerPfad` (neu in `ursprung.ts`: derselbe Riegel
+   wie `internesZiel` samt der Normalisierung aus V-159, aber ohne
+   Rückfall); fremder Ursprung, Schema- oder Portwechsel, `//…`, `/\…`,
+   `/.//…` und `javascript:` fallen durch, ebenso `/api/…` (keine Seite) und
+   `/auth/…` (eine Schleife). Die Anmeldung prüft `weiter` noch einmal
+   (`sichererRueckweg`).
+6. **Die Anmeldung der Beschäftigten kennt die Rückkehr jetzt** — durch
+   beide Schritte, die Sprachwahl und „Andere Nummer" (`mitWeiter`,
+   `kennwort-anmeldung.ts`). Nach dem Code geht es über
+   `/portal/mein?angemeldet=1&weiter=…`: „Heute" leitet mit Sitzung weiter
+   und zeigt ohne sie den Satz aus D-488 (Keks abgelehnt) — direkt auf
+   `weiter` verlöre die Seite dahinter ihn. Nur mit `angemeldet=1`: „Heute"
+   wird kein allgemeiner Umleiter. Die Anmeldung der Verwaltung las `weiter`
+   schon (AUT-01), verlor es aber am zweiten Faktor: `wegNachAnmeldung`
+   schickte ein Konto mit Faktorpflicht ohne `weiter` auf
+   `einrichten`/`pruefen`, und wer nach Kennwort und Code zurück aufs
+   Formular wollte, landete auf `/portal`. Es reist jetzt mit (`mitWeiter`;
+   nachgebessert, geprüft in `sitzung-formularweg.test.ts` (5a)).
+7. **Was JSON bleibt.** Der CSRF-Wächter (fremder Ursprung, 403) — ein
+   Formular vom eigenen Ursprung löst ihn nie aus. Ein fehlendes Recht,
+   byte-gleich 404, auch hinter einem Formular (D-656 Nr. 2, D-682 Nr. 2).
+   Jeder Aufruf ohne Formularmerkmale: `{"fehler":"keine_sitzung"}` (401)
+   bzw. `{"fehler":"zweiter_faktor"}` (403) wie bisher — drei
+   Benachrichtigungswege (`gelesen`, `praeferenz`, `[id]/oeffnen`), die nur
+   Formulare rufen, schrieben `nicht_angemeldet` und schreiben jetzt
+   denselben Code wie alle. Lesewege (`GET`: Belege, Exporte, Downloads) sind
+   kein Formular und unverändert — offen als V-258. **Nachsatz:** nachgezogen
+   in D-768 — eine Navigation per `GET` bekommt dieselbe Weiche, V-258 ist
+   erledigt.
+8. **Tote Zweige entfernt (geprüft).** `mein/abwesenheit` ruft `authorize`
+   mit der geprüften Sitzung und ohne `erfordert2fa`: es übersetzt nur noch
+   das 404 (`nichtGefundenAntwort`). `mein/antraege` und `zeit/einwand`
+   rufen `authorize` gar nicht, und weder ihre Dienste noch die Bindungen
+   werfen einen Auth-Fehler: `autorisierungsAntwort` entfällt dort. Der Zweig
+   „zweiter Faktor" hätte eine Kraft, die sich mit Mobilnummer und Code
+   anmeldet, auf den Authenticator-Schritt der Verwaltung geschickt. In den
+   Verwaltungsrouten bleibt die zentrale Übersetzung (`anmeldungsAntwort`):
+   dort lebt `ZweiterFaktorFehler` mit jedem `erfordert2fa`
+   (`einstellungen/rollenrecht`, `einstellungen/mitgliedschaft-module`,
+   `stundenkonto/[id]/monat-abschliessen`), und „keine Sitzung" bleibt die
+   Antwort von `authorize` auf einen fehlenden Akteur.
+9. **Geprüft:** `tests/kern/sitzung-formularweg.test.ts` — die Weiche
+   (Formular gegen Programm, Felder gegen Köpfe, 401 gegen 403, Sitzung ohne
+   Bereich, Rückkehr nur eigen: `//evil.example`, `https://evil.example/…`,
+   `/\…`, `/.//…`, Schema- und Portwechsel im `Referer`), echte Routen jeder
+   Bauart ohne Sitzung (eigener Wächter `crm/notiz`, Gerüst `raum`,
+   Arbeiterportal `mein/abwesenheit/[id]/zurueckziehen`, Schichtbrücke),
+   die Rückkehr durch beide Anmeldungen, und die Wache über den Baum
+   (`tests/kern/hilfen/sitzungswache.ts`, Syntaxbaum): keine Datei unter
+   `src/app/api`, die schreibt oder einem Schreibweg zuarbeitet, trägt die
+   Zahl 401 oder einen Anmeldecode im Code, und jede, die `aktuelleSitzung()`
+   fragt, ruft die Weiche; Ausnahmen stehen mit Grund in einer Liste — heute
+   keine. Angepasst, nicht abgeschwächt: `autorisierung-uebersetzt` (die
+   Anfrage im Aufruf), `mein-formular-rueckweg` (nach dem Formular sind nur
+   noch `nicht_gefunden` und `unbekannter_vorgang` JSON), `auftrag-angaben`
+   und `radar-plattform` (die Codes der Anmeldung stehen nicht mehr in der
+   Route, die Weiche schon). Browserprüfungen laufen in diesem Zweig nicht.
+
+| Betrifft | D-599, D-692, D-656, D-682, D-488, D-560, V-136, V-159, V-256, V-258, AUT-02, AUT-06, EMP-01, SEC-A7, `src/server/auth/{antwort,ursprung,kennwort-anmeldung}.ts`, `src/app/api/**` (Wächter, Gerüste, Übersetzer), `src/app/api/mein/formular.ts`, `src/app/api/mein/schichten/bruecke.ts`, `src/app/auth/mitarbeiter/{page,code/page}.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `src/app/portal/mein/page.tsx`, `tests/kern/sitzung-formularweg.test.ts`, `tests/kern/hilfen/sitzungswache.ts`, `tests/kern/{autorisierung-uebersetzt,mein-formular-rueckweg,auftrag-angaben,radar-plattform}.test.ts` |
+|---|---|
+
+### D-767 · Das Portal sagt die Sprache seiner Teile an — die Hülle die der Sitzung, der Inhalt seine eigene; `<html>` dort, wo das Layout sie kennt (V-257)
+
+**Der Befund** (V-257; von mehreren unabhängigen Prüfungen als eigene
+Aufgabe benannt): Alle Portalseiten trugen nur `<html lang="de-DE">`, auch
+wenn die Sitzung Englisch spricht — ein Screenreader las die englische Hülle
+(Kopfzeile, Leisten, Tab-Leiste, D-592) und den Inhalt der übersetzten Seiten
+mit deutscher Aussprache. Geprüft wurde auch, was schon stimmt: das
+Arbeiterportal (`MeinRahmen`) setzt `lang` und `dir` der Person um die ganze
+Hülle — auf jeder Seite ausser dem Druckblatt Monatsnachweis, das fest
+`lang="de"` trug, während seine Überschriften und Erklärungen seit O-886 der
+Sprache der Person folgen. Die Kontoseiten setzen `lang`/`dir` um ihren
+Inhalt; ihre Kopfzeile kam für ein Verwaltungskonto aber aus
+`internBeschriftungen(null)` — deutsch unter `lang="en"`, und der
+Sprachumschalter zeigte „Deutsch" als gewählt. Die Website stimmt (`/en/…`
+→ `lang="en"`, Middleware-Kopf, D-82), die Anmeldung der Verwaltung ist
+deutsch und trägt `de-DE`; Anmeldung der Beschäftigten und Stempeluhr sagen
+die Gerätesprache an ihrer Hülle an (D-694), `<html>` blieb dort `de-DE`.
+
+**Die Entscheidung.**
+
+1. **Das Portal sagt die Sprache an seiner Hülle an, nicht am `<html>`.**
+   Das Wurzel-Layout kennt die Adresse, nicht die Sitzung; deren Sprache
+   steht in der Datenbank und ist erst nach der Pforte der Seite bekannt
+   (`merkeHuelle`). Sie im Layout ein zweites Mal aufzulösen kostete jede
+   Portalseite eine weitere Transaktion samt Schreibzugriff
+   (`letzte_aktivitaet_am`) — und wüsste nicht, ob der Inhalt der Seite
+   übersetzt ist. `PortalRahmen` umschliesst den ganzen sichtbaren Inhalt.
+2. **Zwei Angaben, weil zwei Sprachen auf dem Bildschirm stehen**
+   (`rahmenSprachen`, `components/portal/rahmen-sprache.ts`): die Hülle
+   (`data-cse="portal-rahmen"`) sagt die Sprache der Sitzung an (de/en,
+   D-592); Titel, Spur und `main` die des Inhalts — die der Sitzung, wo die
+   Seite umgestellt ist, sonst Deutsch. Ein `lang="en"` über allem hätte den
+   Fehler nur umgedreht: 308 der 378 Seiten von Verwaltung, Kunden und
+   Gruppe tragen ihre Wörter noch fest deutsch.
+3. **Welche Seite umgestellt ist, sagt die Liste, die es schon weiss:** die
+   Ausnahmeliste der Sperrklinke `seite-ohne-uebersetzung`
+   (`scripts/guards/uebersetzung-ausnahmen.ts`), die die Wache in beide
+   Richtungen genau hält. `inhaltFolgtSitzung`
+   (`server/registry/seitensprache.ts`) findet die Seitendatei über das
+   Routenmanifest (`findeRoute`, dieselbe Schärferegel wie die Pforte); wer
+   eine Seite umstellt und ihre Zeile streicht, stellt ihre Sprachangabe mit
+   um. Eine Adresse ohne Manifestzeile gilt als deutsch — die Vorgabe, nicht
+   ein Raten.
+4. **Der abgeleitete Rückweg ist ein Wort der Hülle** (`rueckzielName` in der
+   Sprache der Sitzung): er trägt deren `lang` und `aria-label` („Back")
+   auch über deutschem Inhalt. Der Rückweg, den eine Seite selbst nennt,
+   spricht wie ihr Inhalt.
+5. **Wer seine Sprache selbst ansagt, bekommt vom Rahmen keine:** Aufrufer
+   mit eigenen Beschriftungen (`MeinRahmen`, die Kontoseiten einer
+   Beschäftigten — vier Sprachen, mit `dir`) und Seiten ohne Pforte (die
+   Kontoseiten, `/dev/portal`). Die Kontoseiten legen die Sprache der Person
+   jetzt ab (`merkeSprache` in `leseKonto`): die Kopfzeile eines
+   Verwaltungskontos folgt ihr wie der Inhalt darunter, der Sprachumschalter
+   zeigt die gewählte; Pfad und Rückweg bleiben unberührt.
+6. **Das Druckblatt Monatsnachweis** sagt die Sprache an, in der seine Wörter
+   stehen (`blattSprache` — Wörter und `lang` an EINER Stelle; die Antwort
+   auf O-886 ändert beides zugleich). Tage und Zahlen bleiben in deutscher
+   Schreibweise (D-688) — Form, nicht Sprache.
+7. **Am `<html>` steht die Sprache, wo das Layout sie kennt**
+   (`htmlSprache`, `lib/i18n/html-sprache.ts`): auf der Website die des
+   Pfads wie bisher; auf der Anmeldung der Beschäftigten
+   (`/auth/mitarbeiter`, `/auth/mitarbeiter/code`) und der Stempeluhr
+   (`/check-in/[token]`) die des Geräts (Keks, `Accept-Language` — ohne
+   Datenbank, dieselbe Funktion wie in den Seiten, D-694), samt `dir`, damit
+   auch Seitentitel, Bildlaufleiste und Seitenrand folgen. Nur genau diese
+   drei Adressen: eine Adresse daneben zeigt die deutsche 404.
+8. **Was bleibt:** im Portal trägt `<html>` weiter die Sprache des Pfads
+   (`de-DE`), damit auch der Seitentitel; Bausteine auf der Ausnahmeliste
+   (die Rahmen einzelner Bereiche, Kacheln, Hinweise) stehen in einer
+   übersetzten Seite deutsch unter deren Sprache, bis sie umgestellt sind;
+   ein Verwaltungskonto mit Arabisch oder Türkisch sieht die Hülle deutsch
+   (D-592) unter dem `lang` seiner Kontoseite.
+9. **Geprüft:** `tests/kern/seitensprache.test.ts` — jede der Seiten von
+   Verwaltung, Kunden und Gruppe findet über ihre Adresse sich selbst, jede
+   Manifestzeile dieser Portale hat ihre Seite, die Antwort folgt der Liste
+   über den ganzen Baum; die Entscheidung als reine Funktion; `PortalRahmen`
+   gerendert (übersetzt und unübersetzt, Titel und Spur, beide Rückwege,
+   deutsche Sitzung, eigene Beschriftungen, Kontoseite); Arbeiterportal,
+   Kontoseiten und Monatsnachweis am Quelltext. `tests/kern/html-sprache.test.ts`
+   — `htmlSprache` für alle drei Arten, die Liste der Gerätesprach-Flächen
+   gegen jede Seite, die `geraeteSprache(` ruft (in beide Richtungen), das
+   Wurzel-Layout mit ersetzten Köpfen und Keksen, die Middleware.
+   `tests/e2e/sprachumschalter.spec.ts` — nach dem Wechsel auf Englisch trägt
+   die Hülle `en` und `main` die Sprache nach der Liste (nicht lokal
+   gelaufen). Die axe-Prüfungen (`html-has-lang`, `valid-lang`) bleiben
+   unverändert streng; jeder neue Wert ist ein gültiges Tag.
+
+**Nachsatz (Zusammenführung mit den Gruppen Berichte/Agenten und
+Kalender/Dokumente/Recruiting).** Drei neue Seiten, geprüft in
+`seitensprache.test.ts`: `/kalender/neu` und `/recruiting/bewerbungen/neu`
+stehen im `PortalRahmen` und nicht auf der Ausnahmeliste — Hülle und Inhalt
+sprechen die Sitzung; für die Sprungleiste der Recruiting-Seiten
+(`recruiting/rahmen.tsx`, auf der Liste) gilt Nr. 8. Das Druckblatt der
+Berichte (`/berichte/druck/[bericht]`) steht ohne Hülle und nahm seine Wörter
+schon aus der Sitzungssprache, trug aber kein `lang` und erbte `de-DE`: es
+sagt jetzt `blattSprache` an wie der Monatsnachweis (Nr. 6); seine Tabelle
+bleibt `lang="de"`, ihre Köpfe und Werte kommen deutsch aus dem Dienst. Eine
+Prüfung hält jedes Blatt (`cse-blatt`) dazu an: auf der Liste deutsch wie
+`<html>` (das Angebot), sonst mit eigenem `lang`.
+
+| Betrifft | D-82, D-84, D-592, D-688, D-694, D-751, O-886, V-257, WCAG 3.1.1, 3.1.2, `src/app/layout.tsx`, `src/lib/i18n/html-sprache.ts`, `src/components/portal/{PortalRahmen,Zurueck}.tsx`, `src/components/portal/rahmen-sprache.ts`, `src/server/registry/seitensprache.ts`, `scripts/guards/uebersetzung-ausnahmen.ts` (gelesen, nicht geändert), `src/app/portal/{huellen-speicher.ts,konto/konto.ts}`, `src/app/portal/mein/monatsnachweis/page.tsx`, `tests/kern/{seitensprache,html-sprache}.test.ts`, `tests/e2e/sprachumschalter.spec.ts`, `src/app/portal/[mandant]/berichte/druck/[bericht]/page.tsx` (Nachsatz) |
+|---|---|
+
+### D-768 · Ein Leseweg ohne Sitzung oder ohne zweiten Faktor gibt einer Navigation die Anmeldung, nicht JSON — dieselbe Weiche wie D-766 (V-258)
+
+**Der Befund** (V-258, beim Bau von V-256 gefunden): 22 `GET`-Routen —
+Belege, DATEV-, Z3- und Lohnexport, Jahrespaket, Verfahrensdokumentation,
+Datenschutzberichte, Dokumente und Bündel, Medien, XRechnung/ZUGFeRD in
+beiden Portalen, Freigaben, Berichts-CSV, Nachtragswarnungen — schrieben ihr
+401 selbst (`{"fehler":"keine_sitzung"}`, die Berichts-CSV
+`nicht_angemeldet`) und in 12 Fangzweigen das 403 (`zweiter_faktor`). Wer nach
+abgelaufener Sitzung auf „Herunterladen" tippte, sah eine weisse JSON-Seite.
+D-766 Nr. 7 hatte die Lesewege offen gelassen, weil ihr Kriterium einen
+Formularrumpf verlangt; die Wache nahm jede `route.ts` ohne Schreib-Handler
+aus.
+
+**Die Entscheidung.**
+
+1. **Eine Navigation erkennt die Plattform an `Accept` mit ausdrücklichem
+   `text/html` bei `GET`/`HEAD`** (`istBrowserNavigation`,
+   `server/auth/antwort.ts`) — dasselbe `willSeite`, das D-766 für Formulare
+   benutzt, ohne den Rumpf, den ein `GET` nicht hat. `fetch()` ohne Angabe
+   (`*/*`), ein `<img>` (Bildtypen und `*/*`), `text/html;q=0` und jedes
+   Programm bleiben bei JSON. `HEAD` antwortet wie `GET` (RFC 9110).
+2. **Kein zweites Merkmal.** `Sec-Fetch-Mode`/`Sec-Fetch-Dest` wertet die
+   Plattform nirgends aus. Ausgewertet wird nur `Sec-Fetch-Site` — als Riegel
+   gegen fremde Einbettung, und dort ausdrücklich „fehlt er, geht die Anfrage
+   durch", weil ältere Diensttelefone ihn nicht schicken
+   (`api/mein/dokumente/[id]/datei`). Ein Merkmal, das genau diesen Telefonen
+   fehlt, wäre ein neues — also keines.
+3. **Die Rückkehr** (`rueckkehrAdresse`): eine Navigation will zuerst dorthin
+   zurück, wohin sie wollte — die angefragte Adresse, wenn sie eine Seite
+   ist. Ein Download unter `/api/…` ist keine: dann gilt die Seite, von der er
+   kam (`Referer`; eigenen Seiten schickt die Plattform ihn vollständig,
+   SEC-A7), und fehlt auch die, reist kein `weiter` mit — die Anmeldung führt
+   dann ins Portal (`/portal` bzw. `/portal/mein`). Jeder Kandidat geht durch
+   `internerPfad` wie in D-766: fremder Ursprung, Schema- oder Portwechsel,
+   `//…`, `/api/…` und `/auth/…` fallen durch.
+4. **Die Antworten sind die von D-766, an derselben Stelle.**
+   `ohneSitzungAntwort`, `ohneFaktorAntwort` und damit `anmeldungsAntwort`
+   fragen jetzt „Formular ODER Navigation" (`bekommtSeite`): ohne Sitzung 303
+   auf `/auth/login` bzw. für die Beschäftigten `/auth/mitarbeiter`
+   (`ohneSitzungBeschaeftigte`) mit `weiter=`; eine Sitzung ohne aktiven
+   Bereich 303 auf `/portal`; ohne Faktor 303 auf
+   `/auth/zwei-faktor/einrichten?weiter=`. Ein Programm bekommt byte-gleich
+   das JSON von vorher; die Berichts-CSV schreibt `keine_sitzung` wie alle —
+   ihr `nicht_angemeldet` war das letzte. JSON bleiben: ein fehlendes Recht
+   (404 byte-gleich, AUT-06), der Riegel gegen fremde Einbettung (403
+   `fremder_ursprung`, `mein/dokumente`) und die fachlichen Fehler
+   (400/409/503).
+5. **Umgestellt: 22 Routen** — 22 Wächter vor dem Rumpf auf
+   `ohneSitzungAntwort` (die Unterlage der Beschäftigten auf
+   `ohneSitzungBeschaeftigte`), 15 Fangzweige (12 Paare, 3 nur
+   `NichtAngemeldetFehler`) auf `anmeldungsAntwort`. Keine der 22 ruft
+   `authorize` mit `erfordert2fa`: der Zweig „zweiter Faktor" ist heute nicht
+   erreichbar und bleibt trotzdem die zentrale Übersetzung, damit ein
+   künftiges `erfordert2fa` sofort den Faktor-Schritt zeigt (wie D-766 Nr. 8
+   für die Verwaltungsrouten).
+6. **Die eine Ausnahme der Wache:** `api/marke/[mandant]/[art]/[version]` —
+   ein öffentliches Bild. Die Sitzung ist dort nur der zweite Schlüssel für
+   die Vorschau eines unveröffentlichten Bildes der eigenen Gesellschaft; ohne
+   sie antwortet die Route 404 wie für jedes fremde Bild (AUT-06). Eine
+   Anmeldung statt des 404 verriete, dass dort etwas liegt.
+7. **Der CSV-Knopf der Berichte verliert `download`.** Mit dem Attribut
+   behandelt der Browser jede Antwort als Datei, auch die einer abgelaufenen
+   Sitzung: statt der Anmeldung gäbe es einen fehlgeschlagenen Download oder
+   die Anmeldeseite als Datei. Die Route liefert
+   `Content-Disposition: attachment` — die Datei bleibt ein Download ohne
+   Seitenwechsel. Alle anderen Download-Links waren schon gewöhnliche Links;
+   eine Prüfung hält den Baum frei von `download` an Links auf `/api/…`.
+8. **Die Wache** (`tests/kern/hilfen/sitzungswache.ts`) nimmt Lesewege nicht
+   mehr aus und liest jetzt jede Datei unter `src/app/api` und jede
+   `route.ts` sonst unter `src/app`. Eine Ausnahme (Nr. 6), begründet; eine
+   Ausnahme, die keinen Befund mehr deckt, fällt selbst auf.
+9. **Geprüft:** `tests/kern/sitzung-leseweg.test.ts` — das Merkmal
+   (`GET`/`HEAD` mit Browser-`Accept` ja; `fetch()`, `<img>`, `q=0`,
+   `Sec-Fetch-Mode` allein und `POST` nein), die Rückkehr (Seite des Links,
+   angefragte Seite vor dem `Referer`; `https://evil.example/…`,
+   `//evil.example/…`, `http://`, fremder Port, `/api/…`, `/auth/…`: keine),
+   die Weiche (beide Anmeldungen, Portal, Faktor-Schritt, JSON byte-gleich,
+   404), echte Lesewege (Lohnexport samt Fangzweig 403/404, Dokumentdatei,
+   XRechnung des Kundenportals, Unterlage der Beschäftigten samt
+   `fremder_ursprung`, Berichts-CSV, Freigaben) und der `download`-Riegel mit
+   Gegenprobe. `tests/kern/sitzung-formularweg.test.ts` (6) und „die Wache
+   sagt auch Nein" über Lesewege. Browserprüfungen laufen in diesem Zweig
+   nicht.
+
+**Nachsatz (Zusammenführung mit den Gruppen Berichte/Agenten und
+Kalender/Dokumente/Recruiting).** Vier neue Schreibwege schrieben ihr 401
+noch selbst und riefen `autorisierungsAntwort` ohne Anfrage
+(`api/agenten/assistent`, `api/agenten/werkzeug`,
+`api/dokumente/[id]/version`, `api/social/beitraege/[id]/bild`); sie fragen
+jetzt die Weiche, samt der schon gelesenen Felder. Die übrigen neuen Wege
+(Kalender, Recruiting mit Gesprächen, Kandidat und Bewerbungen, Stellen,
+Mitarbeiterfreigabe) laufen über die Gerüste und damit schon über sie. Ein
+neuer Leseweg, `api/beitragsbild/[id]`, ist wie `api/marke` eine öffentliche
+Datei mit Vorschau. Statt einer zweiten Ausnahme (Nr. 6) fragen beide jetzt
+`vorschauSitzung` (`server/auth/vorschau-sitzung.ts`): nur eine Sitzung mit
+aktivem Bereich öffnet die Vorschau, ohne sie antwortet die Route 404 wie für
+jede fremde Kennung — auch einer Navigation, nie die Anmeldung. Die Entscheidung
+steht damit einmal statt je Route, und die Ausnahmeliste der Wache ist leer.
+Kein neuer Link trägt `download` (Nr. 7). Geprüft in
+`sitzung-leseweg.test.ts` (6) und `sitzung-formularweg.test.ts` (6).
+
+| Betrifft | D-599, D-766, D-692, D-656, D-682, AUT-06, SEC-A7, V-256, V-258, `src/server/auth/antwort.ts`, `src/app/api/mein/formular.ts`, `src/app/api/{bau/nachtrag-warnungen,berichte/[bericht]/csv,buchhaltung/{buchungen/[id]/beleg,datev/[id]/datei,jahrespaket,lohnexport,verfahrensdokumentation,z3-export},datenschutz/{auskunft,loeschkonzept,verarbeitungsverzeichnis},dokumente/{[id]/datei,buendel},einstellungen/protokoll/export,finanzen/rechnungen/[id]/{xrechnung.xml,zugferd.pdf},freigaben,freigaben/[id],kunde/rechnungen/[id]/{xrechnung.xml,zugferd.pdf},medien/[id],mein/dokumente/[id]/datei}/route.ts`, `src/app/portal/[mandant]/berichte/rahmen.tsx`, `tests/kern/hilfen/sitzungswache.ts`, `tests/kern/{sitzung-leseweg,sitzung-formularweg}.test.ts`, `src/server/auth/vorschau-sitzung.ts`, `src/app/api/{marke/[mandant]/[art]/[version],beitragsbild/[id],agenten/assistent,agenten/werkzeug,dokumente/[id]/version,social/beitraege/[id]/bild}/route.ts` (Nachsatz) |
 |---|---|

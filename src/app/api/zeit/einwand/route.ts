@@ -1,7 +1,7 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungBeschaeftigte } from '@/app/api/mein/formular';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { grundAufsFormularweg, type FormularRueckweg } from '@/app/api/formular-antwort';
 import { datenbankGrund, datenbankStatus } from '@/app/api/mein/formular';
 import { db } from '@/server/db/pool';
@@ -83,7 +83,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungBeschaeftigte(anfrage);
   }
   if (sitzung.personId === null || sitzung.personId === '') {
     // Ein Konto ohne Person hat keine Beschaeftigung, also auch keine Zeit,
@@ -188,8 +188,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       /* Eine fremde Beschäftigung ist für diese Anmeldung nicht vorhanden (AUT-06). */
       return grundAufsFormularweg(anfrage, daten, 'nicht_gefunden', 404, rueckweg);
     }
-    const auth = autorisierungsAntwort(fehler);
-    if (auth !== null) return auth;
+    /*
+     * Kein `autorisierungsAntwort` mehr (D-766): dieser Weg ruft `authorize`
+     * nicht, und weder `reicheEinwandEin` noch die Bindungen werfen einen
+     * seiner Fehler. Der Zweig „zweiter Faktor" dahinter hätte eine Kraft,
+     * die sich mit Mobilnummer und Code anmeldet, auf den Authenticator-
+     * Schritt der Verwaltung geschickt — tot, und falsch, falls er je lebte.
+     */
     if (fehler instanceof EinwandOhneBezugFehler) {
       return grundAufsFormularweg(anfrage, daten, 'kein_zeiteintrag', 400, rueckweg);
     }

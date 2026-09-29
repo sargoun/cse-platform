@@ -245,9 +245,12 @@ describe('am Quelltext: keine Formularroute antwortet mit JSON, wo sie einen Gru
     /*
      * Was bleibt, ist gewollt: ein fremder Datensatz (404, AUT-06) und die
      * Kennung einer unbekannten Handlung. Beides erreicht kein Formular
-     * dieses Portals, nur ein Aufruf von Hand.
+     * dieses Portals, nur ein Aufruf von Hand. `keine_sitzung` und
+     * `zweiter_faktor` standen hier auch — seit D-766 schreibt sie nur noch
+     * die Weiche in `server/auth/antwort.ts`, und ein Formular bekommt dort
+     * eine Seite (`tests/kern/sitzung-formularweg.test.ts`).
      */
-    const erlaubt = /: (?:nicht_gefunden|unbekannter_vorgang|zweiter_faktor|keine_sitzung)$/u;
+    const erlaubt = /: (?:nicht_gefunden|unbekannter_vorgang)$/u;
     expect(funde.filter((f) => !erlaubt.test(f))).toEqual([]);
   });
 

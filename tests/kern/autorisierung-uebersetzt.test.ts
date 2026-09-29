@@ -17,6 +17,7 @@
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { NextRequest } from 'next/server';
 import { autorisierungsAntwort } from '../../src/server/auth/antwort.js';
 import {
   KontoGesperrtFehler, NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler,
@@ -107,7 +108,8 @@ describe('(AUT-06) jeder Wurf von authorize wird übersetzt — keine 500 für �
       'dienstplan/serien/[id]', 'finanzen/ausgaben', 'personal/zugang',
     ]) {
       const quelle = code(join(APP, 'api', pfad, 'route.ts'));
-      expect(quelle, pfad).toMatch(/\bautorisierungsAntwort\s*\(\s*fehler\s*\)/u);
+      /* Mit der Anfrage (D-766): nur sie sagt, ob ein Formular fragt. */
+      expect(quelle, pfad).toMatch(/\bautorisierungsAntwort\s*\(\s*fehler\s*,\s*anfrage\b/u);
     }
   });
 });
@@ -136,9 +138,14 @@ describe('die Prüfung sagt auch Nein', () => {
 });
 
 describe('der Übersetzer selbst', () => {
+  /** Ein Programm: JSON-Rumpf, kein `text/html` — es bekommt JSON mit Status (D-599). */
+  const PROGRAMM = new NextRequest('https://cse.example/api/crm/kunde', {
+    method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://cse.example' },
+  });
+
   it('fehlendes Recht und fremder Mandant: 404 mit demselben Körper', async () => {
-    const recht = autorisierungsAntwort(new NichtGefundenFehler('Recht crm.schreiben fehlt'));
-    const fremd = autorisierungsAntwort(new NichtGefundenFehler('Fremder Mandant 8f3a'));
+    const recht = autorisierungsAntwort(new NichtGefundenFehler('Recht crm.schreiben fehlt'), PROGRAMM);
+    const fremd = autorisierungsAntwort(new NichtGefundenFehler('Fremder Mandant 8f3a'), PROGRAMM);
     expect(recht?.status).toBe(404);
     expect(fremd?.status).toBe(404);
     /* Der interne Grund verlässt den Server nie — beide Körper sind byte-gleich. */
@@ -148,13 +155,13 @@ describe('der Übersetzer selbst', () => {
   });
 
   it('ohne zweiten Faktor 403, ohne Sitzung 401, gesperrt 403', () => {
-    expect(autorisierungsAntwort(new ZweiterFaktorFehler())?.status).toBe(403);
-    expect(autorisierungsAntwort(new NichtAngemeldetFehler())?.status).toBe(401);
-    expect(autorisierungsAntwort(new KontoGesperrtFehler())?.status).toBe(403);
+    expect(autorisierungsAntwort(new ZweiterFaktorFehler(), PROGRAMM)?.status).toBe(403);
+    expect(autorisierungsAntwort(new NichtAngemeldetFehler(), PROGRAMM)?.status).toBe(401);
+    expect(autorisierungsAntwort(new KontoGesperrtFehler(), PROGRAMM)?.status).toBe(403);
   });
 
   it('ein Programmfehler bleibt ein Wurf — kein hübsches 404', () => {
-    expect(autorisierungsAntwort(new TypeError('x is undefined'))).toBeNull();
-    expect(autorisierungsAntwort({ status: 404 })).toBeNull();
+    expect(autorisierungsAntwort(new TypeError('x is undefined'), PROGRAMM)).toBeNull();
+    expect(autorisierungsAntwort({ status: 404 }, PROGRAMM)).toBeNull();
   });
 });

@@ -70,11 +70,18 @@ export interface ZurueckProps {
    * vorlesen laesst, dasselbe wie gar keines.
    */
   readonly sprache?: string | null;
+  /**
+   * Die Sprache des Verweises, wo sie von der seiner Umgebung abweicht
+   * (D-767): der abgeleitete Rückweg ist ein Wort der Hülle und steht auch
+   * über einer Seite, deren Inhalt noch deutsch ist.
+   */
+  readonly lang?: string;
 }
 
-export function Zurueck({ ziel, text, sprache }: ZurueckProps) {
+export function Zurueck({ ziel, text, sprache, lang }: ZurueckProps) {
   return (
-    <nav aria-label={rueckwegLabel(sprache)} className="mb-s4">
+    <nav aria-label={rueckwegLabel(sprache)} className="mb-s4"
+         {...(lang === undefined ? {} : { lang })}>
       {/*
         * `inline-flex` mit `min-h-11` statt eines blossen Textlinks: DESIGN §9
         * verlangt 44px, und ein `sm`-Text allein misst 20. Der Unterschied

@@ -181,13 +181,18 @@ describe('(3) die Formulare bekommen ihre Seite zurück, nicht JSON (V-172)', ()
   const auftrag = readFileSync('src/app/api/auftrag/route.ts', 'utf8');
   const kalkulation = readFileSync('src/app/api/kalkulation/route.ts', 'utf8');
 
-  it('JSON nur noch ohne Seite: fremder Ursprung, keine Sitzung, zweiter Faktor, unbekannt', () => {
+  it('JSON nur noch ohne Seite: fremder Ursprung und unbekannt — Sitzung und Faktor über die Weiche', () => {
     for (const quelle of [auftrag, kalkulation]) {
       const codes = [...quelle.matchAll(/NextResponse\.json\(\{ fehler: '([a-z_]+)'/gu)]
         .map((m) => m[1]);
-      expect(new Set(codes)).toEqual(
-        new Set(['fremder_ursprung', 'keine_sitzung', 'zweiter_faktor', 'unbekannt']));
+      expect(new Set(codes)).toEqual(new Set(['fremder_ursprung', 'unbekannt']));
       expect(quelle).not.toMatch(/fehler: fehler\.grund/u);
+      /*
+       * „Keine Sitzung" und „zweiter Faktor" standen hier als JSON; seit
+       * D-766 antwortet die Weiche — einem Formular mit einer Seite.
+       */
+      expect(quelle).toContain('return ohneSitzungAntwort(anfrage, sitzung);');
+      expect(quelle).toContain('anmeldungsAntwort(fehler, anfrage)');
     }
   });
 

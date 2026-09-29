@@ -12,6 +12,8 @@ import {
   berichtTabelle, blattFormat, istBericht, koernungAus, MIT_KOERNUNG, zellenFuerBlatt,
   type BerichtName,
 } from '@/server/services/bericht/export';
+import { internSprache } from '@/lib/i18n/intern';
+import { PORTAL_BCP47 } from '@/lib/i18n/texte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { BERICHT_DRUCK_TEXTE } from '@/lib/i18n/verwaltung/bericht-druck';
 import { DruckKnopf } from '@/components/ui/DruckKnopf';
@@ -65,7 +67,16 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
   const { sitzung } = zugang;
-  const t = nachSprache(BERICHT_DRUCK_TEXTE, zugang.sprache);
+  /*
+   * Die Sprache des Blatts — seine Wörter UND sein `lang` an einer Stelle
+   * (D-767, wie der Monatsnachweis). Das Blatt steht ohne die Hülle des
+   * Portals, also sagt ihm niemand sonst die Sprache an: ohne `lang` erbte es
+   * `<html lang="de-DE">`, und ein Screenreader läse die englischen Wörter
+   * einer englischen Sitzung mit deutscher Aussprache. Die Tabelle darunter
+   * bleibt `lang="de"` — ihre Köpfe und Werte kommen deutsch aus dem Dienst.
+   */
+  const blattSprache = internSprache(zugang.sprache);
+  const t = nachSprache(BERICHT_DRUCK_TEXTE, blattSprache);
   const roh = (name: string): string | null => {
     const w = suche[name];
     return typeof w === 'string' ? w : null;
@@ -111,7 +122,7 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
 
   return (
     <article data-cse="bericht-druckblatt" data-bericht={bericht} data-format={format}
-             className="cse-blatt">
+             className="cse-blatt" lang={PORTAL_BCP47[blattSprache]}>
       {/*
         Die Druckregeln gehören diesem Blatt und nicht der globalen CSS; sie
         stehen in `./stil.ts` — hoch oder quer je nach Tabelle (DESIGN §11,

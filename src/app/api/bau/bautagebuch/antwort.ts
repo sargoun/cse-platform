@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { BautagebuchFehler } from '@/server/services/bau/bautagebuch';
 
@@ -11,7 +11,7 @@ import { BautagebuchFehler } from '@/server/services/bau/bautagebuch';
  * „darf ich nicht" und „gibt es nicht" von aussen gleich aussehen — ein 403
  * bestaetigt die Existenz dessen, was es verweigert.
  */
-export function alsAntwort(fehler: unknown): NextResponse | null {
+export function alsAntwort(fehler: unknown, anfrage: NextRequest): NextResponse | null {
   if (fehler instanceof BautagebuchFehler) {
     return NextResponse.json(
       { fehler: fehler.code, meldung: fehler.message }, { status: fehler.status },
@@ -23,7 +23,7 @@ export function alsAntwort(fehler: unknown): NextResponse | null {
    * davon weichen irgendwann in einem Statuscode voneinander ab, und ein
    * abweichender Statuscode ist ein Orakel (AUT-06).
    */
-  const autorisierung = autorisierungsAntwort(fehler);
+  const autorisierung = autorisierungsAntwort(fehler, anfrage);
   if (autorisierung !== null) return autorisierung;
   /**
    * `null` heisst: DIESER Fehler gehoert nicht hierher. Der Aufrufer wirft ihn

@@ -8,6 +8,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { AuthSchale } from '../AuthSchale';
 import { FormField } from '@/components/ui/FormField';
 import { codeAnfordern } from '@/server/auth/mitarbeiter-anmeldung';
+import { mitWeiter, sichererRueckweg } from '@/server/auth/kennwort-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { keksSicher } from '@/server/auth/sitzung';
 import { GeraeteSprachwahl } from '@/components/sprache/GeraeteSprachwahl';
@@ -73,6 +74,14 @@ export default async function MitarbeiterAnmeldung(
   const suche: Record<string, string | string[] | undefined> =
     searchParams === undefined ? {} : await searchParams;
   const abgelaufen = suche['fehler'] === 'abgelaufen';
+  /*
+   * **Die Rückkehr** (D-766): ein Formular des Arbeiterportals, dessen
+   * Sitzung abgelaufen war, schickt hierher — mit der Seite, auf der es
+   * stand. Sie reist durch beide Schritte und die Sprachwahl; nach dem Code
+   * geht es dorthin statt auf „Heute". Nur ein eigener Pfad
+   * (`sichererRueckweg`), sonst entfällt sie still.
+   */
+  const weiter = sichererRueckweg(suche['weiter']);
   const sprache = await spracheDesGeraets();
   const t = ANMELDUNG_TEXTE[sprache];
   /**
@@ -112,7 +121,7 @@ export default async function MitarbeiterAnmeldung(
     if (ergebnis.codeFuerEntwicklung === null) keks.delete(ANMELDUNG_DEV_COOKIE);
     else keks.set(ANMELDUNG_DEV_COOKIE, ergebnis.codeFuerEntwicklung, anmeldeKeksOptionen());
 
-    redirect('/auth/mitarbeiter/code');
+    redirect(mitWeiter('/auth/mitarbeiter/code', daten.get('weiter')));
   }
 
   return (
@@ -124,7 +133,8 @@ export default async function MitarbeiterAnmeldung(
       sprache={sprache}
       beschriftung={t}
       sprachwahl={
-        <GeraeteSprachwahl aktiv={sprache} zurueck="/auth/mitarbeiter" label={t.sprachwahl} />
+        <GeraeteSprachwahl aktiv={sprache} zurueck={mitWeiter('/auth/mitarbeiter', weiter)}
+                           label={t.sprachwahl} />
       }
     >
 
@@ -170,6 +180,7 @@ export default async function MitarbeiterAnmeldung(
       )}
 
       <form action={anfordern} data-cse="anmeldung-telefon" className="flex flex-col gap-s4">
+        {weiter !== null && <input type="hidden" name="weiter" value={weiter} />}
         <FormField
           groesse="base"
           label={t.mobilnummer}

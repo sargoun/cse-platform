@@ -8,6 +8,7 @@ import { AuthSchale } from '../../AuthSchale';
 import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { codeEinloesen } from '@/server/auth/mitarbeiter-anmeldung';
+import { mitWeiter, sichererRueckweg } from '@/server/auth/kennwort-anmeldung';
 import { smsDienst } from '@/server/auth/sms';
 import { SITZUNG_COOKIE, mitarbeiterSitzungAusstellen, sitzungsKeksOptionen }
   from '@/server/auth/sitzung';
@@ -52,6 +53,9 @@ interface Props {
 }
 
 export default async function CodeEingabe({ searchParams }: Props) {
+  const suche = await searchParams;
+  /* Die Rückkehr aus dem ersten Schritt (D-766) — nur ein eigener Pfad. */
+  const weiter = sichererRueckweg(suche['weiter']);
   const keks = await cookies();
   const telefon = keks.get(ANMELDUNG_TELEFON_COOKIE)?.value ?? '';
   /*
@@ -59,7 +63,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
    * Diese Seite mit einer Nummer aus der URL zu fuettern, waere ein zweiter
    * Weg zum selben Ziel — und der zweite Weg ist der, den niemand prueft.
    */
-  if (telefon === '') redirect('/auth/mitarbeiter?fehler=abgelaufen');
+  if (telefon === '') redirect(mitWeiter('/auth/mitarbeiter?fehler=abgelaufen', weiter));
 
   const devCode = keks.get(ANMELDUNG_DEV_COOKIE)?.value ?? null;
   /**
@@ -78,7 +82,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
    * fordert einen neuen Code an, tippt wieder, scheitert wieder — bis die
    * Bremse haelt.
    */
-  const fehlerRoh = (await searchParams)['fehler'];
+  const fehlerRoh = suche['fehler'];
   const fehler = fehlerRoh === 'konto' ? 'konto' : fehlerRoh === undefined ? null : 'code';
   /**
    * Weder Versand noch Anzeige (O-82 offen, keine Entwicklungsflaeche): dann
@@ -111,7 +115,8 @@ export default async function CodeEingabe({ searchParams }: Props) {
      * vom Browser verworfen, ein zweites Fenster. Was der Mensch braucht, ist
      * nicht die Ursache, sondern der naechste Schritt.
      */
-    if (nummer === '') redirect('/auth/mitarbeiter?fehler=abgelaufen');
+    const zurueck = daten.get('weiter');
+    if (nummer === '') redirect(mitWeiter('/auth/mitarbeiter?fehler=abgelaufen', zurueck));
 
     const code = String(daten.get('code') ?? '').replace(/\s/gu, '');
     const { ip } = await herkunft(await headers());
@@ -136,7 +141,9 @@ export default async function CodeEingabe({ searchParams }: Props) {
       { art: 'ok'; sitzung: { token: string; sitzungId: string } } | { art: 'code' } | { art: 'konto' }
     >);
 
-    if (anmeldung.art !== 'ok') redirect(`/auth/mitarbeiter/code?fehler=${anmeldung.art}`);
+    if (anmeldung.art !== 'ok') {
+      redirect(mitWeiter(`/auth/mitarbeiter/code?fehler=${anmeldung.art}`, zurueck));
+    }
 
     /*
      * Die Anmeldekekse verschwinden, sobald sie nichts mehr halten: eine
@@ -164,8 +171,13 @@ export default async function CodeEingabe({ searchParams }: Props) {
      * hat er den Keks nicht angenommen — ueber `http://` lehnt er einen
      * `__Host-`-Keks ab —, und das Portal kann es SAGEN, statt nur „Anmeldung
      * erforderlich" zu zeigen (D-488).
+     *
+     * **Die Rückkehr geht über „Heute"** (D-766): `/portal/mein` leitet mit
+     * Sitzung auf `weiter` weiter und zeigt ohne Sitzung genau diesen Satz.
+     * Direkt auf `weiter` verlöre die Seite dahinter ihn — sie kennt
+     * `angemeldet=1` nicht.
      */
-    redirect('/portal/mein?angemeldet=1');
+    redirect(mitWeiter('/portal/mein?angemeldet=1', zurueck));
   }
 
   return (
@@ -181,7 +193,8 @@ export default async function CodeEingabe({ searchParams }: Props) {
       sprache={sprache}
       beschriftung={t}
       sprachwahl={
-        <GeraeteSprachwahl aktiv={sprache} zurueck="/auth/mitarbeiter/code" label={t.sprachwahl} />
+        <GeraeteSprachwahl aktiv={sprache} zurueck={mitWeiter('/auth/mitarbeiter/code', weiter)}
+                           label={t.sprachwahl} />
       }
     >
 
@@ -212,6 +225,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
       )}
 
       <form action={einloesen} data-cse="anmeldung-code" className="flex flex-col gap-s4">
+        {weiter !== null && <input type="hidden" name="weiter" value={weiter} />}
         <FormField
           groesse="base"
           label={t.codeLabel}
@@ -241,6 +255,7 @@ export default async function CodeEingabe({ searchParams }: Props) {
       </form>
 
       <form action="/auth/mitarbeiter" method="get">
+        {weiter !== null && <input type="hidden" name="weiter" value={weiter} />}
         <Button type="submit" variante="ghost" data-cse="code-neu">
           {t.andereNummer}
         </Button>
