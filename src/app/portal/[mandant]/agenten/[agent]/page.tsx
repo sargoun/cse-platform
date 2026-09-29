@@ -22,6 +22,7 @@ import {
   WERKZEUG_REGISTER, fuerAgent, untergrenze, type AgentKennung,
 } from '@/server/agent/tools/register-werkzeuge';
 import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/agenten/[agent]` — was dieser Agent tut, was er darf und
@@ -37,6 +38,35 @@ import { Recht } from '@/components/ui/Recht';
  * Wahrheit, und beim neunten Werkzeug wäre sie die falsche.
  */
 export const dynamic = 'force-dynamic';
+
+/**
+ * Warum ein Lauf nichts vorlegte — der Code aus `?code=`, als Satz (V-250).
+ *
+ * Die Route `/api/agenten/lauf` schickt den Code des Fehlschlags: die Gründe
+ * des Modellzugangs (`ModellFehlerCode`, §8) und die drei des Orchestrators
+ * (kein Preis, kein Budget, eine erfundene Zahl). Vorher stand der Code selbst
+ * in Anführungszeichen auf dem Schirm („RATE_LIMITED"), und ein fremder Wert aus
+ * der Adresse ebenso; jetzt wird ein unbekannter Code ein allgemeiner Satz.
+ * `RESIDENCY_BLOCKED` hat seinen eigenen Satz an der Stelle, die ihn zeigt.
+ */
+const LAUF_GESTOERT: Readonly<Record<string, string>> = {
+  NOT_CONNECTED:
+    'Der Modellanbieter ist nicht verbunden — in dieser Umgebung wird kein Modell aufgerufen.',
+  AUTH_FAILED: 'Der Modellanbieter hat den Zugangsschlüssel abgewiesen.',
+  RATE_LIMITED: 'Der Modellanbieter nimmt gerade keine weiteren Aufrufe an — auch nicht beim zweiten Versuch.',
+  TIMEOUT: 'Das Modell hat nicht rechtzeitig geantwortet.',
+  INVALID_RESPONSE: 'Die Antwort des Modells war nicht verwertbar.',
+  BUDGET_EXCEEDED: 'Das Budget für Modellaufrufe ist ausgeschöpft.',
+  PREIS_FEHLT:
+    'Für das freigegebene Modell steht kein Preis in der Preisliste — ein Lauf, dessen Kosten '
+    + 'niemand kennt, wird nicht gestartet (AGT-05).',
+  BUDGET:
+    'Für diesen Monat ist kein KI-Budget gesetzt, oder es ist ausgeschöpft — der Lauf wurde '
+    + 'abgelehnt (AGT-05).',
+  ZAHL_ERFUNDEN:
+    'Der Entwurf enthielt Zahlen, die in keiner Tatsache stehen. Das Modell rechnet nicht und '
+    + 'erfindet nichts (Invariante 6) — der Vorschlag wird nicht vorgelegt.',
+};
 
 const PILLE: Readonly<Record<string, PillZustand>> = {
   wartend: 'Wartet',
@@ -268,7 +298,7 @@ export default async function AgentDetail(
                 {laufCode === 'RESIDENCY_BLOCKED'
                   ? 'Für das Formulieren ist kein Modell mit EU-Verarbeitung und '
                     + 'Nullspeicherung freigegeben (§8, D-04). Die Arbeit läuft von Hand weiter.'
-                  : `Der Modellaufruf endete mit „${laufCode ?? 'unbekannt'}". `
+                  : `${eigenerEintrag(LAUF_GESTOERT, laufCode) ?? 'Der Modellaufruf ist gescheitert.'} `
                     + 'Der Vorgang steht im Agentenzentrum.'}
             </>
           )}

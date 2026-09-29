@@ -220,7 +220,9 @@ export default async function Korrekturblatt({
           data-cse="korrektur-fehler"
           className="mb-s5 max-w-prose rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
         >
-          {eigenerEintrag(FEHLER_TEXT, fehler) ?? `Die Korrektur wurde nicht geschrieben: ${fehler}`}
+          {eigenerEintrag(FEHLER_TEXT, fehler)
+            ?? 'Die Korrektur wurde nicht geschrieben. Prüfen Sie die Angaben und speichern Sie '
+              + 'noch einmal.'}
         </p>
       )}
 

@@ -155,7 +155,7 @@ export default async function Zugang(
       ) : null}
       {fehler !== null ? (
         <Hinweis art="warnung" cse="zugang-fehler" className="mb-s5 max-w-prose">
-          {eigenerEintrag(t.fehler, fehler) ?? fehler}
+          {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
         </Hinweis>
       ) : null}
 
@@ -226,7 +226,7 @@ export default async function Zugang(
       ) : null}
       {grund !== null ? (
         <Hinweis art="warnung" cse="zugang-abgewiesen" className="mb-s5 max-w-prose">
-          <strong>{t.codeKeiner}</strong> {eigenerEintrag(t.codeGrund, grund) ?? grund}
+          <strong>{t.codeKeiner}</strong> {eigenerEintrag(t.codeGrund, grund) ?? t.codeGrundSonst}
         </Hinweis>
       ) : null}
 

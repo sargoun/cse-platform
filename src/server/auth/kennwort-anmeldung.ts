@@ -495,15 +495,30 @@ const ZU_HAEUFIG = new Set([
   'administrator', 'willkommen1', 'geheimgeheim',
 ]);
 
-export function kennwortFehler(kennwort: string, mindest = KENNWORT_MIN): string | null {
-  if (kennwort.length < mindest) {
-    return `Mindestens ${String(mindest)} Zeichen — je länger, desto besser.`;
-  }
-  if (ZU_HAEUFIG.has(kennwort.toLowerCase())) {
-    return 'Dieses Kennwort steht in jeder Wortliste. Bitte ein anderes.';
-  }
-  if (new Set(kennwort).size < 5) {
-    return 'Zu wenige verschiedene Zeichen.';
-  }
+/**
+ * Warum ein Kennwort nicht genügt — als WORT, damit es durch eine Adresse
+ * reisen kann (`?fehler=kurz`) und die Seite den Satz dazu nachschlägt. Ein
+ * Satz in der Adresse wäre einer, den jeder hineinschreiben kann (V-250).
+ */
+export type KennwortSchwaeche = 'kurz' | 'haeufig' | 'einfoermig';
+
+export function kennwortSchwaeche(
+  kennwort: string, mindest = KENNWORT_MIN,
+): KennwortSchwaeche | null {
+  if (kennwort.length < mindest) return 'kurz';
+  if (ZU_HAEUFIG.has(kennwort.toLowerCase())) return 'haeufig';
+  if (new Set(kennwort).size < 5) return 'einfoermig';
   return null;
+}
+
+/** Der Satz zu einer Schwäche — derselbe, den `kennwortFehler` liefert. */
+export function schwaecheSatz(schwaeche: KennwortSchwaeche, mindest = KENNWORT_MIN): string {
+  if (schwaeche === 'kurz') return `Mindestens ${String(mindest)} Zeichen — je länger, desto besser.`;
+  if (schwaeche === 'haeufig') return 'Dieses Kennwort steht in jeder Wortliste. Bitte ein anderes.';
+  return 'Zu wenige verschiedene Zeichen.';
+}
+
+export function kennwortFehler(kennwort: string, mindest = KENNWORT_MIN): string | null {
+  const schwaeche = kennwortSchwaeche(kennwort, mindest);
+  return schwaeche === null ? null : schwaecheSatz(schwaeche, mindest);
 }

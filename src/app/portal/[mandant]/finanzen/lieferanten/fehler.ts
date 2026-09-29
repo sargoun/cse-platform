@@ -51,6 +51,17 @@ Readonly<Record<InternSprache, Readonly<Record<string, string>>>> = {
 };
 
 /**
+ * Der Satz für einen Grund, den die Tabelle oben nicht kennt — nie der Grund
+ * selbst: er steht in der Adresse, und dort kann jeder alles hineinschreiben
+ * (V-250).
+ */
+export const LIEFERANT_FEHLER_SONST: Readonly<Record<InternSprache, string>> = {
+  de: 'Der Lieferant wurde nicht gespeichert. Prüfen Sie die Angaben und speichern Sie '
+    + 'noch einmal.',
+  en: 'The Lieferant was not saved. Check the entries and save again.',
+};
+
+/**
  * Der Anfang des Satzes zu `kein_schreibrecht` — das Recht selbst setzt die
  * Seite dahinter als `<Recht>` (Name im Satz, Schlüssel im `title`, V-250).
  * Vorher stand hier der rohe Schlüssel in Backticks, auf dem Schirm wörtlich.

@@ -20925,7 +20925,7 @@ eine Prüfung, die den Satz nur aufrief.
 | Betrifft | EMP-10, D-663, D-681, D-692, O-613, O-925, V-187, V-260, `src/lib/i18n/mein-formular.ts` (`fehlt_einsatz`), `src/lib/i18n/mein-formulare.ts` (`AntragFormTexte`), `tests/kern/{mein-formular-rueckweg,antrag-rueckweg}.test.ts` |
 |---|---|
 
-### D-741 · Ein Recht steht als Satz auch ausserhalb von `<code>` — kein Schlüssel, kein Backtick und kein Stück Quelltext im sichtbaren Text, geprüft am Syntaxbaum (V-250)
+### D-741 · Ein Recht steht als Satz auch ausserhalb von `<code>` — kein Schlüssel, kein Backtick, kein Stück Quelltext und kein roher Grund aus der Adresse im sichtbaren Text, geprüft am Syntaxbaum (V-250)
 
 **Der Befund** (Durchgang über den sichtbaren Text, Nutzerwunsch „wo auf einer
 Seite Quelltext steht, mach einen Rahmen und einen Satz daraus"): V-123 hatte
@@ -21020,10 +21020,8 @@ Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
 8. **Nicht erfasst, bewusst:** ein Schlüssel, der über einen
    Funktionsparameter in eine Vorlage fliesst (das Beendigungsblatt fand die
    Suche von Hand; die Wache verfolgt Aufrufargumente nicht, weil
-   `hatRecht('…')` dieselbe Form hat), und der Rückfall `?? fehler`, mit dem
-   fünf Seiten einen unbekannten Grund aus der Adresse roh zeigen (KI-Budget,
-   Lieferant, Raum anlegen, Turnus, Zeitkorrektur) — kein Rechteschlüssel,
-   aber derselbe Befund in klein; er bleibt für einen eigenen Durchgang.
+   `hatRecht('…')` dieselbe Form hat). Der Rückfall `?? fehler`, den die
+   erste Runde hier offen liess, ist Nr. 10.
 9. **Die zweite Runde: jedes Stück Quelltext im Satz ist ein Satz
    geworden** — auf 56 Seiten und in fünf Satztabellen der Finanzen, de und,
    wo die Tabelle zweisprachig ist, en. Gesagt wird, was geschieht und wer es
@@ -21050,6 +21048,71 @@ Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
      `<code>`; sie sind je EIN Satz, und die Konstanten, die die Namen
      hielten (`SPALTE_*`, `TABELLE_*`, `PFAD_STORNO`, `POLICY_DATEI`,
      `BEFEHL_COMPLIANCE` …), fallen weg.
+10. **Ein Grund aus der Adresse wird ein Satz — ein unbekannter ein
+    allgemeiner, nie er selbst.** Den Rückfall `?? fehler` sah die erste
+    Runde an fünf Seiten; am Syntaxbaum gezählt standen auf 21561fd 17
+    Stellen auf 16 Seiten: `eigenerEintrag(t.fehler, fehler) ?? fehler`
+    (KI-Budget, Sprachmodelle, Lieferant neu und Blatt, Raum anlegen, Zugang
+    zweimal, Urlaubskonten), `FEHLER[roh] ?? roh` (Kennwortwechsel),
+    `KATEGORIE[gesetzt] ?? gesetzt` (Aufbewahrung), `?? meldung` (Lead neu
+    und Blatt), der Turnus-Ast `<>Nicht angelegt. {fehlerAusApi}</>`, Vorlagen
+    mit dem Wort darin („Die Korrektur wurde nicht geschrieben: ${fehler}",
+    „Der Anspruch wurde nicht übernommen: ${fehler}", „Der Modellaufruf
+    endete mit „${laufCode}"") — und die Zahlungsseite zeigte nach JEDER
+    erfassten Zahlung das Wort `erfasst` (ebenso `guthaben`, `storniert`).
+    Was in der Adresse steht, kann jeder in einen Link schreiben; die Seite
+    zeigte es unter dem Namen der Gruppe.
+    - Jede dieser Seiten schlägt den Grund nach und fällt sonst auf einen
+      eigenen Satz zurück (`fehlerSonst`, `codeGrundSonst`, `hinweisSonst`,
+      `LIEFERANT_FEHLER_SONST` de/en; auf den fest deutschen Seiten
+      deutsch).
+    - Gründe, die eine Route wirklich schickt und die keinen Satz hatten,
+      haben jetzt einen: `erfasst`, `guthaben`, `storniert` (Zahlungen),
+      `beginn_fehlt`, `grund_unbekannt`, `nicht_gefunden` (Nacherfassung),
+      die zehn Codes eines gestörten Agentenlaufs (die Gründe des
+      Modellzugangs aus §8, `PREIS_FEHLT`, `BUDGET`, `ZAHL_ERFUNDEN`).
+      Gegengelesen gegen die Gründe, die die Dienste werfen — KI-Budget (7),
+      Sprachmodelle (9), Lieferant (10), Raum anlegen (10), Zugang (10 und 4
+      für den Code), Urlaubskonten (3 über die Maske), Zeitkorrektur (10),
+      Lead (jeder `CrmFehler`-Grund der Lead-Dienste): keiner fällt auf den
+      allgemeinen Satz.
+    - **Der Kennwortwechsel** schickte die Schwäche des neuen Kennworts als
+      SATZ durch die Adresse; jetzt als Wort (`kurz`, `haeufig`,
+      `einfoermig` aus `kennwortSchwaeche()`), und die Seite setzt denselben
+      Satz ein (`schwaecheSatz()`; `kennwortFehler()` liefert unverändert
+      dieselben Sätze).
+    - **Lead und Turnus:** der deutsche Satz der Route (`?meldung=` beim
+      Lead, `?fehler=` beim Turnus für alles ausser dem Anker, D-599-Altlast)
+      ist kein Rückfall mehr. Beim Lead geht dabei nichts verloren, jeder
+      Grund der Route hat einen Satz. Beim Turnus sagt die Seite „Prüfen Sie
+      die Angaben in der Vorschau und legen Sie die Serie von dort noch
+      einmal an" — die Vorschau liest dieselbe Regel und nennt, was fehlt.
+    - **Geprüft am Syntaxbaum**, hart, ohne Bestand
+      (`tests/kern/hilfen/adressparameter.ts`,
+      `tests/kern/adressparameter.test.ts`): kein Rückfall auf einen
+      Adressparameter im sichtbaren Text, nirgends in `src/app` und
+      `src/components`. Adressparameter ist `searchParams` und die
+      Eigenschaft `suche` eines Bausteins, was daraus gelesen und
+      unverändert weitergereicht wird (`??`, `||`, `?:`, Vorlagen,
+      `String()`, `.trim()`, eine Funktion derselben Datei oder über den
+      Import, die ihn zurückgibt) — nicht mehr, was ihn nachschlägt
+      (`eigenerEintrag`, `T[f]`) oder was eine Bedingung geprüft hat (ein
+      Muster, eine Liste, eine Typprüfung, ein festes Wort). Rückfall heisst:
+      hinter `??`/`||` eines Satzes der Seite, oder in einer Datei, die für
+      denselben Parameter Gründe kennt (nachschlägt, mit einem Grund
+      vergleicht, `switch`). Die Gegenprobe findet jede Form oben und keinen
+      Satz der Seite, keine Meldung als solche, kein Suchwort, keinen
+      geprüften Wert, keine Anzahl.
+    - **Offen, bewusst ausserhalb:** 159 Stellen zeigen einen
+      Adressparameter ALS SOLCHEN — Suchwörter, vorbelegte Eingaben,
+      Anzahlen und, auf rund 40 Seiten, die Meldung, die eine Route als Satz
+      mitschickt (`?meldung=`, `?hinweis=`, `?fehler=`; D-599 hat das für
+      das öffentliche Angebotsformular so entschieden). Diese Sätze kommen
+      aus den Diensten, und 124 der 1259 Fehlertexte unter `src/server`
+      tragen selbst Quelltext (einen Schlüssel, einen Namen in Backticks,
+      ein SQL-Wort); wo eine Route einen davon weiterreicht, steht er so auf
+      dem Schirm. Das ist ein eigener Durchgang: die Routen schicken dann
+      Schlüssel, die Seiten übersetzen sie.
 
 | Betrifft | V-123, V-250, AUT-06, D-599, D-728, `src/components/ui/Recht.tsx`, `src/lib/i18n/rechtname.ts`, `src/lib/i18n/verwaltung/{agent-budget,raumbuch-neu}.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,uebersicht}.ts`, `src/app/auth/{kein-zugriff,zwei-faktor/wiederherstellung}/page.tsx`, 70 Seiten und Satztabellen unter `src/app/portal/[mandant]`, `tests/kern/{recht-im-satz,rechtname}.test.ts`, `tests/kern/hilfen/sichtbarer-text.ts` |
 |---|---|

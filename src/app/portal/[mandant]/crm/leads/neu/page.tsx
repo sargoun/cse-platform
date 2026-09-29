@@ -79,8 +79,9 @@ export default async function LeadNeu(
 
       {(meldung !== null || fehler !== null) && (
         <Hinweis art="warnung" cse="lead-meldung" className="mb-s5 max-w-prose">
-          {/* Der übersetzte Schlüssel gewinnt; der Satz der Route ist der Rückfall. */}
-          {(fehler === null ? undefined : eigenerEintrag(k.fehler, fehler)) ?? meldung ?? k.nichtAngelegt}
+          {/* Der übersetzte Schlüssel wird ein Satz; ein Wort, das die Seite nicht kennt,
+              der allgemeine Satz — nie, was in der Adresse steht (V-250). */}
+          {(fehler === null ? undefined : eigenerEintrag(k.fehler, fehler)) ?? k.nichtAngelegt}
         </Hinweis>
       )}
 

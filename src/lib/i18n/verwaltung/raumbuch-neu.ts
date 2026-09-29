@@ -41,6 +41,9 @@ export interface RaumNeuTexte {
   readonly importHinweis: string;
 
   readonly fehler: Readonly<Record<string, string>>;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly fehlerSonst: string;
 }
 
 const DE: RaumNeuTexte = {
@@ -106,6 +109,8 @@ const DE: RaumNeuTexte = {
       'Dieses Objekt ist archiviert. Ein archiviertes Objekt bekommt keine neuen Räume.',
     // `kein_recht` setzt die Seite aus `keinSchreibrecht` und `<Recht>` (V-250).
   },
+  fehlerSonst:
+    'Der Raum wurde nicht angelegt. Prüfen Sie die Angaben und legen Sie ihn noch einmal an.',
 };
 
 const EN: RaumNeuTexte = {
@@ -168,6 +173,7 @@ const EN: RaumNeuTexte = {
       'This Objekt (site) is archived. An archived site takes no new rooms.',
     // `kein_recht`: the page builds it from `keinSchreibrecht` and `<Recht>` (V-250).
   },
+  fehlerSonst: 'The room was not created. Check the entries and create it again.',
 };
 
 export const RAUM_NEU_TEXTE: Readonly<Record<InternSprache, RaumNeuTexte>> = {

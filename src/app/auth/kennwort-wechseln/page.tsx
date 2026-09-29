@@ -6,8 +6,9 @@ import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import {
-  KENNWORT_MIN, aendereKennwort, kennwortFehler,
+  KENNWORT_MIN, aendereKennwort, kennwortSchwaeche, schwaecheSatz,
 } from '@/server/auth/kennwort-anmeldung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { SITZUNG_COOKIE } from '@/server/auth/sitzung';
 import { bindeAnfrage } from '@/server/kontext/index';
 import { db } from '@/server/db/pool';
@@ -40,9 +41,19 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Kennwort wechseln — CSE Gruppe' };
 
+/**
+ * Die Wörter, mit denen der Wechsel zurückkommt (`?fehler=`), als Satz. Die
+ * Schwäche des neuen Kennworts reiste vorher als SATZ durch die Adresse, und
+ * die Seite zeigte jedes Wort, das sie nicht kannte, roh — auch eines, das
+ * jemand in einen Link geschrieben hat. Jetzt reist ein Wort, und ein
+ * unbekanntes wird ein allgemeiner Satz (V-250).
+ */
 const FEHLER: Readonly<Record<string, string>> = {
   alt: 'Das bisherige Kennwort stimmt nicht.',
   gleich: 'Das neue Kennwort muss sich vom bisherigen unterscheiden.',
+  kurz: schwaecheSatz('kurz'),
+  haeufig: schwaecheSatz('haeufig'),
+  einfoermig: schwaecheSatz('einfoermig'),
 };
 
 export default async function KennwortWechseln({ searchParams }: {
@@ -59,10 +70,8 @@ export default async function KennwortWechseln({ searchParams }: {
     const alt = String(daten.get('alt') ?? '');
     const neu = String(daten.get('neu') ?? '');
 
-    const schwach = kennwortFehler(neu);
-    if (schwach !== null) {
-      redirect(`/auth/kennwort-wechseln?fehler=${encodeURIComponent(schwach)}`);
-    }
+    const schwach = kennwortSchwaeche(neu);
+    if (schwach !== null) redirect(`/auth/kennwort-wechseln?fehler=${schwach}`);
     if (alt === neu) redirect('/auth/kennwort-wechseln?fehler=gleich');
 
     const aktuell = await aktuelleSitzung();
@@ -92,7 +101,9 @@ export default async function KennwortWechseln({ searchParams }: {
                   neue Schlüssel."
     >
       {roh !== null && (
-        <AuthFehler cse="wechsel-fehler">{FEHLER[roh] ?? roh}</AuthFehler>
+        <AuthFehler cse="wechsel-fehler">
+          {eigenerEintrag(FEHLER, roh) ?? 'Das Kennwort wurde nicht gewechselt. Versuchen Sie es noch einmal.'}
+        </AuthFehler>
       )}
 
       <Hinweis art="hinweis" cse="wechsel-grund" className="mb-s4">

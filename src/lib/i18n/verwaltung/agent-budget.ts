@@ -46,6 +46,9 @@ export interface BudgetTexte {
   readonly gesetzt: string;
   readonly keinSchreibrecht: string;
   readonly fehler: Readonly<Record<string, string>>;
+  /** Für einen Grund, den die Seite nicht kennt — nie der Grund selbst, der in der
+   *  Adresse steht und den jeder hineinschreiben kann (V-250). */
+  readonly fehlerSonst: string;
   /**
    * Die Frage hinter `fehler.abgewiesen` — um das Recht herum, das die Seite
    * als `<Recht>` dazwischensetzt (V-250). Bis dahin stand der Schlüssel in
@@ -114,6 +117,9 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
       unvollstaendig: 'Es fehlt eine Angabe.',
       abgewiesen: 'Die Datenbank hat den Schreibversuch abgewiesen.',
     },
+    fehlerSonst:
+      'Die Obergrenze wurde nicht gesetzt. Prüfen Sie die Angaben und speichern Sie noch '
+      + 'einmal.',
     abgewiesenFrageVor: 'Fehlt in dieser Gesellschaft das Recht',
     abgewiesenFrageNach: ', oder steht die Ansicht auf „nur lesen"?',
   },
@@ -172,6 +178,7 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
       unvollstaendig: 'Something is missing.',
       abgewiesen: 'The database refused the write.',
     },
+    fehlerSonst: 'The cap was not set. Check the entries and save again.',
     abgewiesenFrageVor: 'Is this Gesellschaft missing the right',
     abgewiesenFrageNach: ', or is the view read-only?',
   },
