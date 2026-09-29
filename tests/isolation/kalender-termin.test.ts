@@ -324,13 +324,21 @@ describe('(3) absagen — der Termin bleibt stehen', () => {
   });
 });
 
-describe('(4) der Seed legt Termine über den Dienst an — auch einen abgesagten', () => {
-  it('Besprechung, Kundentermin und eine Absage mit Grund; ein zweiter Lauf legt nichts nach', async () => {
+describe('(4) der Seed legt Termine über den Dienst an — ändert einen und sagt einen ab', () => {
+  it('Besprechung, Kundentermin, eine Änderung und eine Absage mit Grund; ein zweiter Lauf legt nichts nach', async () => {
     const ids = new Map([['reinigung', f.reinigung]]);
-    expect(await seedTermine(sql, ids, false)).toEqual({ angelegt: 0, abgesagt: 0 });
+    expect(await seedTermine(sql, ids, false)).toEqual({ angelegt: 0, geaendert: 0, abgesagt: 0 });
     const erster = await seedTermine(sql, ids, true);
-    expect(erster.angelegt).toBe(3);
-    expect(erster.abgesagt).toBe(1);
+    expect(erster).toEqual({ angelegt: 3, geaendert: 1, abgesagt: 1 });
+    /* Geändert über den Dienst — das Protokoll kennt vorher und nachher. */
+    const [p] = await sql.unsafe<{ vorher: Record<string, unknown>; nachher: Record<string, unknown> }[]>(
+      `select a.vorher, a.nachher from audit_log a
+         join kalender_eintrag k on k.id::text = a.objekt_id
+        where a.aktion = 'kalender.termin_geaendert' and k.mandant_id = $1
+          and k.beschreibung like '%' || $2 || '%'`, [f.reinigung, TERMIN_KENNZEICHEN]);
+    expect(p).toBeDefined();
+    expect(new Date(String(p!.nachher['beginn'])).getTime()
+      - new Date(String(p!.vorher['beginn'])).getTime()).toBe(STUNDE);
     const zeilen = await sql.unsafe<{ art: string; abgesagt: boolean; besitzer: string | null }[]>(
       `select art::text as art, abgesagt_am is not null as abgesagt,
               besitzer_benutzer_id::text as besitzer
@@ -343,6 +351,6 @@ describe('(4) der Seed legt Termine über den Dienst an — auch einen abgesagte
     /* Geführt von EINEM Menschen — dem, in dessen Sitzung der Seed den Dienst rief. */
     expect(new Set(zeilen.map((z) => z.besitzer)).size).toBe(1);
     expect(zeilen[0]!.besitzer).not.toBeNull();
-    expect(await seedTermine(sql, ids, true)).toEqual({ angelegt: 0, abgesagt: 0 });
+    expect(await seedTermine(sql, ids, true)).toEqual({ angelegt: 0, geaendert: 0, abgesagt: 0 });
   });
 });

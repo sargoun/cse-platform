@@ -297,17 +297,45 @@ describe('(3) als geführt vermerken', () => {
   });
 });
 
-describe('(4) der Seed zeigt alle drei Stände — über die Dienste', () => {
-  it('geplant, abgesagt mit Grund, als geführt vermerkt — und ein zweiter Lauf legt nichts nach', async () => {
+describe('(4) der Seed zeigt alle drei Stände und ein Verschieben — über die Dienste', () => {
+  it('geplant und verschoben, abgesagt mit Grund, als geführt vermerkt — und ein zweiter Lauf legt nichts nach', async () => {
     await sql.unsafe(
       `insert into bewerbung (mandant_id, name, email, quelle, status, aufbewahrung_bis)
        values ($1, 'Jonas Weber', 'jonas@gespraech.test', 'initiativ', 'eingegangen',
                current_date + 180)`, [f.reinigung]);
+    /*
+     * Beide kamen vor zehn Tagen; eine dritte kam HEUTE — nach dem Termin des
+     * geführten Gesprächs (vorgestern) und bekommt deshalb keins.
+     */
+    await sql.unsafe(`update bewerbung set eingegangen_am = now() - interval '10 days'
+                       where mandant_id = $1`, [f.reinigung]);
+    const [heute] = await sql.unsafe<{ id: string }[]>(
+      `insert into bewerbung (mandant_id, name, email, quelle, status, aufbewahrung_bis)
+       values ($1, 'Mehmet Yılmaz', 'mehmet@gespraech.test', 'mail', 'eingegangen',
+               current_date + 180) returning id`, [f.reinigung]);
     const ids = new Map([['reinigung', f.reinigung]]);
     expect(await seedGespraeche(sql, ids, false))
-      .toEqual({ geplant: 0, abgesagt: 0, gefuehrt: 0 });
+      .toEqual({ geplant: 0, verschoben: 0, abgesagt: 0, gefuehrt: 0 });
     expect(await seedGespraeche(sql, ids, true))
-      .toEqual({ geplant: 1, abgesagt: 1, gefuehrt: 1 });
+      .toEqual({ geplant: 1, verschoben: 1, abgesagt: 1, gefuehrt: 1 });
+
+    /* Kein Gespräch vor dem Eingang seiner Bewerbung — und keins für die von heute. */
+    const [reihe] = await sql.unsafe<{ stimmt: boolean; heute: number }[]>(
+      `select bool_and(b.eingegangen_am < g.termin) as stimmt,
+              count(*) filter (where b.id = $3)::int as heute
+         from gespraech g join bewerbung b on b.id = g.bewerbung_id
+        where g.mandant_id = $1 and g.ort = $2`, [f.reinigung, GESPRAECH_ORT, heute!.id]);
+    expect(reihe).toEqual({ stimmt: true, heute: 0 });
+
+    /* Verschoben über den Dienst: einen Tag weiter, 45 Minuten, alter Termin im Protokoll. */
+    const [verlegt] = await sql.unsafe<{ vorher: Record<string, unknown>; nachher: Record<string, unknown> }[]>(
+      `select vorher, nachher from audit_log
+        where objekt_typ = 'gespraech' and aktion = 'recruiting.gespraech_verschoben'
+          and objekt_id in (select id::text from gespraech where ort = $1)`, [GESPRAECH_ORT]);
+    expect(verlegt!.nachher['dauer_minuten']).toBe(45);
+    expect(verlegt!.vorher['dauer_minuten']).toBe(60);
+    expect(new Date(String(verlegt!.nachher['termin'])).getTime()
+      - new Date(String(verlegt!.vorher['termin'])).getTime()).toBe(25 * 3600 * 1000);
 
     const zeilen = await sql.unsafe<{
       status: string; grund: string | null; von: string | null; vermerkt: string | null;
@@ -330,6 +358,6 @@ describe('(4) der Seed zeigt alle drei Stände — über die Dienste', () => {
     expect(protokoll!.n).toBe(2);
 
     expect(await seedGespraeche(sql, ids, true))
-      .toEqual({ geplant: 0, abgesagt: 0, gefuehrt: 0 });
+      .toEqual({ geplant: 0, verschoben: 0, abgesagt: 0, gefuehrt: 0 });
   });
 });

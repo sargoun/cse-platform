@@ -13,11 +13,23 @@
  * zwei Tage zurück; `planeGespraech` prüft keine Zukunft (das tut die Route),
  * vermerkt wird es erst danach, gegen `now()`.
  *
+ * **Und verschoben wird eines** (`verschiebeGespraech`): das geplante wandert
+ * einen Tag weiter — die Demo zeigt so auch `recruiting.gespraech_verschoben`
+ * mit altem und neuem Termin im Protokoll (Prüfung der Gruppe
+ * kalender-dokumente).
+ *
+ * **Gespräche nur zu Bewerbungen, die VOR dem geführten Gespräch eingingen.**
+ * Vorher nahm der Seed die zwei jüngsten — und seit der Postfach-Bewerbung
+ * stand ein Gespräch da, das zwei Tage vor dem Eingang seiner Bewerbung
+ * geführt worden sein sollte.
+ *
  * Nur auf der Vorführfläche (Demodaten) und nur einmal: erkannt am Ort.
  */
 import type postgres from 'postgres';
 import { planeGespraech } from '../../services/recruiting/dienst.js';
-import { sageGespraechAb, vermerkeGespraech } from '../../services/recruiting/gespraech.js';
+import {
+  sageGespraechAb, vermerkeGespraech, verschiebeGespraech,
+} from '../../services/recruiting/gespraech.js';
 import { alsPortalSitzung } from './sitzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -26,11 +38,13 @@ export const GESPRAECH_ORT = 'Kurfürstendamm 21, Besprechungsraum 2 (Demodaten)
 
 export interface GespraechSeedErgebnis {
   readonly geplant: number;
+  /** Davon über `verschiebeGespraech` verlegt. */
+  readonly verschoben: number;
   readonly abgesagt: number;
   readonly gefuehrt: number;
 }
 
-const LEER: GespraechSeedErgebnis = { geplant: 0, abgesagt: 0, gefuehrt: 0 };
+const LEER: GespraechSeedErgebnis = { geplant: 0, verschoben: 0, abgesagt: 0, gefuehrt: 0 };
 
 export async function seedGespraeche(
   sql: Sql, ids: ReadonlyMap<string, string>, demodaten: boolean,
@@ -55,22 +69,26 @@ export async function seedGespraeche(
      order by b.email limit 1`;
   if (mensch === undefined) return LEER;
 
-  const bewerbungen = await sql<{ id: string }[]>`
-    select id from bewerbung
-     where mandant_id = ${reinigung} and geloescht_am is null
-       and aufbewahrung_bis >= app.berlin_heute()
-     order by eingegangen_am desc limit 2`;
-  const [erste, zweite] = bewerbungen;
-  if (erste === undefined) return LEER;
-
-  const [zeiten] = await sql<{ bald: Date; spaeter: Date; vorbei: Date }[]>`
+  const [zeiten] = await sql<{ bald: Date; verlegt: Date; spaeter: Date; vorbei: Date }[]>`
     select ((app.berlin_heute() + 4)::timestamp + interval '10 hours')
              at time zone 'Europe/Berlin' as bald,
+           ((app.berlin_heute() + 5)::timestamp + interval '11 hours')
+             at time zone 'Europe/Berlin' as verlegt,
            ((app.berlin_heute() + 6)::timestamp + interval '14 hours 30 minutes')
              at time zone 'Europe/Berlin' as spaeter,
            ((app.berlin_heute() - 2)::timestamp + interval '9 hours')
              at time zone 'Europe/Berlin' as vorbei`;
   if (zeiten === undefined) return LEER;
+
+  /* Nur Bewerbungen, die vor dem geführten Gespräch eingingen — die jüngsten davon. */
+  const bewerbungen = await sql<{ id: string }[]>`
+    select id from bewerbung
+     where mandant_id = ${reinigung} and geloescht_am is null
+       and aufbewahrung_bis >= app.berlin_heute()
+       and eingegangen_am < ${zeiten.vorbei}
+     order by eingegangen_am desc limit 2`;
+  const [erste, zweite] = bewerbungen;
+  if (erste === undefined) return LEER;
 
   const fragen = [
     'Welche Objekte haben Sie bisher betreut?',
@@ -79,7 +97,8 @@ export async function seedGespraeche(
   ];
 
   return alsPortalSitzung(sql, reinigung, mensch.id, async (k) => {
-    await planeGespraech(k, erste.id, zeiten.bald, 60, GESPRAECH_ORT, fragen);
+    const geplant = await planeGespraech(k, erste.id, zeiten.bald, 60, GESPRAECH_ORT, fragen);
+    await verschiebeGespraech(k, geplant, zeiten.verlegt, 45);
 
     const vorbei = await planeGespraech(k, erste.id, zeiten.vorbei, 45, GESPRAECH_ORT,
       fragen);
@@ -94,6 +113,6 @@ export async function seedGespraeche(
         + '(Demodaten).');
       abgesagt = 1;
     }
-    return { geplant: 1, abgesagt, gefuehrt: 1 };
+    return { geplant: 1, verschoben: 1, abgesagt, gefuehrt: 1 };
   });
 }

@@ -2002,7 +2002,8 @@ async function main(): Promise<void> {
   if (termine.angelegt > 0) {
     process.stdout.write(
       `  Kalender: ${String(termine.angelegt)} eigene Termine über den Dienst, davon `
-      + `${String(termine.abgesagt)} abgesagt (mit Grund, bleibt stehen)\n`);
+      + `${String(termine.geaendert)} geändert und ${String(termine.abgesagt)} abgesagt `
+      + '(mit Grund, bleibt stehen)\n');
   }
 
   /**
@@ -2086,7 +2087,8 @@ async function main(): Promise<void> {
 
   const gespraeche = await seedGespraeche(sql, ids, demodaten);
   process.stdout.write(
-    `  Gespräche: ${String(gespraeche.geplant)} geplant, ${String(gespraeche.abgesagt)} `
+    `  Gespräche: ${String(gespraeche.geplant)} geplant (${String(gespraeche.verschoben)} `
+    + `davon verschoben), ${String(gespraeche.abgesagt)} `
     + `abgesagt (mit Grund, bleibt im Kalender stehen), ${String(gespraeche.gefuehrt)} als `
     + 'geführt vermerkt — an die Bewerberin geht nichts ohne Freigabe\n');
 

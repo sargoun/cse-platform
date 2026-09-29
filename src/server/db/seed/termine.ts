@@ -12,11 +12,16 @@
  * **Die Zeitpunkte rechnet die Datenbank**: Berliner Wanduhr relativ zu
  * `app.berlin_heute()`, als Instant (Invariante 2).
  *
+ * **Und geändert wird einer** (`aendereTermin`): die Begehung rückt eine
+ * Stunde später und bekommt den Treffpunkt — die Demo zeigt so auch
+ * `kalender.termin_geaendert` mit vorher und nachher im Protokoll (Prüfung der
+ * Gruppe kalender-dokumente).
+ *
  * Nur auf der Vorführfläche (Demodaten) und nur einmal: erkannt am
  * Kennzeichen in der Beschreibung.
  */
 import type postgres from 'postgres';
-import { legeTerminAn, sageTerminAb } from '../../services/kalender/termin.js';
+import { aendereTermin, legeTerminAn, sageTerminAb } from '../../services/kalender/termin.js';
 import { alsPortalSitzung } from './sitzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -25,10 +30,12 @@ export const TERMIN_KENNZEICHEN = '(Demodaten, Terminpflege)';
 
 export interface TerminSeedErgebnis {
   readonly angelegt: number;
+  /** Davon über `aendereTermin` geändert. */
+  readonly geaendert: number;
   readonly abgesagt: number;
 }
 
-const LEER: TerminSeedErgebnis = { angelegt: 0, abgesagt: 0 };
+const LEER: TerminSeedErgebnis = { angelegt: 0, geaendert: 0, abgesagt: 0 };
 
 export async function seedTermine(
   sql: Sql, ids: ReadonlyMap<string, string>, demodaten: boolean,
@@ -85,7 +92,7 @@ export async function seedTermine(
       ganztaegig: false,
       teilnehmer: andere === undefined ? [] : [andere.id],
     });
-    await legeTerminAn(k, {
+    const begehung = {
       art: 'kundentermin',
       titel: 'Begehung mit der Hausverwaltung',
       beschreibung: `Qualitätsrundgang durch Treppenhaus und Tiefgarage ${TERMIN_KENNZEICHEN}`,
@@ -93,6 +100,14 @@ export async function seedTermine(
       beginn: z.begehung, ende: new Date(z.begehung.getTime() + 90 * 60 * 1000),
       ganztaegig: false,
       teilnehmer: [],
+    };
+    const begehungId = await legeTerminAn(k, begehung);
+    /* Die Hausverwaltung bittet um eine Stunde später — geändert wie im Portal. */
+    await aendereTermin(k, begehungId, {
+      ...begehung,
+      ort: 'Kurfürstendamm 21, Berlin — Treffpunkt Hausmeisterloge',
+      beginn: new Date(z.begehung.getTime() + stunde),
+      ende: new Date(z.begehung.getTime() + stunde + 90 * 60 * 1000),
     });
     const abzusagen = await legeTerminAn(k, {
       art: 'kundentermin',
@@ -105,6 +120,6 @@ export async function seedTermine(
     });
     await sageTerminAb(k, abzusagen,
       'Der Kunde hat den Termin telefonisch abgesagt — neuer Termin folgt (Demodaten).');
-    return { angelegt: 3, abgesagt: 1 };
+    return { angelegt: 3, geaendert: 1, abgesagt: 1 };
   });
 }

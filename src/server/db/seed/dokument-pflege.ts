@@ -17,7 +17,9 @@
  * die Fassungskette steht dann als Zeilen da, mit der Prüfsumme der
  * Demobytes, und das Blatt sagt, dass der Speicher nicht verbunden ist. Die
  * zweite Fassung geht auch dann durch den Auslöser aus 0470 (lückenlos,
- * erlaubte Kategorie).
+ * erlaubte Kategorie) — aber am Dienst vorbei: ohne Datei gibt es keinen
+ * Aufruf von `legeFassungAn`, und damit auch keinen Eintrag
+ * `dokument.fassung_abgelegt` im Prüfprotokoll (D-713 Nr. 7, V-219).
  *
  * Idempotent über den Titel: ein zweiter Lauf findet das Dokument und lässt
  * es, wie es ist.
