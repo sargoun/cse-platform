@@ -20,8 +20,11 @@ import { NichtGefundenFehler, ZweiterFaktorFehler } from '../../src/server/auth/
 import { nichtGefundenAntwort } from '../../src/server/auth/antwort.js';
 import { NACHERFASSUNG_FEHLER_TEXTE } from '../../src/lib/i18n/verwaltung/zeit.js';
 import {
-  formular, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG, WURZEL,
+  formular, HIER, KENNUNG, pruefeSaetze, pruefeSeite, rueckweg, SITZUNG, WURZEL,
 } from './hilfen/rueckweg-betrieb.js';
+import {
+  freieVorgaben, freiesZurueck, vorbelegteAnstellung,
+} from '../../src/app/portal/[mandant]/zeiten/nacherfassung/vorgaben.js';
 
 const zustand = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -127,12 +130,99 @@ describe('die Sätze der Nacherfassung', () => {
     const pfad = 'src/app/portal/[mandant]/zeiten/nacherfassung/page.tsx';
     pruefeSeite(pfad, [
       'eigenerEintrag(tN.fehler, fehler) ?? tN.sonst', 'rolle="alert"',
-      "frage['frei'] === '1'", 'value={`${pfad}?frei=1`}',
+      "frage['frei'] === '1'", 'value={freiesZurueck(pfad, vorgaben)}',
       'eigenerEintrag(ANSPRUCH_FEHLER, anspruchFehler)',
     ]);
     const quelle = readFileSync(resolve(WURZEL, pfad), 'utf8');
     /* Der Kasten der Ansprüche meldet sich jetzt auch an (DESIGN §9). */
     expect(quelle).toMatch(/data-cse="anspruch-fehler"\s+role="alert"/u);
     expect(quelle).toMatch(/data-cse="anspruch-erledigt"\s+role="status"/u);
+  });
+});
+
+/*
+ * **Aus einem Einwand** (V-275 Nachtrag, D-773): `?anstellung=&einwand=`
+ * belegt die Person vor und hängt den Einwand an. Nach einer Abweisung
+ * waren beide weg — der Rückweg war nur `?frei=1&fehler=<grund>`. Jetzt
+ * trägt das `zurueck` des freien Formulars die GEPRÜFTEN Kennungen mit,
+ * und nur sie: kein Text aus der Adresse, keine Zeit, keine Begründung.
+ */
+describe('aus dem Einwand: der Rückweg trägt die geprüften Kennungen weiter', () => {
+  const EINWAND = '9c4e2a1b-3d5f-4a6b-8c7d-0e1f2a3b4c5d';
+  /** Eine präparierte Adresse, wie Next.js sie der Seite als `searchParams` gibt. */
+  const adresse = (suche: string): Record<string, string> =>
+    Object.fromEntries(new URLSearchParams(suche));
+
+  it('zwei Kennungen: Vorbelegung, Einwand und `zurueck` tragen sie', () => {
+    const v = freieVorgaben(adresse(`anstellung=${KENNUNG}&einwand=${EINWAND}`));
+    expect(v).toEqual({ anstellung: KENNUNG, einwand: EINWAND });
+    expect(freiesZurueck(SEITE, v))
+      .toBe(`${SEITE}?frei=1&anstellung=${KENNUNG}&einwand=${EINWAND}`);
+  });
+
+  it('ohne Einwand bleibt das `zurueck` wie bisher: `?frei=1`', () => {
+    expect(freiesZurueck(SEITE, freieVorgaben(adresse('')))).toBe(`${SEITE}?frei=1`);
+    expect(freiesZurueck(SEITE, freieVorgaben(adresse(`anstellung=${KENNUNG}`))))
+      .toBe(`${SEITE}?frei=1&anstellung=${KENNUNG}`);
+  });
+
+  it.each([
+    'Ihr Vertrag ist gekündigt', '<script>alert(1)</script>', '__proto__',
+    `${KENNUNG} oder 1=1`, `${KENNUNG}&fehler=nicht_selbst`, `x${KENNUNG}`, '',
+  ])('präpariert: %s → fällt weg, bevor es vorbelegt oder weitergetragen wird', (fremd) => {
+    const suche = `anstellung=${encodeURIComponent(fremd)}&einwand=${encodeURIComponent(fremd)}`;
+    const v = freieVorgaben(adresse(suche));
+    expect(v).toEqual({ anstellung: null, einwand: null });
+    expect(freiesZurueck(SEITE, v)).toBe(`${SEITE}?frei=1`);
+  });
+
+  it('eine Kennung und ein Text: nur die Kennung reist mit', () => {
+    const v = freieVorgaben(adresse(
+      `anstellung=${KENNUNG}&einwand=${encodeURIComponent('Bitte sofort buchen')}`));
+    expect(freiesZurueck(SEITE, v)).toBe(`${SEITE}?frei=1&anstellung=${KENNUNG}`);
+  });
+
+  it('die Route hängt an diesen Rückweg nur den Grund — die Kennungen bleiben', async () => {
+    zustand.erfasse.mockRejectedValue(new NacherfassungFehler(
+      'Die Begründung ist zu kurz.', 'begruendung_zu_kurz', 422));
+    const zurueck = freiesZurueck(SEITE, freieVorgaben(adresse(
+      `anstellung=${KENNUNG}&einwand=${EINWAND}`)));
+    const r = await POST(formular('/api/zeit/nacherfassung',
+      [['zurueck', zurueck], ['einwand', EINWAND], ...ohne('zurueck')]));
+    expect(r.status).toBe(303);
+    const ziel = new URL(r.headers.get('location') ?? '');
+    expect(ziel.origin).toBe(HIER);
+    expect(`${ziel.pathname}${ziel.search}`).toBe(
+      `${SEITE}?frei=1&anstellung=${KENNUNG}&einwand=${EINWAND}&fehler=begruendung_zu_kurz`);
+    /* Kein Satz reist mit: nur Kennungen und der Grund. */
+    expect(decodeURIComponent(ziel.search)).not.toMatch(/\s|meldung=/u);
+    /*
+     * Die Seite liest diese Adresse wieder: Person und Einwand stehen da, und
+     * ein zweiter Versuch geht mit demselben `zurueck` — auch nach der
+     * zweiten Abweisung wächst die Adresse nicht.
+     */
+    const wieder = freieVorgaben(Object.fromEntries(ziel.searchParams));
+    expect(wieder).toEqual({ anstellung: KENNUNG, einwand: EINWAND });
+    expect(freiesZurueck(SEITE, wieder)).toBe(zurueck);
+    expect(zustand.erfasse).toHaveBeenCalledWith(
+      expect.anything(), expect.objectContaining({ zeitEinwandId: EINWAND }));
+  });
+
+  it('vorbelegt wird nur, was die Liste anbietet — sonst „Person wählen"', () => {
+    const v = freieVorgaben(adresse(`anstellung=${KENNUNG}&einwand=${EINWAND}`));
+    expect(vorbelegteAnstellung(v, [{ id: EINWAND }, { id: KENNUNG }])).toBe(KENNUNG);
+    /* Nicht mehr aktiv: die Auswahl zeigte sonst die erste Person im Alphabet. */
+    expect(vorbelegteAnstellung(v, [{ id: EINWAND }])).toBe('');
+    expect(vorbelegteAnstellung(freieVorgaben(adresse('')), [{ id: KENNUNG }])).toBe('');
+  });
+
+  it('die Seite nimmt Vorbelegung, Einwand und `zurueck` nur aus diesen Funktionen', () => {
+    const pfad = 'src/app/portal/[mandant]/zeiten/nacherfassung/page.tsx';
+    const quelle = readFileSync(resolve(WURZEL, pfad), 'utf8');
+    expect(quelle).toContain('freieVorgaben(frage)');
+    expect(quelle).toContain('value={freiesZurueck(pfad, vorgaben)}');
+    expect(quelle).toContain('value={vorgaben.einwand}');
+    expect(quelle).toContain('defaultValue={vorbelegteAnstellung(vorgaben, anstellungen)}');
+    expect(quelle).not.toMatch(/frage\['(?:anstellung|einwand)'\]/u);
   });
 });

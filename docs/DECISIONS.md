@@ -23419,6 +23419,24 @@ D-769 und damit zu diesem Teil:
    `reinigung/turnus/rueckmeldung.ts` neben den Seiten; geprüft mit
    präparierten Adressen durch die echten `turnusRegel` und `turnusVorschau`
    (`tests/kern/rueckweg-turnus-adresse.test.ts`).
+2. **Aus einem Einwand bleiben Person und Einwand nach einer Abweisung.**
+   Vorher las `/zeiten/nacherfassung` `?anstellung=` und `?einwand=`
+   ungeprüft — ein Einwand ohne Kennungsform ging als verstecktes Feld mit,
+   und das Speichern endete in `$1::uuid` mit einem Serverfehler —, und das
+   `zurueck` des freien Formulars war nur `?frei=1`: nach einer Abweisung
+   stand die Auswahl wieder auf „Person wählen", und ein zweiter Versuch
+   legte den Eintrag an, ohne dass die Entscheidung des Einwands ihn nannte
+   (V-067). Jetzt gelten beide nur als Kennung (`istKennung`), und das
+   `zurueck` trägt genau diese weiter
+   (`?frei=1&anstellung=<Kennung>&einwand=<Kennung>`; die Route hängt nur
+   `&fehler=<grund>` an) — nie Freitext, keine Zeit, keine Begründung.
+   Vorbelegt wird nur eine Beschäftigung, die die Liste anbietet; eine
+   Auswahl mit fremder Vorgabe zeigt im Browser die erste Person im
+   Alphabet. Diese zwei Kennungen sind die einzige Kennung in einem
+   Rückweg dieses Teils: sie kamen aus der Adresse der Seite und gehen
+   geprüft dorthin zurück (`zeiten/nacherfassung/vorgaben.ts`; präparierte
+   Adressen und die echte Route in
+   `tests/kern/rueckweg-zeit-nacherfassung.test.ts`).
 
-| Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
+| Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/[mandant]/zeiten/nacherfassung/vorgaben.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
 |---|---|

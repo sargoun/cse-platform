@@ -18,6 +18,7 @@ import { BEGRUENDUNG_MINDESTLAENGE } from '@/server/services/zeit/nacherfassung'
 import { Hinweis } from '@/components/ui/Hinweis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { NACHERFASSUNG_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/zeit';
+import { freieVorgaben, freiesZurueck, vorbelegteAnstellung } from './vorgaben';
 
 /**
  * `/portal/[mandant]/zeiten/nacherfassung` — was ein Telefon ohne Netz
@@ -165,8 +166,13 @@ export default async function Nacherfassung({
     anstellungen: readonly { id: string; name: string }[];
   }>);
   const { zeilen, anstellungen } = daten;
-  const vorgabeAnstellung = typeof frage['anstellung'] === 'string' ? frage['anstellung'] : null;
-  const vorgabeEinwand = typeof frage['einwand'] === 'string' ? frage['einwand'] : null;
+  /*
+   * **Aus einem Einwand** (`?anstellung=&einwand=`, V-067): nur geprüfte
+   * Kennungen, und das `zurueck` des freien Formulars trägt sie weiter —
+   * nach einer Abweisung bleiben Vorbelegung und Einwandbezug (V-275
+   * Nachtrag, D-773; `./vorgaben.ts`).
+   */
+  const vorgaben = freieVorgaben(frage);
 
   const eingabe = 'mt-s1 w-full rounded-md border border-line bg-surface px-s3 py-s2 text-base text-text';
   const beschriftung = 'text-micro uppercase tracking-[0.08em] text-text-subtle';
@@ -232,7 +238,7 @@ export default async function Nacherfassung({
         */}
       <details className="mb-s5 rounded-lg border border-line bg-surface p-s4"
                data-cse="frei-nacherfassen"
-               {...(vorgabeAnstellung === null && freiFehler === null ? {} : { open: true })}>
+               {...(vorgaben.anstellung === null && freiFehler === null ? {} : { open: true })}>
         <summary className="min-h-11 cursor-pointer list-none text-base text-text
                             underline underline-offset-2">
           Zeit ohne Anspruch nacherfassen
@@ -258,17 +264,16 @@ export default async function Nacherfassung({
         <form method="post" action="/api/zeit/nacherfassung"
               data-cse="nacherfassung-formular"
               className="mt-s4 flex max-w-form flex-col gap-s4">
-          <input type="hidden" name="zurueck" value={`${pfad}?frei=1`} />
-          {vorgabeEinwand !== null && (
-            <input type="hidden" name="einwand" value={vorgabeEinwand} />
+          <input type="hidden" name="zurueck" value={freiesZurueck(pfad, vorgaben)} />
+          {vorgaben.einwand !== null && (
+            <input type="hidden" name="einwand" value={vorgaben.einwand} />
           )}
 
           <label className="block">
             <span className={beschriftung}>Beschäftigung</span>
             <select name="anstellung" required className={eingabe}
                     data-cse="nacherfassung-anstellung"
-                    {...(vorgabeAnstellung === null
-                      ? { defaultValue: '' } : { defaultValue: vorgabeAnstellung })}>
+                    defaultValue={vorbelegteAnstellung(vorgaben, anstellungen)}>
               <option value="" disabled>Person wählen</option>
               {anstellungen.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
