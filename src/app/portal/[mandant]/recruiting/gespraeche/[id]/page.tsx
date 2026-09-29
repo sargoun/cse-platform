@@ -110,12 +110,14 @@ export default async function Gespraechsblatt(
             </dl>
 
             {erledigt !== null && (
-              <Hinweis art="erfolg" cse="gespraech-erledigt" className="mb-s5 max-w-prose">
+              <Hinweis art="erfolg" rolle="status" cse="gespraech-erledigt"
+                       className="mb-s5 max-w-prose">
                 {t.erledigt[erledigt]}
               </Hinweis>
             )}
             {fehler !== null && (
-              <Hinweis art="warnung" cse="gespraech-fehler" className="mb-s5 max-w-prose">
+              <Hinweis art="warnung" rolle="alert" cse="gespraech-fehler"
+                       className="mb-s5 max-w-prose">
                 <strong>{t.nichtGeaendert}</strong>{' '}
                 {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
               </Hinweis>

@@ -249,12 +249,12 @@ export default async function Termin({ params, searchParams }: {
   return rahmen(
     <>
     {erledigt !== null && (
-      <Hinweis art="erfolg" cse="termin-erledigt" className="mb-s5 max-w-prose">
+      <Hinweis art="erfolg" rolle="status" cse="termin-erledigt" className="mb-s5 max-w-prose">
         {erledigt === 'angelegt' ? t.angelegt : erledigt === 'geaendert' ? t.geaendert : t.abgesagt}
       </Hinweis>
     )}
     {fehler !== null && (
-      <Hinweis art="warnung" cse="termin-fehler" className="mb-s5 max-w-prose">
+      <Hinweis art="warnung" rolle="alert" cse="termin-fehler" className="mb-s5 max-w-prose">
         <strong>{t.nichtGespeichert}</strong>{' '}
         {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
       </Hinweis>

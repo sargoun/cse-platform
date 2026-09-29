@@ -82,7 +82,7 @@ export default async function NeuerTermin({ params, searchParams }: {
       <p className="mb-s5 max-w-prose text-sm text-text-muted">{t.neuEinleitung}</p>
 
       {fehler !== null && (
-        <Hinweis art="warnung" cse="termin-fehler" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="termin-fehler" className="mb-s5 max-w-prose">
           <strong>{t.nichtGespeichert}</strong>{' '}
           {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
         </Hinweis>

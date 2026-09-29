@@ -159,7 +159,8 @@ export default async function Bewerbungsblatt(
             </nav>
 
             {suche['erfasst'] === '1' && (
-              <Hinweis art="erfolg" cse="bewerbung-erfasst" className="mb-s5 max-w-prose">
+              <Hinweis art="erfolg" rolle="status" cse="bewerbung-erfasst"
+                       className="mb-s5 max-w-prose">
                 {kt.pErfasst}
               </Hinweis>
             )}
@@ -229,12 +230,12 @@ export default async function Bewerbungsblatt(
               <p className="mb-s4 text-sm text-text-muted">{kt.kErklaerung}</p>
 
               {kandidatErledigt !== null && (
-                <Hinweis art="erfolg" cse="kandidat-erledigt" className="mb-s4">
+                <Hinweis art="erfolg" rolle="status" cse="kandidat-erledigt" className="mb-s4">
                   {kt.kErledigt[kandidatErledigt]}
                 </Hinweis>
               )}
               {kandidatVorgang && abgewiesen !== null && (
-                <Hinweis art="warnung" cse="kandidat-fehler" className="mb-s4">
+                <Hinweis art="warnung" rolle="alert" cse="kandidat-fehler" className="mb-s4">
                   <strong>{kt.kNichtGespeichert}</strong>{' '}
                   {eigenerEintrag(kt.kFehler, abgewiesen) ?? kt.kFehlerSonst}
                 </Hinweis>
@@ -464,13 +465,15 @@ export default async function Bewerbungsblatt(
               <>
                 <h2 className="mb-s3 mt-s6 text-h3 text-text">Gespräch planen</h2>
                 {suche['termin'] === '1' && (
-                  <Hinweis art="hinweis" cse="termin-angelegt" className="mb-s5 max-w-prose">
+                  <Hinweis art="hinweis" rolle="status" cse="termin-angelegt"
+                           className="mb-s5 max-w-prose">
                     <strong>Der Termin steht.</strong> Er erscheint in der
                     Gesprächsliste und im Kalender dieser Gesellschaft.
                   </Hinweis>
                 )}
                 {abgewiesen !== null && !kandidatVorgang && (
-                  <Hinweis art="warnung" cse="termin-fehler" className="mb-s5 max-w-prose">
+                  <Hinweis art="warnung" rolle="alert" cse="termin-fehler"
+                           className="mb-s5 max-w-prose">
                     {eigenerEintrag(FEHLER, abgewiesen) ?? 'Der Termin wurde abgewiesen.'}
                   </Hinweis>
                 )}

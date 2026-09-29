@@ -185,18 +185,21 @@ export default async function Stellenblatt(
             )}
 
             {abgewiesen !== null && (
-              <Hinweis art="warnung" cse="stelle-fehler" className="mb-s5 max-w-prose">
+              <Hinweis art="warnung" rolle="alert" cse="stelle-fehler"
+                       className="mb-s5 max-w-prose">
                 {eigenerEintrag(t.fehler, abgewiesen) ?? t.fehlerSonst}
               </Hinweis>
             )}
 
             {suche['entworfen'] === '1' && (
-              <Hinweis art="hinweis" cse="stelle-entworfen" className="mb-s5 max-w-prose">
+              <Hinweis art="hinweis" rolle="status" cse="stelle-entworfen"
+                       className="mb-s5 max-w-prose">
                 {t.entworfen}
               </Hinweis>
             )}
             {suche['bearbeitet'] === '1' && (
-              <Hinweis art="erfolg" cse="stelle-bearbeitet" className="mb-s5 max-w-prose">
+              <Hinweis art="erfolg" rolle="status" cse="stelle-bearbeitet"
+                       className="mb-s5 max-w-prose">
                 {t.bearbeitet}
               </Hinweis>
             )}

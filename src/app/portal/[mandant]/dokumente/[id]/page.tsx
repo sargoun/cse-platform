@@ -199,7 +199,8 @@ export default async function Dokumentblatt(
       {d.beschreibung === null ? null : <p className="mb-s5 max-w-[72ch] text-base text-text-muted">{d.beschreibung}</p>}
 
       {fehler !== null && vorgang === null ? (
-        <Hinweis art="warnung" cse="dokument-loeschfehler" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="dokument-loeschfehler"
+                 className="mb-s5 max-w-prose">
           <strong>Nicht gelöscht.</strong>{' '}
           {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Löschung wurde abgewiesen.'}
         </Hinweis>
@@ -283,12 +284,12 @@ export default async function Dokumentblatt(
       <section aria-labelledby="fassungen" className="mt-s7" data-cse="fassungen">
         <h2 id="fassungen" className="mb-s3 text-h3 text-text">{t.faTitel}</h2>
         {faErfolg !== null ? (
-          <Hinweis art="erfolg" cse="fassung-erfolg" className="mb-s4 max-w-prose">
+          <Hinweis art="erfolg" rolle="status" cse="fassung-erfolg" className="mb-s4 max-w-prose">
             {t.faAbgelegt.replace('{n}', faErfolg)}
           </Hinweis>
         ) : null}
         {faFehler !== null ? (
-          <Hinweis art="warnung" cse="fassung-fehler" className="mb-s4 max-w-prose">
+          <Hinweis art="warnung" rolle="alert" cse="fassung-fehler" className="mb-s4 max-w-prose">
             <strong>{t.faNichtAbgelegt}</strong>{' '}
             {eigenerEintrag(t.faFehler, faFehler) ?? t.faFehlerSonst}
           </Hinweis>
@@ -416,12 +417,12 @@ export default async function Dokumentblatt(
                data-cse="mitarbeiterfreigabe">
         <h2 id="mitarbeiterfreigabe" className="mb-s3 text-h3 text-text">{t.mfTitel}</h2>
         {mfErfolg !== null ? (
-          <Hinweis art="erfolg" cse="mitarbeiterfreigabe-erfolg" className="mb-s4">
+          <Hinweis art="erfolg" rolle="status" cse="mitarbeiterfreigabe-erfolg" className="mb-s4">
             {mfErfolg === 'gesetzt' ? t.mfGesetzt : t.mfZurueckgenommen}
           </Hinweis>
         ) : null}
         {mfFehler !== null ? (
-          <Hinweis art="warnung" cse="mitarbeiterfreigabe-fehler" className="mb-s4">
+          <Hinweis art="warnung" rolle="alert" cse="mitarbeiterfreigabe-fehler" className="mb-s4">
             <strong>{t.mfNichtGeaendert}</strong>{' '}
             {eigenerEintrag(t.mfFehler, mfFehler) ?? t.mfFehlerSonst}
           </Hinweis>

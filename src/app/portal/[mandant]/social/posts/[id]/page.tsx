@@ -265,13 +265,15 @@ export default async function Beitrag(
       </div>
 
       {suche['angelegt'] === '1' ? (
-        <Hinweis art="hinweis" cse="beitrag-angelegt" className="mb-s5 max-w-prose">
+        <Hinweis art="hinweis" rolle="status" cse="beitrag-angelegt"
+                 className="mb-s5 max-w-prose">
           Der Entwurf steht. Er geht hinaus, nachdem ein Mensch ihn freigegeben hat.
         </Hinweis>
       ) : null}
 
       {abgewiesen === null || bildFehler !== null ? null : (
-        <Hinweis art="warnung" cse="beitrag-fehler" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="beitrag-fehler"
+                 className="mb-s5 max-w-prose">
           {eigenerEintrag(FEHLER, abgewiesen) ?? 'Der Schritt wurde abgewiesen.'}
         </Hinweis>
       )}
@@ -358,17 +360,17 @@ export default async function Beitrag(
                aria-labelledby="beitrag-bild-titel">
         <h2 id="beitrag-bild-titel" className="mb-s3 text-h2 text-text">{tb.titel}</h2>
         {suche['bild'] === '1' && (
-          <Hinweis art="erfolg" cse="beitrag-bild-angehaengt" className="mb-s4">
+          <Hinweis art="erfolg" rolle="status" cse="beitrag-bild-angehaengt" className="mb-s4">
             {tb.angehaengt}
           </Hinweis>
         )}
         {suche['bild'] === 'entfernt' && (
-          <Hinweis art="erfolg" cse="beitrag-bild-entfernt" className="mb-s4">
+          <Hinweis art="erfolg" rolle="status" cse="beitrag-bild-entfernt" className="mb-s4">
             {tb.entfernt}
           </Hinweis>
         )}
         {bildFehler !== null && (
-          <Hinweis art="warnung" cse="beitrag-bild-fehler" className="mb-s4">
+          <Hinweis art="warnung" rolle="alert" cse="beitrag-bild-fehler" className="mb-s4">
             <strong>{tb.nichtGespeichert}</strong>{' '}
             {eigenerEintrag(tb.fehler, bildFehler) ?? tb.fehlerSonst}
           </Hinweis>

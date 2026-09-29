@@ -63,7 +63,8 @@ export default async function BewerbungAusPostfach(
             </Hinweis>
 
             {grund !== null && (
-              <Hinweis art="warnung" cse="postfach-fehler" className="mb-s5 max-w-prose">
+              <Hinweis art="warnung" rolle="alert" cse="postfach-fehler"
+                       className="mb-s5 max-w-prose">
                 <strong>{t.pNichtGespeichert}</strong>{' '}
                 {eigenerEintrag(t.pFehler, grund) ?? t.pFehlerSonst}
               </Hinweis>
