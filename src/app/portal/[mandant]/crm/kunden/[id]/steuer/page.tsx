@@ -26,6 +26,8 @@ import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from '../Unternavigation';
 import { Recht } from '@/components/ui/Recht';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import { STEUER_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]/steuer` — die steuerlichen Angaben eines
@@ -57,6 +59,11 @@ import { Recht } from '@/components/ui/Recht';
  * stichtag)`, und zwar AM LEISTUNGSDATUM, nicht heute. FIN-11:
  * `versandLage(kaeufer)` — ein Pflichtkäufer ohne Übertragungsweg sperrt den
  * Versand statt auf E-Mail zurückzufallen (07-INTEGRATIONEN §12.1).
+ *
+ * **Der Ausgang der vier Formulare kommt als Schlüssel zurück** (`?fehler=`,
+ * `?erfolg=`; D-769, D-772), die Sätze stehen in `STEUER_RUECKWEG`. Hier
+ * standen der Satz des Dienstes — mit der getippten Eingabe darin — und der
+ * Erfolgssatz roh aus der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +85,7 @@ interface Kopf {
 export default async function Steuer(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<{ meldung?: string; erfolg?: string; stichtag?: string }>;
+    searchParams: Promise<{ fehler?: string; erfolg?: string; stichtag?: string }>;
   },
 ) {
   const { mandant, id } = await params;
@@ -180,16 +187,10 @@ export default async function Steuer(
       <h1 className="mb-s3 text-h1 text-text">{kopf.name}</h1>
       <Unternavigation mandant={mandant} kundeId={id} aktiv="steuer" rechte={darf} />
 
-      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
-        <Hinweis art="warnung" cse="steuer-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {suche.meldung}
-        </Hinweis>
-      ) : null}
-      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
-        <Hinweis art="erfolg" cse="steuer-erfolg" className="mb-s5 max-w-prose">
-          {suche.erfolg}
-        </Hinweis>
-      ) : null}
+      <Abweisung saetze={STEUER_RUECKWEG.de} grund={einSchluessel(suche.fehler)}
+                 cse="steuer-meldung" />
+      <Bestaetigung saetze={STEUER_RUECKWEG.de.erfolg} erfolg={einSchluessel(suche.erfolg)}
+                    cse="steuer-erfolg" />
 
       {/* -------------------------------------------------- Stichtag */}
       <form method="get" action={pfad} className="mb-s6 flex flex-wrap items-end gap-s3">
@@ -602,8 +603,9 @@ export default async function Steuer(
                   </label>
                   <p className="m-0 text-xs text-text-muted">
                     Überschneidet sich der Zeitraum mit einem vorhandenen, wird er
-                    abgewiesen und die kollidierende Zeile genannt: zwei überlappende
-                    Scheiben liessen offen, welche am Leistungsdatum gilt.
+                    abgewiesen — die vorhandene Zeitscheibe steht in der Liste darüber:
+                    zwei überlappende Scheiben liessen offen, welche am Leistungsdatum
+                    gilt.
                   </p>
                   <button
                     type="submit" data-cse="steuer-13b-speichern"

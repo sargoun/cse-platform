@@ -31,6 +31,7 @@ import type { InternSprache } from '../intern.js';
 import { rechtName } from '../rechtname.js';
 import type { CrmGrund } from '../../../server/services/crm/anlegen.js';
 import type { WiedervorlageErfolg } from '../../../server/services/crm/wiedervorlage.js';
+import type { SteuerGrund, SteuerVorgang } from '../../../server/services/finanz/kunde-steuer.js';
 
 /** Die Sätze einer Abweisung auf EINER Seite. */
 export interface AbweisungTexte<G extends string> {
@@ -53,6 +54,7 @@ export interface RueckwegTexte<G extends string, E extends string> extends Abwei
 export type NurDeutsch<T> = Readonly<Pick<Record<InternSprache, T>, 'de'>>;
 
 const KUNDENDATEN = rechtName('crm.schreiben', 'de');
+const FINANZEN = rechtName('finanzen.schreiben', 'de');
 
 /* ── Neuer Kunde (`POST /api/crm/kunde`, `legeKundeAn`) ─────────────────── */
 
@@ -196,6 +198,84 @@ export const WIEDERVORLAGE_RUECKWEG: Readonly<Record<InternSprache,
         'The follow-up is in place. It appears neither in the task list nor in the calendar — '
         + `that needs the rights “${rechtName('aufgabe.schreiben', 'en')}” and `
         + `“${rechtName('kalender.schreiben', 'en')}”.`,
+    },
+  },
+};
+
+/* ── Steuerblatt (`POST /api/crm/kunde/steuer`) ─────────────────────────────
+ * Welche Gründe die Route schicken kann, steht als `STEUER_GRUENDE` am
+ * Dienst; die Tabelle ist daran gebunden (`Record<SteuerGrund, …>`).
+ */
+
+export const STEUER_RUECKWEG: NurDeutsch<RueckwegTexte<SteuerGrund, SteuerVorgang>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Es wurde nichts geändert.',
+    fehler: {
+      art_unbekannt:
+        'Diese Leistungsart gibt es nicht. Zur Wahl stehen Bauleistungen und Gebäudereinigung '
+        + '(O-104).',
+      umfang_unbekannt:
+        'Diesen Umfang gibt es nicht. Eine Bescheinigung ist unbeschränkt oder auftragsbezogen.',
+      dokument_keine_kennung:
+        'Das Feld für das Dokument erwartet dessen Kennung aus der Adresszeile (36 Zeichen, mit '
+        + 'Bindestrichen) — keine Belegnummer und keinen Dateinamen.',
+      auftrag_keine_kennung:
+        'Das Feld „Auftrag" erwartet die Kennung aus der Adresszeile des Auftrags (36 Zeichen, '
+        + 'mit Bindestrichen) — nicht die Auftragsnummer.',
+      grundlage_fehlt:
+        'Zu einem §13b-Status gehört seine Grundlage — womit ist er belegt? Beispiel: '
+        + '„Bestätigung USt 1 TG vom 12.01.2025" oder „schriftliche Erklärung des Kunden vom '
+        + '03.03." Ohne Belegangabe ist der Status in einer Prüfung nichts wert (O-104).',
+      ohne_beginn: 'Ohne Beginn gibt es keine Zeitscheibe.',
+      zeitraum_verdreht: 'Das Ende liegt vor dem Beginn.',
+      ueberlapp:
+        'Für diese Leistungsart ist schon ein Status hinterlegt, dessen Zeitraum sich mit dem '
+        + 'eingegebenen überschneidet — er steht unter § 13b in der Liste der Zeitscheiben. Zwei '
+        + 'überlappende Zeiträume liessen offen, welcher am Leistungsdatum gilt: beenden Sie den '
+        + 'bestehenden zuerst.',
+      ueberlapp_gleichzeitig:
+        'Für diese Leistungsart wurde gerade ein überlappender Zeitraum eingetragen. Laden Sie '
+        + 'die Seite neu.',
+      nummer_fehlt:
+        'Die Nummer der Bescheinigung fehlt — sie ist das, womit das Finanzamt sie wiederfindet.',
+      finanzamt_fehlt: 'Welches Finanzamt hat sie ausgestellt?',
+      zeitraum_fehlt:
+        'Eine Freistellungsbescheinigung gilt für einen Zeitraum — beide Tage gehören dazu. Sie '
+        + 'wird am Leistungsdatum geprüft, nicht heute.',
+      umfang_unstimmig:
+        'Umfang und Auftrag passen nicht zusammen: eine auftragsbezogene Bescheinigung braucht '
+        + 'den Auftrag, für den sie gilt; eine unbeschränkte gilt für jeden Auftrag und nennt '
+        + 'keinen einzelnen.',
+      ohne_datum:
+        'Ab welchem Tag ist sie widerrufen? Ohne Datum wäre offen, welche Leistungen noch gedeckt '
+        + 'waren.',
+      weg_unbekannt: 'Diesen Übertragungsweg gibt es nicht.',
+      format_unbekannt: 'Dieses Rechnungsformat gibt es nicht.',
+      schema_fehlt:
+        'Eine elektronische Adresse ohne Schema (BT-49-1) ist nicht auflösbar — 0204 für die '
+        + 'Leitweg-ID, EM für E-Mail, 0088 für eine GLN.',
+      kein_schreibrecht:
+        `Dafür fehlt ein Recht: die Rechnungsangaben ändert, wer „${KUNDENDATEN}" hält; `
+        + `§13b-Status, Freistellungsbescheinigung und Widerruf trägt ein, wer „${FINANZEN}" hält.`,
+      nicht_angelegt: 'Der Eintrag wurde nicht angelegt — die Datenbank hat ihn nicht angenommen.',
+      nicht_gefunden:
+        'Das gibt es hier nicht mehr: die Bescheinigung ist schon widerrufen, oder der Kunde ist '
+        + 'archiviert. Die Seite zeigt den aktuellen Stand.',
+    },
+    erfolg: {
+      erechnung:
+        'Die Rechnungsangaben sind gespeichert. Ob damit versendet werden kann, steht oben im '
+        + 'Versandstand.',
+      bauleistender:
+        'Die Zeitscheibe ist angelegt. Die Antwort zum Stichtag oben ist damit neu berechnet — '
+        + 'aus der geprüften Funktion, nicht aus dieser Seite.',
+      bescheinigung:
+        'Die Freistellungsbescheinigung ist erfasst. Geprüft wird sie am Leistungsdatum, nicht '
+        + 'heute.',
+      widerruf:
+        'Der Widerruf ist eingetragen. Die Bescheinigung bleibt lesbar — jede Rechnung, die sich '
+        + 'auf sie beruft, muss herleitbar bleiben.',
     },
   },
 };

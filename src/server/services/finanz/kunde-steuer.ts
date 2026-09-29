@@ -53,8 +53,37 @@ import type { Uebertragungsweg, Rechnungsformat } from '../crm/erechnung.js';
  * Aufteilung?
  */
 
+/**
+ * Die vier Vorgänge des Steuerblatts — und der Schlüssel, unter dem die Route
+ * ihren Erfolg meldet (`?erfolg=`, D-769, D-772).
+ */
+export const STEUER_VORGAENGE = ['erechnung', 'bauleistender', 'bescheinigung', 'widerruf'] as const;
+export type SteuerVorgang = (typeof STEUER_VORGAENGE)[number];
+
+/**
+ * Jeder Grund, mit dem das Steuerblatt abweist — er reist als `?fehler=` auf
+ * die Seite, und die schlägt ihn nach (D-769, D-772, V-274). Der Satz des
+ * Dienstes reist nicht mehr mit: `alsKennung` wiederholte darin die Eingabe
+ * des Menschen, `ueberlapp` die Daten der kollidierenden Zeile.
+ */
+export const STEUER_GRUENDE = [
+  /* die Route */
+  'art_unbekannt', 'umfang_unbekannt',
+  /* Kennungen aus Formularfeldern (`alsKennung`) */
+  'dokument_keine_kennung', 'auftrag_keine_kennung',
+  /* §13b-Zeitscheibe */
+  'grundlage_fehlt', 'ohne_beginn', 'zeitraum_verdreht', 'ueberlapp', 'ueberlapp_gleichzeitig',
+  /* §48b-Bescheinigung und Widerruf */
+  'nummer_fehlt', 'finanzamt_fehlt', 'zeitraum_fehlt', 'umfang_unstimmig', 'ohne_datum',
+  /* E-Rechnung */
+  'weg_unbekannt', 'format_unbekannt', 'schema_fehlt',
+  /* gemeinsam */
+  'kein_schreibrecht', 'nicht_angelegt', 'nicht_gefunden',
+] as const;
+export type SteuerGrund = (typeof STEUER_GRUENDE)[number];
+
 export class SteuerFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: SteuerGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'SteuerFehler';
   }
@@ -84,7 +113,7 @@ export interface SteuerRechte {
  * dieser Domäne eine deutsche Meldung statt eines rohen Datenbankfehlers.
  */
 function alsKennung(
-  wert: string | undefined, feld: string, grund: string,
+  wert: string | undefined, feld: string, grund: SteuerGrund,
 ): string | null {
   const t = wert?.trim() ?? '';
   if (t === '') return null;
