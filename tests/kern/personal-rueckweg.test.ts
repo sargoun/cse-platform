@@ -413,6 +413,18 @@ describe('die Wege, die die Route selbst abweist', () => {
     expect(zustand.fuehreZusammen).not.toHaveBeenCalled();
   });
 
+  it('eine vergebene Personalnummer: auf beiden Wegen derselbe Code für eine Schnittstelle (D-771 Nachtrag)', async () => {
+    for (const [route, fehler] of [
+      [ROUTEN[0]!, () => new NummerBeimEinstellen('R-7')],
+      [ROUTEN[1]!, () => new PersonalnummerVergeben('R-2')],
+    ] as const) {
+      route.dienst.mockRejectedValueOnce(fehler());
+      const r = await route.aufruf(json(route.pfad, route.felder));
+      expect(r.status, route.name).toBe(409);
+      expect((await r.json() as { fehler: string }).fehler, route.name).toBe('ungueltiger_zustand');
+    }
+  });
+
   it('ein Serverfehler ohne `status` bleibt ein Fehler — keine erfundene Abweisung', async () => {
     const route = ROUTEN[1]!;
     route.dienst.mockRejectedValueOnce(Object.assign(new Error('connection reset'),

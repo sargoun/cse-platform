@@ -23375,7 +23375,7 @@ Dateien trägt einen.
 **Nachtrag — die Nebenbefunde dieses Teils** (gemeldet mit V-273, behoben auf
 demselben Zweig):
 
-9. **Der Erfolg kommt auf dem Blatt der Beschäftigung an.** Einstellen schickte
+9. **Der Erfolg kommt auf dem Blatt der Beschäftigung an** (Nebenbefund 1). Einstellen schickte
    `?eingestellt=1`, und keine Seite las es; Vertrag und Beenden führten ganz
    ohne Parameter auf dasselbe Blatt — nach dem Absenden stand dort kein Wort.
    Jetzt schicken Vertrag und Beenden einen Schlüssel
@@ -23389,7 +23389,7 @@ demselben Zweig):
    die ein Link erfinden kann. Die Sätze nennen keinen Wert; Personalnummer,
    Eintritt und Austritt zeigt das Blatt darunter aus seinen Daten.
 10. **Wochenstunden und Arbeitstage werden gelesen, bevor sie die Datenbank
-    sehen.** Die beiden Felder der Entgeltseite sind frei, und die Route
+    sehen** (Nebenbefund 2). Die beiden Felder der Entgeltseite sind frei, und die Route
     reichte den rohen Text an `$5::numeric` — „38,5", wie ein deutsches
     Tastenfeld es schreibt, war ein 22P02 und eine 500. Jetzt liest die Route
     beide mit `mengeAusEingabe` (`finanz/menge.ts`, der vorhandene Leser für
@@ -23404,6 +23404,18 @@ demselben Zweig):
     Dienst macht aus ihrem 23514 nur vorher einen Satz. „38.5" gilt wie
     „38,5" (so liest `mengeAusEingabe` jede Menge), leer heisst weiter „nicht
     hinterlegt".
+11. **Eine vergebene Personalnummer ist EIN Befund mit EINEM Code**
+    (Nebenbefund 4). `PersonalnummerVergeben` gab es zweimal — in
+    `einstellung.ts` mit `ungueltiger_zustand`, in `anstellung.ts` mit
+    `ungueltige_eingabe`, beide mit 409: eine Schnittstelle bekam für dieselbe
+    Kollision zwei Codes, und ein `instanceof` der einen Klasse fing die
+    andere nicht. Jetzt steht die Klasse einmal in
+    `services/personal/personalnummer.ts`, mit `ungueltiger_zustand` — die
+    Kollision liegt am Bestand, nicht an der Form der Eingabe, wie bei
+    `DubletteImHaus` —, und beide Dienste reichen sie unter ihrem Namen durch
+    (kein Aufrufer ändert seinen Import). Kein Test und kein Aufrufer erwartete
+    einen der beiden Codes. Die vier Dienste haben damit 13 Fehlerklassen
+    statt 14; die Sperrklinke zählt `personalnummer.ts` mit.
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/personal-anstellung.test.ts` |
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/personal-anstellung.test.ts` |
 |---|---|

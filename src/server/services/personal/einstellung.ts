@@ -1,6 +1,10 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { PersonalnummerVergeben } from './personalnummer.js';
+
+/* EINE Klasse für dieselbe Kollision, hier nur durchgereicht (D-771 Nachtrag). */
+export { PersonalnummerVergeben };
 
 /**
  * Einstellen — **erst der Mensch, dann die Beschaeftigung** (D-09, EMP-14,
@@ -95,21 +99,6 @@ export class PersonNichtSichtbar extends Error {
       + 'beschäftigt ist.',
     );
     this.name = 'PersonNichtSichtbar';
-  }
-}
-
-export class PersonalnummerVergeben extends Error {
-  readonly code = 'ungueltiger_zustand';
-  readonly status = 409;
-  /** Der Grund für `?fehler=` (D-771) — der Satz unten wiederholt die Eingabe, die Seite nicht. */
-  readonly grund = 'personalnummer_vergeben';
-  constructor(nummer: string) {
-    super(
-      `Die Personalnummer „${nummer}" ist in dieser Gesellschaft schon vergeben. `
-      + 'Jede Gesellschaft führt ihre eigene Systematik (D-09) — dieselbe Nummer in '
-      + 'der Schwestergesellschaft wäre in Ordnung, hier nicht.',
-    );
-    this.name = 'PersonalnummerVergeben';
   }
 }
 

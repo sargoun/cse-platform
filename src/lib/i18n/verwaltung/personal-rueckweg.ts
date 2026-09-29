@@ -34,12 +34,12 @@
 import type { InternSprache } from '../intern.js';
 import type {
   AnstellungNichtGefunden, BEENDEN_EINGABE_GRUENDE, BeendigungGrund, KONDITION_GRUENDE,
-  PersonalnummerVergeben, VERTRAG_AENDERN_GRUENDE,
+  VERTRAG_AENDERN_GRUENDE,
 } from '../../../server/services/personal/anstellung.js';
 import type {
   DubletteImHaus, EinstellungGrund, PersonNichtSichtbar,
-  PersonalnummerVergeben as NummerBeimEinstellen,
 } from '../../../server/services/personal/einstellung.js';
+import type { PersonalnummerVergeben } from '../../../server/services/personal/personalnummer.js';
 import type { BestaetigungFehlt, ZusammenfuehrenGrund } from '../../../server/services/personal/dublette.js';
 import type { PersonNichtGefunden, StammdatenGrund } from '../../../server/services/personal/stammdaten.js';
 
@@ -58,7 +58,7 @@ export type NurDeutsch<T> = Readonly<Pick<Record<InternSprache, T>, 'de'>>;
 /** Was `POST /api/personal/anstellungen` zurückschickt (`stelleEin`). */
 export type EinstellungSeitenGrund =
   | EinstellungGrund | DubletteImHaus['grund'] | PersonNichtSichtbar['grund']
-  | NummerBeimEinstellen['grund'];
+  | PersonalnummerVergeben['grund'];
 /** Was `POST /api/personal/anstellungen/[id]/vertrag` zurückschickt (`aendereVertrag`). */
 export type VertragSeitenGrund =
   | (typeof VERTRAG_AENDERN_GRUENDE)[number] | AnstellungNichtGefunden['grund']

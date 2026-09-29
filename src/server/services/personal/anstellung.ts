@@ -27,6 +27,10 @@
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
 import { mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
+import { PersonalnummerVergeben } from './personalnummer.js';
+
+/* EINE Klasse für dieselbe Kollision, hier nur durchgereicht (D-771 Nachtrag). */
+export { PersonalnummerVergeben };
 
 export type AnstellungStatus = 'geplant' | 'aktiv' | 'ruhend' | 'beendet';
 
@@ -80,21 +84,6 @@ export class AnstellungNichtGefunden extends Error {
   constructor(id: string) {
     super(`Beschäftigung ${id} gibt es in dieser Gesellschaft nicht.`);
     this.name = 'AnstellungNichtGefunden';
-  }
-}
-
-export class PersonalnummerVergeben extends Error {
-  readonly code = 'ungueltige_eingabe';
-  readonly status = 409;
-  /** Der Grund für `?fehler=` (D-771) — der Satz unten wiederholt die Eingabe, die Seite nicht. */
-  readonly grund = 'personalnummer_vergeben';
-  constructor(nummer: string) {
-    super(
-      `Die Personalnummer „${nummer}" ist in dieser Gesellschaft schon vergeben. `
-      + 'Jede Gesellschaft führt ihre eigene Systematik (D-09) — dieselbe Nummer '
-      + 'in der Schwestergesellschaft wäre in Ordnung, hier nicht.',
-    );
-    this.name = 'PersonalnummerVergeben';
   }
 }
 

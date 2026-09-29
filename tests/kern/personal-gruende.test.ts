@@ -36,6 +36,8 @@ import {
   KeinStammdatenRecht, PersonNichtGefunden, STAMMDATEN_GRUENDE, StammdatenEingabeFehler,
   leseStammdaten, schreibeStammdaten,
 } from '../../src/server/services/personal/stammdaten.js';
+import { PersonalnummerVergeben as NummerVergeben }
+  from '../../src/server/services/personal/personalnummer.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 const MANDANT = '00000000-0000-4000-8000-0000000000a1';
@@ -286,7 +288,7 @@ describe('die Gründe selbst', () => {
      * sie einen `grund` tragen, sonst reiste sie mit ihrem allgemeinen `code`.
      */
     let klassen = 0;
-    for (const datei of ['einstellung', 'anstellung', 'dublette', 'stammdaten']) {
+    for (const datei of ['einstellung', 'anstellung', 'dublette', 'stammdaten', 'personalnummer']) {
       const quelle = readFileSync(
         resolve(WURZEL, `src/server/services/personal/${datei}.ts`), 'utf8');
       for (const m of quelle.matchAll(/export class (\w+) extends Error \{([\s\S]*?)\n\}/gu)) {
@@ -294,6 +296,17 @@ describe('die Gründe selbst', () => {
         expect(m[2], `${datei}.ts: ${m[1] ?? ''}`).toMatch(/readonly grund\b/u);
       }
     }
-    expect(klassen).toBe(14);
+    /* 14 bis V-273 — seit dem Nachtrag ist `PersonalnummerVergeben` EINE Klasse. */
+    expect(klassen).toBe(13);
+  });
+
+  it('eine Personalnummer, die schon vergeben ist, ist EIN Befund: eine Klasse, ein Code (D-771 Nachtrag)', () => {
+    /* Beide Dienste reichen dieselbe Klasse durch — ein `instanceof` fängt beide Wege. */
+    expect(NummerBeimEinstellen).toBe(NummerVergeben);
+    expect(PersonalnummerVergeben).toBe(NummerVergeben);
+    const f = new NummerVergeben('R-7');
+    expect({ code: f.code, status: f.status, grund: f.grund }).toEqual({
+      code: 'ungueltiger_zustand', status: 409, grund: 'personalnummer_vergeben',
+    });
   });
 });
