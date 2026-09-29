@@ -30,7 +30,8 @@ import {
   type EinstellungEingabe,
 } from '../../src/server/services/personal/einstellung.js';
 import {
-  BestaetigungFehlt, ZUSAMMENFUEHREN_GRUENDE, ZusammenfuehrenFehler, fuehreZusammen,
+  BestaetigungFehlt, FUNKTION_ABWEISUNGEN, ZUSAMMENFUEHREN_GRUENDE, ZusammenfuehrenFehler,
+  fuehreZusammen,
 } from '../../src/server/services/personal/dublette.js';
 import {
   KeinStammdatenRecht, PersonNichtGefunden, STAMMDATEN_GRUENDE, StammdatenEingabeFehler,
@@ -258,6 +259,104 @@ describe('schreibeStammdaten und leseStammdaten — StammdatenEingabeFehler, Per
       () => leseStammdaten(kontext(() => Object.assign(new Error('permission denied'),
         { code: '42501' })), PERSON)],
   ], liste);
+});
+
+describe('Kalendertage, die es nicht gibt — ein Grund vor dem Cast, keine 22008 (D-771 Nachtrag)', () => {
+  /* Jede Abfrage wirft: fragte der Dienst die Datenbank, käme DIESER Fehler statt des Grundes. */
+  const stumm = kontext(() => new Error('Abfrage verboten — der Tag hätte vorher fallen müssen.'));
+  const liste = [...EINSTELLUNG_GRUENDE, ...VERTRAG_AENDERN_GRUENDE, ...BEENDEN_EINGABE_GRUENDE,
+    ...KONDITION_GRUENDE, ...STICHTAG_GRUENDE, ...STAMMDATEN_GRUENDE];
+  pruefe([
+    ['Eintritt am 29. Februar 2025', EinstellungFehler, 'eintritt_ungueltig',
+      () => pruefeEingabe({ mensch: { art: 'bestehend', personId: PERSON },
+        personalnummer: 'R-7', eintritt: '2025-02-29' })],
+    ['Vertrag: Eintritt am 30. Februar', VertragEingabeFehler, 'eintritt_ungueltig',
+      () => aendereVertrag(stumm, { anstellungId: ANSTELLUNG, personalnummer: 'R-2', eintritt: '2025-02-30' })],
+    ['Beenden: Austritt am 31. April', VertragEingabeFehler, 'austritt_ungueltig',
+      () => beendeAnstellung(stumm, { anstellungId: ANSTELLUNG, austritt: '2025-04-31', grund: 'Eigenkündigung' })],
+    ['Vorschau: Austritt am 31. Juni', VertragEingabeFehler, 'austritt_ungueltig',
+      () => beendigungsfolgen(stumm, ANSTELLUNG, '2025-06-31')],
+    ['Kondition: gilt ab 31. Februar', VertragEingabeFehler, 'gilt_ab_ungueltig',
+      () => setzeKondition(stumm, { anstellungId: ANSTELLUNG, giltAb: '2025-02-31', stundensatzCent: null })],
+    ['Stichtag im dreizehnten Monat', VertragEingabeFehler, 'stichtag_ungueltig',
+      () => leseEntgelt(stumm, ANSTELLUNG, '2025-13-01')],
+    ['Geburtsdatum am 30. Februar', StammdatenEingabeFehler, 'geburtsdatum_ungueltig',
+      () => schreibeStammdaten(stumm, { personId: PERSON, geburtsdatum: '1990-02-30' })],
+    /* Die Gegenprobe: den 29. Februar eines Schaltjahrs gibt es — der Dienst fragt weiter. */
+    ['der 29. Februar 2024 geht bis zur Zeile', AnstellungNichtGefunden, 'nicht_gefunden',
+      () => setzeKondition(kontext(() => []), { anstellungId: ANSTELLUNG, giltAb: '2024-02-29', stundensatzCent: null })],
+  ], [...liste, 'nicht_gefunden']);
+});
+
+describe('eine gleichzeitige Anlage mit derselben Personalnummer — der Constraint wird der Grund (D-771 Nachtrag)', () => {
+  const kollision = (): Error => Object.assign(
+    new Error('duplicate key value violates unique constraint "anstellung_personalnummer_uk"'),
+    { code: '23505', constraint_name: 'anstellung_personalnummer_uk' });
+  const gueltig: EinstellungEingabe = {
+    mensch: { art: 'bestehend', personId: PERSON }, personalnummer: 'R-7', eintritt: '2026-10-01',
+  };
+  pruefe([
+    /* Die Vorabfrage sieht die andere Anlage noch nicht — erst das INSERT läuft in den Constraint. */
+    ['Einstellen', NummerVergeben, 'personalnummer_vergeben',
+      () => stelleEin(kontext((sql) => (/as merge/u.test(sql)
+        ? [{ id: PERSON, name: 'Anna Berg', merge: null }]
+        : /insert into anstellung/u.test(sql) ? kollision() : [])), gueltig)],
+    ['Vertrag ändern', NummerVergeben, 'personalnummer_vergeben',
+      () => aendereVertrag(kontext((sql) => (IST_ZEILE.test(sql) ? [zeile()]
+        : /update anstellung/u.test(sql) ? kollision() : [])),
+      { anstellungId: ANSTELLUNG, personalnummer: 'R-7', eintritt: '2025-02-01' })],
+  ], ['personalnummer_vergeben']);
+
+  it('ein ANDERER Constraint bleibt, was er ist — keine erfundene Abweisung', async () => {
+    const fremd = Object.assign(new Error('duplicate key value violates unique constraint "anstellung_pk"'),
+      { code: '23505', constraint_name: 'anstellung_pk' });
+    const f = await wurf(() => stelleEin(kontext((sql) => (/as merge/u.test(sql)
+      ? [{ id: PERSON, name: 'Anna Berg', merge: null }]
+      : /insert into anstellung/u.test(sql) ? fremd : [])), gueltig));
+    expect(f).toBe(fremd);
+  });
+});
+
+describe('die Abweisungen von app.person_zusammenfuehren werden Gründe (D-771 Nachtrag)', () => {
+  const eingabe = {
+    dublettePersonId: PERSON, fuehrendPersonId: PERSON_ZWEI, grund: 'doppelt angelegt',
+    bestaetigung: 'Berg',
+  };
+  const mitFunktionsfehler = (fehler: Error): SchreibKontext => kontext((sql) =>
+    (/select nachname from person/u.test(sql) ? [{ nachname: 'Berg' }]
+      : /app\.person_zusammenfuehren/u.test(sql) ? fehler : []));
+
+  it.each(FUNKTION_ABWEISUNGEN.map((a) => [a.grund, a] as const))('%s', async (grund, a) => {
+    const f = await wurf(() => fuehreZusammen(mitFunktionsfehler(
+      Object.assign(new Error(`${a.satz} Und was die Funktion sonst noch sagt.`), { code: a.code })),
+    eingabe));
+    expect(f).toBeInstanceOf(ZusammenfuehrenFehler);
+    expect((f as ZusammenfuehrenFehler).grund).toBe(grund);
+    expect(ZUSAMMENFUEHREN_GRUENDE as readonly string[]).toContain(grund);
+  });
+
+  it.each([
+    ['Gruppenansicht (Invariante 10) — vorher fragt `authorize`', '23001', 'Die Gruppenansicht schreibt nicht (Invariante 10).'],
+    ['das Recht — vorher fragt `authorize`', '42501', 'nicht berechtigt'],
+    ['derselbe Satz mit einem anderen Code', '23514', 'Dieser Datensatz ist bereits zusammengeführt.'],
+    ['ein Fehler ohne Satz der Funktion', '23001', 'irgendein anderer Text'],
+  ] as const)('unbekannt bleibt ein Wurf: %s', async (_, code, satz) => {
+    const roh = Object.assign(new Error(satz), { code });
+    expect(await wurf(() => fuehreZusammen(mitFunktionsfehler(roh), eingabe))).toBe(roh);
+  });
+
+  it('jeder erkannte Satz steht so in 0194 — mit dem errcode, den der Dienst erwartet', () => {
+    const migration = readFileSync(resolve(WURZEL, 'drizzle/0194_person_zusammenfuehren.sql'), 'utf8');
+    const CODE: Readonly<Record<string, string>> = {
+      restrict_violation: '23001', check_violation: '23514',
+    };
+    for (const a of FUNKTION_ABWEISUNGEN) {
+      const i = migration.indexOf(`'${a.satz}`);
+      expect(i, a.satz).toBeGreaterThan(-1);
+      const errcode = /using errcode = '(\w+)'/u.exec(migration.slice(i))?.[1] ?? '';
+      expect(CODE[errcode], a.satz).toBe(a.code);
+    }
+  });
 });
 
 describe('die Gründe selbst', () => {

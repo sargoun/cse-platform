@@ -23416,6 +23416,43 @@ demselben Zweig):
     (kein Aufrufer ändert seinen Import). Kein Test und kein Aufrufer erwartete
     einen der beiden Codes. Die vier Dienste haben damit 13 Fehlerklassen
     statt 14; die Sperrklinke zählt `personalnummer.ts` mit.
+12. **Was die Datenbank abweist, wird ein Grund — was sie nicht kennt,
+    bleibt ein Wurf** (Nebenbefund 3). Drei Wege endeten als 500:
+    - **Ein Kalendertag, den es nicht gibt.** Die drei Dienste prüften nur
+      das Muster `JJJJ-MM-TT`; `2025-02-31` kam durch, und die Datenbank
+      antwortete am `::date` mit 22008. Jetzt prüfen `einstellung.ts`,
+      `anstellung.ts` und `stammdaten.ts` jeden Tag mit dem vorhandenen
+      `istGueltigerKalendertag` (`lib/datum/kalendertag.ts`, seit V-217) —
+      vor jeder Abfrage und mit den Gründen, die es schon gab
+      (`eintritt_ungueltig`, `austritt_ungueltig`, `gilt_ab_ungueltig`,
+      `stichtag_ungueltig`, `geburtsdatum_ungueltig`). Die Seiten Beenden und
+      Entgelt lassen einen solchen `?austritt=`/`?stichtag=` auf heute
+      zurückfallen, statt ihre Vorschau damit zu fragen.
+    - **Die gleichzeitige Personalnummer.** Die Vorabfrage beider Dienste
+      sieht eine zweite Anlage nicht, die zwischen Frage und Schreiben
+      festgeschrieben wird; sie lief als 23505 in
+      `anstellung_personalnummer_uk`. `istPersonalnummerKollision`
+      (`personalnummer.ts`) erkennt genau diesen Constraint an Code UND Name
+      (wie `bau/gewerk.ts`) und macht daraus `PersonalnummerVergeben` (Nr. 11),
+      also `personalnummer_vergeben` — denselben Grund wie die Vorabfrage.
+      Ein anderer 23505 bleibt, was er ist.
+    - **Die Abweisungen von `app.person_zusammenfuehren`** (0194): ein zweites
+      Zusammenführen derselben Zeile (Doppelklick, eine Kollegin war
+      schneller), eine Dublette, die nur die Schwestergesellschaft
+      beschäftigt, eine Kette in beide Richtungen. Vier neue Gründe —
+      `bereits_zusammengefuehrt`, `nicht_beide_hier`,
+      `fuehrend_zusammengefuehrt`, `dublette_ist_fuehrend` —, dazu
+      `dieselbe_zeile` und `grund_fehlt`, wenn die Datenbank sie vor dem Dienst
+      sieht (eine Kennung in Grossbuchstaben ist für den Dienst eine andere
+      Zeichenkette, für die Funktion dieselbe Zeile). Erkannt an SQLSTATE UND
+      am Satz der Funktion (`FUNKTION_ABWEISUNGEN` in `dublette.ts`, wie
+      `freigabe/entscheiden.ts`) — einen anderen Schlüssel trägt sie nicht;
+      eine Prüfung liest jeden Satz samt `errcode` in 0194 nach. Die Sätze der
+      Seite wiederholen, was die Funktion selbst begründet (O-611,
+      Invariante 8, der eine Sprung) — keine Regel ist neu. **Was die Route
+      vorher fragt, bleibt ein Wurf**: genau eine aktive Gesellschaft, die
+      Gruppenansicht, das Recht (42501) sieht `authorize` zuerst, und ein
+      unbekannter Datenbankfehler wird keine erfundene Abweisung.
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/personal-anstellung.test.ts` |
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql` |
 |---|---|

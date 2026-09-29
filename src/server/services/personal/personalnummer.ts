@@ -30,3 +30,21 @@ export class PersonalnummerVergeben extends Error {
     this.name = 'PersonalnummerVergeben';
   }
 }
+
+/**
+ * Ist dieser Wurf die Eindeutigkeit der Personalnummer in ihrer Gesellschaft
+ * (`anstellung_personalnummer_uk`, 0002)? — dann ist es dieselbe Kollision
+ * wie oben, nur später erkannt (D-771 Nachtrag).
+ *
+ * **Wann das vorkommt.** Beide Dienste fragen VOR dem Schreiben, ob die
+ * Nummer schon vergeben ist, und antworten mit einem Satz. Zwei gleichzeitige
+ * Anlagen mit derselben Nummer sehen einander bei dieser Frage aber noch
+ * nicht; die zweite läuft in den Constraint — die Wahrheit, die die
+ * Vorabfrage nur höflich vorwegnimmt. Bisher wurde daraus ein roher 23505 und
+ * eine 500. Erkannt wird er an Code UND Name des Constraints, wie in
+ * `bau/gewerk.ts`: ein anderer 23505 bleibt, was er ist.
+ */
+export function istPersonalnummerKollision(fehler: unknown): boolean {
+  const f = fehler as { code?: unknown; constraint_name?: unknown };
+  return f.code === '23505' && f.constraint_name === 'anstellung_personalnummer_uk';
+}

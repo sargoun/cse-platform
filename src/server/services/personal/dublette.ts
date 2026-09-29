@@ -49,10 +49,13 @@ export interface DublettenKandidat {
  * Warum eine Zusammenführung abgewiesen wird — der GRUND, der als `?fehler=`
  * auf die Zusammenführungsseite zurückreist (D-771, D-769, V-273). Der Satz
  * der Klasse bleibt deutsch und geht nur an eine Schnittstelle (D-599).
- * `keine_auswahl` wirft die Route selbst, bevor sie diesen Dienst ruft.
+ * `keine_auswahl` wirft die Route selbst, bevor sie diesen Dienst ruft; die
+ * letzten vier sind Abweisungen der Datenbank (`FUNKTION_ABWEISUNGEN`).
  */
 export const ZUSAMMENFUEHREN_GRUENDE = [
   'keine_auswahl', 'dieselbe_zeile', 'grund_fehlt', 'fuehrend_nicht_sichtbar',
+  'nicht_beide_hier', 'bereits_zusammengefuehrt', 'fuehrend_zusammengefuehrt',
+  'dublette_ist_fuehrend',
 ] as const;
 export type ZusammenfuehrenGrund = (typeof ZUSAMMENFUEHREN_GRUENDE)[number];
 
@@ -63,6 +66,52 @@ export class ZusammenfuehrenFehler extends Error {
     super(nachricht);
     this.name = 'ZusammenfuehrenFehler';
   }
+}
+
+/**
+ * Die Abweisungen von `app.person_zusammenfuehren` und ihres Auslösers
+ * `kern.person_merge_kein_zyklus` (0194), die ein Mensch über das Formular
+ * erreichen kann — als GRUND statt als roher Datenbankfehler (D-771
+ * Nachtrag). Bis hierher wurde jede davon eine 500: ein zweites
+ * „Zusammenführen" (Doppelklick, eine Kollegin war schneller), eine Zeile,
+ * auf die schon eine andere Dublette zeigt, eine Dublette aus der
+ * Schwestergesellschaft.
+ *
+ * **Erkannt an SQLSTATE UND am Satz der Funktion** — sie trägt keinen
+ * anderen Schlüssel, und der Satz steht in der Migration fest (so auch
+ * `freigabe/entscheiden.ts`). `tests/kern/personal-gruende.test.ts` liest jeden
+ * Satz samt `errcode` in 0194 nach: ändert sich einer, fällt die Prüfung und
+ * nicht erst ein Mensch. Was hier nicht steht — genau eine aktive
+ * Gesellschaft, die Gruppenansicht, das Recht —, fragt die Route schon vorher
+ * (`authorize`, D-771 Nr. 1) und bleibt ein Wurf: ein unbekannter
+ * Datenbankfehler wird keine erfundene Abweisung.
+ */
+export const FUNKTION_ABWEISUNGEN: readonly {
+  readonly code: '23001' | '23514';
+  readonly satz: string;
+  readonly grund: ZusammenfuehrenGrund;
+}[] = [
+  { code: '23001', grund: 'nicht_beide_hier',
+    satz: 'Beide Datensätze müssen in DIESER Gesellschaft beschäftigt sein.' },
+  { code: '23001', grund: 'bereits_zusammengefuehrt',
+    satz: 'Dieser Datensatz ist bereits zusammengeführt.' },
+  { code: '23001', grund: 'fuehrend_zusammengefuehrt',
+    satz: 'Die gewählte führende Zeile ist selbst schon zusammengeführt' },
+  { code: '23001', grund: 'dublette_ist_fuehrend',
+    satz: 'Auf diese Zeile zeigt bereits eine Dublette;' },
+  { code: '23001', grund: 'dieselbe_zeile',
+    satz: 'Ein Mensch ist keine Dublette von sich selbst.' },
+  { code: '23514', grund: 'grund_fehlt',
+    satz: 'Eine Zusammenführung ohne Begründung ist kein Vorgang, sondern ein Klick.' },
+];
+
+/** Die Abweisung der Datenbank als `ZusammenfuehrenFehler` — sonst `null` (dann bleibt der Wurf). */
+export function abweisungDerDatenbank(fehler: unknown): ZusammenfuehrenFehler | null {
+  const f = fehler as { code?: unknown; message?: unknown };
+  const text = f.message;
+  if (typeof text !== 'string') return null;
+  const treffer = FUNKTION_ABWEISUNGEN.find((a) => a.code === f.code && text.startsWith(a.satz));
+  return treffer === undefined ? null : new ZusammenfuehrenFehler(treffer.grund, text);
 }
 
 export class BestaetigungFehlt extends Error {
@@ -192,5 +241,7 @@ export async function fuehreZusammen(
   await kontext.schreibe(
     `select app.person_zusammenfuehren($1::uuid, $2::uuid, $3::text)`,
     [eingabe.dublettePersonId, eingabe.fuehrendPersonId, eingabe.grund.trim()],
-  );
+  ).catch((fehler: unknown) => {
+    throw abweisungDerDatenbank(fehler) ?? fehler;
+  });
 }

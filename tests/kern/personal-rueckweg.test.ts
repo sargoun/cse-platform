@@ -579,3 +579,21 @@ describe('die sechs Seiten lesen `?meldung=` nicht mehr', () => {
     expect([...new Set(befunde.map((b) => b.parameter))].sort()).toEqual(['nachname', 'q', 'vorname']);
   });
 });
+
+describe('ein Tag aus der Adresse ist ein Tag, den es gibt (D-771 Nachtrag)', () => {
+  /*
+   * `?austritt=` und `?stichtag=` gehen als Vorschau in eine Abfrage. Das
+   * Muster JJJJ-MM-TT allein liess den 31. Februar durch; die Datenbank
+   * antwortete am `::date` mit 22008, und die Seite fiel als 500. Jetzt fällt
+   * ein solcher Tag auf heute zurück — `istGueltigerKalendertag` selbst prüft
+   * `tests/kern/kalendertag-stunden.test.ts`.
+   */
+  const M = 'src/app/portal/[mandant]/personal/anstellungen/[id]';
+  it.each([
+    [`${M}/beenden/page.tsx`, 'rohAustritt'],
+    [`${M}/entgelt/page.tsx`, 'rohStichtag'],
+  ] as const)('%s', (seite, roh) => {
+    const s = readFileSync(join(WURZEL, seite), 'utf8');
+    expect(s).toContain(`&& istGueltigerKalendertag(${roh}) ? ${roh} : heute`);
+  });
+});

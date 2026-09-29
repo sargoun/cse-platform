@@ -27,7 +27,8 @@
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
 import { mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
-import { PersonalnummerVergeben } from './personalnummer.js';
+import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
+import { istPersonalnummerKollision, PersonalnummerVergeben } from './personalnummer.js';
 
 /* EINE Klasse für dieselbe Kollision, hier nur durchgereicht (D-771 Nachtrag). */
 export { PersonalnummerVergeben };
@@ -160,7 +161,12 @@ export class KeinEntgeltRecht extends Error {
   }
 }
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * **Jeder Kalendertag dieser Datei wird mit `istGueltigerKalendertag`
+ * geprüft** — einen Tag, den es gibt, nicht nur die Form `JJJJ-MM-TT`. Das
+ * Muster allein liess den 31. Februar durch, und die Datenbank antwortete am
+ * `::date` mit 22008: eine 500 statt eines Satzes (D-771 Nachtrag).
+ */
 
 const ZEILE = `
   select a.id, a.mandant_id, a.person_id,
@@ -248,7 +254,7 @@ export async function aendereVertrag(
       'Die Personalnummer ist Pflicht — sie ist der Schlüssel, unter dem diese '
       + 'Gesellschaft die Beschäftigung führt.');
   }
-  if (!DATUM.test(eingabe.eintritt)) {
+  if (!istGueltigerKalendertag(eingabe.eintritt)) {
     throw new VertragEingabeFehler('eintritt_ungueltig',
       'Der Eintritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
@@ -265,7 +271,9 @@ export async function aendereVertrag(
    * Die Kollision wird als SATZ beantwortet und nicht als 23505. `unique
    * (mandant_id, personalnummer)` ist die Wahrheit; diese Vorabfrage ist die
    * Hoeflichkeit. Sie ersetzt die Wache nicht — zwei gleichzeitige
-   * Schreibvorgaenge laufen weiter in den Constraint, und das ist richtig.
+   * Schreibvorgaenge laufen weiter in den Constraint, und das ist richtig;
+   * dort wird der zweite zu derselben Klasse (`istPersonalnummerKollision`,
+   * D-771), statt als roher 23505 eine 500 zu werden.
    */
   const [kollision] = await kontext.abfrage<{ id: string }>(
     `select id from anstellung
@@ -281,7 +289,11 @@ export async function aendereVertrag(
       where id = $1::uuid and geloescht_am is null
       returning id`,
     [eingabe.anstellungId, nummer, eingabe.eintritt, kontext.benutzerId],
-  );
+  ).catch((fehler: unknown) => {
+    /* Eine gleichzeitige Änderung auf dieselbe Nummer: der Constraint sah sie, die Vorabfrage nicht. */
+    if (istPersonalnummerKollision(fehler)) throw new PersonalnummerVergeben(nummer);
+    throw fehler;
+  });
   if (zeilen.length === 0) throw new AnstellungNichtGefunden(eingabe.anstellungId);
 
   const gelesen = await findeAnstellung(kontext, eingabe.anstellungId);
@@ -317,7 +329,7 @@ export interface Beendigungsfolgen {
 export async function beendigungsfolgen(
   kontext: LeseKontext, anstellungId: string, austritt: string,
 ): Promise<Beendigungsfolgen> {
-  if (!DATUM.test(austritt)) {
+  if (!istGueltigerKalendertag(austritt)) {
     throw new VertragEingabeFehler('austritt_ungueltig',
       'Der Austritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
@@ -425,7 +437,7 @@ export interface BeendenEingabe {
 export async function beendeAnstellung(
   kontext: SchreibKontext, eingabe: BeendenEingabe,
 ): Promise<AnstellungZeile> {
-  if (!DATUM.test(eingabe.austritt)) {
+  if (!istGueltigerKalendertag(eingabe.austritt)) {
     throw new VertragEingabeFehler('austritt_ungueltig',
       'Der Austritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
@@ -507,7 +519,7 @@ export async function beendeAnstellung(
 export async function leseEntgelt(
   kontext: LeseKontext, anstellungId: string, stichtag?: string,
 ): Promise<Cent | null> {
-  if (stichtag !== undefined && !DATUM.test(stichtag)) {
+  if (stichtag !== undefined && !istGueltigerKalendertag(stichtag)) {
     throw new VertragEingabeFehler('stichtag_ungueltig',
       'Der Stichtag erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
@@ -616,7 +628,7 @@ function alsNumeric(wert: MilliMenge | null | undefined): string | null {
 export async function setzeKondition(
   kontext: SchreibKontext, eingabe: KonditionEingabe,
 ): Promise<void> {
-  if (!DATUM.test(eingabe.giltAb)) {
+  if (!istGueltigerKalendertag(eingabe.giltAb)) {
     throw new VertragEingabeFehler('gilt_ab_ungueltig',
       '„Gilt ab" erwartet einen Kalendertag als JJJJ-MM-TT.');
   }

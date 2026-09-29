@@ -21,8 +21,9 @@ import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
-import { beendigungsfolgen, setzeKondition, VertragEingabeFehler }
-  from '../../src/server/services/personal/anstellung.js';
+import {
+  aendereVertrag, beendigungsfolgen, PersonalnummerVergeben, setzeKondition, VertragEingabeFehler,
+} from '../../src/server/services/personal/anstellung.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { mengeAusEingabe, milliMenge } from '../../src/server/services/finanz/menge.js';
 
@@ -170,6 +171,30 @@ describe('(2) der Spiegel hat GENAU EINEN Schreiber (§6.14, 0191)', () => {
       als(personal, (tx) =>
         tx`update anstellung set personalnummer = 'R-1001' where id = ${f.jonasReinigung}`),
     ).rejects.toThrow(/anstellung_personalnummer_uk|duplicate key/iu);
+  });
+
+  it('und `aendereVertrag` macht aus ihm die Klasse — auch wenn die Vorabfrage die Kollision nicht sah (D-771 Nachtrag)', async () => {
+    /*
+     * Zwei gleichzeitige Aenderungen auf dieselbe Nummer sehen einander bei
+     * der Vorabfrage nicht. Nachgestellt, indem der Kontext genau diese eine
+     * Abfrage leer beantwortet: das UPDATE trifft den echten Constraint, und
+     * statt eines rohen 23505 (einer 500) kommt `personalnummer_vergeben`.
+     */
+    const fehler = await als(personal, (tx) => {
+      const k = kontextAus(tx, personal, f.reinigung);
+      return aendereVertrag({
+        ...k,
+        abfrage: async <T>(q: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+          (/from anstellung\s+where mandant_id = \$1::uuid and personalnummer = \$2/u.test(q)
+            ? [] : k.abfrage<T>(q, w)),
+      }, { anstellungId: f.jonasReinigung, personalnummer: 'R-1001', eintritt: '2024-02-01' });
+    }).then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(PersonalnummerVergeben);
+    expect((fehler as PersonalnummerVergeben).grund).toBe('personalnummer_vergeben');
+
+    const [z] = await sql.unsafe<{ nummer: string }[]>(
+      `select personalnummer as nummer from anstellung where id = $1`, [f.jonasReinigung]);
+    expect(z?.nummer, 'die Aenderung ist zurueckgerollt').toBe('R-1002');
   });
 });
 
@@ -633,6 +658,20 @@ describe('(4f) Wochenstunden und Arbeitstage: gelesen bis in die Spalte, die Gre
       `select count(*)::text as n from anstellung_kondition where anstellung_id = $1`,
       [f.jonasReinigung]);
     expect(n?.n, 'die abgewiesene Kondition hat die laufende nicht geschlossen').toBe('1');
+  });
+});
+
+describe('(4g) ein Kalendertag, den es nicht gibt, erreicht die Datenbank nicht (D-771 Nachtrag)', () => {
+  it('die Datenbank antwortet auf den 31. Februar mit 22008 — der Dienst vorher mit einem Grund', async () => {
+    /* Die Voraussetzung des Befunds, an der echten Datenbank: das Muster JJJJ-MM-TT allein genuegte nicht. */
+    const roh = await sql.unsafe(`select '2025-02-31'::date`).then(() => null, (e: unknown) => e);
+    expect((roh as { code?: unknown }).code).toBe('22008');
+
+    const fehler = await als(personal, (tx) => setzeKondition(kontextAus(tx, personal, f.reinigung), {
+      anstellungId: f.jonasReinigung, giltAb: '2025-02-31', stundensatzCent: null,
+    })).then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(VertragEingabeFehler);
+    expect((fehler as VertragEingabeFehler).grund).toBe('gilt_ab_ungueltig');
   });
 });
 

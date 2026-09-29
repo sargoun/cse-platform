@@ -267,6 +267,22 @@ NurDeutsch<PersonalRueckwegTexte<ZusammenfuehrenSeitenGrund>> = {
         'Die getippte Bestätigung stimmt nicht mit dem Nachnamen der führenden Zeile überein. '
         + 'Eine Zusammenführung ist nicht mit einem Klick rückgängig zu machen — deshalb wird '
         + 'sie getippt.',
+      /* Die Abweisungen der Datenbank (0194), als Satz statt als 500 (D-771 Nachtrag). */
+      nicht_beide_hier:
+        'Beide Datensätze müssen in dieser Gesellschaft beschäftigt sein. Liegt die zweite '
+        + 'Beschäftigung bei einer Schwestergesellschaft, ist die Zusammenführung offen '
+        + '(O-611) — sie entschiede über einen Menschen, den diese Gesellschaft nicht führt.',
+      bereits_zusammengefuehrt:
+        'Der veraltete Datensatz ist inzwischen schon zusammengeführt — eine Zusammenführung '
+        + 'wird nicht überschrieben (Invariante 8). Die Seite zeigt den aktuellen Stand.',
+      fuehrend_zusammengefuehrt:
+        'Die gewählte führende Zeile ist selbst schon zusammengeführt. Ein Verweis reicht '
+        + 'genau einen Schritt weit — sonst läse eine Auswertung, die der Kette nicht folgt, '
+        + 'die mittlere Zeile als führend.',
+      dublette_ist_fuehrend:
+        'Auf die veraltete Zeile zeigt bereits eine andere Dublette; sie ist damit selbst eine '
+        + 'führende Zeile und kann nicht zusammengeführt werden. Führen Sie zuerst beide '
+        + 'Dubletten auf dieselbe Zeile.',
     },
   },
 };

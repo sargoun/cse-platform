@@ -22,6 +22,7 @@
  * Ausweisregister.
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
 
 export interface Stammdaten {
   /** `JJJJ-MM-TT` — ein Kalendertag, kein Zeitpunkt (Invariante 2). */
@@ -83,7 +84,12 @@ export class PersonNichtGefunden extends Error {
   }
 }
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * **Jeder Kalendertag dieser Datei wird mit `istGueltigerKalendertag`
+ * geprüft** — einen Tag, den es gibt, nicht nur die Form `JJJJ-MM-TT`. Das
+ * Muster allein liess den 31. Februar durch, und die Datenbank antwortete am
+ * `::date` mit 22008: eine 500 statt eines Satzes (D-771 Nachtrag).
+ */
 const ISO2 = /^[A-Za-z]{2}$/u;
 
 /**
@@ -166,7 +172,7 @@ export async function schreibeStammdaten(
 
   if (eingabe.geburtsdatum !== undefined) {
     const geburtsdatum = eingabe.geburtsdatum?.trim() ?? '';
-    if (geburtsdatum !== '' && !DATUM.test(geburtsdatum)) {
+    if (geburtsdatum !== '' && !istGueltigerKalendertag(geburtsdatum)) {
       throw new StammdatenEingabeFehler('geburtsdatum_ungueltig',
         'Das Geburtsdatum erwartet einen Kalendertag als JJJJ-MM-TT.');
     }

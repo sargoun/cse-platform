@@ -12,7 +12,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
 import { formatiereGeld, type Cent } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
-import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { istGueltigerKalendertag, tagDeutsch } from '@/lib/datum/kalendertag';
 import { Recht } from '@/components/ui/Recht';
 import { ENTGELT_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import {
@@ -50,8 +50,6 @@ import { PersonalAbweisung } from '../../../abweisung';
  */
 export const dynamic = 'force-dynamic';
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
-
 export default async function Entgeltblatt({
   params, searchParams,
 }: {
@@ -88,7 +86,11 @@ export default async function Entgeltblatt({
   const gespeichert = suche['gespeichert'] === '1';
   const heute = await berlinHeute();
   const rohStichtag = typeof suche['stichtag'] === 'string' ? suche['stichtag'] : null;
-  const stichtag = rohStichtag !== null && DATUM.test(rohStichtag) ? rohStichtag : heute;
+  /* Ein Tag, den es gibt — `?stichtag=2025-02-31` fällt auf heute zurück (D-771).
+     Das Muster steht davor, damit auch die Wache über die Adresse
+     (`tests/kern/hilfen/adressparameter.ts`) den Wert als geprüft liest. */
+  const stichtag = rohStichtag !== null && /^\d{4}-\d{2}-\d{2}$/u.test(rohStichtag)
+    && istGueltigerKalendertag(rohStichtag) ? rohStichtag : heute;
 
   const daten = await (db().begin(async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {

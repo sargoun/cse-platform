@@ -1,7 +1,8 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
-import { PersonalnummerVergeben } from './personalnummer.js';
+import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
+import { istPersonalnummerKollision, PersonalnummerVergeben } from './personalnummer.js';
 
 /* EINE Klasse für dieselbe Kollision, hier nur durchgereicht (D-771 Nachtrag). */
 export { PersonalnummerVergeben };
@@ -41,7 +42,12 @@ export { PersonalnummerVergeben };
 export const SPRACHEN = ['de', 'en', 'ar', 'tr'] as const;
 export type Sprache = (typeof SPRACHEN)[number];
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * **Jeder Kalendertag dieser Datei wird mit `istGueltigerKalendertag`
+ * geprüft** — einen Tag, den es gibt, nicht nur die Form `JJJJ-MM-TT`. Das
+ * Muster allein liess den 31. Februar durch, und die Datenbank antwortete am
+ * `::date` mit 22008: eine 500 statt eines Satzes (D-771 Nachtrag).
+ */
 
 /**
  * Warum `pruefeEingabe` oder `stelleEin` eine Einstellung abweisen — der
@@ -157,7 +163,7 @@ export function pruefeEingabe(eingabe: EinstellungEingabe): GeprueftEingabe {
     throw new EinstellungFehler('personalnummer_zu_lang',
       'Die Personalnummer ist länger als 40 Zeichen.');
   }
-  if (!DATUM.test(eingabe.eintritt)) {
+  if (!istGueltigerKalendertag(eingabe.eintritt)) {
     throw new EinstellungFehler('eintritt_ungueltig',
       'Der Eintritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
@@ -277,7 +283,8 @@ export async function stelleEin(
 
   /* Die Kollision wird als SATZ beantwortet, nicht als 23505. Der Constraint
      `anstellung_personalnummer_uk` bleibt die Wahrheit — diese Abfrage ist die
-     Höflichkeit, und zwei gleichzeitige Anlagen laufen weiter in ihn. */
+     Höflichkeit, und zwei gleichzeitige Anlagen laufen weiter in ihn; dort
+     wird die zweite zu derselben Klasse (`istPersonalnummerKollision`, D-771). */
   const [kollision] = await kontext.abfrage<{ id: string }>(
     `select id from anstellung
       where mandant_id = $1::uuid and personalnummer = $2`,
@@ -347,18 +354,24 @@ export async function stelleEin(
   }
 
   const anstellungId = randomUUID();
-  await kontext.schreibe(
-    /*
-     * `arbeitszeitmodell` bleibt auf seinem Vorgabewert `unbekannt` (0002,
-     * O-18) und `wochenstunden` leer: beide sind der Spiegel der datierten
-     * Kondition und haben genau EINEN Schreiber (0192). Sie hier zu setzen
-     * wäre eine zweite Schreibfläche über derselben Spalte.
-     */
-    `insert into anstellung
-       (id, mandant_id, person_id, personalnummer, eintritt, status, erstellt_von)
-     values ($1::uuid, $2::uuid, $3::uuid, $4, $5::date, $6, $7::uuid)`,
-    [anstellungId, kontext.aktiverMandantId, personId, eingabe.personalnummer,
-      eingabe.eintritt, status, kontext.benutzerId]);
+  try {
+    await kontext.schreibe(
+      /*
+       * `arbeitszeitmodell` bleibt auf seinem Vorgabewert `unbekannt` (0002,
+       * O-18) und `wochenstunden` leer: beide sind der Spiegel der datierten
+       * Kondition und haben genau EINEN Schreiber (0192). Sie hier zu setzen
+       * wäre eine zweite Schreibfläche über derselben Spalte.
+       */
+      `insert into anstellung
+         (id, mandant_id, person_id, personalnummer, eintritt, status, erstellt_von)
+       values ($1::uuid, $2::uuid, $3::uuid, $4, $5::date, $6, $7::uuid)`,
+      [anstellungId, kontext.aktiverMandantId, personId, eingabe.personalnummer,
+        eingabe.eintritt, status, kontext.benutzerId]);
+  } catch (fehler) {
+    /* Eine gleichzeitige Anlage mit derselben Nummer: der Constraint sah sie, die Vorabfrage nicht. */
+    if (istPersonalnummerKollision(fehler)) throw new PersonalnummerVergeben(eingabe.personalnummer);
+    throw fehler;
+  }
 
   await kontext.schreibe(
     `select app.protokolliere('personal.eingestellt', 'anstellung', $1,

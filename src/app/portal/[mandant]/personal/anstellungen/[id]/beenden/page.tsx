@@ -3,7 +3,7 @@ import type postgres from 'postgres';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
-import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { istGueltigerKalendertag, tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -130,8 +130,12 @@ export default async function Beendenblatt({
   const suche = await searchParams;
   const heute = await berlinHeute();
   const rohAustritt = typeof suche['austritt'] === 'string' ? suche['austritt'] : null;
+  /* Ein Tag, den es gibt — `?austritt=2025-02-31` fällt auf heute zurück, statt
+     die Folgenabfrage mit einem Tag zu fragen, den die Datenbank ablehnt (D-771).
+     Das Muster steht davor, damit auch die Wache über die Adresse
+     (`tests/kern/hilfen/adressparameter.ts`) den Wert als geprüft liest. */
   const vorschau = rohAustritt !== null && /^\d{4}-\d{2}-\d{2}$/u.test(rohAustritt)
-    ? rohAustritt : heute;
+    && istGueltigerKalendertag(rohAustritt) ? rohAustritt : heute;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
