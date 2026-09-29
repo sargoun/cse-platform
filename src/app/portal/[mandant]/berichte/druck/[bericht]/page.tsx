@@ -12,12 +12,12 @@ import {
   berichtTabelle, blattFormat, istBericht, koernungAus, MIT_KOERNUNG, zellenFuerBlatt,
   type BerichtName,
 } from '@/server/services/bericht/export';
-import { MASSE_DRUCK } from '@/lib/design/theme';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { BERICHT_DRUCK_TEXTE } from '@/lib/i18n/verwaltung/bericht-druck';
 import { DruckKnopf } from '@/components/ui/DruckKnopf';
 import { MandantAntwort, mandantTor } from '../../../../unterseite';
 import { druckblattStil } from './stil';
+import { BlattKopf } from './kopf';
 
 /**
  * `/portal/[mandant]/berichte/druck/[bericht]` — ein Bericht als Blatt
@@ -40,13 +40,14 @@ import { druckblattStil } from './stil';
  * Adresse damit; hier wird es INNERHALB der Bindung noch einmal gefragt, wie
  * in der CSV-Route — ohne gebundenen Benutzer antwortete jedes Recht `false`.
  *
- * **Der Stand kommt aus der Datenbank** (`app.berlin_heute()`, Invariante 5).
+ * **Der Stand kommt aus der Datenbank** (`app.berlin_heute()`, Invariante 5)
+ * als Kalendertag JJJJ-MM-TT; geschrieben wird er im Kopf, in der Sprache des
+ * Rahmens (`./kopf.tsx`, D-733, V-269).
  */
 export const dynamic = 'force-dynamic';
 
 interface Kopf {
   readonly heute: string;
-  readonly stand: string;
   readonly firma: string;
   readonly name: string;
   readonly anschrift: string | null;
@@ -83,7 +84,6 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
         );
         const [kopf] = await kontext.abfrage<Kopf>(
           `select app.berlin_heute()::text as heute,
-                  to_char(app.berlin_heute(), 'DD.MM.YYYY') as stand,
                   m.firma, m.name,
                   nullif(concat_ws(', ', nullif(m.strasse, ''),
                                    nullif(trim(concat_ws(' ', m.plz, m.ort)), '')), '')
@@ -129,30 +129,9 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
         <p className="leise" style={{ margin: 0 }}>{t.anleitung}</p>
       </div>
 
-      <header>
-        <p className="firma">{kopf.firma}</p>
-        <hr className="kopflinie" />
-      </header>
-
-      <h1>{t.dokumentTitel(titel, kopf.name)}</h1>
-      <dl data-cse="bericht-druck-kopf" style={{ margin: `${MASSE_DRUCK['druck-block']} 0` }}>
-        <div>
-          <dt style={{ display: 'inline' }}>{`${t.zeitraum}: `}</dt>
-          <dd style={{ display: 'inline', margin: 0 }}>{String(jahr)}</dd>
-        </div>
-        {MIT_KOERNUNG.has(bericht) ? (
-          <div>
-            <dt style={{ display: 'inline' }}>{`${t.koernung}: `}</dt>
-            <dd style={{ display: 'inline', margin: 0 }}>{t.koernungen[koernung]}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt style={{ display: 'inline' }}>{`${t.stand}: `}</dt>
-          <dd data-cse="bericht-druck-stand" style={{ display: 'inline', margin: 0 }}>
-            {kopf.stand}
-          </dd>
-        </div>
-      </dl>
+      <BlattKopf t={t} sprache={zugang.sprache} firma={kopf.firma}
+                 titel={t.dokumentTitel(titel, kopf.name)} jahr={jahr}
+                 koernung={MIT_KOERNUNG.has(bericht) ? koernung : null} heute={kopf.heute} />
 
       {t.tabelleDeutsch === null ? null : <p className="leise">{t.tabelleDeutsch}</p>}
 

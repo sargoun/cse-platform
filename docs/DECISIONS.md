@@ -19724,7 +19724,10 @@ nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
 4. **Der Rahmen des Blatts spricht die Sprache der Sitzung, die Tabelle
    bleibt die deutsche Datei** (`i18n/verwaltung/bericht-druck.ts`); das
    englische Blatt sagt es dazu. Der Stand kommt aus `app.berlin_heute()`
-   als TT.MM.JJJJ.
+   als TT.MM.JJJJ. **Berichtigt durch D-765 Nr. 7:** die Abfrage formatierte
+   ihn deutsch, und der englische Rahmen schrieb „As of: 28.09.2026" — jetzt
+   liefert sie den Tag als JJJJ-MM-TT, und der Kopf schreibt ihn in der
+   Sprache des Rahmens (D-733), englisch „28 Sept 2026".
 5. **Nebenbei in der Datei geändert, weil das Blatt dieselben Werte zeigt:**
    Tage stehen als TT.MM.JJJJ (`datumText`) statt `YYYY-MM-DD`, und der Stand
    eines Projekts als Wort (`PROJEKT_STATUS_TEXT`, dieselbe Karte wie auf der
@@ -20248,6 +20251,14 @@ Muster `/^-?[\d.,]+ (%|h)$/u` traf: die Stundenspalten „Ist" und „Soll"
    beiden anderen mit 13 pt — ein Titel, ein Token, jetzt 13 pt. Die
    gezeichnete Rechnung (`zugferd/blatt.ts`, V-134) setzt mit eigenem Renderer
    in PDF-Punkten und gehört nicht zu dieser Nachbesserung.
+7. **Der Stand steht in der Sprache des Rahmens** (D-733 Nr. 1 und 2). Die
+   Abfrage lieferte ihn fertig formatiert (`to_char(…, 'DD.MM.YYYY')`), und im
+   englischen Rahmen stand „As of: 28.09.2026". Jetzt liefert sie den
+   Kalendertag als JJJJ-MM-TT, und der Kopf des Blatts (`druck/[bericht]/
+   kopf.tsx`) schreibt ihn mit `tagInSprache`: deutsch „28.09.2026", englisch
+   „28 Sept 2026". Deutsch bleibt nur die Tabelle (D-721 Nr. 4), nicht der
+   Kopf. Der Kopf ist dafür ein eigener Baustein neben der Seite, damit er sich
+   ohne Datenbank rendern und prüfen lässt.
 
 **Geprüft:** `tests/kern/bericht-export.test.ts` (37,5/19,25/40, dieselben
 Stellen wie die Datei, Stundenspalten rechts auch negativ, keine Rundung ohne
@@ -20263,9 +20274,10 @@ Cent-Zwillinge zählen nicht; quer/hoch in `@page` und Breite; Köpfe ohne
 `nowrap`; Rollbehälter und Telefonrand; jedes Druckmass mit Wert in DESIGN
 §11; die vier Kopfmasse aus `MASSE_DRUCK` im Berichtsblatt, kein Literal
 12/13/14 pt, 3 px oder Zeilenhöhe 1,5 in einem der drei Blätter, kein
-Druckmass in px), `tests/isolation/bericht.test.ts` (8): die Pipeline hoch, die übrigen
+Druckmass in px; der gerenderte Kopf: „As of: 28 Sept 2026" englisch, „Stand:
+28.09.2026" deutsch, keine formatierende Abfrage mehr), `tests/isolation/bericht.test.ts` (8): die Pipeline hoch, die übrigen
 fünf quer; `tests/e2e/berichte.spec.ts` prüft `data-format` und die Höhe
 des Rückwegs (nicht gelaufen — Playwright ist in dieser Runde ausgesetzt).
 
-| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts}`, `src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
+| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, D-733, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts,kopf.tsx}`, `src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|

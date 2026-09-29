@@ -13,10 +13,26 @@
  * Geprüft wird die erzeugte CSS und die Formatregel — nicht der Quelltext.
  */
 import { readFileSync } from 'node:fs';
+import * as React from 'react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { blattFormat, type BerichtTabelle } from '../../src/server/services/bericht/export.js';
 import { druckblattStil } from '../../src/app/portal/[mandant]/berichte/druck/[bericht]/stil.js';
+import { BlattKopf } from '../../src/app/portal/[mandant]/berichte/druck/[bericht]/kopf.js';
+import { BERICHT_DRUCK_TEXTE } from '../../src/lib/i18n/verwaltung/bericht-druck.js';
 import { DRUCK_HOCH_BIS_SPALTEN, FARBEN_MARKE, MASSE_DRUCK } from '../../src/lib/design/theme.js';
+
+/* Der Kopf ist `.tsx`; der Testläufer übersetzt ihn mit der klassischen
+   JSX-Form und erwartet `React` im Geltungsbereich (wie `druck-steuerung.test.ts`). */
+(globalThis as { React?: typeof React }).React = React;
+
+function kopf(sprache: 'de' | 'en' | null, koernung: 'quartal' | null = 'quartal'): string {
+  return renderToStaticMarkup(createElement(BlattKopf, {
+    t: BERICHT_DRUCK_TEXTE[sprache ?? 'de'], sprache, firma: 'CSE Dienstleistungen GmbH',
+    titel: 'Umsatz — Reinigung', jahr: 2026, koernung, heute: '2026-09-28',
+  }));
+}
 
 function tabelle(spalten: number): BerichtTabelle {
   return {
@@ -111,6 +127,7 @@ describe('Firmenzeile, Titel, Kopflinie und Zeilenhöhe sind Token — in allen 
   ] as const;
   const BERICHT_STIL = 'src/app/portal/[mandant]/berichte/druck/[bericht]/stil.ts';
   const BERICHT_SEITE = 'src/app/portal/[mandant]/berichte/druck/[bericht]/page.tsx';
+  const BERICHT_KOPF = 'src/app/portal/[mandant]/berichte/druck/[bericht]/kopf.tsx';
   const ANGEBOT = 'src/app/portal/[mandant]/angebote/[id]/pdf/page.tsx';
   const MONATSNACHWEIS = 'src/app/portal/mein/monatsnachweis/page.tsx';
 
@@ -120,11 +137,16 @@ describe('Firmenzeile, Titel, Kopflinie und Zeilenhöhe sind Token — in allen 
     expect(stil).toContain(`.cse-blatt .firma { margin: 0; font-size: ${MASSE_DRUCK['druck-firma-groesse']};`);
     expect(stil).toContain(`.cse-blatt h1 { margin: 0; font-size: ${MASSE_DRUCK['druck-titel-groesse']}; }`);
     expect(stil).toContain(`border-top: ${MASSE_DRUCK['druck-kopflinie']} solid ${FARBEN_MARKE.red};`);
-    expect(readFileSync(BERICHT_SEITE, 'utf8')).toMatch(/<p className="firma">/u);
+    /* Die Klassen, an denen diese Regeln hängen, trägt der gerenderte Kopf — ohne eigenes Mass. */
+    const html = kopf('de');
+    expect(html).toContain('<p class="firma">CSE Dienstleistungen GmbH</p>');
+    expect(html).toContain('<hr class="kopflinie"/>');
+    expect(html).toContain('<h1>Umsatz — Reinigung</h1>');
+    expect(html).not.toMatch(/font-size/u);
   });
 
   it('kein Blatt schreibt 12, 13 oder 14 pt, 3 px oder die Zeilenhöhe 1,5 selbst', () => {
-    for (const datei of [BERICHT_STIL, BERICHT_SEITE, ANGEBOT, MONATSNACHWEIS]) {
+    for (const datei of [BERICHT_STIL, BERICHT_SEITE, BERICHT_KOPF, ANGEBOT, MONATSNACHWEIS]) {
       expect(readFileSync(datei, 'utf8'), datei)
         .not.toMatch(/\b1[234]pt\b|\b3px solid|line-height: 1\.5\b/u);
     }
@@ -140,5 +162,40 @@ describe('Firmenzeile, Titel, Kopflinie und Zeilenhöhe sind Token — in allen 
   it('Punkte, nicht Pixel — kein Druckmass ist in px angegeben (§11)', () => {
     for (const [name, wert] of Object.entries(MASSE_DRUCK)) expect(wert, name).not.toMatch(/px$/u);
     expect(MASSE_DRUCK['druck-kopflinie']).toBe('2.25pt'); // die 3 px von vorher, 1 px = 0,75 pt
+  });
+});
+
+/*
+ * Der Rahmen des Blatts spricht die Sprache der Sitzung (D-721 Nr. 4) — der
+ * Stand aber kam fertig formatiert aus SQL (`to_char(…, 'DD.MM.YYYY')`), und
+ * im englischen Blatt stand „As of: 28.09.2026". D-733: ein Dienst liefert
+ * Tage als JJJJ-MM-TT, das Blatt schreibt sie in seiner Sprache (V-269).
+ */
+describe('der Stand steht in der Sprache des Rahmens (D-733)', () => {
+  it('englisch „As of: 28 Sept 2026" — nicht die deutsche Punktform', () => {
+    const html = kopf('en');
+    expect(html).toMatch(
+      /As of: <\/dt><dd data-cse="bericht-druck-stand"[^>]*>28 Sept? 2026<\/dd>/u);
+    expect(html).not.toContain('28.09.2026');
+    expect(html).toContain('Granularity: </dt>');
+  });
+
+  it('deutsch „Stand: 28.09.2026" — auch ohne gesetzte Sprache', () => {
+    for (const sprache of ['de', null] as const) {
+      expect(kopf(sprache)).toMatch(
+        /Stand: <\/dt><dd data-cse="bericht-druck-stand"[^>]*>28\.09\.2026<\/dd>/u);
+    }
+  });
+
+  it('die Körnung nur, wo der Bericht eine hat', () => {
+    expect(kopf('de')).toContain('Körnung: </dt>');
+    expect(kopf('de', null)).not.toContain('Körnung');
+  });
+
+  it('die Seite fragt den Kalendertag ab und reicht ihn mit der Sprache weiter', () => {
+    const seite = readFileSync('src/app/portal/[mandant]/berichte/druck/[bericht]/page.tsx', 'utf8');
+    expect(seite).not.toMatch(/to_char\(/u);
+    expect(seite).toMatch(/<BlattKopf [^>]*sprache=\{zugang\.sprache\}/u);
+    expect(seite).toMatch(/<BlattKopf [^>]*heute=\{kopf\.heute\}/u);
   });
 });
