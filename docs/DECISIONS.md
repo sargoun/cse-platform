@@ -23291,6 +23291,49 @@ daraus konkret gemacht hat.
    `fehlerSonst`) und nicht zweisprachig unter `lib/i18n/verwaltung`. Ein
    leeres `zurueck` führt auf die Sicherheitsseite statt in einen 500.
    Warnkasten `rolle="alert"`, Bestätigung `rolle="status"`.
+2. **Verwaltungskonto einladen** (`POST /api/system/verwaltungskonto`,
+   `…/einstellungen/benutzer/einladen`). Der ERFOLG reist getrennt als
+   `?erfolg=eingeladen` (vorher `?meldung=eingeladen`, derselbe Parameter wie
+   jeder Fehler — ohne den Keks stand „eingeladen" im Warnkasten), eine
+   Abweisung als `?fehler=<grund>`.
+   - **Die Sätze der Datenbank werden Schlüssel.** `app.verwaltungskonto_einladen`
+     (0372) gibt bei einer Abweisung einen deutschen Satz zurück; der Dienst
+     bildet die sechs bekannten Sätze Wort für Wort ab (`einladungsGrund`:
+     `gesellschaft_fehlt`, `email_ungueltig`, `name_fehlt`, `rolle_unzulaessig`,
+     `kundenkonto`, `schon_eingetragen`), jeder andere Satz und eine fehlende
+     Zeile werden `nicht_ausgestellt` — nie der Text. Die Migration bleibt,
+     wie sie ist: ein Umbau der Funktion auf Schlüssel wäre eine neue
+     Migration in fünf parallel arbeitenden Zweigen; die Abbildung an EINER
+     Stelle, gegen die echte Funktion geprüft, leistet dasselbe.
+   - **`42501` wird `nicht_erlaubt`** (`EinladungFehler`, 403), wie bei den
+     Kontohandlungen (`konto/verwaltung.ts`): die Definer-Funktion nennt im
+     Satz, WELCHE Bedingung fehlte; nach der Rechteprüfung der Route bekommt
+     der Schirm einen Satz ohne diese Auskunft (AUT-06). Der Satz der
+     Datenbank bleibt als `cause` am Fehler. Jeder andere Fehler bleibt ein
+     Fehler — vorher wurde der rohe Text JEDES einzeiligen Fehlers eine
+     Abweisung, auch ein Verbindungsabbruch.
+   - **Anmeldung und Recht zuerst.** Dieselbe Weiche fing den Wurf von
+     `authorize` ab: ein fehlendes Recht wurde `?meldung=Nicht gefunden` statt
+     der byte-gleichen 404 (AUT-06), ein fehlender zweiter Faktor ein Satz
+     statt des Faktor-Schritts (D-766). `autorisierungsAntwort` läuft jetzt
+     vor jeder anderen Weiche.
+   - `EinladungFehler.grund` und `EinladungErgebnis.grund` sind getypt; die
+     Route weist sie dem Typ der Satztabelle zu — ein neuer Grund ohne Satz
+     bricht die Übersetzung. Die eigene Rollenprüfung der Route schickt
+     `rolle_unzulaessig` (vorher ein Satz mit Backticks).
+   - Eine Abweisung löscht den Keks eines früheren Versuchs: sonst stünde
+     dessen Link neben dem Satz, dass diesmal nichts ausgestellt wurde. Der
+     Warnkasten steht deshalb auch nicht mehr nur „ohne Link-Keks".
+   - Ist der Keks abgelaufen und `?erfolg=eingeladen` noch da, sagt ein
+     Erfolgskasten, dass der Link nur unmittelbar danach erscheint. Ein
+     UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten: ein allgemeiner
+     Erfolgssatz behauptete einen Erfolg, den es nicht gab.
+   - `tests/isolation/verwaltungskonto-einladung.test.ts` BEWUSST angepasst:
+     wo er den Satz der Datenbank prüfte (`/schon/`, `/admin.*leitung/`, der
+     Wurf mit `privilege`), prüft er jetzt den Schlüssel — und den Satz der
+     Absage weiter, am `cause`. Dazu: jeder Grund der Abweisungen, die er
+     schon auslöste, und neu `gesellschaft_fehlt` und `kundenkonto` — damit
+     ist jeder der sechs Sätze gegen die echte Funktion geprüft.
 
-| Betrifft | D-769, D-599, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `tests/kern/konto-sitzung-rueckweg.test.ts` |
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|
