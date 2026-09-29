@@ -22,10 +22,10 @@
  * Module ausserhalb der Dienste (`authorize`, `withTenant`): sie werfen
  * keinen fachlichen Grund.
  *
- * **Was sich nicht lesen lässt, steht unter `offen`** (`datei:zeile`) — ein
- * Grund, der erst zur Laufzeit entsteht (eine Abbildung aus einer Tabelle).
- * Die Prüfung nennt solche Stellen ausdrücklich und liest ihre Gründe aus der
- * Tabelle selbst; eine neue offene Stelle bricht sie.
+ * **Was sich nicht lesen lässt, steht unter `offen`** (`datei#funktion:zeile`)
+ * — ein Grund, der erst zur Laufzeit entsteht (eine Abbildung aus einer
+ * Tabelle). Die Prüfung nennt solche Stellen ausdrücklich und liest ihre
+ * Gründe aus der Tabelle selbst; eine neue offene Stelle bricht sie.
  */
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -36,7 +36,7 @@ const ts = createRequire(import.meta.url)('typescript') as typeof TS;
 export interface GrundFund {
   /** Jeder Grund, den ein Wurf auf diesem Weg tragen kann. */
   readonly gruende: ReadonlySet<string>;
-  /** Würfe, deren Grund kein festes Wort ist — `datei:zeile`, relativ zur Wurzel. */
+  /** Würfe, deren Grund kein festes Wort ist — `datei#funktion:zeile`, relativ zur Wurzel. */
   readonly offen: readonly string[];
 }
 
@@ -147,7 +147,7 @@ function lies(lauf: Lauf, datei: string, name: string, umgebung: Umgebung): void
       const w = woerter(k.arguments?.[1], umgebung);
       if (w === null) {
         const zeile = sf.getLineAndCharacterOfPosition(k.getStart(sf)).line + 1;
-        lauf.offen.add(`${relative(lauf.wurzel, datei)}:${String(zeile)}`);
+        lauf.offen.add(`${relative(lauf.wurzel, datei)}#${name}:${String(zeile)}`);
       } else {
         for (const g of w) lauf.gruende.add(g);
       }

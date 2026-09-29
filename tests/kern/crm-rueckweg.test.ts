@@ -113,7 +113,7 @@ describe('(2) gruendeAb — die Gegenprobe an erfundenen Dateien', () => {
   });
 
   it('nennt, was sich nicht lesen lässt — und geht nicht in fremde Module', () => {
-    expect(fund.offen).toEqual(['src/server/services/b/dienst.ts:12']);
+    expect(fund.offen).toEqual(['src/server/services/b/dienst.ts#pruefe:12']);
     expect(fund.gruende.has('nie_auth')).toBe(false);
     expect(fund.gruende.has('nie_gerufen')).toBe(false);
   });

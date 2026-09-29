@@ -19,6 +19,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Unternavigation } from '../Unternavigation';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import { ZUGANG_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /**
  * `/portal/[mandant]/crm/kunden/[id]/zugang` — den Portalzugang eines Kunden
@@ -47,6 +49,12 @@ import { Unternavigation } from '../Unternavigation';
  * Route `aal2: false` führt: `benutzer_mandant` trägt die restriktive Policy
  * `p_bm_aal2`, und `app.kundenzugang_ausstellen` (0249) prüft `app.aal()`
  * selbst. Das steht vor dem Knopf und nicht in der Fehlermeldung danach.
+ *
+ * **Der Ausgang der drei Formulare kommt als Schlüssel zurück** (`?fehler=`,
+ * `?erfolg=`; D-769, D-772), die Sätze stehen in `ZUGANG_RUECKWEG`. Hier
+ * standen der Satz des Dienstes, der deutsche Satz der Datenbank und jeder
+ * andere Fehlertext roh im Warnkasten — unter der Überschrift „Nicht
+ * ausgestellt.", auch wenn ein Entzug scheiterte.
  */
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +74,7 @@ interface Kopf {
 export default async function Kundenzugang(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<{ meldung?: string; erfolg?: string }>;
+    searchParams: Promise<{ fehler?: string; erfolg?: string }>;
   },
 ) {
   const { mandant, id } = await params;
@@ -137,16 +145,10 @@ export default async function Kundenzugang(
       <h1 className="mb-s3 text-h1 text-text">{kopf.name}</h1>
       <Unternavigation mandant={mandant} kundeId={id} aktiv="zugang" rechte={darf} />
 
-      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
-        <Hinweis art="warnung" cse="zugang-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht ausgestellt.</strong> {suche.meldung}
-        </Hinweis>
-      ) : null}
-      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
-        <Hinweis art="erfolg" cse="zugang-erfolg" className="mb-s5 max-w-prose">
-          {suche.erfolg}
-        </Hinweis>
-      ) : null}
+      <Abweisung saetze={ZUGANG_RUECKWEG.de} grund={einSchluessel(suche.fehler)}
+                 cse="zugang-meldung" />
+      <Bestaetigung saetze={ZUGANG_RUECKWEG.de.erfolg} erfolg={einSchluessel(suche.erfolg)}
+                    cse="zugang-erfolg" />
 
       {/* -------------------------------------------- Der Link, einmalig */}
       {link !== null ? (

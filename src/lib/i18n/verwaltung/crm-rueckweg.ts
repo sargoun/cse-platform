@@ -32,6 +32,7 @@ import { rechtName } from '../rechtname.js';
 import type { CrmGrund } from '../../../server/services/crm/anlegen.js';
 import type { WiedervorlageErfolg } from '../../../server/services/crm/wiedervorlage.js';
 import type { SteuerGrund, SteuerVorgang } from '../../../server/services/finanz/kunde-steuer.js';
+import type { ZugangErfolg, ZugangGrund } from '../../../server/services/crm/kundenzugang.js';
 
 /** Die Sätze einer Abweisung auf EINER Seite. */
 export interface AbweisungTexte<G extends string> {
@@ -322,6 +323,69 @@ export const KONDITION_RUECKWEG: NurDeutsch<RueckwegTexte<KonditionGrund, 'gespe
     erfolg: {
       gespeichert:
         'Die Konditionen sind gespeichert. Was daraus folgt, steht oben neben jeder Angabe.',
+    },
+  },
+};
+
+/* ── Kundenzugang (`POST /api/crm/kunde/zugang`) ─────────────────────────────
+ * Die Gründe stehen als `ZUGANG_GRUENDE` am Dienst — samt denen, die er aus
+ * den Sätzen der Datenbank (0249) bildet. Hier steht keiner dieser Sätze:
+ * sie sind ohne Umlaute, nennen ein Recht mit seinem Schlüssel und die
+ * Rolle in Backticks.
+ */
+
+const BENUTZERKONTEN = rechtName('system.benutzer_verwalten', 'de');
+
+export const ZUGANG_RUECKWEG: NurDeutsch<RueckwegTexte<ZugangGrund, ZugangErfolg>> = {
+  de: {
+    titel: 'Nicht ausgeführt.',
+    sonst: 'Es wurde nichts geändert.',
+    fehler: {
+      nicht_gefunden:
+        'Diesen Zugang gibt es nicht, oder er ist schon entzogen — die Liste zeigt den aktuellen '
+        + 'Stand.',
+      anbieter_fremd:
+        'Supabase Auth ist als Anbieter aktiv: ein Konto entsteht dort und nicht in dieser '
+        + 'Datenbank, ein hier angelegtes könnte sich nicht anmelden. Der Weg dafür ist nicht '
+        + 'gebaut (O-501, O-662).',
+      kunde_unbekannt: 'Diesen Kunden gibt es in dieser Gesellschaft nicht.',
+      email_ungueltig: 'Ohne gültige E-Mail-Adresse gibt es kein Konto.',
+      name_fehlt:
+        'Ein Konto braucht einen Namen — er steht in jeder Freigabe und in jedem Protokolleintrag.',
+      internes_konto:
+        'Diese Adresse gehört einem internen Konto. Ein Kundenzugang dafür würde die Trennung '
+        + 'der Portale aufheben.',
+      zugang_besteht:
+        'Dieses Konto hat in dieser Gesellschaft schon einen Zugang. Entziehen Sie ihn zuerst.',
+      entzug_ohne_grund:
+        'Ein Entzug trägt einen Grund — er beantwortet später die Frage, warum der Kunde nicht '
+        + 'mehr hineinkommt.',
+      zweiter_faktor:
+        'Einen Kundenzugang und eine neue Einladung stellt nur aus, wer mit dem zweiten Faktor '
+        + 'angemeldet ist. Melden Sie sich mit zweitem Faktor an und versuchen Sie es noch '
+        + 'einmal.',
+      nur_intern: 'Kundenzugänge werden nur im internen Portal ausgestellt, erneuert und entzogen.',
+      gruppenansicht:
+        'In der Gruppenansicht wird nichts geändert. Wählen Sie zuerst die Gesellschaft, in der '
+        + 'der Zugang gilt.',
+      ohne_gesellschaft:
+        'Ohne aktive Gesellschaft gibt es keinen Kundenzugang. Wählen Sie zuerst die '
+        + 'Gesellschaft, in der der Zugang gilt.',
+      kein_recht: `Dafür fehlt das Recht „${BENUTZERKONTEN}" in dieser Gesellschaft.`,
+      rolle_fehlt:
+        'Im Rollenkatalog fehlt die Rolle für Kundenkonten; ohne sie entsteht kein Zugang. Das '
+        + 'ist ein Fehler der Einrichtung, nicht der Eingabe.',
+      abgewiesen: 'Die Datenbank hat den Vorgang abgewiesen; es wurde nichts geändert.',
+    },
+    erfolg: {
+      ausgestellt:
+        'Der Zugang ist ausgestellt. Der Einladungslink steht oben — einmal, und er wird von Hand '
+        + 'übergeben.',
+      eingeladen: 'Ein frischer Einladungslink steht oben. Der vorherige ist damit verfallen.',
+      entzogen: 'Der Zugang ist entzogen. Die Zeile bleibt stehen.',
+      entzogen_mit_sitzungen:
+        'Der Zugang ist entzogen, und die laufenden Sitzungen dieses Kontos sind beendet. Die '
+        + 'Zeile bleibt stehen.',
     },
   },
 };
