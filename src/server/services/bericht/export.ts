@@ -9,6 +9,7 @@ import { abschnitte, ganzesJahr, type Granularitaet } from './zeitraum.js';
 import { datumText, geldText, prozent, stunden, type Spalte } from './ausgabe.js';
 import { eigenerEintrag } from '../../../lib/nachschlagen.js';
 import { zahlText } from '../../../lib/zahl.js';
+import { DRUCK_HOCH_BIS_SPALTEN } from '../../../lib/design/theme.js';
 
 /**
  * Ein Bericht als TABELLE — die eine Quelle für die CSV-Datei und das
@@ -229,6 +230,20 @@ export function zellenFuerBlatt(tabelle: BerichtTabelle): {
       };
     }));
   return { koepfe, zeilen };
+}
+
+/**
+ * **Hoch- oder Querformat — aus der Tabelle, nicht aus dem Browser** (DESIGN
+ * §11, V-269).
+ *
+ * Vier der sechs Tabellen waren breiter als die 170 mm eines Hochformats:
+ * am Bildschirm ragten sie über das weisse Blatt, im Druck verkleinerte der
+ * Browser die ganze Seite (aus 10 pt wurden bei „Projekte" etwa 6,7 pt) oder
+ * schnitt ab. Mehr als `DRUCK_HOCH_BIS_SPALTEN` Spalten drucken quer. Die
+ * Cent-Zwillinge der Datei zählen nicht mit — sie stehen nicht auf dem Blatt.
+ */
+export function blattFormat(tabelle: BerichtTabelle): 'hoch' | 'quer' {
+  return tabelle.spalten.length > DRUCK_HOCH_BIS_SPALTEN ? 'quer' : 'hoch';
 }
 
 /**

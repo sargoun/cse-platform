@@ -9,14 +9,15 @@ import { NichtAngemeldetFehler, NichtGefundenFehler } from '@/server/auth/fehler
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { jahrAus } from '@/server/services/bericht/zeitraum';
 import {
-  berichtTabelle, istBericht, koernungAus, MIT_KOERNUNG, zellenFuerBlatt,
+  berichtTabelle, blattFormat, istBericht, koernungAus, MIT_KOERNUNG, zellenFuerBlatt,
   type BerichtName,
 } from '@/server/services/bericht/export';
-import { FARBEN_DRUCK, FARBEN_MARKE, MASSE_DRUCK } from '@/lib/design/theme';
+import { MASSE_DRUCK } from '@/lib/design/theme';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { BERICHT_DRUCK_TEXTE } from '@/lib/i18n/verwaltung/bericht-druck';
 import { DruckKnopf } from '@/components/ui/DruckKnopf';
 import { MandantAntwort, mandantTor } from '../../../../unterseite';
+import { druckblattStil } from './stil';
 
 /**
  * `/portal/[mandant]/berichte/druck/[bericht]` — ein Bericht als Blatt
@@ -71,7 +72,7 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
 
   let daten: {
     kopf: Kopf; jahr: number; koernung: ReturnType<typeof koernungAus>;
-    blatt: ReturnType<typeof zellenFuerBlatt>;
+    blatt: ReturnType<typeof zellenFuerBlatt>; format: ReturnType<typeof blattFormat>;
   };
   try {
     daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -92,7 +93,9 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
         const jahr = jahrAus(roh('jahr'), kopf.heute);
         const koernung = koernungAus(roh('koernung'));
         const tabelle = await berichtTabelle(bericht, kontext, jahr, koernung);
-        return { kopf, jahr, koernung, blatt: zellenFuerBlatt(tabelle) };
+        return {
+          kopf, jahr, koernung, blatt: zellenFuerBlatt(tabelle), format: blattFormat(tabelle),
+        };
       }))) as typeof daten;
   } catch (fehler) {
     if (fehler instanceof NichtGefundenFehler || fehler instanceof NichtAngemeldetFehler) {
@@ -101,57 +104,26 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
     throw fehler;
   }
 
-  const { kopf, jahr, koernung, blatt } = daten;
+  const { kopf, jahr, koernung, blatt, format } = daten;
   const titel = t.titel[bericht as BerichtName];
   const zurueck = alsRoute(
     `/portal/${mandant}/berichte/${bericht}?jahr=${String(jahr)}&koernung=${koernung}`);
 
   return (
-    <article data-cse="bericht-druckblatt" data-bericht={bericht} className="cse-blatt">
+    <article data-cse="bericht-druckblatt" data-bericht={bericht} data-format={format}
+             className="cse-blatt">
       {/*
-        Die Druckregeln gehören diesem Blatt und nicht der globalen CSS: ein
-        `@page` im Anwendungsstil legte den Rand auch auf jede andere Seite
-        (dasselbe Muster wie das Angebotsdokument).
+        Die Druckregeln gehören diesem Blatt und nicht der globalen CSS; sie
+        stehen in `./stil.ts` — hoch oder quer je nach Tabelle (DESIGN §11,
+        V-269), dort begründet und geprüft.
       */}
-      <style>{`
-        .cse-blatt { background: ${FARBEN_DRUCK['druck-papier']};
-                     color: ${FARBEN_DRUCK['druck-text']};
-                     max-width: 210mm; margin: 0 auto; padding: 20mm;
-                     font-size: 10pt; line-height: 1.5; }
-        .cse-blatt table { width: 100%; border-collapse: collapse; }
-        .cse-blatt th, .cse-blatt td {
-                     padding: ${MASSE_DRUCK['druck-zelle-y']} ${MASSE_DRUCK['druck-zelle-x']};
-                     vertical-align: top; text-align: left; }
-        .cse-blatt thead th { border-bottom: 1px solid ${FARBEN_DRUCK['druck-text']};
-                              font-size: ${MASSE_DRUCK['druck-kopf-groesse']};
-                              text-transform: uppercase;
-                              letter-spacing: ${MASSE_DRUCK['druck-kopf-sperrung']}; }
-        .cse-blatt tbody tr { border-bottom: 1px solid ${FARBEN_DRUCK['druck-linie-leicht']}; }
-        .cse-blatt .zahl { text-align: right; font-variant-numeric: tabular-nums;
-                           white-space: nowrap; }
-        .cse-blatt .leise { color: ${FARBEN_DRUCK['druck-text-leise']};
-                            font-size: ${MASSE_DRUCK['druck-meta-groesse']}; }
-        .cse-blatt .kopflinie { border: 0; border-top: 3px solid ${FARBEN_MARKE.red};
-                                margin: ${MASSE_DRUCK['druck-block']} 0
-                                        calc(2 * ${MASSE_DRUCK['druck-block']}); }
-        .cse-blatt .fuss { border-top: 1px solid ${FARBEN_DRUCK['druck-linie']};
-                           margin-top: calc(2 * ${MASSE_DRUCK['druck-block']});
-                           padding-top: ${MASSE_DRUCK['druck-block']};
-                           font-size: ${MASSE_DRUCK['druck-meta-groesse']};
-                           color: ${FARBEN_DRUCK['druck-text-leise']}; }
-        .cse-blatt .steuerung { display: flex; flex-wrap: wrap; align-items: center;
-                                gap: ${MASSE_DRUCK['druck-block']};
-                                margin-bottom: ${MASSE_DRUCK['druck-block']}; }
-        @media print {
-          @page { size: A4; margin: 20mm; }
-          .cse-blatt { padding: 0; max-width: none; }
-          .cse-nicht-drucken { display: none; }
-        }
-      `}</style>
+      <style>{druckblattStil(format)}</style>
 
       <div className="cse-nicht-drucken steuerung">
         <DruckKnopf text={t.drucken} cse="bericht-drucken" />
-        <Link href={zurueck} data-cse="bericht-druck-zurueck" className="underline underline-offset-2">
+        {/* Ein 44-px-Ziel wie jeder Rückweg (DESIGN §8), kein Fliesstextverweis. */}
+        <Link href={zurueck} data-cse="bericht-druck-zurueck"
+              className="inline-flex min-h-11 items-center underline underline-offset-2">
           {t.zurueck}
         </Link>
         <p className="leise" style={{ margin: 0 }}>{t.anleitung}</p>
@@ -187,6 +159,7 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
       {blatt.zeilen.length === 0 ? (
         <p data-cse="bericht-druck-leer">{t.leer}</p>
       ) : (
+        <div className="rollbar" data-cse="bericht-druck-rollbar">
         <table data-cse="bericht-druck-tabelle" lang="de">
           <caption className="sr-only">{t.tabelle(titel)}</caption>
           <thead>
@@ -206,6 +179,7 @@ export default async function BerichtDruckblatt({ params, searchParams }: {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <footer className="fuss">

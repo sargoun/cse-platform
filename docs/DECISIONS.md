@@ -19696,7 +19696,7 @@ nur CSV, und die ROADMAP hakte REP-07 trotzdem ab.
    Angebot und beim Monatsnachweis (D-204): ein serverseitiger PDF-Renderer
    ist eine eigene Abhängigkeit, und ein Knopf „PDF" ohne Datei wäre eine
    vorgetäuschte Funktion. `/portal/[mandant]/berichte/druck/[bericht]` IST
-   das Dokument: A4, 20 mm Rand, 10 pt, die Drucktoken aus DESIGN §11
+   das Dokument: A4 (seit D-765 ab sieben Spalten quer), 20 mm Rand, 10 pt, die Drucktoken aus DESIGN §11
    (`FARBEN_DRUCK`, `MASSE_DRUCK`), CSE-Rot nur in der Kopflinie; der
    Druckdialog des Browsers macht Papier oder eine PDF-Datei daraus. Der
    Druckknopf (`DruckKnopf`, jetzt in `components/ui`, geteilt mit dem
@@ -20222,6 +20222,21 @@ Muster `/^-?[\d.,]+ (%|h)$/u` traf: die Stundenspalten „Ist" und „Soll"
    Unterstreichung; `DruckKnopf` immer (er steht nur auf Blättern), der
    `Monatswechsler` mit `aufPapier`, die Wahl der Beschäftigung direkt. Der
    Monatswechsel auf den dunklen Seiten bleibt, wie er war.
+5. **Eine breite Tabelle druckt quer — nie verkleinert, nie abgeschnitten**
+   (DESIGN §11, neu: `--druck-blatt-hoch`, `--druck-blatt-quer`,
+   `--druck-hoch-bis-spalten`). Vier der sechs Tabellen waren breiter als
+   die 170 mm eines Hochformats (gerechnet: Projekte ≈ 954 px, Stunden
+   ≈ 933 px gegen 643 px), auch weil `.zahl` die versalen Köpfe ohne Umbruch
+   hielt: am Bildschirm ragten sie über das weisse Blatt auf den dunklen
+   Grund, im Druck wurde die Seite verkleinert oder abgeschnitten, auf dem
+   Telefon lief jede seitwärts. Jetzt entscheidet `blattFormat` aus der
+   Tabelle: bis sechs Spalten hoch, darüber quer (257 mm Satzbreite), am
+   Bildschirm 297 mm breit. Die Köpfe brechen um, nur `td.zahl` nicht; die
+   Tabelle steht in einem Rollbehälter (`.rollbar`, im Druck `overflow:
+   visible`), unter `md` hat das Blatt den Rand `--s4` (D-420, wie der
+   Monatsnachweis). Der Rückweg „Zurück zum Bericht" ist ein 44-px-Ziel
+   (DESIGN §8). Die Regeln stehen in `druck/[bericht]/stil.ts`, damit sie
+   sich ohne Browser prüfen lassen.
 
 **Geprüft:** `tests/kern/bericht-export.test.ts` (37,5/19,25/40, dieselben
 Stellen wie die Datei, Stundenspalten rechts auch negativ, keine Rundung ohne
@@ -20231,7 +20246,13 @@ Anstellung zu 37,5 Wochenstunden: Blatt „37,5", Datei „37.5", die sieben
 Zahlenspalten des Stundenberichts rechts; `tests/kern/druck-steuerung.test.ts`
 rendert Druckknopf und Monatswechsel (Druckfarben auf Papier, keine
 Bildschirmfarbe, 44 px, nicht im Druck; auf dunklen Seiten unverändert),
-`tests/design/tokens.test.ts` rechnet 1,04:1 und 9,7:1 nach.
+`tests/design/tokens.test.ts` rechnet 1,04:1 und 9,7:1 nach;
+`tests/kern/bericht-druckblatt.test.ts` (Format ab sieben Spalten quer,
+Cent-Zwillinge zählen nicht; quer/hoch in `@page` und Breite; Köpfe ohne
+`nowrap`; Rollbehälter und Telefonrand; jedes Druckmass mit Wert in DESIGN
+§11), `tests/isolation/bericht.test.ts` (8): die Pipeline hoch, die übrigen
+fünf quer; `tests/e2e/berichte.spec.ts` prüft `data-format` und die Höhe
+des Rückwegs (nicht gelaufen — Playwright ist in dieser Runde ausgesetzt).
 
-| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8) |
+| Betrifft | REP-07, DESIGN §5, DESIGN §9, DESIGN §11, D-204, D-420, D-721, V-055, V-227, V-269, `src/server/services/bericht/{export,ausgabe}.ts`, `src/lib/zahl.ts`, `src/lib/design/theme.ts`, `src/components/ui/DruckKnopf.tsx`, `src/app/portal/mein/{bausteine.tsx,monatsnachweis/page.tsx}`, `src/app/portal/[mandant]/berichte/druck/[bericht]/{page.tsx,stil.ts}`, `src/lib/i18n/verwaltung/bericht-druck.ts`, `tests/kern/{bericht-export,zahl,druck-steuerung,bericht-druckblatt}.test.ts`, `tests/design/tokens.test.ts`, `tests/isolation/bericht.test.ts` (8), `tests/e2e/berichte.spec.ts` |
 |---|---|

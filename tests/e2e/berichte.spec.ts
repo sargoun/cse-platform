@@ -154,6 +154,13 @@ test.describe('Berichte im Bereich', () => {
       .toHaveText(koepfe);
     await expect(page.locator('[data-cse="bericht-druck-tabelle"] tbody tr'))
       .toHaveCount(csvZeilen.length - 1);
+
+    /* Acht Spalten passen nicht hochkant: das Blatt ist quer (DESIGN §11,
+       V-269), und der Rückweg ist ein 44-px-Ziel (DESIGN §8). */
+    await expect(page.locator('[data-cse="bericht-druckblatt"]'))
+      .toHaveAttribute('data-format', 'quer');
+    const zurueck = await page.locator('[data-cse="bericht-druck-zurueck"]').boundingBox();
+    expect(zurueck?.height ?? 0).toBeGreaterThanOrEqual(44);
   });
 
   test('keine Verstösse nach WCAG 2.1 AA auf dem Umsatzbericht', async ({ page }) => {

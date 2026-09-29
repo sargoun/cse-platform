@@ -1132,6 +1132,26 @@ above only means anything if what sits next to it is measured the same way.
 
 The header rule is `--red` from §1 — the one place CSE red appears on paper.
 
+**A wide table prints landscape — it is never shrunk or clipped.** Portrait
+A4 leaves 170mm between the margins. A report table with more than six
+columns does not fit that at `10pt`: the browser either scales the whole page
+down (10pt became 6.7pt) or cuts the right-hand columns off. Such a sheet is
+laid out and printed as **A4 landscape** (257mm between the margins) — on
+screen `297mm` wide, so the preview is the paper — and a table of up to six
+columns stays portrait (`210mm`). The orientation follows the table
+(`blattFormat` in `bericht/export.ts`), it is not measured in the browser.
+Header cells wrap; only the figures in body cells keep `white-space: nowrap`.
+On screen the table sits in its own horizontal scroll container, and below
+the `md` breakpoint the sheet takes `--s4` padding instead of 20mm — the
+table scrolls, never the page (§5 Tables, D-420). A link back from the sheet
+is a `44px` target like every other (§8).
+
+| Token | Value | Use |
+|---|---|---|
+| `--druck-blatt-hoch` | `210mm` | screen width of a portrait sheet |
+| `--druck-blatt-quer` | `297mm` | screen width of a landscape sheet |
+| `--druck-hoch-bis-spalten` | `6` | the widest table that still prints portrait |
+
 **Controls that sit on the sheet use the print palette too.** On screen the
 sheet is white, so a control drawn on it with the screen palette — `--text`
 on a transparent button — is near-white on white (1.04:1) and cannot be read,

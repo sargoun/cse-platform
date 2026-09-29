@@ -28,7 +28,9 @@ import {
 } from '../../src/server/services/bericht/kennzahlen.js';
 import { pipelineJeBereich, umsatzJeBereich } from '../../src/server/services/bericht/gruppe.js';
 import { abschnitte, ganzesJahr } from '../../src/server/services/bericht/zeitraum.js';
-import { berichtTabelle, zellenFuerBlatt } from '../../src/server/services/bericht/export.js';
+import {
+  berichtTabelle, blattFormat, zellenFuerBlatt,
+} from '../../src/server/services/bericht/export.js';
 import { alsCsv } from '../../src/server/services/bericht/ausgabe.js';
 import {
   bewerte as radarBewerte, type BewertungsErgebnis,
@@ -722,6 +724,9 @@ describe('(8) REP-07: Datei und Druckblatt aus einer Quelle (D-721)', () => {
       expect(blatt.koepfe.map((k) => k.text), bericht).toEqual(
         csvZeilen[0]!.split(';').filter((k) => !k.endsWith(' (Cent)')));
       expect(csvZeilen.length - 1, bericht).toBe(blatt.zeilen.length);
+      /* Hoch passt nur die Pipeline (vier Spalten); die übrigen fünf drucken quer
+         (DESIGN §11, V-269) — vorher liefen vier davon über das Blatt hinaus. */
+      expect(blattFormat(tabelle), bericht).toBe(bericht === 'pipeline' ? 'hoch' : 'quer');
     }
   });
 

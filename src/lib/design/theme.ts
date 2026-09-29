@@ -75,7 +75,17 @@ export const MASSE_DRUCK = {
   'druck-kopf-sperrung': '0.08em',
   'druck-meta-groesse': '9pt',
   'druck-block': '12pt',
+  /** Die Bildschirmbreite eines Blatts im Hoch- und im Querformat (V-269). */
+  'druck-blatt-hoch': '210mm',
+  'druck-blatt-quer': '297mm',
 } as const;
+
+/**
+ * §11 — die breiteste Tabelle, die noch hochkant druckt. Mehr Spalten passen
+ * bei 10 pt nicht in 170 mm: das Blatt geht ins Querformat, statt dass der
+ * Browser es verkleinert oder abschneidet (V-269).
+ */
+export const DRUCK_HOCH_BIS_SPALTEN = 6;
 
 export const FARBEN_DRUCK = {
   'druck-papier': '#FFFFFF',
