@@ -19663,7 +19663,11 @@ auf beiden Seiten verschiedene Zahlen.
 4. **Der Stand heute bleibt, wo er hingehört:** die Gruppenübersicht des
    Radars (`gruppe/radar.ts`) zählt weiter nach dem heutigen Stand, ihr
    „eingereicht" umfasst jetzt aber dieselbe Menge wie „geboten" (mit
-   `verfahren_aufgehoben`).
+   `verfahren_aufgehoben`). **Ergänzt in V-269:** die Menge stand dort als
+   zweite Liste im SQL — zwei Definitionen derselben Menge, wie sie Befund 55
+   verursacht haben, und kein Test zählte `verfahren_aufgehoben`. Jetzt geht
+   `PIPELINE_GEBOTEN` selbst als Parameter in die Abfrage, und
+   `tests/isolation/gruppe-radar-kalender.test.ts` zählt jeden ihrer Stände.
 5. **Der Seed zeigt einen verworfenen Fall** je Gesellschaft, deren Profil
    etwas gefunden hat, das weder einen Vorgang hat noch als Lead verfolgt wird
    — **berichtigt durch D-762**: hier stand „je Gesellschaft ohne Mappe"; der
