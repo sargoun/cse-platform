@@ -461,12 +461,15 @@ export default async function AgentDetail(
         * Datenbank es tut.
         */}
       <h2 id="werkzeuge" className="mb-s3 text-h2 text-text">Werkzeuge</h2>
+      {/* Der Ausgang des Formulars wird angesagt (DESIGN §5 „Notices", §9): eine
+          Bestätigung als `status`, eine Abweisung als `alert` (V-217, V-270). */}
       {werkzeugGesetzt ? (
-        <Hinweis art="erfolg" cse="werkzeug-gesetzt" className="mb-s4 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="werkzeug-gesetzt" className="mb-s4 max-w-prose">
           Gespeichert. Der Stand gilt ab sofort, für jeden Aufruf dieses Werkzeugs.
         </Hinweis>
       ) : werkzeugFehler !== null ? (
-        <Hinweis art="warnung" cse="werkzeug-abgewiesen" className="mb-s4 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="werkzeug-abgewiesen"
+                 className="mb-s4 max-w-prose">
           {eigenerEintrag(WERKZEUG_FEHLER, werkzeugFehler) ?? WERKZEUG_FEHLER['unbekannt']}
         </Hinweis>
       ) : null}

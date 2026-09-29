@@ -168,8 +168,15 @@ export default async function Assistent(
         </Hinweis>
       ) : null}
 
+      {/*
+        * **Der Ausgang einer Frage wird angesagt** (DESIGN §5 „Notices", §9,
+        * V-217, V-270): eine Abweisung und eine Frage ohne Antwort als
+        * `alert`, die Antwort und „liegt zur Freigabe" als `status`. Nach der
+        * 303-Umleitung erfuhr ein Screenreader sonst nicht, was geschah.
+        */}
       {fehler !== null && (
-        <Hinweis art="warnung" cse="assistent-abgewiesen" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="assistent-abgewiesen"
+                 className="mb-s5 max-w-prose">
           {eigenerEintrag(FEHLER_TEXT, fehler) ?? FEHLER_TEXT['unbekannt']}
         </Hinweis>
       )}
@@ -199,7 +206,8 @@ export default async function Assistent(
         </Hinweis>
       ) : frage !== null && (
         frage.antwort === null ? (
-          <Hinweis art="warnung" cse="assistent-keine-antwort" className="mb-s5 max-w-prose">
+          <Hinweis art="warnung" rolle="alert" cse="assistent-keine-antwort"
+                   className="mb-s5 max-w-prose">
             {frage.fehlerText ?? 'Diese Frage blieb ohne Antwort.'}
             {aufgabeLink === null ? null : (
               <>
@@ -212,26 +220,31 @@ export default async function Assistent(
             )}
           </Hinweis>
         ) : (
-          <Card className="mb-s5" data-cse="assistent-antwort">
-            <p className="m-0 mb-s2 text-sm text-text-muted">{frage.antwort.frage}</p>
-            <p className="m-0 cse-zahl text-h1 text-text" data-cse="assistent-zahl">
-              {frage.antwort.anzeige}
-            </p>
-            <p className="m-0 mt-s3 text-xs text-text-subtle">
-              {`Gelesen am ${frage.antwort.stand} · gerechnet hat die Datenbank, nicht ein `
-                + 'Modell · protokolliert als Aufgabe des Agenten'
-                + (frage.freigabe === 'geliefert' ? ' · im Posteingang freigegeben.' : '.')}
-              {aufgabeLink === null ? null : (
-                <>
-                  {' '}
-                  <Link href={aufgabeLink} data-cse="assistent-zur-aufgabe"
-                        className="underline underline-offset-2">
-                    Zum Protokoll
-                  </Link>
-                </>
-              )}
-            </p>
-          </Card>
+          /* `Card` reicht weder Rolle noch `data-cse` weiter — beides steht
+             deshalb am Bereich um die Karte; der Anker stand vorher an der
+             Karte und kam nie im Dokument an. */
+          <div role="status" data-cse="assistent-antwort" className="mb-s5">
+            <Card>
+              <p className="m-0 mb-s2 text-sm text-text-muted">{frage.antwort.frage}</p>
+              <p className="m-0 cse-zahl text-h1 text-text" data-cse="assistent-zahl">
+                {frage.antwort.anzeige}
+              </p>
+              <p className="m-0 mt-s3 text-xs text-text-subtle">
+                {`Gelesen am ${frage.antwort.stand} · gerechnet hat die Datenbank, nicht ein `
+                  + 'Modell · protokolliert als Aufgabe des Agenten'
+                  + (frage.freigabe === 'geliefert' ? ' · im Posteingang freigegeben.' : '.')}
+                {aufgabeLink === null ? null : (
+                  <>
+                    {' '}
+                    <Link href={aufgabeLink} data-cse="assistent-zur-aufgabe"
+                          className="underline underline-offset-2">
+                      Zum Protokoll
+                    </Link>
+                  </>
+                )}
+              </p>
+            </Card>
+          </div>
         )
       )}
 
