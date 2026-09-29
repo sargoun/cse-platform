@@ -23272,3 +23272,133 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 
 | Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
 |---|---|
+
+### D-773 · Der Rückweg des Betriebs trägt Schlüssel — Veranstaltung, Bewacherregister, Revier, Sonderleistung, Turnus, Bauprojekt, Nacherfassung, laufender Eintrag und die Stempeluhr (V-275, Teil „betrieb" von D-769)
+
+**Der Befund** (Teil C1 der Gruppe „rueckweg-schluessel", D-769). Acht
+Routen des Betriebs schickten Sätze in die Adresse, acht Seiten zeigten sie
+roh (die neunte, `/turnus/neu`, seit V-250 einen allgemeinen Satz):
+
+1. **`?meldung=<Satz>`** aus `security/veranstaltungen`, `reinigung/reviere`,
+   `bau/projekte`, `zeit/nacherfassung` und `zeit/laufend` — gezeigt in einem
+   Warnkasten ohne `role`, deutsch auch in einer englischen Sitzung (drei der
+   Seiten folgen der Sitzungssprache), mit der vollen Kennung des Eintrags
+   (`LaufenderEintragNichtGefunden`), der Auftragsnummer und der Zahl offener
+   Schichten oder Nachträge. Der Kasten der freien Nacherfassung stand in
+   einem zugeklappten Bereich.
+2. **`?ok=<Satz>` und `?fehler=<Satz>`** aus `security/bewacherregister` und
+   `reinigung/sonderleistungen`, **`?fehler=<Satz>`** aus `reinigung/turnus`
+   (ausser dem abgewiesenen Anker, V-192) — das Turnusblatt zeigte „Den
+   Turnus 5b0d6c1e-… gibt es in dieser Gesellschaft nicht.", die
+   Sonderleistung „Der Abruf steht jetzt auf „Erbracht" (vorher „Geplant")".
+3. **Die Weiche dieser drei Routen ersetzte JEDE Antwort von `alsAntwort`
+   mit Meldung durch den Rückweg** — auch die Umleitung auf den
+   Faktor-Schritt („Zweiter Faktor erforderlich" über der Liste, D-766) und,
+   bei Sonderleistung und Turnus, die byte-gleiche 404 eines fehlenden
+   Rechts („Nicht gefunden" auf der Seite, AUT-06).
+4. **`StempelUhr`** (`portal/mein/bausteine.tsx`) schlug `?stempel=` mit
+   `SAETZE[meldung]` nach: `?stempel=__proto__` warf „Objects are not valid
+   as a React child" — die Startseite des Arbeiterportals war eine
+   Fehlerseite (D-769 Befund Nr. 4).
+
+**Die Entscheidung** (D-769 angewandt; was dieser Teil konkret festlegt):
+
+1. **Jede Fehlerklasse, deren Abweisung auf eine Seite zurückgeht, trägt
+   einen getypten Grund**, die Liste steht im Dienst neben der Klasse:
+   `VERANSTALTUNG_GRUENDE`, `BEWACHER_GRUENDE` (samt den zwei Gründen des
+   unvollständigen Formulars), `REVIER_GRUENDE`, `SONDERLEISTUNG_GRUENDE`
+   (Formular, Eingabe, Zustand, `abruf_unbekannt`, `katalogzeile_unbekannt` —
+   `setzeZeitwert` warf für eine fehlende Katalogzeile `AbrufNichtGefunden`,
+   der Grund unterscheidet es jetzt), `TURNUS_AUSNAHME_GRUENDE`,
+   `TURNUS_ANLAGE_GRUENDE`, `PROJEKT_GRUENDE`, `NACHERFASSUNG_GRUENDE`,
+   `LAUFEND_GRUENDE`. `statuswechsel` liefert neben dem Satz einen Schlüssel
+   (`abweisung`, `STATUS_ABWEISUNGEN`). **`SerieEingabeFehlt`** (auch von den
+   Routen des Dienstplans benutzt) bekommt ebenfalls einen Grund, in zwei
+   Listen: `SERIE_REGEL_GRUENDE` (alles, was `legeTurnusSerieAn` werfen kann)
+   und `SERIE_AUSNAHME_GRUENDE` (die Einzeltermin-Ausnahme); an deren
+   JSON-Antworten ändert sich nichts. `LaufenderEintragNichtGefunden` trägt
+   die Kennung nur noch als Feld, nicht im Satz; die Sätze von
+   `AbrufNichtGefunden`, `TurnusNichtGefunden` und `EintragNichtGefunden`
+   behalten ihre — sie erreichen keine Seite und kein Programm mehr.
+2. **Die Anmeldung zuerst, in allen acht Routen:** `autorisierungsAntwort`
+   läuft vor dem Rückweg (fehlendes Recht und nicht gebuchtes Modul
+   byte-gleich 404, ohne Sitzung oder Faktor die Umleitung, gesperrtes Konto
+   und zu viele Versuche JSON). Danach:
+   - **Formulare mit `zurueck`** (Veranstaltung, Revier, Bauprojekt,
+     Nacherfassung, laufender Eintrag): `grundAufsFormular` →
+     `zurueck?fehler=<grund>`. **Ohne `zurueck` fragt ein Programm** und
+     bekommt `{ fehler: <grund>, meldung }` mit dem Status der Klasse (D-599,
+     D-692 Nr. 1, wie `website/referenzen`) — vorher eine Umleitung auf
+     `/portal?meldung=…`, die dort niemand las.
+   - **Feste Ziele** (Bewacherregister, Sonderleistung → Liste; Turnus →
+     Turnusblatt bzw. `/turnus/neu`): jeder Fehler mit `status` und `code`
+     geht als `?fehler=<grund>` zurück; eine Klasse ohne eigenen Grund reist
+     mit ihrem `code` (die Seite zeigt dafür ihren allgemeinen Satz), alles
+     andere bleibt ein Wurf.
+   - **JSON wie bisher:** fremder Ursprung, unbekannte Art, fehlende
+     Beschäftigung, fehlender Eintrag — die Prüfungen vor der Transaktion
+     antworten unverändert.
+3. **Der Erfolg reist als Schlüssel:** `?erfolg=erfasst|fortgeschrieben`
+   (Bewacherregister), `?erfolg=abruf_erfasst|status_gesetzt|abruf_storniert|
+   zeitwert_gesetzt` (Sonderleistung) statt `?ok=<Satz>`. Die Serienliste
+   bekommt nach einem neuen Turnus `?angelegt=1` statt der Kennung der Serie
+   — sie fragt nur, OB angelegt wurde —, dazu wie bisher `erzeugt` (eine
+   Anzahl, von der Liste als Ziffernfolge geprüft), `bestand` und den
+   Schlüssel `uebersprungen`. Unverändert: `?ausnahme=1` am Turnusblatt; die
+   übrigen Routen führen auf das neue Blatt. Ein unbekannter
+   Erfolgsschlüssel zeigt keinen Kasten (wie die Eingangsrechnung, V-216).
+4. **Die Sätze stehen unter `src/lib/i18n/verwaltung/`** in der Form von
+   `ENTSCHEIDUNG_FEHLER_TEXTE` (`titel`, `sonst`, `fehler`, bei Erfolg dazu
+   `gespeichert`, `erfolg`), jede Tabelle als `Record` über den Grundtyp des
+   Dienstes — ein Grund ohne Satz ist ein Übersetzungsfehler.
+   **De und en**, wo die Seite der Sitzung folgt: `VERANSTALTUNG_FEHLER_TEXTE`
+   (`security.ts`), `REVIER_FEHLER_TEXTE` (`reinigung.ts`),
+   `PROJEKT_FEHLER_TEXTE` (`bau.ts`) und `LAUFEND_FEHLER_TEXTE` (`zeit.ts`;
+   das Live-Brett steht auf der Ausnahmeliste, sein Formular spricht aber
+   schon die Sitzungssprache — wie D-753). **Nur deutsch, dieselbe Form**, wo
+   die Seite auf der Ausnahmeliste steht: `BEWACHERREGISTER_TEXTE`,
+   `SONDERLEISTUNG_TEXTE`, `TURNUS_AUSNAHME_TEXTE`, `TURNUS_ANLAGE_TEXTE`,
+   `NACHERFASSUNG_FEHLER_TEXTE`. Nachgeschlagen wird nur mit
+   `eigenerEintrag`; ein unbekannter Grund ergibt `sonst`. Warnkasten
+   `rolle="alert"`, Erfolgskasten `rolle="status"`. Kein Satz nennt ein Recht
+   als Schlüssel (D-741) — „die Reinigung bearbeiten", „Nacherfassungen
+   prüfen" stehen als Worte da.
+5. **Werte, die ein Satz trug, fallen weg** (D-769 Nr. 5): welches Zeitfeld
+   die Form verfehlte, wie viele Schichten oder Nachträge offen sind, die
+   Nummer des schon verbauten Auftrags, der Feldname eines Datumsfehlers,
+   „jetzt/vorher" beim Zustandswechsel (der neue Zustand ist die Eingabe
+   des Formulars; die Liste darunter zeigt ihn), die Werte der gewählten
+   Wochentage.
+6. **Zwei Formulare, ein `?fehler=`:** `/zeiten/nacherfassung` liest
+   `?fehler=` schon für die Ansprüche (`api/offline-ereignis/[id]`). Das
+   freie Formular schickt deshalb `zurueck=…?frei=1`; mit `frei=1` steht der
+   Satz in seinem Kasten, und der Bereich geht auf. Die beiden Kästen der
+   Ansprüche tragen jetzt `role`.
+7. **Die Stempeluhr** schlägt mit `eigenerEintrag(SAETZE, meldung)` nach —
+   ein Wort, das sie nicht kennt, ergibt keinen Satz; an Texten, Sprachen
+   (de/en/ar/tr) und Grössen (44 px/16 px) ändert sich nichts.
+
+**Nicht Teil dieser Entscheidung:** `fehlerAufsFormular` bleibt stehen, und
+die Wache `adressparameter` wird nicht verschärft — beides macht der Schritt,
+der alle fünf Teile zusammenführt (D-769). Die Serienliste
+(`/reinigung/turnus`) zeigt `?uebersprungen=` weiter als Wort, und die
+Vorschau auf `/turnus/neu` zeigt den Satz aus `turnusRegel` samt dem
+Wochentag aus der Adresse — beides ist kein Rückweg und steht als Befund in
+V-275.
+
+**Geprüft:** je Route ein Kern-Test der echten Route (ersetzt sind Sitzung,
+Datenbank, Tor und Dienst): jeder Grund jeder Fehlerklasse → 303 mit
+`?fehler=<grund>`, ohne `meldung=`, ohne Kennung, ohne Leerzeichen; der
+Erfolg als Schlüssel; JSON ohne `zurueck` und JSON wie bisher; ein fehlendes
+Recht → byte-gleiche 404; ohne zweiten Faktor → Faktor-Schritt. Je Seite:
+die Tabelle hat für jeden Grund einen Satz in jeder Sprache (ohne Kennung,
+Platzhalter oder Schlüssel, englisch nicht gleich deutsch), ein fremdes Wort
+findet nichts, der Quelltext liest weder `meldung` noch `ok`, schlägt nach und
+zeigt nach `rohAusDerAdresse` keinen Rückmeldeparameter roh
+(`tests/kern/rueckweg-{zeit-laufend,zeit-nacherfassung,veranstaltung,bewacherregister,revier,projekt,sonderleistung,turnus}.test.ts`,
+Handgriffe in `tests/kern/hilfen/rueckweg-betrieb.ts`). Die Stempeluhr:
+`tests/kern/stempeluhr-rueckweg.test.ts` rendert den echten Baustein — vor
+der Änderung rot, danach grün, in allen vier Sprachen.
+
+| Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
+|---|---|
