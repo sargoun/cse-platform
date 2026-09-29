@@ -160,6 +160,44 @@ describe('die Sätze des Blatts (fest deutsch, Ausnahmeliste)', () => {
     expect(seite).not.toMatch(/'meldung'/u);
     expect(seite).toContain('eigenerEintrag(AUSFUEHRUNG_RUECKWEG_TEXTE.de.fehler, fehler)');
     expect(seite).toContain("?? 'Die Entscheidung wurde abgewiesen.'");
-    expect(seite).toMatch(/<Kasten art="warnung" rolle="alert" cse="entscheidung-abgewiesen"/u);
+    expect(seite).toMatch(/<Hinweis art="warnung" rolle="alert" cse="entscheidung-abgewiesen"/u);
+  });
+});
+
+/**
+ * **Die Hinweise des Blatts sind der Baustein, nicht nachgebaut** (DESIGN §5
+ * „Notices", D-774 Nachrunde). Das Blatt trug einen eigenen `Kasten` aus den
+ * Klassen des Bausteins — dieselbe Form, aber ohne `data-art`, und jede
+ * Änderung am Baustein wäre hier vorbeigegangen. Der Ausgang eines
+ * abgeschickten Formulars trägt `rolle` (`status` für eine Bestätigung,
+ * `alert` für eine Abweisung); ein Hinweis auf einen Stand trägt keine.
+ */
+describe('die Hinweise des Freigabeblatts', () => {
+  const seite = readFileSync(join(WURZEL, 'src/app/portal/[mandant]/freigaben/[id]/page.tsx'), 'utf8');
+  const kasten = (cse: string): string =>
+    new RegExp(`<Hinweis\\b[^>]*\\bcse="${cse}"[^>]*>`, 'u').exec(seite)?.[0] ?? '';
+
+  it.each([
+    ['vorschlag-angelegt', 'hinweis', 'status'],
+    ['entscheidung-vermerkt', 'erfolg', 'status'],
+    ['fenster-vermerkt', 'erfolg', 'status'],
+    ['entscheidung-abgewiesen', 'warnung', 'alert'],
+    ['erechnung-wege', 'hinweis', null],
+    ['erechnung-uebernommen', 'hinweis', null],
+    ['freigabe-bild-fehlt', 'warnung', null],
+    ['keine-ruecknahme', 'hinweis', null],
+    ['freigeben-gesperrt', 'warnung', null],
+  ] as const)('%s: Hinweis %s, Rolle %s', (cse, art, rolle) => {
+    const k = kasten(cse);
+    expect(k, cse).not.toBe('');
+    expect(k).toContain(`art="${art}"`);
+    if (rolle === null) expect(k).not.toContain('rolle=');
+    else expect(k).toContain(`rolle="${rolle}"`);
+  });
+
+  it('kein eigener Kasten mehr, keine Klassen des Bausteins im Blatt, kein danger-Hinweis', () => {
+    expect(seite).not.toMatch(/<Kasten\b|function Kasten/u);
+    expect(seite).not.toMatch(/border-warning bg-warning-soft|border-success bg-success-soft/u);
+    expect(seite).not.toMatch(/<Hinweis\b[^>]*art="danger"/u);
   });
 });

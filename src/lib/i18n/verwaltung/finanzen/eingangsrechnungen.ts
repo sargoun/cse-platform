@@ -124,7 +124,10 @@ export interface EingangsrechnungenTexte {
   readonly vorschlag: string;
   readonly vorbelegtVor: string;
   readonly vorbelegtNach: string;
+  /** Die fett gesetzten ersten Worte des Warnkastens (DESIGN §5 „Notices") … */
   readonly keinLieferantAngelegt: string;
+  /** … und was daraus folgt. */
+  readonly keinLieferantFolge: string;
   readonly belegLegende: string;
   readonly pdfHochladen: string;
   readonly belegWaehlen: string;
@@ -397,9 +400,8 @@ const DE: EingangsrechnungenTexte = {
   vorbelegtVor: 'Vorbelegt aus dem Vorschlag',
   vorbelegtNach:
     '. Prüfen, anpassen, erfassen — der Beleg des Vorschlags wird übernommen.',
-  keinLieferantAngelegt:
-    'Für diese Gesellschaft ist noch kein Lieferant angelegt. Ohne '
-    + 'Lieferant lässt sich eine Rechnung weder prüfen noch zuordnen.',
+  keinLieferantAngelegt: 'Für diese Gesellschaft ist noch kein Lieferant angelegt.',
+  keinLieferantFolge: 'Ohne Lieferant lässt sich eine Rechnung weder prüfen noch zuordnen.',
   belegLegende: 'Der Beleg (ACC-03)',
   pdfHochladen: 'PDF hochladen',
   belegWaehlen: '… oder einen bereits abgelegten Beleg wählen',
@@ -825,9 +827,8 @@ const EN: EingangsrechnungenTexte = {
   vorbelegtNach:
     '. Check it, adjust it, record it — the proposal’s Beleg (supporting '
     + 'document) is carried over.',
-  keinLieferantAngelegt:
-    'No supplier has been created for this company yet. Without a supplier an '
-    + 'invoice can be neither checked nor allocated.',
+  keinLieferantAngelegt: 'No supplier has been created for this company yet.',
+  keinLieferantFolge: 'Without a supplier an invoice can be neither checked nor allocated.',
   belegLegende: 'The Beleg — supporting document (ACC-03)',
   pdfHochladen: 'Upload a PDF',
   belegWaehlen: '… or choose a Beleg (supporting document) already on file',

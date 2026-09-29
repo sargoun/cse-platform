@@ -209,10 +209,9 @@ export default async function NeueEingangsrechnung(
       </form>
 
       {v !== null ? (
-        <p data-cse="vorbelegung-hinweis"
-           className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
-          {t.vorbelegtVor} <strong className="text-text">{v.titel}</strong>{t.vorbelegtNach}
-        </p>
+        <Hinweis art="hinweis" cse="vorbelegung-hinweis" className="mb-s5 max-w-prose">
+          {t.vorbelegtVor} <strong>{v.titel}</strong>{t.vorbelegtNach}
+        </Hinweis>
       ) : null}
 
       {fehler === null ? null : (
@@ -223,9 +222,9 @@ export default async function NeueEingangsrechnung(
       )}
 
       {daten.lieferanten.length === 0 ? (
-        <p className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          {t.keinLieferantAngelegt}
-        </p>
+        <Hinweis art="warnung" cse="kein-lieferant" className="mb-s5 max-w-prose">
+          <strong>{t.keinLieferantAngelegt}</strong> {t.keinLieferantFolge}
+        </Hinweis>
       ) : null}
 
       <form

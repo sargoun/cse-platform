@@ -340,4 +340,22 @@ describe('die Sätze von `/neu` — de und en', () => {
     expect(seite).toContain('eigenerEintrag(t.erfassenFehler, fehler) ?? t.erfassenFehlerSonst');
     expect(seite).toMatch(/<Hinweis art="warnung" rolle="alert" cse="eingang-hinweis"/u);
   });
+
+  /*
+   * D-774 Nachrunde: „kein Lieferant" und die Vorbelegung waren aus den
+   * Klassen des Bausteins nachgebaut (DESIGN §5 „Notices"). Beide melden
+   * einen Stand, keinen Ausgang eines Formulars — ohne `rolle`.
+   */
+  it('`/neu` baut keinen Hinweis mehr aus Klassen nach', () => {
+    const seite = readFileSync(
+      join(WURZEL, 'src/app/portal/[mandant]/finanzen/eingangsrechnungen/neu/page.tsx'), 'utf8');
+    expect(seite).not.toMatch(/border-warning bg-warning-soft|rounded-lg border border-line bg-surface p-s4/u);
+    expect(seite).toMatch(/<Hinweis art="warnung" cse="kein-lieferant" className="[^"]*">/u);
+    expect(seite).toContain('<strong>{t.keinLieferantAngelegt}</strong> {t.keinLieferantFolge}');
+    expect(seite).toMatch(/<Hinweis art="hinweis" cse="vorbelegung-hinweis" className="[^"]*">/u);
+    for (const sprache of ['de', 'en'] as const) {
+      const t = EINGANGSRECHNUNGEN_TEXTE[sprache];
+      expect(`${t.keinLieferantAngelegt} ${t.keinLieferantFolge}`, sprache).toMatch(/\.$/u);
+    }
+  });
 });
