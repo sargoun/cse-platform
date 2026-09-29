@@ -374,7 +374,7 @@ export default async function Kontaktblatt(
         <h2 id="grundlage" className="text-h2 text-text">Rechtsgrundlage</h2>
         {stand === null ? (
           <Hinweis art="hinweis" cse="grundlage-verdeckt" className="mt-s3 max-w-prose">
-            <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt
+            <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt{' '}
             <Recht schluessel="crm.rechtsgrundlage_lesen" /> — ein
             eigenes Recht neben <Recht schluessel="crm.lesen" />, mit dem
             die Seitenkarte auch den Werbewiderspruchs-Katalog bewacht. Das heisst

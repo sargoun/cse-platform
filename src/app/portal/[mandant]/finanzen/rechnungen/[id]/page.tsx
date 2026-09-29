@@ -1105,7 +1105,7 @@ export default async function Rechnungsblatt(
               {t.bauabzugsteuerEinbehalten}{' '}
               {formatiereGeld(cent(BigInt(k.einbehalt_bauabzugsteuer_cent)))}
               {t.ueberwiesenWerden}{' '}
-              {formatiereGeld(cent(BigInt(k.ueberweisungsbetrag_cent)))}.
+              {formatiereGeld(cent(BigInt(k.ueberweisungsbetrag_cent)))}.{' '}
               {k.freistellung_nummer === null
                 ? t.keineFreistellung
                 : ` ${t.freistellungNummer} ${k.freistellung_nummer}.`}

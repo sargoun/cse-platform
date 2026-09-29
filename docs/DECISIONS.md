@@ -21076,3 +21076,75 @@ was es für ihn heisst.
 
 | Betrifft | V-251, V-252, D-741, Invariante 5, LEG-08, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage/page.tsx`, `tests/kern/code-datenbankname.test.ts`, `tests/kern/code-datenbankname-bestand.ts`, `tests/kern/hilfen/code-datenbankname.ts` |
 |---|---|
+
+### D-743 · Wo ein Zeilenumbruch zwei Stücke eines Satzes trennt, steht `{' '}` — geprüft am Syntaxbaum über den ganzen Baum (V-252)
+
+**Der Befund** (Durchgang über den sichtbaren Text): JSX wirft Leerraum, der
+einen Zeilenumbruch enthält, am Rand eines Textstücks ganz weg — anders als
+HTML, das ihn zu einem Leerzeichen zusammenzieht. Aus
+
+    Die Schichten liegen hinter dem Recht
+    <Recht schluessel="dienstplan.lesen" />, das dieses Konto nicht hält.
+
+wird „hinter dem Recht„den Dienstplan lesen“", aus `<strong>im Code</strong>`
+vor einer Zeile `(<code>…</code>)` wird „im Code(…)". Der Quelltext sieht
+richtig aus; falsch ist erst der Schirm. Auf main 21561fd 31 solche Fugen in
+22 Dateien — neben einem Recht, einem `<code>`, einem `<strong>`, einer
+Platzhalterliste, einem Hinweis in einer Bedingung. Wo ein Rand (`mx-s1`)
+die Lücke auf dem Schirm vortäuschte, fehlte sie weiter beim Kopieren, beim
+Vorlesen und in der Suche.
+
+**Die Entscheidung.**
+
+1. **`{' '}` am Ende der Zeile** — die Konvention des Baums (auf 21561fd
+   stehen 756 von 851 `{' '}` dort). Keine Klasse wird angefasst: ein Rand,
+   der die Lücke bisher vortäuschte, bleibt, und das Leerzeichen kommt dazu.
+   25 verschluckte Leerzeichen: 23 in V-252, zwei fielen schon mit dem
+   Umschreiben in V-250 (Seitenblatt der Website) und V-251
+   (Rechtsgrundlagen-Seite).
+2. **Was gewollt aneinanderstösst, steht auf EINER Zeile**:
+   `<strong>Mindest</strong>stärke`, `−{nachlass} / +{zuschlag}`, das Datum
+   `TT.MM.JJJJ` aus drei `slice`. Gerendert wird wie vorher; die eine Zeile
+   ist die Absicht, die die Wache lesen kann.
+3. **Vor einer Übersetzung unbekannten Inhalts steht `{' '}` auch dann, wenn
+   sie selbst mit einem Leerzeichen beginnt** (`t.begruendungIst`,
+   `t.istGebucht`, `t.keineFreistellung` — zwei Stellen). Die Wache sieht
+   nicht in die Tabelle, und zwei Leerzeichen fallen im HTML zu einem
+   zusammen; ein Satz, der sich auf das führende Leerzeichen einer
+   Übersetzung verlässt, bricht beim nächsten Umformulieren.
+4. **Was die Wache liest** (`tests/kern/hilfen/jsx-leerraum.ts`): jede
+   Kinderliste eines JSX-Elements, Stück für Stück, mit dem, was jedes Stück
+   an seinem Rand rendert — ein Zeichen, Text unbekannten Inhalts
+   (`{t.satz}`), Leerraum, nichts (eine Bedingung, die leer bleiben kann,
+   lässt ihre Nachbarn aneinanderstossen), oder etwas, neben dem kein
+   Leerzeichen gebraucht wird (Block, `<br />`, Icon, Feld). Gemeldet wird
+   eine Fuge, an der der verschluckte Leerraum einen Zeilenumbruch enthielt,
+   mindestens eine Seite JSX-Text ist, links etwas endet, hinter dem im Satz
+   ein Leerzeichen steht, und rechts etwas beginnt, vor dem eines steht. Die
+   vorgegebenen Ausnahmen gelten: links `( „ ‚ / -`, ein Strich, der zwei
+   Wörter verbindet (`8–17`), und `“` als öffnendes Anführungszeichen;
+   rechts `) , . ; : ! ?` und `“` als schliessendes. Ein freistehender
+   Gedankenstrich („ — ") hat auf beiden Seiten Luft, ein Pfad
+   (`/datenschutz/anfrage`) ist ein Wort. `<Recht>` rendert „…“ (V-123); eigene Bausteine werden
+   über ihre Definition aufgelöst, in der Datei oder über den Import (Wurzel
+   inline → Text, Block → Block, `svg` → stumm, nicht auflösbar → Block). In
+   Flex-, Grid-, Listen- und Tabellenhüllen ist jedes Kind ein eigener
+   Kasten; ein Kind mit `block`, `flex`, `grid` oder `table` ist ein Block.
+5. **Geprüft** (`tests/kern/jsx-leerraum.test.ts`): über `src/app` und
+   `src/components` (596 Dateien) keine Fuge; die Gegenprobe findet jede Art
+   in beiden Richtungen (Text vor Recht und Code, Element vor Klammer und
+   Text, Bedingung, Ausdruck, Liste vor Strich, eigener Baustein in der Datei
+   und über den Import, leer bleibender Ausdruck) und nichts an `{' '}` am
+   Ende und am Anfang, an gewollt Verbundenem auf einer Zeile, an Komma,
+   Klammer und Bindestrich, in einer Flex-Hülle, an einem Block, an
+   `<br />`, in einer Liste und an einem Baustein, der sich nicht auflösen
+   lässt.
+6. **Nicht erfasst, bewusst:** zwei Ausdrücke nebeneinander über einen
+   Zeilenumbruch (`{t.vor}` ⏎ `{name}`) — dort tragen die Übersetzungen ihre
+   Leerzeichen selbst, und ohne Blick in die Tabelle wäre jede solche Fuge
+   ein blosser Verdacht; ein Leerzeichen, das einer Übersetzung am Rand
+   fehlt; eine Hülle, die erst ab einer Bildschirmbreite Flex ist
+   (`sm:flex`), gilt als Fliesstext und wird geprüft.
+
+| Betrifft | V-252, V-250, V-251, V-123, `tests/kern/jsx-leerraum.test.ts`, `tests/kern/hilfen/jsx-leerraum.ts`, 21 Seiten unter `src/app/portal/[mandant]` (Agentenlauf, Kontaktblatt, Rechtsgrundlagen, Konditionen, Steuer, Wiedervorlagen, Datenschutz ×3, Vorlagen, Eingangsrechnung-Freigabe, Rechnung, ZUGFeRD, Raum, Turnus, Security ×2, Reinigungsklassen, Zeitkorrektur, Zeiteintrag, Zeitfreigabe) |
+|---|---|

@@ -460,7 +460,7 @@ export default async function Rechtsgrundlage(
               <h3 className="m-0 text-h3 text-text">Widerspruch nach Art. 21 DSGVO</h3>
               <p className="m-0 text-xs text-text-muted">
                 Der Vollwiderspruch. Er setzt die Rechtsgrundlage zwingend auf „keine"
-                und ist unwiderruflich. Er läuft über
+                und ist unwiderruflich. Er läuft über{' '}
                 <Recht schluessel="datenschutz.auskunft_erstellen" /> —
                 die Entscheidung der Datenschutzstelle, nicht des Vertriebs.
               </p>

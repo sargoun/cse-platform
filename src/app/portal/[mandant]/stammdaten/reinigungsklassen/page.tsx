@@ -125,7 +125,7 @@ export default async function Reinigungsklassen(
             {' '}<Recht schluessel="objekt.lesen" />, gepflegt mit
             {' '}<Recht schluessel="stammdaten.verwalten" /> (0021) — Ihrer Rolle fehlt das erste.
             Eine leere Tabelle heisst hier also nicht „keine Klassen". Auch das
-            Anlegen schüge fehl: Postgres wendet auf das <code>returning</code> eines
+            Anlegen schüge fehl: Postgres wendet auf das <code>returning</code> eines{' '}
             <code>insert</code> die Lesepolicy an. Die Formulare sind deshalb
             ausgeblendet, statt ein Versprechen zu geben, das die Datenbank
             zurücknimmt.

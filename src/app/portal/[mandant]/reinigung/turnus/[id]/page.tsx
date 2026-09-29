@@ -585,7 +585,7 @@ export default async function TurnusBlattSeite(
 
         {einsaetze === null ? (
           <Hinweis art="hinweis" cse="einsaetze-ungeprueft" className="max-w-prose">
-            <strong>Nicht geprüft.</strong> Die Schichten liegen hinter dem Recht
+            <strong>Nicht geprüft.</strong> Die Schichten liegen hinter dem Recht{' '}
             <Recht schluessel="dienstplan.lesen" />, das dieses Konto hier nicht hält. Eine
             leere Liste hiesse „keine Schicht" und wäre an dieser Stelle falsch.
           </Hinweis>

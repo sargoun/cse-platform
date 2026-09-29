@@ -157,7 +157,7 @@ export default async function Anfragen(
       )}
 
       <Hinweis art="hinweis" cse="anfragen-erklaerung" className="mb-s5 max-w-prose">
-        Diese Anfragen kommen aus dem öffentlichen Formular
+        Diese Anfragen kommen aus dem öffentlichen Formular{' '}
         <code className="mx-s1 font-mono">/datenschutz/anfrage</code>. Es fragt
         absichtlich wenig — kein Geburtsdatum, keine Anschrift: Art. 12 Abs. 6
         erlaubt die Identitätsnachfrage nur bei <em>begründeten Zweifeln</em>, also

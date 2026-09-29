@@ -250,7 +250,7 @@ export default async function Konditionen(
 
       {!darfSchreiben ? (
         <Hinweis art="hinweis" cse="kondition-nur-lesen" className="max-w-prose">
-          <strong>Hier ist nur Anzeige.</strong> Zum Ändern fehlt
+          <strong>Hier ist nur Anzeige.</strong> Zum Ändern fehlt{' '}
           <Recht schluessel="crm.schreiben" />. Das Lesen der Konditionen
           (<Recht schluessel="crm_entgelt.lesen" />) und das Ändern des
           Kundenstamms sind getrennte Rechte — wer eine Zahl sehen darf, darf sie nicht

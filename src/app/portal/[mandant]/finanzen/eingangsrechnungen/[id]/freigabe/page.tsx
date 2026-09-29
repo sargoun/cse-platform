@@ -370,7 +370,7 @@ export default async function Freigabeblatt(
           <p className="m-0 max-w-prose">
             {t.freigegebenWort}
             {k.freigegeben_am === null ? '' : `${t.amDatum}${k.freigegeben_am}`}
-            {k.freigegeben_von === null ? '' : `${t.vonPerson}${k.freigegeben_von}`}.
+            {k.freigegeben_von === null ? '' : `${t.vonPerson}${k.freigegeben_von}`}.{' '}
             {k.freigabe_begruendung === null
               ? ''
               : `${t.begruendungIst}${t.zitatAuf}${k.freigabe_begruendung}${t.zitatZu}.`}

@@ -203,8 +203,8 @@ export default async function Widerspruechseite(
 
       <Hinweis art="hinweis" cse="widerspruch-unwiderruflich" className="mb-s5 max-w-prose">
         <strong className="block">Es gibt hier keinen Zurücknehmen-Knopf.</strong>
-        Beide Zeitstempel sind schreibbar-einmal und nicht räumbar: der Auslöser
-        <code className="mx-s1 font-mono">kern.erzwinge_widerspruch()</code>
+        Beide Zeitstempel sind schreibbar-einmal und nicht räumbar: der Auslöser{' '}
+        <code className="mx-s1 font-mono">kern.erzwinge_widerspruch()</code>{' '}
         wirft, wenn jemand sie auf NULL setzt. Sie zurückzunehmen ist keine
         Datenpflege, sondern das Löschen eines Beweises.
       </Hinweis>
@@ -258,7 +258,7 @@ export default async function Widerspruechseite(
         {daten.spur.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
             Noch keine Protokollzeile. Sie entsteht beim Klick auf den
-            Widerspruchslink einer Werbenachricht, beim tokenlosen Formular
+            Widerspruchslink einer Werbenachricht, beim tokenlosen Formular{' '}
             <code className="mx-s1 font-mono">/werbewiderspruch</code> und bei
             einem Widerspruch, den ein Mensch im Vorgang festhält.
           </p>

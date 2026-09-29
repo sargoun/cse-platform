@@ -618,7 +618,7 @@ export default async function Steuer(
               </details>
             ) : (
               <p className="mt-s4 max-w-prose text-xs text-text-muted">
-                Zum Eintragen einer Zeitscheibe fehlt
+                Zum Eintragen einer Zeitscheibe fehlt{' '}
                 <Recht schluessel="finanzen.schreiben" />.
               </p>
             )}

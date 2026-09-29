@@ -373,7 +373,7 @@ export default async function SecurityKopfSeite(
 
         {kopf.vorkommnisse === null ? (
           <Hinweis art="hinweis" cse="wachbuch-ungeprueft" className="max-w-prose">
-            <strong>Nicht geprüft.</strong> Das Wachbuch liegt hinter
+            <strong>Nicht geprüft.</strong> Das Wachbuch liegt hinter{' '}
             <Recht schluessel="wachbuch.lesen" />, das dieses Konto hier nicht hält.
           </Hinweis>
         ) : kopf.vorkommnisse.length === 0 ? (

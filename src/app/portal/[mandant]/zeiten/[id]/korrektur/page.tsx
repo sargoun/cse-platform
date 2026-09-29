@@ -316,8 +316,7 @@ export default async function Korrekturblatt({
             >
               <strong className="text-text">Antwort auf eine Meldung.</strong>{' '}
               {einwand.person} hat für den{' '}
-              {einwand.betrifftDatum.slice(8, 10)}.{einwand.betrifftDatum.slice(5, 7)}.
-              {einwand.betrifftDatum.slice(0, 4)} eine Abweichung gemeldet
+              {einwand.betrifftDatum.slice(8, 10)}.{einwand.betrifftDatum.slice(5, 7)}.{einwand.betrifftDatum.slice(0, 4)} eine Abweichung gemeldet
               (Stand: {einwand.status}). Diese Korrektur wird mit ihr verknüpft, damit
               auf dem Einwandblatt steht, dass sie gefolgt ist.{' '}
               {darf['zeit.einwand_entscheiden'] === true && (

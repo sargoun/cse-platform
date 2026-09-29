@@ -272,8 +272,7 @@ export default async function ZugferdBlatt(
             <div>
               <dt className="text-xs text-text-muted">{t.nachlassZuschlag}</dt>
               <dd className="cse-zahl text-sm text-text">
-                −{formatiereGeld(lage.v.summen.nachlass)} / +
-                {formatiereGeld(lage.v.summen.zuschlag)}
+                −{formatiereGeld(lage.v.summen.nachlass)} / +{formatiereGeld(lage.v.summen.zuschlag)}
               </dd>
             </div>
             <div>

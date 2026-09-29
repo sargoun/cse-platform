@@ -272,8 +272,8 @@ export default async function VeranstaltungBlattSeite(
             Offen (O-210)
           </div>
           <p className="m-0 mt-s2 text-sm text-text-muted">
-            Ob die vereinbarte Stärke zugleich die <strong className="text-text">Mindest</strong>
-            stärke ist, ist nicht entschieden. Deshalb steht hier keine Ampel und
+            Ob die vereinbarte Stärke zugleich die <strong className="text-text">Mindest</strong>stärke
+            ist, ist nicht entschieden. Deshalb steht hier keine Ampel und
             kein „dringend": die Antwort entscheidet, ob jede unvollständig
             besetzte Veranstaltung als Notfall gemeldet wird oder keine.
           </p>

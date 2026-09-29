@@ -308,7 +308,7 @@ export default async function Raumblatt(
             </div>
 
             <p className="mt-s4 text-xs text-text-muted">
-              <strong>Kein Bemerkungsfeld</strong> — und das mit Absicht:
+              <strong>Kein Bemerkungsfeld</strong> — und das mit Absicht:{' '}
               <code className="ml-s1 text-text">raum.bemerkung</code> ist der
               Anwendungsrolle entzogen (0021), weil dort interne Notizen an
               einem Ort stünden, den der Kunde im Portal selbst sieht. Ein Feld,
@@ -373,7 +373,7 @@ export default async function Raumblatt(
                 Leistungswert
               </dt>
               <dd className="m-0 cse-zahl text-sm text-text">
-                {formatiereMenge(richtzeit.richtzeit.posten.leistungswert)} m²/h
+                {formatiereMenge(richtzeit.richtzeit.posten.leistungswert)} m²/h{' '}
                 {richtzeit.richtzeit.posten.leistungswertIstPlatzhalter === true ? (
                   <span className="ml-s2 text-warning">
                     unbestätigt — offen (O-17)
