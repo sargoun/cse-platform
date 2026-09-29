@@ -19,6 +19,17 @@ import type { Bucket, Speicher } from '../../storage/adapter.js';
  * Adapter, die Transaktion des Aufrufers rollt die Zeile zurueck, und beides
  * steht wie vorher. Kein halber Zustand in keine Richtung.
  *
+ * **Alle Fassungen gehen mit** (V-266, D-758). Seit V-219 traegt ein Dokument
+ * je Fassung ein eigenes Objekt (`<mandant>/<kategorie>/<dokument>.v<n>`), und
+ * die Zeile zeigt nur auf die neueste. Entfernt wurde bis hierher nur, was
+ * das weiche Loeschen zurueckgab — Fassung 1 … n-1 blieben fuer immer im
+ * Behaelter, auch nach Fristablauf (Art. 5 Abs. 1 lit. e, Art. 17 DSGVO) und
+ * gerade dann, wenn eine aeltere Fassung inzwischen berichtigte Angaben
+ * ueber einen Menschen traegt. Gelesen wird deshalb die ganze Kette, und die
+ * AELTEREN Objekte gehen zuerst: scheitert eines davon, rollt die Zeile
+ * zurueck, und die aktuelle Datei liegt noch — die Liste und der Abruf
+ * zeigen dann weiter das, was die Zeile verspricht.
+ *
  * **Sonst ruft niemand `entferne`.** Die Merge-Wache
  * `speicher-entfernen-nur-ueber-loeschung` laesst den Aufruf nur hier und an
  * den Stellen zu, die ein gerade hochgeladenes Objekt ohne Zeile
@@ -39,7 +50,13 @@ export interface DokumentLoeschen {
 
 export interface Geloescht {
   readonly bucket: Bucket;
+  /** Der Schlüssel, auf den die Zeile zeigte — die neueste Fassung. */
   readonly objektSchluessel: string;
+  /**
+   * Jedes entfernte Objekt, die älteren Fassungen zuerst, die neueste zuletzt
+   * (V-266). Ein Dokument ohne Kette (vor V-219 abgelegt) hat genau eins.
+   */
+  readonly entfernt: readonly string[];
 }
 
 interface OrtRoh {
@@ -100,6 +117,23 @@ export async function loescheDokument(
   if (ort === undefined) {
     throw new LoeschungFehler('Das Dokument ist nicht erreichbar oder schon gelöscht.', 'nicht_gefunden');
   }
-  await speicher.entferne(ort.bucket as Bucket, ort.objekt_schluessel);
-  return { bucket: ort.bucket as Bucket, objektSchluessel: ort.objekt_schluessel };
+  /*
+   * Die Kette unter DERSELBEN Bindung wie das weiche Löschen: `t_version_lesen`
+   * (0009) verlangt `dokument.lesen`, das das UPDATE oben über `t_mandant`
+   * ohnehin schon verlangt hat; der Nachtlauf liest über
+   * `j_dokument_version_lesen` (0139). Alle Fassungen liegen im Behälter des
+   * Dokuments (`legeFassungAn` legt sie dorthin).
+   */
+  const kette = await kontext.abfrage<{ objekt_schluessel: string }>(
+    `select distinct v.objekt_schluessel
+       from dokument_version v
+      where v.dokument_id = $1::uuid and v.mandant_id = app.aktiver_mandant()
+        and v.objekt_schluessel <> $2
+      order by v.objekt_schluessel`,
+    [e.dokumentId, ort.objekt_schluessel]);
+  const entfernt = [...kette.map((v) => v.objekt_schluessel), ort.objekt_schluessel];
+  for (const schluessel of entfernt) {
+    await speicher.entferne(ort.bucket as Bucket, schluessel);
+  }
+  return { bucket: ort.bucket as Bucket, objektSchluessel: ort.objekt_schluessel, entfernt };
 }

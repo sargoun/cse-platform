@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
-import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
+import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { AnmeldungNoetig } from '../../../../../Anmeldung';
 import { portalZugang } from '../../../../../zugang';
@@ -17,6 +17,10 @@ import { Schrittkette } from '../../../Schrittkette';
 import { kennungOder404 } from '../../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
+import { beschriftung, lesbar } from '@/lib/i18n/beschriftung/basis';
+import { VORGANG_TEXT } from '@/lib/i18n/beschriftung/agent';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { AUFGABE_PILLE } from '../../../darstellung';
 
 /**
  * `/portal/[mandant]/agenten/[agent]/aufgaben/[id]` — ein Lauf, von vorne bis
@@ -34,14 +38,6 @@ import { Recht } from '@/components/ui/Recht';
  */
 export const dynamic = 'force-dynamic';
 
-const PILLE: Readonly<Record<string, PillZustand>> = {
-  wartend: 'Wartet',
-  laufend: 'In Arbeit',
-  abgeschlossen: 'Abgeschlossen',
-  abgebrochen: 'Abgelehnt',
-  fehler: 'Fehler',
-  wartet_freigabe: 'In Prüfung',
-};
 
 /**
  * Die vier Auslöser aus `ausloeser` (0128) — als Satz, nicht als Schlüssel.
@@ -172,7 +168,7 @@ export default async function Lauf(
       </p>
       <div className="mb-s5 flex flex-wrap items-baseline justify-between gap-s3">
         <h1 className="text-h1 text-text">{kopf.titel}</h1>
-        <StatusPill zustand={PILLE[kopf.status] ?? 'Wartet'} />
+        <StatusPill zustand={eigenerEintrag(AUFGABE_PILLE, kopf.status) ?? 'Wartet'} />
       </div>
 
       {kopf.budget_stopp ? (
@@ -208,12 +204,14 @@ export default async function Lauf(
       <dl className="mb-s6 grid grid-cols-2 gap-s4 rounded-lg border border-line bg-surface p-s5 text-sm sm:grid-cols-4">
         <div>
           <dt className="text-text-subtle">Vorgang</dt>
-          <dd className="text-text">{kopf.vorgang}</dd>
+          <dd className="text-text" data-vorgang={kopf.vorgang}>
+            {beschriftung(VORGANG_TEXT, kopf.vorgang)}
+          </dd>
         </div>
         <div>
           <dt className="text-text-subtle">Ausgelöst durch</dt>
           <dd className="text-text" data-cse="lauf-ausloeser">
-            {AUSLOESER[kopf.ausloeser] ?? kopf.ausloeser}
+            {eigenerEintrag(AUSLOESER, kopf.ausloeser) ?? lesbar(kopf.ausloeser)}
             {kopf.ausgeloest_von === null
               ? '' : ` · ${kopf.ausgeloest_von}`}
           </dd>

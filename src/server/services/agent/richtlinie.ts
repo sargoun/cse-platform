@@ -2,6 +2,7 @@ import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
 import { AKTIONEN, type Aktion, type Richtlinie } from '../../agent/policy.js';
+import { VERSAND_AKTION_TEXT } from '../../../lib/i18n/beschriftung/agent.js';
 
 /**
  * Die Richtlinien des Ausgangs-Gates als DATEN — lesen und setzen (AGT-03,
@@ -63,17 +64,12 @@ export type Wirkung =
 export const IM_CODE_GESPERRT: readonly Aktion[] =
   ['angebot_senden', 'nachtrag_einreichen', 'behinderung_senden'];
 
-/** Was die Aktion ist, in einem Satz — deutsch, fuer den Bildschirm. */
-export const AKTION_TEXT: Readonly<Record<Aktion, string>> = {
-  email_senden: 'E-Mail an einen Kontakt',
-  angebot_senden: 'Angebot versenden',
-  social_veroeffentlichen: 'Beitrag veröffentlichen',
-  bewerbung_antworten: 'Antwort an eine Bewerbung',
-  mahnung_senden: 'Mahnung versenden',
-  rechnung_senden: 'Rechnung versenden',
-  nachtrag_einreichen: 'Nachtrag einreichen (§ 2 Abs. 6 VOB/B)',
-  behinderung_senden: 'Behinderungsanzeige (§ 6 Abs. 1 VOB/B)',
-};
+/**
+ * Was die Aktion ist, in einem Satz — die deutsche Sicht auf die gemeinsame
+ * Karte `VERSAND_AKTION_TEXT` (`i18n/beschriftung/agent.ts`, V-231), die auch
+ * das Agentenblatt liest.
+ */
+export const AKTION_TEXT: Readonly<Record<Aktion, string>> = VERSAND_AKTION_TEXT.de;
 
 /** Warum die Aktion eine EIGENE ist und nicht unter `email_senden` fällt. */
 export const AKTION_GRUND: Readonly<Partial<Record<Aktion, string>>> = {

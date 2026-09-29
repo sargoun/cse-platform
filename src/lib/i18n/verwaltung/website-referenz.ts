@@ -360,6 +360,9 @@ const DE: WebsiteReferenzTexte = {
     jahr_ungueltig: 'Das Jahr liegt zwischen 1990 und 2100 — oder es bleibt leer.',
     sortierung_ungueltig: 'Die Sortierung ist eine ganze Zahl ab null.',
     bild_fremd: 'Dieses Bild gehört nicht zu dieser Gesellschaft.',
+    bild_beitrag:
+      'Ein Bild aus einem Social-Beitrag gehört nicht an eine Referenz — es ist für den '
+      + 'Beitrag freigegeben, nicht für die Website. Wählen Sie ein Bild der Website.',
     freigabe_ohne_datum:
       'Eine Kundenfreigabe braucht ein Datum. Ohne Datum lässt die Datenbank sie nicht zu '
       + '— und beim Anruf des Kunden ist das Datum die Frage.',
@@ -674,6 +677,9 @@ const EN: WebsiteReferenzTexte = {
     jahr_ungueltig: 'The year lies between 1990 and 2100 — or stays empty.',
     sortierung_ungueltig: 'The sort order is a whole number from zero.',
     bild_fremd: 'This image does not belong to this Gesellschaft.',
+    bild_beitrag:
+      'An image from a social post does not belong on a reference — it was approved for '
+      + 'the post, not for the website. Choose an image of the website.',
     freigabe_ohne_datum:
       'A Kundenfreigabe needs a date. Without one the database does not accept it — and '
       + 'when the customer calls, the date is the question.',

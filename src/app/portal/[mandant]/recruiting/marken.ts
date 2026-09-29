@@ -29,11 +29,21 @@ export const BEWERBUNG_TEXT: Readonly<Record<BewerbungStatus, string>> = {
   zurueckgezogen: 'Zurückgezogen',
 };
 
+/**
+ * Die drei Zustände eines Gesprächs auf die Marken aus DESIGN §5.
+ *
+ * **Abgesagt ist nicht „Abgelehnt"** (V-267, Prüfung der Gruppe
+ * kalender-dokumente). Im Recruiting heisst „abgelehnt", dass die
+ * Gesellschaft die BEWERBUNG abgelehnt hat — eine Aussage über die
+ * Bewerberin, die § 22 AGG heikel macht. Ein abgesagter Termin sagt darüber
+ * nichts; er ist erledigt, ohne stattgefunden zu haben. Die Marke ist deshalb
+ * die neutrale „Archiviert" (wie ein stornierter Einsatz im Dienstplan der
+ * Gruppe), und der Kasten auf dem Gesprächsblatt nennt Absage und Grund.
+ */
 export const GESPRAECH_MARKE: Readonly<Record<string, PillZustand>> = {
   geplant: 'Geplant',
   stattgefunden: 'Abgeschlossen',
-  abgesagt: 'Abgelehnt',
-  verschoben: 'Wartet',
+  abgesagt: 'Archiviert',
 };
 
 /**
@@ -65,5 +75,18 @@ export function berlinZeit(wert: Date): string {
 export function berlinDatum(wert: Date): string {
   return new Intl.DateTimeFormat('de-DE', {
     dateStyle: 'medium', timeZone: 'Europe/Berlin',
+  }).format(wert);
+}
+
+/**
+ * Dasselbe wie `berlinZeit`, in der Sprache der Sitzung (V-220): deutsch wie
+ * bisher, englisch britisch — und die Zone steht in beiden dabei (MEZ/MESZ
+ * bzw. CET/CEST), aus demselben Grund wie oben.
+ */
+export function berlinZeitIn(wert: Date, sprache: string | null | undefined): string {
+  return new Intl.DateTimeFormat(sprache === 'en' ? 'en-GB' : 'de-DE', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'Europe/Berlin', timeZoneName: 'short',
   }).format(wert);
 }

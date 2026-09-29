@@ -87,7 +87,8 @@ test.describe('Vergaberadar (Phase 8)', () => {
 
     await page.locator('[data-cse="radar-geprueft"]').click();
     await page.waitForURL(/vermerkt=geprueft/u);
-    await expect(page.locator('[data-cse="radar-vermerkt"]')).toContainText('geprueft');
+    /* Das Wort, nicht der Schlüssel (V-232): „geprüft" statt „geprueft". */
+    await expect(page.locator('[data-cse="radar-vermerkt"]')).toContainText('geprüft');
 
     /* Verwerfen ohne Grund: abgewiesen, mit einem Satz, der sagt warum. */
     await page.locator('[data-cse="radar-verworfen"]').click();

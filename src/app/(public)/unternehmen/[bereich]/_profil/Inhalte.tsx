@@ -76,7 +76,7 @@ function Leer({ satz, grund }: { readonly satz: string; readonly grund?: string 
     <div data-cse="leer" className="rounded-lg border border-line bg-surface p-s5">
       <p className="m-0 text-base text-text">{satz}</p>
       {grund !== undefined && (
-        <p className="mt-s3 max-w-[72ch] text-sm text-text-subtle">{grund}</p>
+        <p className="mt-s3 max-w-prose text-sm text-text-subtle">{grund}</p>
       )}
     </div>
   );
@@ -84,10 +84,17 @@ function Leer({ satz, grund }: { readonly satz: string; readonly grund?: string 
 
 /** Ein Bild mit dem Hinweis, wenn es ein Platzhalter ist (DESIGN §4.1). */
 function Bild(
-  { bild, sprache, klasse }: {
+  { bild, sprache, klasse, unoptimiert }: {
     readonly bild: { readonly pfad: string; readonly alt: string; readonly platzhalter: boolean };
     readonly sprache: Sprache;
     readonly klasse?: string;
+    /**
+     * Ein hochgeladenes Beitragsbild (V-225) liegt im PRIVATEN Behälter; seine
+     * Adresse ist eine Tür, die auf eine signierte, ablaufende Adresse weiterleitet.
+     * Der Bildoptimierer hielte das Ergebnis fest — länger, als die Signatur gilt.
+     * Also lädt der Browser es selbst, über dieselbe Tür.
+     */
+    readonly unoptimiert?: boolean;
   },
 ) {
   const t = texte(sprache);
@@ -108,6 +115,7 @@ function Bild(
         fill
         sizes="(min-width: 768px) 33vw, 50vw"
         className="object-cover"
+        unoptimized={unoptimiert === true}
       />
       {bild.platzhalter && (
         <span
@@ -190,7 +198,7 @@ export function ProjektDetail(
         )}
       </dl>
       {referenz.beschreibung !== null && (
-        <p className="m-0 max-w-[72ch] whitespace-pre-line text-base text-text">
+        <p className="m-0 max-w-prose whitespace-pre-line text-base text-text">
           {referenz.beschreibung}
         </p>
       )}
@@ -251,6 +259,29 @@ export function BeitraegeListe(
   );
 }
 
+/** Das Bild eines Beitrags — oder nichts (SOC-02, V-225). */
+function Beitragsbild(
+  { beitrag, sprache, klasse }: {
+    readonly beitrag: BeitragZeile;
+    readonly sprache: Sprache;
+    readonly klasse: string;
+  },
+) {
+  if (beitrag.bildAdresse === null) return null;
+  return (
+    <Bild
+      bild={{
+        pfad: beitrag.bildAdresse,
+        alt: beitrag.bildAlt ?? '',
+        platzhalter: beitrag.bildPlatzhalter === true,
+      }}
+      sprache={sprache}
+      klasse={klasse}
+      unoptimiert={beitrag.bildPrivat === true}
+    />
+  );
+}
+
 export function BeitragDetail(
   { beitrag, bereich, sprache, segment }: {
     readonly beitrag: BeitragZeile;
@@ -279,7 +310,10 @@ export function BeitragDetail(
         * so übergeben. Ihn hier anders zu deuten als dort hiesse, zwei
         * Fassungen desselben Beitrags zu haben.
         */}
-      <p className="m-0 max-w-[72ch] whitespace-pre-line text-base text-text">{beitrag.text}</p>
+      <span data-cse="beitrag-bild" className="contents">
+        <Beitragsbild beitrag={beitrag} sprache={sprache} klasse="aspect-[3/2] w-full max-w-prose" />
+      </span>
+      <p className="m-0 max-w-prose whitespace-pre-line text-base text-text">{beitrag.text}</p>
       <p className="m-0">
         <a
           href={`${praefix(sprache)}/unternehmen/${bereich}/${segment}`}
@@ -377,7 +411,7 @@ export function Unternehmensdaten(
       {!bereich.angabenBestaetigt && (
         <p
           data-cse="ungeprueft"
-          className="m-0 max-w-[72ch] rounded-md bg-warning-soft p-s4 text-sm text-warning"
+          className="m-0 max-w-prose rounded-md bg-warning-soft p-s4 text-sm text-warning"
         >
           {t.ungeprueft}
         </p>

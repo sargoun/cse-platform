@@ -14,6 +14,10 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../unterseite';
 import { leseRadarKennzahlen, leseRadarListe, type RadarKennzahlen, type RadarZeile } from './daten';
 import { haeltRechte } from '@/app/portal/rechte';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import {
+  AUSSCHREIBUNG_STATUS_TEXT, RADAR_LAUF_STATUS_TEXT, RADAR_QUELLE_TEXT,
+} from '@/lib/i18n/beschriftung/radar';
 
 /**
  * `/portal/[mandant]/radar` — die Liste (RAD-01, RAD-02, RAD-05 … RAD-09).
@@ -34,12 +38,6 @@ export const dynamic = 'force-dynamic';
 const BERLIN = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
 });
-
-const VORGANG: Readonly<Record<string, string>> = {
-  neu: 'neu', geprueft: 'geprüft', verworfen: 'verworfen', in_bearbeitung: 'in Bearbeitung',
-  eingereicht: 'eingereicht', zuschlag: 'Zuschlag', nicht_beruecksichtigt: 'nicht berücksichtigt',
-  verfahren_aufgehoben: 'Verfahren aufgehoben',
-};
 
 /**
  * Die Restfrist als Text, nicht als Pille.
@@ -149,7 +147,7 @@ export default async function Radar(
       schluessel: 'vorgang', kopf: 'Stand',
       zelle: (z) => (z.vorgangStatus === null
         ? <span className="text-xs text-text-subtle">neu</span>
-        : <span className="text-xs text-text-muted">{VORGANG[z.vorgangStatus] ?? z.vorgangStatus}</span>),
+        : <span className="text-xs text-text-muted">{beschriftung(AUSSCHREIBUNG_STATUS_TEXT, z.vorgangStatus)}</span>),
     },
   ];
 
@@ -216,7 +214,8 @@ export default async function Radar(
 
       {daten.kennzahlen.letzterLauf !== null ? (
         <p className="mb-s5 text-xs text-text-subtle" data-cse="radar-letzter-lauf">
-          Letzter Lauf: {daten.kennzahlen.letzterLauf.quelle} — {daten.kennzahlen.letzterLauf.status}
+          Letzter Lauf: {beschriftung(RADAR_QUELLE_TEXT, daten.kennzahlen.letzterLauf.quelle)}
+          {' — '}{beschriftung(RADAR_LAUF_STATUS_TEXT, daten.kennzahlen.letzterLauf.status)}
           {daten.kennzahlen.letzterLauf.am === null ? '' : `, ${BERLIN.format(daten.kennzahlen.letzterLauf.am)}`}
         </p>
       ) : null}

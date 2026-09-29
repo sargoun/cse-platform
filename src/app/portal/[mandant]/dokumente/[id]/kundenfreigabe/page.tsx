@@ -15,9 +15,10 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
-import { formatiereBytes, KATEGORIE } from '../../darstellung';
+import { KATEGORIE } from '../../darstellung';
 import { FEHLERTEXT } from './daten';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/dokumente/[id]/kundenfreigabe` — der Schalter
@@ -128,7 +129,7 @@ export default async function Dokumentfreigabe(
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Dateityp</dt>
           <dd className="m-0 text-sm text-text">{stand.mime_typ ?? '—'}</dd>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Größe</dt>
-          <dd className="m-0 cse-zahl text-sm text-text">{formatiereBytes(stand.groesse)}</dd>
+          <dd className="m-0 cse-zahl text-sm text-text">{groesseText(stand.groesse)}</dd>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
             Entstanden
           </dt>

@@ -4,6 +4,7 @@ import {
   bereichAus, BereichFilter, BereichMarke, GruppenAntwort, GruppenHinweis, GruppenRahmen,
   gruppenLesen, gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, type Suchparameter,
 } from '../tor';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/gruppe/dokumente` — Suche ueber die Dokumente aller Gesellschaften
@@ -31,16 +32,6 @@ interface Zeile {
   readonly objekt: string | null;
   readonly groesse: string | null;
   readonly erstellt: string;
-}
-
-/** Bytes lesbar — Anzeige, keine Rechnung mit Bedeutung. */
-function groesse(bytes: string | null): string {
-  if (bytes === null) return '—';
-  const b = Number(bytes);
-  if (!Number.isFinite(b)) return '—';
-  if (b < 1024) return `${String(b)} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
-  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** `%`, `_` und `\` sind in ILIKE Muster — als Zeichen gemeint, also maskiert. */
@@ -102,7 +93,7 @@ export default async function GruppenDokumente({ searchParams }: { searchParams:
             { schluessel: 'titel', kopf: 'Titel', zelle: (z) => z.titel },
             { schluessel: 'kategorie', kopf: 'Kategorie', zelle: (z) => KATEGORIE[z.kategorie] ?? z.kategorie },
             { schluessel: 'bezug', kopf: 'Bezug', zelle: (z) => z.kunde ?? z.objekt ?? '—' },
-            { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (z) => groesse(z.groesse) },
+            { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (z) => groesseText(z.groesse) },
             { schluessel: 'erstellt', kopf: 'Abgelegt', zelle: (z) => z.erstellt },
           ]}
         />

@@ -11,7 +11,8 @@ import { waehleSpeicher } from '@/server/storage/waehle';
 import { offeneArchivierungen } from '@/server/services/buchhaltung/belegarchiv';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
-import { formatiereBytes, KATEGORIE } from '../../dokumente/darstellung';
+import { KATEGORIE } from '../../dokumente/darstellung';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/buchhaltung/archiv` — das GoBD-Archiv dieser
@@ -249,7 +250,7 @@ export default async function Archiv(
                   {z.sha256 === null ? '—' : `${z.sha256.slice(0, 12)}…`}
                 </span>
               ) },
-            { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (z) => formatiereBytes(z.groesse) },
+            { schluessel: 'groesse', kopf: 'Größe', numerisch: true, zelle: (z) => groesseText(z.groesse) },
           ]}
         />
       )}

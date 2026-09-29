@@ -69,3 +69,32 @@ export function regelFuer(kategorie: Kategorie): AufbewahrungsRegel {
   }
   return r;
 }
+
+/**
+ * **Welche Kategorien eine zweite Fassung bekommen** (DOC-05, V-219, D-713).
+ *
+ * DOC-05 sagt „versioning where the document type warrants it" und nennt die
+ * Typen nicht. Fest steht nur die eine Seite: Rechnung, Beleg und
+ * Buchhaltungsunterlage bekommen KEINE neue Fassung — GoBD und § 147 AO
+ * verlangen, dass ein Buchungsbeleg unverändert bleibt, und berichtigt wird
+ * durch Gegenbuchung bzw. Storno (Invariante 4), nie durch den Austausch der
+ * Datei. Dieselbe Liste prüft die Datenbank (`kern.dokument_fassung_pruefen`,
+ * 0470); eine Änderung hier ohne dort wäre eine zweite Wahrheit.
+ */
+export const FASSUNG_GESPERRT: readonly Kategorie[] = ['rechnung', 'beleg', 'buchhaltung'];
+
+/**
+ * Die übrigen sechs — ein PLATZHALTER, kein Urteil.
+ *
+ * TODO(client, O-937): Welche Dokumentkategorien sollen überhaupt Fassungen
+ * führen („where the document type warrants it", DOC-05) — alle übrigen sechs,
+ * oder etwa nur Vertrag, Angebot und Projektunterlage? Bis zur Antwort sperrt
+ * die Plattform nur, was GoBD sperrt, und lässt die übrigen sechs zu.
+ */
+export const FASSUNG_ERLAUBT_PLATZHALTER: readonly Kategorie[] =
+  KATEGORIEN.filter((k) => !FASSUNG_GESPERRT.includes(k));
+
+/** Bekommt ein Dokument dieser Kategorie eine neue Fassung? */
+export function fassungMoeglich(kategorie: string): boolean {
+  return (FASSUNG_ERLAUBT_PLATZHALTER as readonly string[]).includes(kategorie);
+}

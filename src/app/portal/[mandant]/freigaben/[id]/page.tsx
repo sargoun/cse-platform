@@ -28,6 +28,11 @@ import {
   ausfuehrungText, zeitpunkt,
 } from '../darstellung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import {
+  beitragDerFreigabe, bildDerFreigabe, type FreigabeBild,
+} from '@/server/services/social/beitragsbild';
+import { SOCIAL_BILD_TEXTE } from '@/lib/i18n/verwaltung/social-bild';
+import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
  * `/portal/[mandant]/freigaben/[id]` — die Prüfung (APR-02, APR-03, APR-07,
@@ -109,18 +114,32 @@ export default async function Freigabe(
    * nicht hält, sieht das Fenster nicht — ein Formular anzuzeigen, das mit
    * 403 antwortet, ist keine Auskunft, sondern eine Einladung.
    */
-  const { ansicht, darfEinspruch, darfRuecknahme } = await (db().begin(
+  const { ansicht, darfEinspruch, darfRuecknahme, bild, beitragId } = await (db().begin(
     async (tx: postgres.TransactionSql) => withTenant(tx, sitzung, async (kontext) => {
       const [rechte] = await kontext.abfrage<{ einspruch: boolean; ruecknahme: boolean }>(
         `select app.hat_recht('freigabe.einspruch_erheben', app.aktiver_mandant()) as einspruch,
                 app.hat_recht('freigabe.rueckgaengig', app.aktiver_mandant()) as ruecknahme`);
+      const geoeffnet = await oeffneFreigabe(kontext, id, 'web');
+      /*
+       * V-268: ein Beitrag mit Bild — das Bild steht auf DIESEM Bildschirm,
+       * denn hier wird entschieden. Die Nutzlast nennt nur eine Kennung und
+       * den Alternativtext; freigegeben würde ein Bild, das niemand sieht.
+       */
+      const sozial = geoeffnet !== null
+        && geoeffnet.freigabe.aktion === 'social_veroeffentlichen';
       return {
-        ansicht: await oeffneFreigabe(kontext, id, 'web'),
+        ansicht: geoeffnet,
         darfEinspruch: rechte?.einspruch === true,
         darfRuecknahme: rechte?.ruecknahme === true,
+        bild: sozial ? await bildDerFreigabe(kontext, geoeffnet.vorschau) : null,
+        beitragId: sozial
+          ? await beitragDerFreigabe(kontext, id,
+            geoeffnet.freigabe.bezugTyp === 'beitrag' ? geoeffnet.freigabe.bezugId : null)
+          : null,
       };
     }))) as {
       ansicht: FreigabeAnsicht | null; darfEinspruch: boolean; darfRuecknahme: boolean;
+      bild: FreigabeBild | 'fehlt' | null; beitragId: string | null;
     };
   if (ansicht === null) notFound();
 
@@ -144,7 +163,7 @@ export default async function Freigabe(
    * gefunden vom erweiterten Verweiselauf (D-575), der jedem gezeigten Link
    * bis zum Ende folgt.
    */
-  const darf = await haeltRechte(sitzung, 'eingang.lesen', 'freigabe.lesen');
+  const darf = await haeltRechte(sitzung, 'eingang.lesen', 'freigabe.lesen', 'social.lesen');
   const darfErfassen = darf['eingang.lesen'] === true;
   /**
    * **„Zum Posteingang" nur mit `freigabe.lesen`** (AUT-06). Der Posteingang
@@ -154,6 +173,10 @@ export default async function Freigabe(
    */
   const darfPosteingang = darf['freigabe.lesen'] === true;
   const tNutzlast = nachSprache(NUTZLAST_TEXTE, zugang.sprache);
+  const tBild = nachSprache(SOCIAL_BILD_TEXTE, zugang.sprache);
+  /* „Zum Beitrag" nur, wo die Beitragsseite sich öffnet (`social.lesen`, AUT-06). */
+  const beitragPfad = beitragId !== null && darf['social.lesen'] === true
+    ? `/portal/${mandant}/social/posts/${beitragId}` : null;
   const uebernommen = istERechnung && f.bezugTyp === 'eingangsrechnung' && f.bezugId !== null
     ? f.bezugId : null;
   const titel = f.titel ?? 'Freigabe';
@@ -515,6 +538,49 @@ export default async function Freigabe(
         * **Und offen statt zugeklappt.** Ein `details`, das man erst
         * aufklappen muss, ist eine Einladung, ohne Lesen zu entscheiden.
         */}
+      {/*
+        * **Das Bild gehört zur Entscheidung** (V-268, D-761, Invariante 7).
+        * Die Nutzlast trägt `bild: { medien_id, alt }` — das Nutzlastblatt
+        * zeigt davon eine gekürzte Kennung. Wer freigibt, gibt Text UND Bild
+        * frei, also steht das Bild hier: ein hochgeladenes über die Tür
+        * `/api/beitragsbild/<id>` (signierte, ablaufende Adresse; die Tür
+        * öffnet für jede Sitzung, die diese Freigabe lesen darf), ein Bild
+        * der Website unter seinem Pfad. Ein einfaches `img`: ein Optimierer
+        * hielte die signierte Adresse länger fest, als sie gilt.
+        */}
+      {bild !== null || beitragPfad !== null ? (
+        <section className="mb-s7 max-w-prose" aria-labelledby="freigabe-bild-titel"
+                 data-cse="freigabe-bild">
+          <h2 id="freigabe-bild-titel" className="mb-s3 text-h2 text-text">
+            {tBild.freigabeTitel}
+          </h2>
+          {bild === 'fehlt' ? (
+            <Kasten art="warnung" cse="freigabe-bild-fehlt" kinder={tBild.freigabeFehlt} />
+          ) : bild === null ? (
+            <p className="mb-s3 text-sm text-text-muted" data-cse="freigabe-ohne-bild">
+              {tBild.keines}
+            </p>
+          ) : (
+            <figure className="m-0 mb-s3" data-cse="freigabe-bild-vorschau"
+                    data-privat={bild.privat ? 'ja' : 'nein'}>
+              <img src={bild.adresse} alt={bild.alt}
+                   className="aspect-[3/2] w-full rounded-lg border border-line bg-surface object-contain" />
+              <figcaption className="mt-s2 text-sm text-text-muted">
+                {bild.alt}
+                {bild.platzhalter ? ` · ${tBild.platzhalter}` : ''}
+              </figcaption>
+            </figure>
+          )}
+          <p className="mb-s3 text-sm text-text-muted">{tBild.freigabeHinweis}</p>
+          {beitragPfad !== null ? (
+            <Link href={alsRoute(beitragPfad)} data-cse="zum-beitrag"
+                  className="text-sm text-text underline underline-offset-2 hover:text-brand">
+              {tBild.zumBeitrag}
+            </Link>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="mb-s7" aria-labelledby="nutzlast-titel">
         <h2 id="nutzlast-titel" className="mb-s3 text-h2 text-text">
           {tNutzlast.ueberschrift}

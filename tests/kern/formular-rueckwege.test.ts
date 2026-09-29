@@ -30,6 +30,9 @@ import {
   grundAus, RecruitingRueckmeldung, VERMERKTE_GRUENDE,
 } from '../../src/app/portal/[mandant]/recruiting/rueckmeldung.js';
 import { NotizKeinRecht } from '../../src/components/portal/Kommunikationsverlauf.js';
+import { RECRUITING_GESPRAECH_TEXTE } from '../../src/lib/i18n/verwaltung/recruiting-gespraech.js';
+import { RECRUITING_KANDIDAT_TEXTE } from '../../src/lib/i18n/verwaltung/recruiting-kandidat.js';
+import { SOCIAL_BILD_TEXTE } from '../../src/lib/i18n/verwaltung/social-bild.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 /*
@@ -125,9 +128,20 @@ describe('(b) jeder Grund der Route hat einen Satz — de und en', () => {
         'RecruitingFehler'),
       ...gruende(funktion(dienst, 'entscheide'), 'RecruitingFehler'),
     ],
+    /*
+     * V-222: auf `stellen/neu` kommen zwei Formulare zurück — von Hand und
+     * vom Agenten. Die Feldprüfung steht seitdem in `stellen/felder.ts`, und
+     * ein gestörter Lauf kommt als `ki_…` aus `kiGrund`.
+     */
     stelleNeu: [
       ...gruende(lies('src/app/api/recruiting/stellen/route.ts'), 'RecruitingFehler'),
+      ...gruende(lies('src/app/api/recruiting/stellen/felder.ts'), 'RecruitingFehler'),
+      ...gruende(lies('src/app/api/recruiting/stellen/entwurf/route.ts'), 'RecruitingFehler'),
       ...gruende(funktion(dienst, 'legeStelleAn'), 'RecruitingFehler'),
+      ...gruende(funktion(lies('src/server/services/recruiting/stellenentwurf.ts'),
+        'entwirfStellenanzeige'), 'RecruitingFehler'),
+      ...[...lies('src/server/services/recruiting/stellenentwurf.ts')
+        .matchAll(/return '(ki_[a-z_]+)'/gu)].map((m) => m[1] ?? ''),
     ],
     veroeffentlichung: [
       ...gruende(lies('src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts'),
@@ -148,6 +162,100 @@ describe('(b) jeder Grund der Route hat einen Satz — de und en', () => {
   it('der Kanal, der nicht verbunden ist, sagt: nichts ist hinausgegangen', () => {
     expect(RECRUITING_RUECKMELDUNG.de.veroeffentlichung['kanal_nicht_verbunden'])
       .toMatch(/nicht verbunden[\s\S]*nichts/u);
+  });
+});
+
+/**
+ * **(b2) Dieselbe Wache für die Rückwege der Gruppe kalender-dokumente**
+ * (V-220, V-223, V-224, V-225; Prüfung der Gruppe). Gespräch, Kandidat,
+ * Postfach und Beitragsbild bringen ihren Grund auf ungetypte Karten zurück —
+ * heute vollständig, aber ohne Wache gegen den nächsten neuen Grund. Gelesen
+ * wird wie in (b): was Route und Dienst werfen, muss in beiden Sprachen einen
+ * Satz haben.
+ */
+describe('(b2) Gespräch, Kandidat, Postfach, Beitragsbild: jeder Grund hat einen Satz — de und en', () => {
+  const ki = [...lies('src/server/services/recruiting/stellenentwurf.ts')
+    .matchAll(/return '(ki_[a-z_]+)'/gu)].map((m) => m[1] ?? '');
+  const quellen: Readonly<Record<string, {
+    readonly gruende: readonly string[];
+    readonly karte: (sprache: 'de' | 'en') => Readonly<Record<string, string>>;
+  }>> = {
+    gespraech: {
+      gruende: [
+        /*
+         * Der Wurf mit dem Grund aus `planEingabe` trägt keinen festen Schlüssel
+         * — der Ausdruck in `gruende` liefe sonst zum nächsten Literal weiter
+         * (`'vermerken'`). Seine Gründe liest die dritte Zeile.
+         */
+        ...gruende(lies('src/app/api/recruiting/gespraeche/[id]/route.ts')
+          .replace('new RecruitingFehler(gelesen.satz, gelesen.grund, 400)', ''),
+        'RecruitingFehler'),
+        ...gruende(lies('src/server/services/recruiting/gespraech.ts'), 'RecruitingFehler'),
+        /* Der neue Termin kommt über `planEingabe`; ihre Gründe reicht die Route durch. */
+        ...gruende(lies('src/server/services/zeit/formulareingabe.ts'), 'RecruitingFehler'),
+      ],
+      karte: (sprache) => RECRUITING_GESPRAECH_TEXTE[sprache].fehler,
+    },
+    kandidat: {
+      gruende: [
+        ...gruende(lies('src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts'),
+          'RecruitingFehler'),
+        ...gruende(lies('src/app/api/recruiting/bewerbungen/[id]/kandidat/vorschlag/route.ts'),
+          'RecruitingFehler'),
+        ...[...lies('src/app/api/recruiting/bewerbungen/[id]/kandidat/vorschlag/route.ts')
+          .matchAll(/'(ki_[a-z_]+)'/gu)].map((m) => m[1] ?? ''),
+        ...gruende(lies('src/server/services/recruiting/kandidat.ts'), 'RecruitingFehler'),
+        ...ki,
+      ],
+      karte: (sprache) => RECRUITING_KANDIDAT_TEXTE[sprache].kFehler,
+    },
+    postfach: {
+      gruende: [
+        ...gruende(lies('src/app/api/recruiting/bewerbungen/route.ts'), 'RecruitingFehler'),
+        ...gruende(lies('src/server/services/recruiting/postfach.ts'), 'RecruitingFehler'),
+      ],
+      karte: (sprache) => RECRUITING_KANDIDAT_TEXTE[sprache].pFehler,
+    },
+    /* Die Gründe von `MedienFehler` (der Vereinigungstyp), als `bild_<grund>` zurück. */
+    bild: {
+      gruende: (/readonly grund: ([^;]+?),\n\s+nachricht/u
+        .exec(lies('src/server/services/social/beitragsbild.ts'))?.[1] ?? '')
+        .split('|').map((t) => t.trim().replace(/'/gu, '')).filter((t) => t !== '')
+        .map((g) => `bild_${g}`),
+      karte: (sprache) => SOCIAL_BILD_TEXTE[sprache].fehler,
+    },
+  };
+
+  it.each(Object.entries(quellen))('%s', (name, { gruende: liste, karte }) => {
+    expect(liste.length, `${name}: keine Gründe gefunden — liest der Test noch?`)
+      .toBeGreaterThan(2);
+    for (const sprache of ['de', 'en'] as const) {
+      for (const g of liste) expect(karte(sprache)[g], `${sprache} ${name}: ${g}`).toBeTruthy();
+    }
+  });
+
+  /**
+   * Die übrigen Abweisungen der Bild-Route (`SocialFehler` aus
+   * `haengeNeuesBildAn`, `setzeBeitragsbild`, `schreibeWennNoch`) zeigt der
+   * allgemeine Kasten des Beitragsblatts — die Seite steht auf der
+   * Ausnahmeliste der Übersetzung und trägt ihre Sätze selbst (`FEHLER`).
+   * `unbekannt` ausgenommen: dann gibt es das Blatt nicht, es antwortet 404.
+   */
+  it('bild: die Gründe des Beitrags stehen im Kasten des Beitragsblatts', () => {
+    const dienst = lies('src/server/services/social/dienst.ts');
+    const rumpf = (name: string): string => {
+      const a = dienst.search(new RegExp(`(?:export )?async function ${name}\\b`, 'u'));
+      expect(a, name).toBeGreaterThan(-1);
+      return dienst.slice(a, dienst.indexOf('\n}\n', a));
+    };
+    const geworfen = ['haengeNeuesBildAn', 'setzeBeitragsbild', 'schreibeWennNoch']
+      .flatMap((n) => [...rumpf(n).matchAll(/new SocialFehler\([\s\S]*?'([a-z_]+)'\)/gu)]
+        .map((m) => m[1] ?? ''))
+      .filter((g) => g !== 'unbekannt');
+    expect(geworfen.length).toBeGreaterThan(2);
+    const seite = lies('src/app/portal/[mandant]/social/posts/[id]/page.tsx');
+    const karte = seite.slice(seite.indexOf('const FEHLER'), seite.indexOf('\n};\n', seite.indexOf('const FEHLER')));
+    for (const g of geworfen) expect(karte, g).toMatch(new RegExp(`\\n\\s+${g}:`, 'u'));
   });
 });
 

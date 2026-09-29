@@ -7,8 +7,8 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
-import { fuehreLaufAus, type AgentKennung } from '@/server/agent/orchestrator';
-import { ENTWURF_AUFTRAEGE, fuelleTatsachen } from '@/server/agent/auftraege';
+import type { AgentKennung, LaufErgebnis } from '@/server/agent/orchestrator';
+import { ENTWURF_AUFTRAEGE, starteLaufAufKnopfdruck } from '@/server/agent/auftraege';
 import { slugFuer } from '../../../portal/[mandant]/agenten/kennung';
 import { alsAntwort } from '../../sicherheit/antwort';
 
@@ -100,18 +100,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         const [bereich] = await kontext.abfrage<{ slug: string }>(
           `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
         if (bereich === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
-        const lauf = await fuehreLaufAus(kontext, {
-          ...auftrag,
-          agent,
-          // Die Tatsachen kommen aus DIESER Gesellschaft, durch RLS begrenzt.
-          tatsachen: await fuelleTatsachen(
-            { abfrage: kontext.abfrage.bind(kontext) }, agent),
-          idempotenzSchluessel: `${agent}:${schluessel}`,
-          angefordertVon: sitzung.benutzerId,
-          codeVersion: codeVersion(),
+        /*
+         * **Ohne offene Anfrage gibt es keinen Akquise-Entwurf** (V-230,
+         * D-724): die Tatsachen kommen VOR der Aufgabe — es entsteht keine
+         * Zeile, und die Seite sagt, warum (`starteLaufAufKnopfdruck`,
+         * geprüft in `tests/isolation/akquise-tatsachen.test.ts` (6)).
+         */
+        const { lauf, code } = await starteLaufAufKnopfdruck(kontext, {
+          agent, schluessel, angefordertVon: sitzung.benutzerId, codeVersion: codeVersion(),
         });
-        return { lauf, slug: bereich.slug };
-      }))) as { lauf: Awaited<ReturnType<typeof fuehreLaufAus>>; slug: string };
+        return { lauf, code, slug: bereich.slug };
+      }))) as {
+        lauf: LaufErgebnis | null; code: string | null; slug: string;
+      };
 
     /*
      * Drei Ausgänge, drei Sätze — und der gestörte ist einer davon, kein
@@ -132,6 +133,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * richtig (`slugFuer(a.kennung)`); diese Stelle war die Ausnahme.
      */
     const seite = `/portal/${ergebnis.slug}/agenten/${slugFuer(agent)}`;
+    if (lauf === null) {
+      return NextResponse.redirect(internesZiel(
+        `${seite}?lauf=gestoert&code=${encodeURIComponent(ergebnis.code ?? '')}`, seite, anfrage),
+      303);
+    }
     const ziel = lauf.gestoert !== null
       ? `${seite}?lauf=gestoert&code=${encodeURIComponent(lauf.gestoert.code)}`
       : lauf.bestand

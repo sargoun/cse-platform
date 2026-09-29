@@ -11,6 +11,7 @@ import { stundenAusMinuten } from '@/lib/datum/stunden';
 import { darfKorrigieren, ladeZeiteintrag, type SpurZeile } from '../daten';
 import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { groesseText } from '@/lib/zahl';
 
 /**
  * `/portal/[mandant]/zeiten/[id]` — ein Zeiteintrag, vollständig (TIM-08,
@@ -419,7 +420,7 @@ export default async function Zeiteintragsblatt(
                   <p className="m-0 mt-s2 text-sm text-text-muted">{m.beschreibung}</p>
                 )}
                 <p className="m-0 mt-s2 text-xs text-text-subtle">
-                  {m.mimeTyp} · {megabyte(m.groesseBytes)}
+                  {m.mimeTyp} · {groesseText(m.groesseBytes)}
                 </p>
                 {m.entfernt ? (
                   <p className="m-0 mt-s2 text-xs text-text-subtle">
@@ -471,10 +472,6 @@ function ortText(
   return genauigkeit === null
     ? koordinaten
     : `${koordinaten} (±${String(genauigkeit)} m)`;
-}
-
-function megabyte(bytes: number): string {
-  return `${(bytes / 1_048_576).toFixed(1).replace('.', ',')} MB`;
 }
 
 function Feld({ label, wert, zahl = false }: {

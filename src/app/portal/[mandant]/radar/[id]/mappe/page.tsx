@@ -12,6 +12,9 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { leseMappe, type MappenBlick } from './daten';
 import { kennungOder404 } from '../../../../kennung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { beschriftung } from '@/lib/i18n/beschriftung/basis';
+import { MAPPE_STATUS_TEXT } from '@/lib/i18n/beschriftung/radar';
+import { Recht } from '@/components/ui/Recht';
 
 /**
  * `/portal/[mandant]/radar/[id]/mappe` — die Vergabemappe (RAD-07, D-07).
@@ -52,11 +55,6 @@ const AUSGAENGE_TEXT: Readonly<Record<string, string>> = {
   zuschlag: 'Zuschlag erhalten',
   nicht_beruecksichtigt: 'Nicht berücksichtigt',
   verfahren_aufgehoben: 'Das Verfahren wurde aufgehoben',
-};
-
-const MAPPE_TEXT: Readonly<Record<string, string>> = {
-  offen: 'offen', in_arbeit: 'in Arbeit', vollstaendig: 'vollständig',
-  freigegeben: 'freigegeben', eingereicht: 'eingereicht', verworfen: 'verworfen',
 };
 
 const FEHLER_TEXT: Readonly<Record<string, string>> = {
@@ -228,7 +226,7 @@ export default async function Vergabemappe(
 
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
         <div className="flex flex-wrap items-baseline justify-between gap-s3">
-          <h2 className="text-h2 text-text">Stand: {MAPPE_TEXT[m.status] ?? m.status}</h2>
+          <h2 className="text-h2 text-text">Stand: {beschriftung(MAPPE_STATUS_TEXT, m.status)}</h2>
           <Zaehler m={m} />
         </div>
         {m.freigegebenAm !== null ? (
@@ -528,7 +526,7 @@ export default async function Vergabemappe(
         ) : (
           <p className="text-sm text-text-muted">
             Eine Einreichung erfasst, wer{' '}
-            <span className="font-mono">vergabe.einreichung_erfassen</span> hält.
+            <Recht schluessel="vergabe.einreichung_erfassen" /> hält.
           </p>
         )}
       </section>
@@ -587,7 +585,7 @@ export default async function Vergabemappe(
           ) : (
             <p className="text-sm text-text-muted">
               Das Ergebnis erfasst, wer{' '}
-              <span className="font-mono">vergabe.einreichung_erfassen</span> hält.
+              <Recht schluessel="vergabe.einreichung_erfassen" /> hält.
             </p>
           )}
         </section>
@@ -595,7 +593,7 @@ export default async function Vergabemappe(
 
       {!darfSchreiben ? (
         <p className="mt-s5 max-w-prose text-xs text-text-muted">
-          Die Mappe führt, wer <span className="font-mono">vergabe.schreiben</span> hält.
+          Die Mappe führt, wer <Recht schluessel="vergabe.schreiben" /> hält.
         </p>
       ) : null}
     </PortalRahmen>

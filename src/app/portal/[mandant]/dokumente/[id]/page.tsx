@@ -11,9 +11,18 @@ import { waehleSpeicher } from '@/server/storage/waehle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
-import { formatiereBytes, KATEGORIE } from '../darstellung';
+import { KATEGORIE } from '../darstellung';
 import { kennungOder404 } from '../../../kennung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { groesseText } from '@/lib/zahl';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { DOKUMENT_BLATT_TEXTE } from '@/lib/i18n/verwaltung/dokument-blatt';
+import { internSprache } from '@/lib/i18n/intern';
+import { dokumentKategorieText } from '@/lib/i18n/texte';
+import { tagInSprache } from '@/lib/datum/kalendertag';
+import { DataTable } from '@/components/ui/DataTable';
+import { ladeFassungen, type FassungZeile } from '@/server/services/dokument/ablage';
+import { fassungMoeglich } from '@/server/services/dokument/kategorie';
 
 /**
  * `/portal/[mandant]/dokumente/[id]` — die Metadaten eines Dokuments
@@ -96,6 +105,19 @@ export default async function Dokumentblatt(
   const { mandant, id } = await params;
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /*
+   * **Welches Formular die Abweisung meint** (V-219). Löschen und die
+   * Freigabe für die Belegschaft schicken ihren Grund beide als `?fehler=`
+   * zurück; `vorgang` sagt, zu welchem Abschnitt er gehört — sonst stünde
+   * über einer abgewiesenen Rücknahme „Nicht gelöscht.".
+   */
+  const vorgang = typeof suche['vorgang'] === 'string' ? suche['vorgang'] : null;
+  /* V-219 b: `?fassung=<n>` nach dem Ablegen einer neuen Fassung. */
+  const faErfolg = typeof suche['fassung'] === 'string' && /^[1-9][0-9]{0,5}$/u.test(suche['fassung'])
+    ? suche['fassung'] : null;
+  const mfErfolg = suche['mitarbeiterfreigabe'] === 'gesetzt'
+    || suche['mitarbeiterfreigabe'] === 'zurueckgenommen'
+    ? suche['mitarbeiterfreigabe'] : null;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/dokumente/${id}`, mandant);
@@ -114,7 +136,9 @@ export default async function Dokumentblatt(
      * ablegen darf, räumt damit nicht auf. Das eine legt hinzu, das andere
      * nimmt fort, und in einem Archiv ist das nicht dieselbe Handlung.
      */
-    'dokument.archivieren');
+    'dokument.archivieren',
+    /* V-219: die Freigabe für die Belegschaft — dasselbe Recht wie beim Ablegen. */
+    'dokument.schreiben');
 
   const [d] = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, (kontext) => kontext.abfrage<Dokument>(
@@ -144,15 +168,28 @@ export default async function Dokumentblatt(
          left join benutzer b on b.id = d.erstellt_von
         where d.id = $1 and d.geloescht_am is null`, [id]))) as Promise<readonly Dokument[]>);
   if (d === undefined) notFound();
+  /*
+   * Die Kette der Fassungen (DOC-05, V-219 b) — neueste zuerst. Eigene
+   * Transaktion, damit die Abfrage des Blatts oben unverändert bleibt.
+   */
+  const fassungen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, zugang.sitzung, (kontext) => ladeFassungen(kontext, id))) as
+    Promise<readonly FassungZeile[]>);
+  const naechsteFassung = (fassungen[0]?.version ?? 0) + 1;
   const speicher = waehleSpeicher();
+  const sprache = internSprache(zugang.sprache);
+  const t = nachSprache(DOKUMENT_BLATT_TEXTE, sprache);
+  const mfFehler = vorgang === 'mitarbeiterfreigabe' ? fehler : null;
+  const faFehler = vorgang === 'fassung' ? fehler : null;
 
   return (
     <PortalRahmen
       titel={d.titel}
       wurzelTitel="Dokumente"
       bereich={mandant as BereichSchluessel}
-      /* Mit `dokument.archivieren` ist dieses Blatt schreibend (V-026). */
-      nurLesen={darf['dokument.archivieren'] !== true}
+      /* Mit `dokument.archivieren` ist dieses Blatt schreibend (V-026), mit
+         `dokument.schreiben` seit V-219 ebenso (Freigabe für die Belegschaft). */
+      nurLesen={darf['dokument.archivieren'] !== true && darf['dokument.schreiben'] !== true}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="dokumente"
@@ -162,8 +199,9 @@ export default async function Dokumentblatt(
       <h1 className="mb-s3 text-h1 text-text">{d.titel}</h1>
       {d.beschreibung === null ? null : <p className="mb-s5 max-w-[72ch] text-base text-text-muted">{d.beschreibung}</p>}
 
-      {fehler !== null ? (
-        <Hinweis art="warnung" cse="dokument-loeschfehler" className="mb-s5 max-w-prose">
+      {fehler !== null && vorgang === null ? (
+        <Hinweis art="warnung" rolle="alert" cse="dokument-loeschfehler"
+                 className="mb-s5 max-w-prose">
           <strong>Nicht gelöscht.</strong>{' '}
           {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Löschung wurde abgewiesen.'}
         </Hinweis>
@@ -211,7 +249,7 @@ export default async function Dokumentblatt(
             <Feld label="Typ" wert={d.mime_typ ?? '—'} />
             <Feld label="Typ geprüft" wert={d.mime_verifiziert ? 'aus den Bytes bestätigt' : 'nicht geprüft'} />
             <Feld label="EXIF" wert={d.exif_entfernt ? 'entfernt' : 'nicht entfernt'} />
-            <Feld label="Größe" wert={formatiereBytes(d.groesse)} />
+            <Feld label="Größe" wert={groesseText(d.groesse)} />
             <Feld label="Ablage" wert={<code className="text-xs">{d.bucket}</code>} />
             <Feld label="Aufbewahren bis" wert={d.aufbewahrung_bis ?? 'keine Frist hinterlegt'} />
             <Feld label="Löschsperre" wert={d.loeschsperre ? 'ja — kein Löschen möglich' : 'nein'} />
@@ -235,6 +273,208 @@ export default async function Dokumentblatt(
           </p>
         </section>
       </div>
+
+      {/* ------------------------------------------------ Fassungen (V-219 b) */}
+      {/*
+        * **Die Kette, die es gab und die niemand fortsetzen konnte.**
+        * `dokument_version` war seit 0009 als Kette angelegt, jeder Schreiber
+        * setzte `version = 1`, und dieses Blatt zeigte keine Fassung. Jetzt
+        * steht die Kette hier (Nummer, Tag, Person, Größe, Typ, SHA-256), und
+        * eine neue Fassung überschreibt keine alte (D-713).
+        */}
+      <section aria-labelledby="fassungen" className="mt-s7" data-cse="fassungen">
+        <h2 id="fassungen" className="mb-s3 text-h3 text-text">{t.faTitel}</h2>
+        {faErfolg !== null ? (
+          <Hinweis art="erfolg" rolle="status" cse="fassung-erfolg" className="mb-s4 max-w-prose">
+            {t.faAbgelegt.replace('{n}', faErfolg)}
+          </Hinweis>
+        ) : null}
+        {faFehler !== null ? (
+          <Hinweis art="warnung" rolle="alert" cse="fassung-fehler" className="mb-s4 max-w-prose">
+            <strong>{t.faNichtAbgelegt}</strong>{' '}
+            {eigenerEintrag(t.faFehler, faFehler) ?? t.faFehlerSonst}
+          </Hinweis>
+        ) : null}
+        <p className="mb-s4 max-w-prose text-sm text-text-muted">{t.faErklaerung}</p>
+        {fassungen.length === 0 ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassungen-leer">
+            {t.faKeine}
+          </p>
+        ) : (
+          <DataTable
+            beschriftung={t.faBeschriftung}
+            zeilen={fassungen}
+            schluessel={(v) => String(v.version)}
+            spalten={[
+              {
+                schluessel: 'fassung', kopf: t.faSpalteFassung, numerisch: true,
+                zelle: (v) => (
+                  <span data-cse="fassung-nummer" data-version={String(v.version)}>
+                    {v.version === fassungen[0]?.version
+                      ? `${String(v.version)} · ${t.faAktuell}` : String(v.version)}
+                  </span>
+                ),
+              },
+              {
+                schluessel: 'abgelegt', kopf: t.faSpalteAbgelegt,
+                zelle: (v) => `${tagInSprache(v.tag, sprache)} ${v.uhrzeit}`,
+              },
+              { schluessel: 'von', kopf: t.faSpalteVon, zelle: (v) => v.von ?? '—' },
+              {
+                schluessel: 'groesse', kopf: t.faSpalteGroesse, numerisch: true,
+                zelle: (v) => groesseText(v.groesse, sprache),
+              },
+              { schluessel: 'typ', kopf: t.faSpalteTyp, zelle: (v) => v.mimeTyp },
+              {
+                schluessel: 'sha256', kopf: t.faSpaltePruefsumme,
+                zelle: (v) => <code className="break-all text-xs">{v.sha256}</code>,
+              },
+              ...(speicher.verbunden ? [{
+                schluessel: 'abruf', kopf: t.faSpalteAbruf,
+                zelle: (v: FassungZeile) => (
+                  <a href={`/api/dokumente/${d.id}/datei?fassung=${String(v.version)}`}
+                     data-cse="fassung-abrufen"
+                     className="text-text underline underline-offset-2 hover:text-brand">
+                    {t.faAbrufen}
+                  </a>
+                ),
+              }] : []),
+            ]}
+          />
+        )}
+
+        <h3 className="mb-s3 mt-s5 text-base font-semibold text-text">{t.faNeuTitel}</h3>
+        {darf['dokument.schreiben'] !== true ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-recht">
+            {t.faOhneRechtVor}{' '}
+            <Recht schluessel="dokument.schreiben" sprache={sprache} />{' '}
+            {t.faOhneRechtNach}
+          </p>
+        ) : !fassungMoeglich(d.kategorie) ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-gesperrt">
+            {t.faGesperrtKategorie}
+          </p>
+        ) : d.an_buchung ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-buchung">
+            {t.faGesperrtBuchung}
+          </p>
+        ) : fassungen.length === 0 ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-kette">
+            {t.faFehler.ohne_kette}
+          </p>
+        ) : !speicher.verbunden ? (
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-speicher">
+            {t.faOhneSpeicher}
+          </p>
+        ) : d.sichtbar_fuer_kunde && darf['dokument.kunde_freigeben'] !== true ? (
+          /*
+           * V-266, D-759: an einem für den Kunden freigegebenen Dokument ändert
+           * eine neue Fassung, was er zu sehen bekommt — das entscheidet, wer
+           * die Kundenfreigabe erteilen darf (0297, 0488).
+           */
+          <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-kundenfreigabe">
+            {t.faKundenfreigabeOhneRechtVor}{' '}
+            <Recht schluessel="dokument.kunde_freigeben" sprache={sprache} />{' '}
+            {t.faKundenfreigabeOhneRechtNach}
+          </p>
+        ) : (
+          <form method="post" action={`/api/dokumente/${d.id}/version`}
+                encType="multipart/form-data" data-cse="fassung-formular"
+                className="flex max-w-prose flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="zurueck"
+                   value={`/portal/${mandant}/dokumente/${d.id}?vorgang=fassung`} />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.faDatei}
+              <input type="file" name="datei" required data-cse="fassung-datei"
+                     className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+            </label>
+            <p className="m-0 text-xs text-text-muted">{t.faNeuErklaerung}</p>
+            {d.sichtbar_fuer_kunde ? (
+              <label className="flex items-start gap-s3 text-sm text-text">
+                <input type="checkbox" name="kundenfreigabe" value="ja" required
+                       data-cse="fassung-kundenfreigabe-bestaetigen"
+                       className="mt-s1 min-h-5 min-w-5" />
+                {t.faKundenfreigabeBestaetigen}
+              </label>
+            ) : null}
+            <div>
+              <Button type="submit" variante="secondary" data-cse="fassung-abschicken">
+                {t.faAbschicken.replace('{n}', String(naechsteFassung))}
+              </Button>
+            </div>
+          </form>
+        )}
+      </section>
+
+      {/* ------------------------------ Freigabe für die Belegschaft (V-219) */}
+      {/*
+        * **Der Rückweg, den es nicht gab.** Das Kästchen beim Ablegen setzte
+        * `sichtbar_fuer_mitarbeiter`, und danach führte kein Weg zurück —
+        * bei den Kategorien mit Löschsperre auch nicht über das Löschen.
+        * Der Schalter steht hier in BEIDE Richtungen, mit Pflichtgrund, unter
+        * demselben Recht wie beim Ablegen (D-712).
+        */}
+      <section aria-labelledby="mitarbeiterfreigabe" className="mt-s7 max-w-prose"
+               data-cse="mitarbeiterfreigabe">
+        <h2 id="mitarbeiterfreigabe" className="mb-s3 text-h3 text-text">{t.mfTitel}</h2>
+        {mfErfolg !== null ? (
+          <Hinweis art="erfolg" rolle="status" cse="mitarbeiterfreigabe-erfolg" className="mb-s4">
+            {mfErfolg === 'gesetzt' ? t.mfGesetzt : t.mfZurueckgenommen}
+          </Hinweis>
+        ) : null}
+        {mfFehler !== null ? (
+          <Hinweis art="warnung" rolle="alert" cse="mitarbeiterfreigabe-fehler" className="mb-s4">
+            <strong>{t.mfNichtGeaendert}</strong>{' '}
+            {eigenerEintrag(t.mfFehler, mfFehler) ?? t.mfFehlerSonst}
+          </Hinweis>
+        ) : null}
+        <p className="m-0 text-sm text-text" data-cse="mitarbeiterfreigabe-stand"
+           data-frei={d.sichtbar_fuer_mitarbeiter ? 'ja' : 'nein'}>
+          {d.sichtbar_fuer_mitarbeiter ? t.mfIstFrei : t.mfIstNichtFrei}
+        </p>
+        <p className="mt-s3 text-sm text-text">
+          <span className="text-micro uppercase tracking-[0.08em] text-text-subtle">
+            {t.mfKategorie}
+          </span>{' '}
+          <strong data-cse="mitarbeiterfreigabe-kategorie">
+            {dokumentKategorieText(sprache, d.kategorie)}
+          </strong>
+        </p>
+        <p className="mt-s2 text-xs text-text-muted">{t.mfKategorieHinweis}</p>
+        {darf['dokument.schreiben'] !== true ? (
+          <p className="mt-s4 text-sm text-text-muted" data-cse="mitarbeiterfreigabe-ohne-recht">
+            {t.mfOhneRecht}{' '}
+            <Recht schluessel="dokument.schreiben" sprache={sprache} />.
+          </p>
+        ) : (
+          <form method="post" action={`/api/dokumente/${d.id}/mitarbeiterfreigabe`}
+                data-cse="mitarbeiterfreigabe-formular"
+                className="mt-s4 flex flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
+            <input type="hidden" name="sichtbar"
+                   value={d.sichtbar_fuer_mitarbeiter ? 'nein' : 'ja'} />
+            <input type="hidden" name="zurueck"
+                   value={`/portal/${mandant}/dokumente/${d.id}?vorgang=mitarbeiterfreigabe`} />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.mfGrund}
+              <textarea name="grund" rows={2} required
+                        data-cse="mitarbeiterfreigabe-grund"
+                        placeholder={d.sichtbar_fuer_mitarbeiter
+                          ? t.mfGrundBeispielZuruecknehmen : t.mfGrundBeispielFreigeben}
+                        className="w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
+            </label>
+            <div>
+              <Button type="submit"
+                      variante={d.sichtbar_fuer_mitarbeiter ? 'danger' : 'secondary'}
+                      data-cse="mitarbeiterfreigabe-abschicken">
+                {d.sichtbar_fuer_mitarbeiter ? t.mfZuruecknehmen : t.mfFreigeben}
+              </Button>
+            </div>
+            <p className="m-0 text-xs text-text-muted">
+              {d.sichtbar_fuer_mitarbeiter ? t.mfRuecknahmeGrenze : t.mfFreigabeFolge}
+            </p>
+          </form>
+        )}
+      </section>
 
       {/* --------------------------------------------------- Löschen (V-026) */}
       <section aria-labelledby="loeschen" className="mt-s7 max-w-prose">
@@ -292,10 +532,11 @@ export default async function Dokumentblatt(
               </Button>
             </div>
             <p className="m-0 text-xs text-text-muted">
-              Gelöscht werden die Zeile und die Datei — in dieser Reihenfolge, damit im
-              Bucket nichts liegen bleibt, worauf keine Zeile mehr zeigt. Die Zeile bleibt
-              mit Zeitpunkt, Person und Grund erhalten (kein hartes Löschen, Invariante 8);
-              die Datei ist danach fort und kommt nicht zurück.{' '}
+              Gelöscht werden die Zeile und die Dateien aller Fassungen — in dieser
+              Reihenfolge, damit im Bucket nichts liegen bleibt, worauf keine Zeile mehr
+              zeigt. Die Zeile bleibt mit Zeitpunkt, Person und Grund erhalten (kein hartes
+              Löschen, Invariante 8); die Dateien sind danach fort und kommen nicht
+              zurück.{' '}
               <strong>Die Datenbank kann trotzdem ablehnen:</strong> ob sich eine
               Buchungszeile auf dieses Dokument beruft, ist ohne{' '}
               <Recht schluessel="buchhaltung.lesen" /> von hier aus nicht zu sehen — die

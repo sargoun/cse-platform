@@ -105,3 +105,59 @@ export function einsendungLesbar(
   }
   return zeilen;
 }
+
+/*
+ * ---------------------------------------------------------------------------
+ * Die Lücken einer Anfrage (V-230, D-724)
+ * ---------------------------------------------------------------------------
+ */
+
+/**
+ * Feldarten, deren leerer Wert KEINE Lücke ist.
+ *
+ *  - `checkbox`: ein nicht gesetztes Häkchen ist eine Antwort („nein"), keine
+ *    fehlende Angabe.
+ *  - `textarea`: ein Freitext („Ihre Nachricht") ist Zusatz, keine Bedarfsangabe.
+ *  - `datei`: eine hochgeladene Datei steht nicht in `daten`, sondern in der
+ *    Ablage — ein leerer Wert hier hiesse nicht, dass nichts hochgeladen wurde.
+ *    Eine Lücke, die vielleicht keine ist, nennt der Entwurf nicht.
+ */
+export const KEINE_LUECKE: ReadonlySet<FormularFeld['typ']> =
+  new Set(['checkbox', 'textarea', 'datei']);
+
+/**
+ * Welche Angaben eine Anfrage LEER lässt — die Beschriftungen der Felder ihres
+ * Formulars, in der Reihenfolge des Formulars.
+ *
+ * **Nur, was in den Daten tatsächlich leer ist.** Vorher stand im
+ * Antwortentwurf des Akquise-Agenten fest verdrahtet „es fehlt noch die Angabe
+ * zur Personenzahl" — in jeder Antwort, egal was die Anfrage enthielt und ob
+ * das Formular überhaupt nach Personen fragt. Jetzt nennt der Entwurf genau die
+ * Felder des Formulars der Gesellschaft, die der Anfragende leer gelassen hat,
+ * und nichts, wenn keines leer ist.
+ *
+ * TODO(client, O-940): Welche Angaben braucht jede Gesellschaft, um ein
+ * verbindliches Angebot rechnen zu können? Bis zur Antwort gilt als Lücke
+ * jedes leere Feld des eigenen Anfrageformulars ausser Häkchen, Freitext und
+ * Datei (`KEINE_LUECKE`) — die Menge, die die Gesellschaft selbst abfragt,
+ * und keine erfundene.
+ */
+export function anfrageLuecken(
+  felder: readonly FormularFeld[], daten: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  return [...felder]
+    .sort((a, b) => a.sortierung - b.sortierung)
+    .filter((f) => !KEINE_LUECKE.has(f.typ))
+    .filter((f) => wertFuer(f, daten[f.schluessel]) === '')
+    .map((f) => f.label);
+}
+
+/**
+ * Die Lücken als Aufzählung für einen deutschen Satz — „A", „A und B",
+ * „A, B und C". `null`, wenn nichts fehlt: dann entfällt der Satz.
+ */
+export function lueckenText(luecken: readonly string[]): string | null {
+  if (luecken.length === 0) return null;
+  if (luecken.length === 1) return luecken[0]!;
+  return `${luecken.slice(0, -1).join(', ')} und ${luecken[luecken.length - 1]!}`;
+}

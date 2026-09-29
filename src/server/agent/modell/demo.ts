@@ -50,9 +50,19 @@ const VORLAGEN: Readonly<Record<string, string>> = {
     'Die Monatsrechnung für {objekt} steht zur Freigabe: {zusammenfassung} '
     + 'Grundlage sind die erfassten Leistungen des Zeitraums {zeitraum}. '
     + 'Der Betrag ist gerechnet, nicht geschätzt — die Positionen stehen unten einzeln.',
+  /*
+   * **Der Lückensatz steht in `[[…]]` und entfällt ohne Lücke** (V-230,
+   * D-724). Vorher stand hier „Für ein verbindliches Angebot fehlt uns noch
+   * {offen}", und `offen` war fest „die Angabe zur Personenzahl" — in jeder
+   * Antwort. Jetzt nennt der Satz nur leere Felder der Anfrage, und ist keines
+   * leer, gibt es ihn nicht; ein stehengelassener Platzhalter wäre im Entwurf
+   * an den Kunden sichtbar.
+   */
   anfrage_antwort_entwurf:
     'Antwortentwurf an {empfaenger}: Vielen Dank für Ihre Anfrage vom {datum}. '
-    + '{zusammenfassung} Für ein verbindliches Angebot fehlt uns noch {offen}. '
+    + '{zusammenfassung} '
+    + '[[Für die weitere Bearbeitung fehlen uns aus Ihrer Anfrage noch folgende Angaben: '
+    + '{offen}. ]]'
     + 'Der Text ist ein Entwurf und geht erst nach Ihrer Freigabe hinaus.',
   interner_hinweis:
     'Hinweis für die Objektleitung: {zusammenfassung} Stand {stand}. '
@@ -78,9 +88,24 @@ const OHNE_VORLAGE =
   'Für diese Vorgangsart gibt es im Demobetrieb noch keine Vorlage. Die Tatsachen '
   + 'stehen unten; der Text kommt, sobald ein Modell freigegeben ist.';
 
-function fuelle(vorlage: string, tatsachen: Readonly<Record<string, string>>): string {
-  return vorlage.replaceAll(/\{([a-z_]+)\}/gu, (treffer, schluessel: string) =>
-    tatsachen[schluessel] ?? treffer);
+const PLATZHALTER = /\{([a-z_]+)\}/gu;
+
+/**
+ * Füllt die Platzhalter aus den Tatsachen.
+ *
+ * **Ein Satz in `[[…]]` ist optional:** fehlt eine Tatsache für einen seiner
+ * Platzhalter, entfällt der ganze Satz — statt dass ein halber mit einem
+ * sichtbaren `{platzhalter}` im Entwurf steht (V-230). Ausserhalb von `[[…]]`
+ * bleibt ein Platzhalter ohne Tatsache stehen und fällt auf; er wird nicht
+ * stillschweigend leer.
+ */
+export function fuelle(vorlage: string, tatsachen: Readonly<Record<string, string>>): string {
+  const hat = (schluessel: string): boolean =>
+    Object.hasOwn(tatsachen, schluessel) && tatsachen[schluessel] !== '';
+  const ohneLeereSaetze = vorlage.replaceAll(/\[\[([^\]]*)\]\]/gu, (_treffer, satz: string) =>
+    [...satz.matchAll(PLATZHALTER)].every((m) => hat(m[1]!)) ? satz : '');
+  return ohneLeereSaetze.replaceAll(PLATZHALTER, (treffer, schluessel: string) =>
+    (Object.hasOwn(tatsachen, schluessel) ? tatsachen[schluessel]! : treffer));
 }
 
 /**

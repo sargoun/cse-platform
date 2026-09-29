@@ -29,7 +29,7 @@ import { alsPortalSitzung } from './sitzung.js';
  * Kennung registriert ist, weiss niemand hier. Die Plattformseite sagt das.
  */
 
-interface Vorlage {
+export interface Vorlage {
   readonly quellId: string;
   readonly quelle: 'oeffentlichevergabe' | 'ted';
   readonly titel: string;
@@ -61,7 +61,12 @@ interface Vorlage {
   readonly dokumente?: readonly { readonly bezeichnung: string; readonly gesperrt?: boolean }[];
 }
 
-const BEKANNTMACHUNGEN: readonly Vorlage[] = [
+/**
+ * Exportiert für `tests/kern/radar-fund.test.ts`: die Prüfung, dass der Radar
+ * genau das „gefunden" hat, was dieser Seed beschreibt — und die
+ * Streusalzlieferung nirgends (V-269, O-941).
+ */
+export const BEKANNTMACHUNGEN: readonly Vorlage[] = [
   {
     quellId: 'demo-2026-0001', quelle: 'oeffentlichevergabe',
     titel: 'Unterhaltsreinigung von drei Dienstgebäuden in Berlin-Mitte',
@@ -139,7 +144,7 @@ const BEKANNTMACHUNGEN: readonly Vorlage[] = [
   },
 ];
 
-interface ProfilVorlage {
+export interface ProfilVorlage {
   readonly mandant: 'reinigung' | 'security' | 'bau';
   readonly name: string;
   readonly cpv: readonly { readonly code: string; readonly laenge: number }[];
@@ -149,7 +154,10 @@ interface ProfilVorlage {
   readonly maxCent: bigint | null;
 }
 
-const PROFILE: readonly ProfilVorlage[] = [
+/** Das Gebiet jedes Seed-Profils (NUTS-Präfix) — Berlin. */
+export const PROFIL_NUTS: readonly string[] = ['DE3'];
+
+export const PROFILE: readonly ProfilVorlage[] = [
   {
     mandant: 'reinigung', name: 'Unterhaltsreinigung Berlin',
     cpv: [{ code: '90910000', laenge: 8 }, { code: '90911200', laenge: 8 }, { code: '90919200', laenge: 8 }],
@@ -226,7 +234,7 @@ export async function seedRadar(
       insert into radar_profil
         (mandant_id, name, nuts_praefixe, positiv_keywords, negativ_keywords,
          wert_min_cent, wert_max_cent, ist_platzhalter, ist_aktiv)
-      values (${mandantId}, ${p.name}, ${sql.array(['DE3'])},
+      values (${mandantId}, ${p.name}, ${sql.array([...PROFIL_NUTS])},
               ${sql.array([...p.positiv])}, ${sql.array([...p.negativ])},
               ${p.minCent === null ? null : p.minCent.toString()}::bigint,
               ${p.maxCent === null ? null : p.maxCent.toString()}::bigint,

@@ -1,31 +1,19 @@
 import type { Risiko, VorgangTyp } from '@/server/services/freigabe/posteingang';
 import type { FreigabeStatus } from '@/server/services/freigabe/laden';
 import type { PillZustand } from '@/components/ui/StatusPill';
+import { VORGANG_TEXT } from '@/lib/i18n/beschriftung/agent';
 
 /**
  * Beschriftungen der beiden Freigabe-Bildschirme — Darstellung, keine Regel.
  * Die Ordnung, die Einstufung und die Zahl der unsicheren Felder kommen aus
  * `services/freigabe`; hier steht nur, wie man sie hinschreibt.
  */
-export const VORGANG_LABEL: Readonly<Record<VorgangTyp, string>> = {
-  ausschreibung_bewerten: 'Ausschreibung bewerten',
-  dokument_abrufen: 'Dokument abrufen',
-  vergabeunterlage_lesen: 'Vergabeunterlage lesen',
-  interner_hinweis: 'Interner Hinweis',
-  termin_bestaetigen: 'Termin bestätigen',
-  anfrage_antwort_entwurf: 'Antwortentwurf auf Anfrage',
-  ersatz_vorschlagen: 'Ersatz vorschlagen',
-  monatsrechnung_entwurf: 'Monatsrechnung (Entwurf)',
-  angebot_erstellen: 'Angebot erstellen',
-  nachlass_gewaehren: 'Nachlass gewähren',
-  externer_versand: 'Externer Versand',
-  buchung_uebernehmen: 'Buchung übernehmen',
-  beitrag_veroeffentlichen: 'Beitrag veröffentlichen',
-  mahnung_vorschlagen: 'Mahnung vorschlagen',
-  stellenanzeige_entwurf: 'Stellenanzeige (Entwurf)',
-  bewerbung_auswerten: 'Bewerbung auswerten',
-  kandidat_ranking: 'Kandidaten-Rangfolge',
-};
+/**
+ * Die Vorgangsart als Wort — die deutsche Sicht auf die gemeinsame Karte
+ * `VORGANG_TEXT` (`i18n/beschriftung/agent.ts`, V-231). Sie stand hier als
+ * eigene Liste, und die Agentenseiten zeigten dieselben Werte roh.
+ */
+export const VORGANG_LABEL: Readonly<Record<VorgangTyp, string>> = VORGANG_TEXT.de;
 
 export const RISIKO_LABEL: Readonly<Record<Risiko, string>> = {
   niedrig: 'niedrig', mittel: 'mittel', hoch: 'hoch',

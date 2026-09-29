@@ -8,6 +8,20 @@ import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../../unterseite';
+import { Button } from '@/components/ui/Button';
+import { Recht } from '@/components/ui/Recht';
+import { haeltRechte } from '@/app/portal/rechte';
+import { internSprache } from '@/lib/i18n/intern';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { KALENDER_TERMIN_TEXTE } from '@/lib/i18n/verwaltung/kalender-termin';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { vorbelegt, vorbelegteListe } from '@/lib/formular/maske';
+import { berlinFormularWert } from '@/lib/datum/formularzeit';
+import { berlinKalendertag } from '@/server/services/zeit/dauer';
+import {
+  istEigeneArt, waehlbareTeilnehmer, type WaehlbarePerson,
+} from '@/server/services/kalender/termin';
+import { TerminFormular } from '../TerminFormular';
 
 /**
  * `/portal/[mandant]/kalender/[id]` — ein Termin (CAL-01).
@@ -39,7 +53,11 @@ interface Zeile {
   readonly abgesagt_am: string | null;
   readonly abgesagt_grund: string | null;
   readonly besitzer: string | null;
+  /** Die Kennung der führenden Person — sie steht nicht zur Wahl (V-267). */
+  readonly besitzer_id: string | null;
   readonly teilnehmer_namen: readonly string[];
+  /** V-221: die Kennungen der Teilnehmenden — für das Formular „Termin ändern". */
+  readonly teilnehmer: readonly string[];
 }
 
 const ART_WORT: Readonly<Record<string, string>> = {
@@ -80,10 +98,16 @@ function spanne(z: Zeile): string {
       + `${zeit.format(bis)} Uhr`;
 }
 
-export default async function Termin({ params }: {
+export default async function Termin({ params, searchParams }: {
   params: Promise<{ mandant: string; id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
+  /* V-221: die Rückmeldung der Routen `api/kalender/eintraege[/id]` — ein Schlüssel oder nichts. */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const erledigt = suche['erledigt'] === 'angelegt' || suche['erledigt'] === 'geaendert'
+    || suche['erledigt'] === 'abgesagt' ? suche['erledigt'] : null;
   /*
    * **Hier steht mit Absicht KEIN `kennungOder404`.**
    *
@@ -119,13 +143,35 @@ export default async function Termin({ params }: {
                 k.abgesagt_am::text as abgesagt_am, k.abgesagt_grund,
                 (select b.name from benutzer b where b.id = k.besitzer_benutzer_id)
                   as besitzer,
+                k.besitzer_benutzer_id::text as besitzer_id,
                 coalesce((select array_agg(b.name order by b.name)
                             from benutzer b where b.id = any (k.teilnehmer)), '{}')
-                  as teilnehmer_namen
+                  as teilnehmer_namen,
+                k.teilnehmer::text[] as teilnehmer
            from kalender_eintrag k
           where k.id = $1::uuid`, [id]);
       return k ?? null;
     }))) as Zeile | null;
+
+  const sprache = internSprache(zugang.sprache);
+  const t = nachSprache(KALENDER_TERMIN_TEXTE, sprache);
+  /*
+   * V-221: ändern und absagen darf, wer Termine setzt (`kalender.schreiben`,
+   * dieselbe Schranke wie `t_kalender_schreiben`, 0160) — und nur, was der
+   * Kalender selbst besitzt. Die Namen der anderen für die Teilnehmerauswahl
+   * nur mit `system.benutzer_lesen`.
+   *
+   * V-267: die Auswahl kommt aus `waehlbareTeilnehmer` — derselben Abfrage,
+   * nach der der Dienst entscheidet, wen sie abwählen kann. Die führende
+   * Person steht nicht zur Wahl: sie bleibt ohnehin darin, und ein Kästchen,
+   * dessen Haken nichts bewirkt, wäre eine falsche Auskunft.
+   */
+  const darf = await haeltRechte(zugang.sitzung, 'kalender.schreiben', 'system.benutzer_lesen');
+  const benutzer = zeile === null || darf['system.benutzer_lesen'] !== true
+    || !istEigeneArt(zeile.art) || zeile.abgesagt_am !== null ? []
+    : (await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+      withTenant(tx, zugang.sitzung, (kontext) => waehlbareTeilnehmer(kontext))) as
+      Promise<readonly WaehlbarePerson[]>)).filter((b) => b.id !== zeile.besitzer_id);
 
   const rahmen = (kinder: React.ReactNode) => (
     <PortalRahmen
@@ -163,7 +209,56 @@ export default async function Termin({ params }: {
     );
   }
 
+  const zurueck = `/portal/${mandant}/kalender/${zeile.id}`;
+  const letzterTag = new Date(new Date(zeile.ende).getTime() - 1);
+  /*
+   * V-267: nach einer Abweisung stehen die EINGABEN wieder da, nicht der alte
+   * Stand — die Route schickt sie mit (`maskeFelder`, `maskeListen`), wie es
+   * D-715 Nr. 6 zusagt. Erkannt an der Art: das Auswahlfeld reist immer mit.
+   * Ausnahme `gleichzeitig`: dort sagt der Satz, dass die Seite den AKTUELLEN
+   * Stand zeigt — und das tut sie.
+   */
+  const mitEingaben = fehler !== null && fehler !== 'gleichzeitig'
+    && vorbelegt(suche, 'art') !== undefined;
+  const gespeichert = {
+    art: zeile.art,
+    titel: zeile.titel,
+    ort: zeile.ort ?? '',
+    beschreibung: zeile.beschreibung ?? '',
+    ganztaegig: zeile.ganztaegig,
+    beginn: zeile.ganztaegig ? '' : berlinFormularWert(new Date(zeile.beginn)),
+    ende: zeile.ganztaegig ? '' : berlinFormularWert(new Date(zeile.ende)),
+    vonTag: zeile.ganztaegig ? berlinKalendertag(new Date(zeile.beginn)) : '',
+    bisTag: zeile.ganztaegig ? berlinKalendertag(letzterTag) : '',
+    teilnehmer: zeile.teilnehmer,
+  };
+  const eingabe = (name: string): string => vorbelegt(suche, name) ?? '';
+  const werte = !mitEingaben ? gespeichert : {
+    art: eingabe('art'),
+    titel: eingabe('titel'),
+    ort: eingabe('ort'),
+    beschreibung: eingabe('beschreibung'),
+    ganztaegig: vorbelegt(suche, 'ganztaegig') === 'ja',
+    beginn: eingabe('beginn'),
+    ende: eingabe('ende'),
+    vonTag: eingabe('vonTag'),
+    bisTag: eingabe('bisTag'),
+    teilnehmer: vorbelegteListe(suche, 'teilnehmer') ?? [],
+  };
+
   return rahmen(
+    <>
+    {erledigt !== null && (
+      <Hinweis art="erfolg" rolle="status" cse="termin-erledigt" className="mb-s5 max-w-prose">
+        {erledigt === 'angelegt' ? t.angelegt : erledigt === 'geaendert' ? t.geaendert : t.abgesagt}
+      </Hinweis>
+    )}
+    {fehler !== null && (
+      <Hinweis art="warnung" rolle="alert" cse="termin-fehler" className="mb-s5 max-w-prose">
+        <strong>{t.nichtGespeichert}</strong>{' '}
+        {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
+      </Hinweis>
+    )}
     <article className="max-w-prose">
       <p className="text-xs font-semibold uppercase tracking-widest text-text-subtle"
          data-cse="termin-art">
@@ -210,6 +305,73 @@ export default async function Termin({ params }: {
           {zeile.beschreibung}
         </p>
       )}
-    </article>,
+    </article>
+
+    {/* ------------------------------------ Termin ändern und absagen (V-221) */}
+    {/*
+      * **Der Schreibweg, den es nicht gab.** Besprechungen und Kundentermine
+      * entstanden nur im Seed, und `abgesagt_am` setzte niemand. Jetzt:
+      * ändern und absagen, was der Kalender besitzt — mit Grund, und der
+      * Termin bleibt stehen (D-715). Wiedervorlagen und Gespräche verweisen
+      * auf ihre Quelle.
+      */}
+    <section aria-labelledby="termin-pflege" className="mt-s7 max-w-prose" data-cse="termin-pflege">
+      <h2 id="termin-pflege" className="mb-s3 text-h3 text-text">{t.bearbeitenTitel}</h2>
+      {zeile.art === 'wiedervorlage' ? (
+        <p className="text-sm text-text-muted" data-cse="termin-fremd">{t.fremdeArtWiedervorlage}</p>
+      ) : zeile.art === 'bewerbungsgespraech' ? (
+        <p className="text-sm text-text-muted" data-cse="termin-fremd">{t.fremdeArtGespraech}</p>
+      ) : zeile.abgesagt_am !== null ? (
+        <p className="text-sm text-text-muted" data-cse="termin-abgesagt-fest">
+          {t.abgesagtNichtAenderbar}
+        </p>
+      ) : darf['kalender.schreiben'] !== true ? (
+        <p className="text-sm text-text-muted" data-cse="termin-ohne-recht">
+          {t.ohneRechtVor}{' '}
+          <Recht schluessel="kalender.schreiben" sprache={sprache} />{' '}
+          {t.ohneRechtNach}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-s5">
+          {darf['system.benutzer_lesen'] !== true && (
+            <p className="m-0 text-xs text-text-muted" data-cse="termin-teilnehmende-bleiben">
+              {t.teilnehmendeBleibenVor}{' '}
+              <Recht schluessel="system.benutzer_lesen" sprache={sprache} />{' '}
+              {t.teilnehmendeBleibenNach}
+            </p>
+          )}
+          <TerminFormular
+            t={t}
+            aktion={`/api/kalender/eintraege/${zeile.id}`}
+            zurueck={zurueck}
+            benutzer={benutzer}
+            aendern
+            werte={werte}
+            knopf={t.speichern}
+            cse="termin-aendern"
+          />
+          <form method="post" action={`/api/kalender/eintraege/${zeile.id}`}
+                data-cse="termin-absagen"
+                className="flex flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
+            <h3 className="m-0 text-base font-semibold text-text">{t.absagenTitel}</h3>
+            <input type="hidden" name="aktion" value="absagen" />
+            <input type="hidden" name="zurueck" value={zurueck} />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.absageGrund}
+              <textarea name="grund" rows={2} required data-cse="termin-absage-grund"
+                        placeholder={t.absageGrundBeispiel}
+                        className="w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
+            </label>
+            <p className="m-0 text-xs text-text-muted">{t.absageHinweis}</p>
+            <div>
+              <Button type="submit" variante="danger" data-cse="termin-absagen-abschicken">
+                {t.absagen}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+    </>,
   );
 }

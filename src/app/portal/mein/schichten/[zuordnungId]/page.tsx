@@ -195,7 +195,7 @@ export default async function MeineSchicht(
         )}
         {zeitFrage(daten) && eintragId === null && (
           <Link
-            href={`/portal/mein/zeiten/einwand?anstellung=${daten.anstellungId}&datum=${daten.planDatum}`}
+            href={`/portal/mein/zeiten/einwand?anstellung=${daten.anstellungId}&datum=${encodeURIComponent(daten.planDatum)}`}
             data-cse="zeit-fehlt"
             className={zielKnopf}
           >

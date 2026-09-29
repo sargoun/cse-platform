@@ -17,6 +17,10 @@ import { istKennung, kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { beschriftung as wortFuer } from '@/lib/i18n/beschriftung/basis';
+import { EINWAND_STATUS_TEXT } from '@/lib/i18n/beschriftung/zeit';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import type { ReactNode } from 'react';
 
 /**
  * `/portal/[mandant]/zeiten/[id]/korrektur` — wer korrigiert, wann und
@@ -69,7 +73,7 @@ const GRUND_TEXT: readonly { readonly wert: string; readonly text: string }[] = 
  * nicht geht, kein Programmfehler. Deshalb steht hier ein Satz und keine
  * Kennziffer: wer die Korrektur macht, ist Planerin und nicht Entwicklerin.
  */
-const FEHLER_TEXT: Readonly<Record<string, string>> = {
+const FEHLER_TEXT: Readonly<Record<string, ReactNode>> = {
   unbrauchbare_eingabe:
     'Art, Grund und Begründung sind Pflicht. Die Begründung darf kurz sein — „Krank" '
     + 'genügt —, aber sie muss dastehen.',
@@ -87,12 +91,15 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
    * V-065: seit die Gegenbuchung entsteht, ist der gesperrte Monat NICHT mehr
    * der haeufigste Grund fuer diese Abweisung — er hat seinen eigenen Text.
    */
-  kein_kontorecht:
-    'Der Monat dieses Eintrags ist abgeschlossen. Eine Korrektur daran verschiebt '
-    + 'Minuten auf dem Stundenkonto in den nächsten offenen Monat, und das verlangt '
-    + 'zusätzlich das Recht zeit.konto_korrigieren (§12.2). Wer es hält, kann die '
-    + 'Korrektur ausführen — es ist bewusst ein zweites Recht: eine Zeit '
-    + 'richtigstellen und ein Konto bewegen sind zwei Entscheidungen.',
+  kein_kontorecht: (
+    <>
+      Der Monat dieses Eintrags ist abgeschlossen. Eine Korrektur daran verschiebt
+      Minuten auf dem Stundenkonto in den nächsten offenen Monat, und das verlangt
+      zusätzlich das Recht <Recht schluessel="zeit.konto_korrigieren" /> (§12.2). Wer
+      es hält, kann die Korrektur ausführen — es ist bewusst ein zweites Recht: eine
+      Zeit richtigstellen und ein Konto bewegen sind zwei Entscheidungen.
+    </>
+  ),
   nicht_zulaessig:
     'Die Datenbank hat die Korrektur abgewiesen. Ein möglicher Grund ist ein bereits '
     + 'gesperrter Monat: dort braucht die Differenz eine Gegenbuchung, sonst käme sie '
@@ -214,7 +221,7 @@ export default async function Korrekturblatt({
           data-cse="korrektur-fehler"
           className="mb-s5 max-w-prose rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
         >
-          {eigenerEintrag(FEHLER_TEXT, fehler) ?? `Die Korrektur wurde nicht geschrieben: ${fehler}`}
+          {eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Korrektur wurde nicht geschrieben.'}
         </p>
       )}
 
@@ -309,10 +316,9 @@ export default async function Korrekturblatt({
               className="m-0 rounded-md border border-line bg-surface-2 p-s3 text-sm text-text-muted"
             >
               <strong className="text-text">Antwort auf eine Meldung.</strong>{' '}
-              {einwand.person} hat für den{' '}
-              {einwand.betrifftDatum.slice(8, 10)}.{einwand.betrifftDatum.slice(5, 7)}.
-              {einwand.betrifftDatum.slice(0, 4)} eine Abweichung gemeldet
-              (Stand: {einwand.status}). Diese Korrektur wird mit ihr verknüpft, damit
+              {einwand.person} hat für den {tagDeutsch(einwand.betrifftDatum)} eine
+              Abweichung gemeldet (Stand: {wortFuer(EINWAND_STATUS_TEXT, einwand.status)}).
+              Diese Korrektur wird mit ihr verknüpft, damit
               auf dem Einwandblatt steht, dass sie gefolgt ist.{' '}
               {darf['zeit.einwand_entscheiden'] === true && (
                 <Link
