@@ -261,6 +261,31 @@ describe('Art. 15: die Auskunft läuft in allen drei Zweigen wirklich', () => {
     });
   }
 
+  /**
+   * **Die Absage eines Gesprächs gehört in die Auskunft** (V-267, D-760). Seit
+   * V-220 trägt ein Gespräch Absage und Vermerk mit Zeitpunkt — und bei der
+   * Absage einen Satz über die Bewerberin. Die Auskunft las nur Termin,
+   * Status, Ort und Notiz.
+   */
+  it('die Bewerbung: Absagegrund und Zeitpunkte des Gesprächs stehen in der Auskunft', async () => {
+    await alsRolle('', (tx) => tx.unsafe(
+      `insert into gespraech (mandant_id, bewerbung_id, termin, dauer_minuten, ort, status,
+                              abgesagt_am, abgesagt_grund, abgesagt_von)
+       values ($1, $2, now() + interval '3 days', 45, 'Büro Mitte', 'abgesagt', now(),
+               'Die Bewerberin hat eine andere Stelle angenommen', $3)`,
+      [f.reinigung, bewerbung, dsb]));
+    const a = await imKontext(dsb, async (k) => {
+      const z = await ladeZuordnung(k as LeseKontext, null, anfrage['bewerbung']!);
+      return erstelleAuskunft(k as LeseKontext, anfrage['bewerbung']!, z, new Date());
+    });
+    const g = a.abschnitte.find((s) => s.schluessel === 'gespraech');
+    expect(g?.kopf).toEqual(expect.arrayContaining(
+      ['Abgesagt am', 'Absagegrund', 'Als geführt vermerkt am']));
+    const zeile = g!.zeilen.find((z) => z.includes('Die Bewerberin hat eine andere Stelle angenommen'));
+    expect(zeile, 'der Grund steht in der Auskunft').toBeDefined();
+    expect(zeile![g!.kopf.indexOf('Abgesagt am')]).not.toBe('');
+  });
+
   it('der Kontaktzweig führt die sieben Tabellen mit `ansprechpartner_id`', async () => {
     /*
      * Der Befund des Prüfers: hier standen DREI Abschnitte. Diese Zusage

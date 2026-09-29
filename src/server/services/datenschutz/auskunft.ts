@@ -572,13 +572,22 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     leseweg: 'policy',
     recht: 'recruiting.bewerbung_lesen',
     fuer: ['bewerbung'],
+    /*
+     * V-267: seit V-220 trägt ein Gespräch Absage und Vermerk mit Zeitpunkt —
+     * und bei der Absage einen Satz über die Bewerberin. Eine Auskunft, die
+     * ihn verschweigt, ist unvollständig (Art. 15 Abs. 1 DSGVO).
+     */
     spalten: [
       { kopf: 'Termin', feld: 'termin' },
       { kopf: 'Status', feld: 'status' },
       { kopf: 'Ort', feld: 'ort' },
       { kopf: 'Notiz', feld: 'notiz' },
+      { kopf: 'Abgesagt am', feld: 'abgesagt_am' },
+      { kopf: 'Absagegrund', feld: 'abgesagt_grund' },
+      { kopf: 'Als geführt vermerkt am', feld: 'stattgefunden_vermerkt_am' },
     ],
-    sql: `select termin, status::text as status, ort, notiz
+    sql: `select termin, status::text as status, ort, notiz, abgesagt_am, abgesagt_grund,
+                 stattgefunden_vermerkt_am
             from gespraech
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()
            order by termin desc nulls last`,

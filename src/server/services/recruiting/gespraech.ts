@@ -81,7 +81,21 @@ async function schreibe(
   }
 }
 
-/** Absagen — mit Grund, der im Gespräch UND im Prüfprotokoll steht. */
+/**
+ * Absagen — mit Grund. Der Grund steht im Gespräch; das Prüfprotokoll hält
+ * den Übergang und DASS ein Grund erfasst ist, nicht seinen Wortlaut
+ * (V-267, D-760, O-954).
+ *
+ * **Warum nicht der Wortlaut.** Der Grund ist ein Satz eines Menschen über
+ * eine Bewerberin („hat eine andere Stelle angenommen"). Das Prüfprotokoll ist
+ * unveränderlich; der Löschlauf (REC-07, `bewerberLoeschung.ts`) löscht die
+ * Gesprächszeile — der Satz stünde danach allein im Protokoll weiter, unter
+ * der Kennung eines Gesprächs, das es nicht mehr gibt, und erschiene in keiner
+ * Löschentscheidung der Bewerbung. Ob er dort stehen DARF, ist eine
+ * Rechtsfrage; bis zur Antwort steht er in der Zeile und geht mit ihr.
+ *
+ * // TODO(client, O-954): Darf der Absagegrund eines Bewerbungsgesprächs wörtlich im unveränderlichen Prüfprotokoll stehen — und was gilt für ihn nach der Löschung der Bewerbung (REC-07)? Heute steht nur, DASS ein Grund erfasst ist.
+ */
 export async function sageGespraechAb(
   kontext: SchreibKontext, id: string, grund: string,
 ): Promise<void> {
@@ -102,7 +116,7 @@ export async function sageGespraechAb(
     `select app.protokolliere('recruiting.gespraech_abgesagt', 'gespraech', $1, $2::jsonb,
                               $3::jsonb, app.aktiver_mandant())`,
     [id, { status: vorher.status, termin: vorher.termin.toISOString() },
-      { status: 'abgesagt', grund: text }]);
+      { status: 'abgesagt', grund_erfasst: true }]);
 }
 
 /**

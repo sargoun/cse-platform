@@ -114,7 +114,13 @@ describe('(1) absagen', () => {
       `select nachher from audit_log
         where objekt_typ = 'gespraech' and objekt_id = $1
           and aktion = 'recruiting.gespraech_abgesagt'`, [id]);
-    expect(z!.nachher).toMatchObject({ status: 'abgesagt' });
+    /*
+     * V-267, O-954: das unveränderliche Protokoll hält den Übergang und DASS
+     * ein Grund erfasst ist — nicht den Satz über die Bewerberin. Der steht in
+     * der Zeile und geht mit ihr, wenn der Löschlauf (REC-07) sie nimmt.
+     */
+    expect(z!.nachher).toEqual({ status: 'abgesagt', grund_erfasst: true });
+    expect(JSON.stringify(z!.nachher)).not.toContain('telefonisch');
   });
 
   it('der Kalender zeigt es als abgesagt — es bleibt stehen, es verschwindet nicht', async () => {
