@@ -10222,6 +10222,13 @@ Stundenauswertung nennt dort ausserdem nur Köpfe und keine Namen — die
 namentliche Auswertung gehört dorthin, wo das Arbeitsverhältnis besteht
 (D-09, K-05).
 
+**Nachtrag (D-721, V-227):** REP-07 verlangt CSV UND PDF, diese Entscheidung
+behandelte nur die Datei. Der zweite Ausgang ist ein Druckblatt je Bericht
+aus derselben Quelle (`berichtTabelle`) unter demselben Recht
+(`/portal/[mandant]/berichte/druck/[bericht]`); es zeigt dieselben Werte mit
+derselben Genauigkeit wie die Datei und druckt eine breite Tabelle quer
+(V-269, D-765). Der Nachtrag stand zuerst versehentlich bei D-569.
+
 ### D-507 · Vier stille Leerstellen in einem Bericht — und warum jede stumm war
 
 Die Berichte (REP-01…REP-07) brachten vier Fehler ans Licht, die **keinen
@@ -12262,10 +12269,6 @@ Lehre tragen:
    Beendet hat es erst ein **eigener Browserkontext je Gruppe** — und das ist
    ausserdem näher an der Wahrheit: ein Mensch meldet sich nicht in derselben
    Sitzung nacheinander als sieben verschiedene Leute an.
-
-**Nachtrag (D-721, V-227):** REP-07 verlangt CSV UND PDF, diese Entscheidung
-behandelte nur die Datei. Der zweite Ausgang ist ein Druckblatt je Bericht
-aus derselben Quelle (`berichtTabelle`) unter demselben Recht.
 
 | Betrifft | DESIGN §8, D-565, `globals.css`, `PortalShell`, `OeffentlicheShell`, `DataTable`, `abmessungen.spec.ts` |
 |---|---|

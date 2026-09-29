@@ -167,3 +167,28 @@ describe('eine Quelle, zwei Ausgänge', () => {
     expect(BERICHT_DRUCK_TEXTE.en.tabelleDeutsch).not.toBeNull();
   });
 });
+
+/*
+ * REP-07 verlangt CSV UND PDF; D-721 trug das in D-506 nach — so meldete es die
+ * Gruppe. Der Absatz stand aber am Ende von D-569, einer Entscheidung über
+ * Seitenränder, und D-506 („ein Ausgang") nannte den zweiten nicht (V-269).
+ */
+describe('das Register nennt den zweiten Ausgang dort, wo der erste steht', () => {
+  const register = readFileSync('docs/DECISIONS.md', 'utf8');
+  const abschnitt = (nr: string): string => {
+    const anfang = register.indexOf(`\n### ${nr} `);
+    expect(anfang, nr).toBeGreaterThan(0);
+    const ende = register.indexOf('\n### ', anfang + 1);
+    return register.slice(anfang, ende === -1 ? undefined : ende);
+  };
+
+  it('D-506 trägt den Nachtrag — mit dem Druckblatt unter demselben Recht', () => {
+    expect(abschnitt('D-506')).toContain('**Nachtrag (D-721, V-227):**');
+    expect(abschnitt('D-506')).toContain('/portal/[mandant]/berichte/druck/[bericht]');
+  });
+
+  it('D-569 (Seitenränder) nicht', () => {
+    expect(abschnitt('D-569')).not.toContain('REP-07');
+    expect(abschnitt('D-569')).not.toContain('Nachtrag (D-721');
+  });
+});
