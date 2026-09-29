@@ -12568,6 +12568,15 @@ die Prüfung FALLEN lässt, statt still weniger zu prüfen. Je Routenform genüg
 drei Vertreter — gesucht wird ein totes Ziel, und das hängt an der Route, nicht
 an der Zeile.
 
+**Nachsatz (Schlussdurchgang): elf Läufe, alle vier Gesellschaften.** Die fünf
+Läufe gingen durch `reinigung`, die Gruppe, das Mitarbeiterportal und den
+Kundenzugang; `bau`, `security` und `operations` sah keiner. Dazu kommen je
+`admin` und `leitung` von `bau` und `security`, die Gruppenanmeldung in
+`operations` (dort gibt es im Seed keine menschliche Mitgliedschaft; sie geht
+über das Wechselblatt hinein) und der Mitarbeiterweg in `security` (`amir`).
+Lokal gegen den Seed auf f2defb5: 445, 362, 441, 362, 377 und 178 Seiten,
+kein Ziel mit 404 oder 500.
+
 | Betrifft | REC-02, REC-06, REC-07, REC-09, Invariante 7, `0167`, O-376, D-563, D-567, AUT-06 |
 |---|---|
 
