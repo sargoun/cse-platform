@@ -76,7 +76,7 @@ function Leer({ satz, grund }: { readonly satz: string; readonly grund?: string 
     <div data-cse="leer" className="rounded-lg border border-line bg-surface p-s5">
       <p className="m-0 text-base text-text">{satz}</p>
       {grund !== undefined && (
-        <p className="mt-s3 max-w-[72ch] text-sm text-text-subtle">{grund}</p>
+        <p className="mt-s3 max-w-prose text-sm text-text-subtle">{grund}</p>
       )}
     </div>
   );
@@ -198,7 +198,7 @@ export function ProjektDetail(
         )}
       </dl>
       {referenz.beschreibung !== null && (
-        <p className="m-0 max-w-[72ch] whitespace-pre-line text-base text-text">
+        <p className="m-0 max-w-prose whitespace-pre-line text-base text-text">
           {referenz.beschreibung}
         </p>
       )}
@@ -311,9 +311,9 @@ export function BeitragDetail(
         * Fassungen desselben Beitrags zu haben.
         */}
       <span data-cse="beitrag-bild" className="contents">
-        <Beitragsbild beitrag={beitrag} sprache={sprache} klasse="aspect-[3/2] w-full max-w-[72ch]" />
+        <Beitragsbild beitrag={beitrag} sprache={sprache} klasse="aspect-[3/2] w-full max-w-prose" />
       </span>
-      <p className="m-0 max-w-[72ch] whitespace-pre-line text-base text-text">{beitrag.text}</p>
+      <p className="m-0 max-w-prose whitespace-pre-line text-base text-text">{beitrag.text}</p>
       <p className="m-0">
         <a
           href={`${praefix(sprache)}/unternehmen/${bereich}/${segment}`}
@@ -411,7 +411,7 @@ export function Unternehmensdaten(
       {!bereich.angabenBestaetigt && (
         <p
           data-cse="ungeprueft"
-          className="m-0 max-w-[72ch] rounded-md bg-warning-soft p-s4 text-sm text-warning"
+          className="m-0 max-w-prose rounded-md bg-warning-soft p-s4 text-sm text-warning"
         >
           {t.ungeprueft}
         </p>

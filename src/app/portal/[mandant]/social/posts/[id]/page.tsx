@@ -383,10 +383,12 @@ export default async function Beitrag(
               * Ein einfaches img und kein Bildoptimierer: die Adresse ist die
               * Tür `/api/beitragsbild/<id>`, die auf eine signierte, ablaufende
               * Adresse weiterleitet — ein Optimierer hielte das Ergebnis
-              * länger fest, als die Signatur gilt.
+              * länger fest, als die Signatur gilt. Der Rahmen ist das 3:2 der
+              * Beitragsseite (DESIGN §4), das Bild ganz darin (`object-contain`):
+              * hinaus geht die ganze Datei, nicht der Ausschnitt.
               */}
             <img src={b.bildAdresse} alt={b.bildAlt ?? ''}
-                 className="max-h-72 w-auto rounded-lg border border-line" />
+                 className="aspect-[3/2] w-full max-w-prose rounded-lg border border-line bg-surface object-contain" />
             <figcaption className="mt-s2 text-xs text-text-muted">
               {b.bildAlt}
               {b.bildPlatzhalter === true ? ` · ${tb.platzhalter}` : ''}

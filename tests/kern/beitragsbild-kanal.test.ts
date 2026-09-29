@@ -93,3 +93,26 @@ describe('die Bild-Route: erst der Beitrag, dann die Datei', () => {
     expect(ablage).toBeGreaterThan(pruefung);
   });
 });
+
+/**
+ * **Masse aus den Tokens** (DESIGN §3 „Set as a theme token, never as a
+ * one-off"; V-268, Prüfung der Gruppe kalender-dokumente). Das Beitragsbild
+ * setzte `max-w-[72ch]`, obwohl `max-w-prose` (72ch) der Token ist, und die
+ * Vorschau im Portal `max-h-72` — einen Wert, den DESIGN.md nicht kennt.
+ */
+describe('Beitragsbild: Masse aus den Tokens', () => {
+  const oeffentlich = readFileSync('src/app/(public)/unternehmen/[bereich]/_profil/Inhalte.tsx', 'utf8');
+  const portal = readFileSync('src/app/portal/[mandant]/social/posts/[id]/page.tsx', 'utf8');
+
+  it('die öffentliche Beitragsseite: 3:2 und max-w-prose — kein max-w-[72ch]', () => {
+    expect(oeffentlich).toContain('klasse="aspect-[3/2] w-full max-w-prose"');
+    expect(oeffentlich).not.toContain('max-w-[72ch]');
+  });
+
+  it('die Vorschau im Portal: derselbe Rahmen, kein max-h-72', () => {
+    const vorschau = portal.slice(portal.indexOf('data-cse="beitrag-bild-vorschau"'));
+    expect(vorschau.slice(0, vorschau.indexOf('</figure>')))
+      .toMatch(/className="aspect-\[3\/2\] w-full max-w-prose [^"]*object-contain"/u);
+    expect(portal).not.toMatch(/\bmax-h-72\b/u);
+  });
+});
