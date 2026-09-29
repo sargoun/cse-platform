@@ -50,13 +50,12 @@ export const metadata = { title: 'Storno — Rechnung' };
 const STORNO_MINDESTLAENGE = 10;
 
 /*
- * Kennungen, keine Woerter. Rechtename und Tabellenname lauten in beiden
- * Sprachen gleich; sie stehen deshalb hier und nicht in der Texttabelle, wo
- * eine zweite Spalte nur eine Erfindung waere.
+ * Kennungen, keine Woerter. Rechteschlüssel lauten in beiden Sprachen gleich;
+ * sie stehen deshalb hier und nicht in der Texttabelle, und auf dem Schirm als
+ * Satz (`<Recht>`). Ein Tabellenname steht seit V-251 gar nicht mehr da.
  */
 const RECHT_STORNIEREN = 'finanzen.stornieren';
 const RECHT_ENTWURF_VERWERFEN = 'finanzen.entwurf_verwerfen';
-const TABELLE_BEZIEHUNG = 'rechnung_beziehung';
 
 interface Kopf {
   readonly id: string;
@@ -410,7 +409,7 @@ export default async function Stornoblatt(
             minLength={STORNO_MINDESTLAENGE} className={feld}
           />
           <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-            {t.grundWirdIn} <code>{TABELLE_BEZIEHUNG}</code> {t.grundFestgehalten}
+            {t.grundFestgehalten}
           </p>
 
           <label className="mt-s4 block text-sm text-text" htmlFor="form">{t.form}</label>

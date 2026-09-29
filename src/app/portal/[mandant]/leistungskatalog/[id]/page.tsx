@@ -150,7 +150,7 @@ export default async function Katalogfassung(
       {archiviert ? (
         <Hinweis art="hinweis" cse="archiviert" className="mb-s6">
           <strong>Diese Fassung ist archiviert.</strong> Ihre Positionen sind
-          unveränderlich (<code>kern.pruefe_katalog_offen</code>), und der Weg
+          unveränderlich — die Datenbank weist jede Änderung ab —, und der Weg
           zurück ist gesperrt: er täute das Einfrieren auf, ohne dass es jemand
           sähe. Andere Werte brauchen eine <em>neue Fassung</em> mit demselben
           Schlüssel und der nächsten Versionsnummer. Darum steht hier kein
@@ -164,8 +164,8 @@ export default async function Katalogfassung(
           Zeitwerte und Standardpreise je Position gelten und wer sie freigibt,
           ist nicht entschieden — <strong>offen (O-731)</strong>; die
           Leistungswertfrage je Belagsart ist <strong>offen (O-17)</strong>. Die
-          Werte stehen da, weil der CHECK <code>lkp_kalkulierbar</code>{' '}
-          mindestens einen verlangt — und sie stehen als{' '}
+          Werte stehen da, weil die Datenbank je Position mindestens einen verlangt
+          — Zeitwert, Leistungswert oder Standardpreis —, und sie stehen als{' '}
           <em>gekennzeichnete Platzhalter</em>, nicht als Preise.
         </Hinweis>
       ) : null}
@@ -297,8 +297,8 @@ export default async function Katalogfassung(
             Ändern schreibt <strong>alle</strong> Felder der Zeile — die Maske
             ist deshalb aus dem Bestand vorbelegt und nicht leer. Eine Position
             wird nie gelöscht: sie bekommt ein <strong>Gültig bis</strong>, und
-            ihre Ordnungszahl wird damit für eine Nachfolgerin frei
-            (<code>lkp_oz_uk</code> gilt nur, solange die Position gilt).
+            ihre Ordnungszahl wird damit für eine Nachfolgerin frei (eindeutig muss
+            sie nur sein, solange die Position gilt).
           </p>
           <div className="mt-s4 flex flex-col gap-s3">
             {positionen.map((p) => (
@@ -365,8 +365,8 @@ export default async function Katalogfassung(
                         className="mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text sm:w-64"
                       />
                       <p className="mt-s2 max-w-[72ch] text-xs text-text-muted">
-                        Das Ende darf nicht vor dem Beginn liegen
-                        (<code>lkp_zeitraum_stimmig</code>) — diese Position gilt
+                        Das Ende darf nicht vor dem Beginn liegen; sonst nimmt die
+                        Datenbank es nicht an — diese Position gilt
                         ab <strong>{p.gueltig_ab}</strong>. Angebots-,
                         Auftrags- und Rechnungszeilen, die auf ihr stehen,
                         bleiben unberührt: was ein Kunde bezahlt hat, behält
@@ -432,8 +432,8 @@ export default async function Katalogfassung(
             </div>
             <p className="mt-s3 max-w-[72ch] text-xs text-text-muted">
               Aktivieren geht nur, wenn <strong>keine andere</strong> Fassung
-              dieses Schlüssels gilt (<code>leistungskatalog_aktiv_uk</code>) —
-              zuerst die geltende archivieren. Archivieren ist{' '}
+              dieses Schlüssels gilt; eine zweite geltende nimmt die Datenbank nicht
+              an — zuerst die geltende archivieren. Archivieren ist{' '}
               <strong>endgültig</strong>: die Positionen werden unveränderlich,
               und der Weg zurück ist gesperrt.
             </p>

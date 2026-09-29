@@ -18,7 +18,8 @@ export const PLATZHALTER_WORTLAUT =
 
 export const FEHLERTEXT: Readonly<Record<string, string>> = {
   unvollstaendig:
-    'Ansprechpartner, Schreiben und Wortlaut sind Pflicht — der CHECK verlangt alle drei.',
+    'Ansprechpartner, Schreiben und Wortlaut sind Pflicht — ohne alle drei nimmt die '
+    + 'Datenbank die Freigabe nicht an.',
   fremder_ansprechpartner:
     'Dieser Ansprechpartner gehört nicht zum Kunden dieses Auftrags.',
   fremdes_dokument:

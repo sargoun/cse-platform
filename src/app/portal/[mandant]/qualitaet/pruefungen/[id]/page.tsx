@@ -461,9 +461,9 @@ export default async function PruefungBlatt(
 
       <Hinweis art="hinweis" cse="pruefung-lesend" className="mt-s6 max-w-prose">
         <strong>Dieses Blatt ist lesend.</strong> Wie eine falsch erfasste Prüfung
-        berichtigt wird, ist nicht entschieden (O-704): die Tabelle trägt
-        <code> archiviert_am</code> und eine Löschsperre, aber kein
-        <code> ersetzt_durch_id</code> wie das Wachbuch. Gelöscht wird eine
+        berichtigt wird, ist nicht entschieden (O-704): eine Prüfung lässt sich
+        archivieren und trägt eine Löschsperre, kann aber — anders als ein
+        Wachbucheintrag — nicht auf die Prüfung verweisen, die sie ersetzt. Gelöscht wird eine
         Prüfung ohnehin nie (Invariante 8) — bis die Frage beantwortet ist,
         entsteht eine Korrektur als neue Prüfung.
       </Hinweis>

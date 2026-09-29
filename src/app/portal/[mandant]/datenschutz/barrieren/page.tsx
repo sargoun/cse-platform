@@ -83,9 +83,8 @@ export default async function Barrieren(
       </div>
 
       <Hinweis art="hinweis" cse="barrieren-erklaerung" className="mb-s5 max-w-prose">
-        Diese Meldungen kommen aus{' '}
-        <code className="mx-s1 font-mono">/barrierefreiheit/feedback</code>, dem
-        Meldeweg, den das BFSG verlangt. <strong>Eine Meldung ohne E-Mail-Adresse
+        Diese Meldungen kommen aus dem öffentlichen Formular „Eine Barriere
+        melden" auf der Website, dem Meldeweg, den das BFSG verlangt. <strong>Eine Meldung ohne E-Mail-Adresse
         ist die Regel, nicht ein Fehler</strong>: der Weg muss ohne Identifikation
         offen sein — ein Pflichtfeld wäre eine Hürde vor dem Weg, der Hürden melden
         soll. Was hier erledigt wird, gehört in die Barrierefreiheitserklärung:

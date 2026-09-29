@@ -99,8 +99,8 @@ export default async function WebsiteLeistungen(
       <p className="mb-s5 max-w-[72ch] text-base text-text-muted">
         Was hier steht, erscheint auf{' '}
         <code className="font-mono">/unternehmen/{mandant}/leistungen</code> — und
-        zugleich als <code className="font-mono">Service</code>-Block in den
-        strukturierten Daten für Suchmaschinen (PUB-11). Es ist EINE Quelle: eine
+        zugleich als „Service"-Block in den strukturierten Daten für
+        Suchmaschinen (PUB-11). Es ist EINE Quelle: eine
         zweite Pflegestelle liefe dieser davon.
       </p>
 
@@ -125,8 +125,8 @@ export default async function WebsiteLeistungen(
             Für diese Gesellschaft gibt es keine Bereichsprofilseite.
           </strong>
           Erwartet wird <code className="font-mono">/unternehmen/{mandant}</code>, je
-          Sprache eine Zeile. Der Erstbestand entsteht über{' '}
-          <code className="font-mono">pnpm content:import</code>.
+          Sprache eine Zeile. Den Erstbestand spielt die technische Betreuung einmalig
+          mit dem Inhaltsimport ein.
         </Hinweis>
       ) : (
         <div className="flex flex-col gap-s5">
@@ -153,8 +153,8 @@ export default async function WebsiteLeistungen(
                       Diese Sprachfassung hat keinen Leistungsabschnitt.
                     </strong>
                     Die öffentliche Seite antwortet deshalb mit „noch keine Leistungen
-                    hinterlegt", und der <code className="font-mono">Service</code>-Block
-                    der strukturierten Daten fehlt ganz — kein Block ist besser als ein
+                    hinterlegt", und der „Service"-Block der strukturierten Daten
+                    fehlt ganz — kein Block ist besser als ein
                     leerer.
                   </Hinweis>
                   {schreibt ? (
@@ -213,10 +213,9 @@ export default async function WebsiteLeistungen(
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-subtle">
-        Wem die Bereichsprofilseiten gehören, ist offen (O-49): heute tragen alle{' '}
-        <code className="font-mono">seite</code>-Zeilen kein{' '}
-        <code className="font-mono">mandant_id</code>, und die Zuordnung läuft über den
-        Pfad <code className="font-mono">/unternehmen/{mandant}</code>. Diese Seite zeigt
+        Wem die Bereichsprofilseiten gehören, ist offen (O-49): heute gehört keine
+        Seite der Website einer einzelnen Gesellschaft, und die Zuordnung läuft über
+        den Pfad <code className="font-mono">/unternehmen/{mandant}</code>. Diese Seite zeigt
         und ändert deshalb ausschliesslich Abschnitte dieser Adresse — Gruppenseiten
         (Startseite, Impressum) werden unter „Seiten" gepflegt.
       </p>

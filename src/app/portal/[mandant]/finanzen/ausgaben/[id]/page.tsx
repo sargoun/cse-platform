@@ -80,14 +80,12 @@ const FOLGE: readonly AusgabeStatus[] = [
 ];
 
 /*
- * Rechte-, Ereignis-, Index- und Ausloesernamen lauten in beiden Sprachen
- * gleich und stehen deshalb hier und nicht in der Texttabelle (siehe den Kopf
- * von `i18n/verwaltung/finanzen/belege.ts`).
+ * Der Rechteschlüssel lautet in beiden Sprachen gleich und steht deshalb hier
+ * und nicht in der Texttabelle; auf dem Schirm steht er als Satz (`<Recht>`).
+ * Ereignis-, Index- und Auslösernamen stehen seit V-251 gar nicht mehr da —
+ * die Sätze sagen, was die Datenbank tut.
  */
 const RECHT_ERSTATTUNG_LESEN = 'personal.erstattung_lesen';
-const EREIGNIS_ERSTATTUNG_GELESEN = 'ausgabe.erstattung_gelesen';
-const INDEX_QUELLE_AUSGABE_UK = 'quelle_ausgabe_uk';
-const AUSLOESER_AUSGABE_UEBERGANG = 'fin.ausgabe_uebergang';
 
 export default async function Ausgabenblatt(
   { params, searchParams }: {
@@ -380,9 +378,7 @@ export default async function Ausgabenblatt(
               <strong>{daten.erstattung.personalnummer ?? t.ohnePersonalnummer}</strong>.
             </p>
             <p className="m-0 mt-s2 max-w-prose text-xs text-text-muted">
-              {t.erstattungAnAnstellungVor}{' '}
-              <code>{EREIGNIS_ERSTATTUNG_GELESEN}</code>
-              {t.erstattungAnAnstellungNach}
+              {t.erstattungAnAnstellung}
             </p>
           </>
         )}
@@ -392,8 +388,7 @@ export default async function Ausgabenblatt(
       {daten.weiter.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {a.weiterberechenbar
-            ? `${t.nochNichtWeiterberechnetVor}${INDEX_QUELLE_AUSGABE_UK}`
-              + `${t.nochNichtWeiterberechnetNach}`
+            ? t.nochNichtWeiterberechnet
             : t.nichtWeiterberechenbar}
         </p>
       ) : (
@@ -555,9 +550,7 @@ export default async function Ausgabenblatt(
           ))}
         </ul>
         <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
-          {t.uebergangErzwungenVor}
-          <code>{AUSLOESER_AUSGABE_UEBERGANG}</code>
-          {t.uebergangErzwungenMitte}{' '}
+          {t.uebergangErzwungen}{' '}
           <strong>{t.geloeschtWirdNichts}</strong> {t.uebergangErzwungenNach}{' '}
           <em>{t.gebuchtWort}</em> {t.abGebucht}
         </p>

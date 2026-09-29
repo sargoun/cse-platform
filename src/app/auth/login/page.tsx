@@ -144,7 +144,7 @@ export default async function Login({ searchParams }: {
           {eingerichtet ? (
             <>
               Zugangsdaten für Supabase sind hinterlegt, aber der Weg ist nicht gebaut:
-              <code> /auth/callback</code> tauscht keinen Code gegen eine Sitzung, solange
+              die Rückkehr vom Anbieter tauscht keinen Code gegen eine Sitzung, solange
               O-501 offen ist. Angemeldet wird deshalb weiterhin hausintern — die
               Umgebungsvariablen allein ändern daran nichts.
             </>

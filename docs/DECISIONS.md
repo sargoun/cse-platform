@@ -20925,7 +20925,7 @@ eine Prüfung, die den Satz nur aufrief.
 | Betrifft | EMP-10, D-663, D-681, D-692, O-613, O-925, V-187, V-260, `src/lib/i18n/mein-formular.ts` (`fehlt_einsatz`), `src/lib/i18n/mein-formulare.ts` (`AntragFormTexte`), `tests/kern/{mein-formular-rueckweg,antrag-rueckweg}.test.ts` |
 |---|---|
 
-### D-741 · Ein Recht steht als Satz auch ausserhalb von `<code>` — kein Schlüssel und kein Backtick im sichtbaren Text, geprüft am Syntaxbaum (V-250)
+### D-741 · Ein Recht steht als Satz auch ausserhalb von `<code>` — kein Schlüssel, kein Backtick und kein Stück Quelltext im sichtbaren Text, geprüft am Syntaxbaum (V-250)
 
 **Der Befund** (Durchgang über den sichtbaren Text, Nutzerwunsch „wo auf einer
 Seite Quelltext steht, mach einen Rahmen und einen Satz daraus"): V-123 hatte
@@ -21001,6 +21001,22 @@ Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
    findet jeden dieser Wege an einem Stück Quelltext und nichts an `<Recht>`,
    `title`, `darf['…']`, `hatRecht('…')` und einem reinen Schlüsselwert.
    `tests/kern/rechtname.test.ts` hält die drei Namen aus Nr. 5.
+
+   **Seit der zweiten Runde sieht sie auch Quelltext im Satz:** einen Namen
+   aus dem Quelltext — mit Unterstrich, mit Punkt davor oder dahinter, mit
+   Aufrufklammern (`quelle_ausgabe_uk`, `app.darf_kontaktiert_werden`,
+   `fuelleTatsachen()`, `gate()`) —, einen Dateipfad mit Endung des
+   Quelltexts (`server/benachrichtigung/registry.ts`, `docs/DESIGN.md`,
+   `docs/JOB-AUSLOESER.sql`) und ein SQL-Wort in Grossbuchstaben (`UPDATE`,
+   `NULL`, `CHECK`, `RLS`). Ein Platzhalter zeigt, was der Mensch tippt, und
+   zählt dafür nicht (`vollzeit_39`); `wert` und `defaultValue` als Objektfeld
+   und `defaultValue` einer Auswahlliste sind der Wert einer Option, kein
+   Text; in einer Satztabelle ist ein Wert, der nur ein Name ist, Steuerung,
+   und eine Kette aus `+` wird als EIN Satz gelesen (`'Ihnen fehlt ' +
+   'objekt.schreiben.'`). Auf 21561fd 265 Befunde in 106 Dateien (86
+   Schlüssel, 31 Backticks, 115 Namen, 14 Pfade, 19 SQL-Wörter), vor der
+   zweiten Runde noch 127 in 56 Dateien (100 Namen, 14 Pfade, 13 SQL-Wörter);
+   jetzt keiner.
 8. **Nicht erfasst, bewusst:** ein Schlüssel, der über einen
    Funktionsparameter in eine Vorlage fliesst (das Beendigungsblatt fand die
    Suche von Hand; die Wache verfolgt Aufrufargumente nicht, weil
@@ -21008,11 +21024,37 @@ Schlüssel im Quelltext (Kein-Zugriff-Seite, Beendigungsblatt).
    fünf Seiten einen unbekannten Grund aus der Adresse roh zeigen (KI-Budget,
    Lieferant, Raum anlegen, Turnus, Zeitkorrektur) — kein Rechteschlüssel,
    aber derselbe Befund in klein; er bleibt für einen eigenen Durchgang.
+9. **Die zweite Runde: jedes Stück Quelltext im Satz ist ein Satz
+   geworden** — auf 56 Seiten und in fünf Satztabellen der Finanzen, de und,
+   wo die Tabelle zweisprachig ist, en. Gesagt wird, was geschieht und wer es
+   tut, nicht womit:
+   - Befehle und Dateien → wer es tut: `pnpm jobs:plan` →
+     `docs/JOB-AUSLOESER.sql`, `JOB_TOKEN` → „Den Zeitplan dafür erzeugt die
+     technische Betreuung aus dem Register der Wächter … ohne das vereinbarte
+     Zugangsgeheimnis nimmt der Server ohnehin keinen Auslöser an";
+     `server/agent/policy.ts`, `AKTIONEN`, `gate()` → „die acht Aktionen, die
+     das Gate im Programm kennt", „steht fest im Programm"; `docs/DESIGN.md`
+     → „die Gestaltungsvorgaben (DESIGN §1)";
+   - SQL → was die Datenbank tut: „Postgres wendet auf das `returning` eines
+     `insert` die Lesepolicy an" → „die Datenbank gibt eine neu angelegte
+     Klasse nur an ein Konto zurück, das den Katalog lesen darf"; „ein
+     `select *` auf dem Kundenstamm" → „jede Abfrage, die den ganzen
+     Kundenstamm liest"; „kein UPDATE" → „keine Änderung an dieser";
+   - Rollen und Adressen → ihr Name: `super_admin`, `admin`, `leitung` →
+     „die Super-Administration und die Administration … die Leitung";
+     `/portal/mein` → „Arbeiterportal", `/karriere` → „Karriereseite der
+     Website", `/auth/callback` → „die Rückkehr vom Anbieter";
+   - Migrationsnummern im Satz („seit 0195", „(0021)") fallen weg;
+   - die fünf Satztabellen `finanzen/{belege,eingangsrechnungen,uebersicht,
+     rechnung-akte,rechnung-ausgabe}.ts` hatten Stücke vor und hinter einem
+     `<code>`; sie sind je EIN Satz, und die Konstanten, die die Namen
+     hielten (`SPALTE_*`, `TABELLE_*`, `PFAD_STORNO`, `POLICY_DATEI`,
+     `BEFEHL_COMPLIANCE` …), fallen weg.
 
 | Betrifft | V-123, V-250, AUT-06, D-599, D-728, `src/components/ui/Recht.tsx`, `src/lib/i18n/rechtname.ts`, `src/lib/i18n/verwaltung/{agent-budget,raumbuch-neu}.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/finanzen/{eingangsrechnungen,uebersicht}.ts`, `src/app/auth/{kein-zugriff,zwei-faktor/wiederherstellung}/page.tsx`, 70 Seiten und Satztabellen unter `src/app/portal/[mandant]`, `tests/kern/{recht-im-satz,rechtname}.test.ts`, `tests/kern/hilfen/sichtbarer-text.ts` |
 |---|---|
 
-### D-742 · Eine Regel der Datenbank steht als Satz über ihre Wirkung — und kein Datenbankname kommt neu als Code auf den Schirm (V-251)
+### D-742 · Eine Regel der Datenbank steht als Satz über ihre Wirkung — kein Datenbankname steht als Code auf dem Schirm, und jeder andere Code hat einen Grund (V-251)
 
 **Der Befund** (Durchgang über den sichtbaren Text): Das Kontaktblatt und die
 Rechtsgrundlagen-Seite erklärten der Vertriebskraft, warum ein
@@ -21056,26 +21098,59 @@ was es für ihn heisst.
 2. **Die Sätze bleiben deutsch.** Beide Seiten stehen auf der Ausnahmeliste
    der Übersetzungswache; eine englische Fassung gibt es nicht, die hier
    nachzuziehen wäre.
-3. **Was als Datenbankname gilt** (`tests/kern/hilfen/code-datenbankname.ts`),
-   wenn es der ganze Inhalt eines `<code>` oder eines `font-mono`-Elements ist
-   — Text, Zeichenkette oder Konstante derselben Datei: ein Name mit
-   Unterstrich; `schema.name` oder `tabelle.spalte`, ausser einem Dateinamen
-   und einem Rechteschlüssel (den prüft D-741); der Name einer Tabelle, die
-   `drizzle/` anlegt. Ein Wert, der erst zur Laufzeit entsteht
-   (`{b.dateiSha256}`), ist Anzeige und zählt nicht.
-4. **Sperrklinke über den ganzen Baum** (`tests/kern/code-datenbankname.test.ts`):
-   die beiden Seiten zeigen keinen Datenbanknamen als Code; auf 46 weiteren
-   Seiten stehen beim Einfrieren noch 99, je Seite gezählt in
-   `tests/kern/code-datenbankname-bestand.ts`. Die Zahl einer Seite darf nur
-   sinken, eine Seite ausserhalb des Bestands bekommt keinen, und der Bestand
-   muss stimmen — wer eine Seite umschreibt, setzt ihre Zahl herunter (wie
-   `uebersetzung-ausnahmen.ts`).
-5. **Offen, bewusst ausserhalb dieses Durchgangs:** die 99 eingefrorenen
-   Namen, am dichtesten auf Nummernkreisen (6), Leistungskatalog (5 + 3 +
-   1), Konditionen, Datenschutzblatt, Finanzprüfungen und Zusammenführen
-   (je 4).
+3. **Was als Datenbankname gilt** (`tests/kern/hilfen/code-quelltext.ts`,
+   vorher `code-datenbankname.ts`), wenn es der ganze Inhalt eines `<code>`
+   oder eines `font-mono`-Elements ist — Text, Zeichenkette, Konstante
+   derselben Datei oder über den Import: ein Name mit Unterstrich;
+   `schema.name` oder `tabelle.spalte`, ausser einem Dateinamen und einem
+   Rechteschlüssel (den prüft D-741); der Name einer Tabelle, die `drizzle/`
+   anlegt. Ein Wert, der erst zur Laufzeit entsteht (`{b.dateiSha256}`,
+   `/unternehmen/{mandant}`), ist Anzeige und zählt nicht.
+4. **Hart, ohne Bestand** (`tests/kern/code-quelltext.test.ts`, vorher
+   `code-datenbankname.test.ts` mit dem Bestand
+   `code-datenbankname-bestand.ts`, beide entfallen): kein Datenbankname
+   steht als Code auf dem Schirm — nirgends. Die zweite Runde hat die 100
+   Namen auf den 46 übrigen Seiten zu Sätzen über ihre Wirkung gemacht (der
+   Bestand zählte 99; einen trug eine importierte Konstante, die die alte
+   Wache nicht las), de und, wo die Seite zweisprachig ist, en:
+   `kunde_debitor_uk` → „unter den nicht archivierten Kunden einer
+   Gesellschaft lässt die Datenbank jede Nummer nur einmal zu";
+   `kunde_zahlungsziel_plausibel` → „einen anderen Wert nimmt die Datenbank
+   nicht an"; `app.zahlungskondition_lesen` → „über eine eigene, geprüfte
+   Abfrage"; `app.freigabe_umkehrbar` → „die Datenbank beantwortet die
+   Frage, ob sich eine Freigabe zurücknehmen lässt, heute für jede
+   Vorgangsart mit „nein""; `app.person_identitaeten`,
+   `app.arbzg_belastung`, `app.person_kanonisch` → „die Prüfung der
+   Arbeitszeitgrenzen und der Nachtlauf zählen beide Zeilen als einen
+   Menschen"; `reinigungsklasse_code_uk` → „Die Datenbank lässt einen Code
+   nur einmal aktiv zu".
+5. **Jeder andere feste Code braucht einen Grund, oder er wird ein Satz.**
+   Wo ein `<code>` für den Menschen wirklich Code sein muss, steht es mit
+   seinem Grund in `tests/kern/code-quelltext-ausnahmen.ts` (17 Einträge, 33
+   Stellen): weil er die Zeichen TIPPT (Eingabebeispiele und -formen: `12,5`,
+   `1.234,5`, `schluessel=wert`, `189000` Cent, die Rechenzeichen `+ − × x *`,
+   `https://`, `Sommer2024!`, ein CPV-Code, die Schemakennungen `0204`, `EM`,
+   `0088` der elektronischen Adresse), weil er sie so WIEDERFINDET (`PDNG` in
+   der Datei der Bank, `index.xml`/`konten.csv` im Z3-Paket, `radar-v1` an
+   jeder Bewertung, `✔`/`○` der Rechtematrix, `+1` einer Schicht über
+   Mitternacht, der Modellname des Anbieters), weil es eine ADRESSE ist, die
+   er aufruft (`/angebot`, `/en/angebot`), oder weil die Fläche nicht zum
+   Produkt gehört (`src/app/dev/`). Ein Wert, der zur Laufzeit entsteht —
+   ein Kalender-Abo-Link, eine Kundennummer, eine IBAN, eine Prüfsumme —, ist
+   Anzeige eines Datums und steht nicht in der Liste. Die Liste ist genau:
+   ein Eintrag, dessen Code es nicht mehr gibt, bricht die Prüfung wie ein
+   Code ohne Eintrag, und jeder Grund ist ein Satz für den Menschen am
+   Schirm. Vor der zweiten Runde standen 192 feste Code-Stellen auf dem
+   Schirm (21561fd: 218, davon 114 Datenbanknamen); 159 sind Sätze
+   geworden — Datenbanknamen, Dateipfade, Befehle, SQL, Funktionsnamen,
+   Kopfzeilen (`x-cse-manifest-sha256`), Adressen, die eine Seite nur
+   erwähnt.
+6. **Die Gegenprobe** findet jede Form (Unterstrich, `schema.name`, mit
+   Aufrufklammern, Tabellenname, Konstante derselben Datei, Pfad aus einer
+   importierten Konstante, Befehl, SQL-Wort) und keinen Wert aus Anfrage
+   oder Datenbank.
 
-| Betrifft | V-251, V-252, D-741, Invariante 5, LEG-08, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage/page.tsx`, `tests/kern/code-datenbankname.test.ts`, `tests/kern/code-datenbankname-bestand.ts`, `tests/kern/hilfen/code-datenbankname.ts` |
+| Betrifft | V-251, V-252, D-741, Invariante 5, LEG-08, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage/page.tsx`, 46 weitere Seiten unter `src/app/portal/[mandant]`, `tests/kern/code-quelltext.test.ts`, `tests/kern/code-quelltext-ausnahmen.ts`, `tests/kern/hilfen/code-quelltext.ts` (vorher `code-datenbankname.test.ts`, `code-datenbankname-bestand.ts`, `hilfen/code-datenbankname.ts`) |
 |---|---|
 
 ### D-743 · Wo ein Zeilenumbruch zwei Stücke eines Satzes trennt, steht `{' '}` — geprüft am Syntaxbaum über den ganzen Baum (V-252)

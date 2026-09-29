@@ -226,9 +226,8 @@ export default async function Rueckgaengig(
         <Hinweis art="hinweis" cse="ruecknahme-nicht-armiert" className="mb-s6 max-w-prose">
           <strong>Kein Rückgängig für diese Handlung.</strong> Der Weg dafür steht
           vollständig — Fenster, Frist, eigenes Recht, Protokoll, Abweisung nach Ablauf —,
-          aber er ist für nichts armiert:{' '}
-          <code className="text-xs">app.freigabe_umkehrbar</code> gibt heute für jede
-          Vorgangsart „nein" zurück. Zurückzunehmen wäre die HANDLUNG, nicht ihr Stand,
+          aber er ist für nichts armiert: die Datenbank beantwortet die Frage, ob sich
+          eine Freigabe zurücknehmen lässt, heute für jede Vorgangsart mit „nein". Zurückzunehmen wäre die HANDLUNG, nicht ihr Stand,
           und dafür gibt es hier keinen gebauten Rückweg: die einzige Handlung, die
           ausgeführt wird, legt eine Eingangsrechnung an, und in Finanzen wird nicht hart
           gelöscht (Invariante 8) — korrigiert wird per Storno, und eine Stornofunktion

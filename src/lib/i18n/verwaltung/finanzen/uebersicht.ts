@@ -160,8 +160,7 @@ export interface UebersichtTexte {
   readonly algorithmusWort: string;
   readonly hashSatzNach: string;
   readonly nachtlaufTitel: string;
-  readonly keinLaufVor: string;
-  readonly keinLaufNach: string;
+  readonly keinLauf: string;
   readonly keinLaufMitte: string;
   readonly keinLaufNicht: string;
   readonly keinLaufSchluss: string;
@@ -212,9 +211,7 @@ export interface UebersichtTexte {
   readonly erfundeneNummer: string;
   readonly einWiderspruch: string;
   readonly widersprucheNach: string;
-  readonly widerspruchMitte: string;
-  readonly widerspruchNachSpalte: string;
-  readonly widerspruchSchluss: string;
+  readonly widerspruch: string;
   readonly keinNummernkreis: string;
   readonly tabelleKreise: string;
   readonly maskeKopf: string;
@@ -235,18 +232,14 @@ export interface UebersichtTexte {
   readonly geschlossenZusatz: string;
   readonly zugDefiner: string;
   readonly zugAnwendung: string;
-  readonly widerspruchZeileVor: string;
-  readonly widerspruchZeileNach: string;
+  readonly widerspruchZeile: string;
   readonly jahreswechselTitel: string;
   readonly jahreswechselEinleitung: string;
   readonly schrittSchliessenVor: string;
   readonly schrittSchliessenWort: string;
   readonly schrittSchliessenNach: string;
-  readonly schrittNachfolgerVor: string;
-  readonly schrittNachfolgerMitte: string;
-  readonly schrittNachfolgerNach: string;
-  readonly schrittVorgaengerVor: string;
-  readonly schrittVorgaengerNach: string;
+  readonly schrittNachfolger: string;
+  readonly schrittVorgaenger: string;
   readonly keinKnopfDafuer: string;
   readonly keinKnopfWer: string;
   readonly keinKnopfNach: string;
@@ -271,11 +264,7 @@ export interface UebersichtTexte {
   readonly nochNichtGeprueftTitel: string;
   readonly grenzenEinleitung: string;
   readonly fin18MengeVor: string;
-  readonly fin18MengeNachFunktion: string;
-  readonly fin18MengeNachSicht: string;
-  readonly fin18MengeNachInvoker: string;
   readonly fin18MengeNachRecht: string;
-  readonly fin18MengeNachMinuten: string;
   readonly fin18MengeNachFestschreiben: string;
   readonly fin18MengeSchluss: string;
 
@@ -439,8 +428,7 @@ const DE: UebersichtTexte = {
     + 'alle folgenden auch nicht. Das ist der Nachweis, den §146 AO und die '
     + 'GoBD verlangen.',
   nachtlaufTitel: 'Der nächtliche Prüflauf',
-  keinLaufVor: 'Der Prüflauf',
-  keinLaufNach: 'ist hier noch nie gelaufen.',
+  keinLauf: 'Der nächtliche Prüflauf der Kette ist hier noch nie gelaufen.',
   keinLaufMitte:
     'Er ist im Jobregister eingetragen (täglich 03:20 Berliner Zeit), aber es '
     + 'liegt kein Ergebnis vor. Das heisst',
@@ -540,19 +528,18 @@ const DE: UebersichtTexte = {
   nichtFestgeschrieben: 'In einem Platzhalterkreis wird nicht festgeschrieben',
   erfundeneNummer: '— eine Nummer daraus wäre eine erfundene.',
   einWiderspruch:
-    'Ein Kreis behauptet in seiner Bezeichnung eine unbestätigte Maske, trägt '
-    + 'aber ist_platzhalter = false.',
+    'Ein Kreis behauptet in seiner Bezeichnung eine unbestätigte Maske, ist '
+    + 'aber nicht als Platzhalter gekennzeichnet.',
   widersprucheNach:
-    'Kreise behaupten in ihrer Bezeichnung eine unbestätigte Maske, tragen '
-    + 'aber ist_platzhalter = false.',
-  widerspruchMitte:
+    'Kreise behaupten in ihrer Bezeichnung eine unbestätigte Maske, sind '
+    + 'aber nicht als Platzhalter gekennzeichnet.',
+  widerspruch:
     'Damit greift der Platzhalterschutz nicht: für Rechnungs- und '
-    + 'Gutschriftenkreise sitzt er ausschliesslich in',
-  widerspruchNachSpalte: ', und die prüft genau diese Spalte. Ob die Spalte auf',
-  widerspruchSchluss:
-    'gehört, ist eine Datenentscheidung mit Wirkung auf bereits '
-    + 'festgeschriebene Belege — sie wird hier benannt und nicht getroffen '
-    + '(O-606).',
+    + 'Gutschriftenkreise sitzt er ausschliesslich in der Funktion der Datenbank, '
+    + 'die die Nummer zieht, und die prüft genau diese Kennzeichnung. Ob der Kreis '
+    + 'als Platzhalter gekennzeichnet gehört, ist eine Datenentscheidung mit '
+    + 'Wirkung auf bereits festgeschriebene Belege — sie wird hier benannt und '
+    + 'nicht getroffen (O-606).',
   keinNummernkreis:
     'Für diese Gesellschaft ist kein Nummernkreis eingerichtet. Ohne Kreis '
     + 'entsteht keine Nummer und damit keine Rechnung, kein Angebot und kein '
@@ -578,24 +565,22 @@ const DE: UebersichtTexte = {
   vorgaengerZusatz: ' · Vorgänger: ',
   offenZusatz: ' · offen',
   geschlossenZusatz: ' · geschlossen ',
-  zugDefiner: 'Zug in der Datenbank (Definer)',
+  zugDefiner: 'Zug in der Datenbank',
   zugAnwendung: 'Zug in der Anwendung',
-  widerspruchZeileVor: 'Bezeichnung und',
-  widerspruchZeileNach: 'widersprechen sich (O-606).',
+  widerspruchZeile: 'Bezeichnung und Platzhalter-Kennzeichnung widersprechen sich (O-606).',
   jahreswechselTitel: 'Der Jahreswechsel — beschrieben, nicht auslösbar',
   jahreswechselEinleitung:
     'Ein Kreis mit jährlicher Rücksetzung wird nicht einfach weitergezählt. '
     + 'Der Vorgang hat drei Schritte, und sie gehören in eine Transaktion:',
   schrittSchliessenVor: 'Den Vorgängerkreis',
   schrittSchliessenWort: 'schliessen',
-  schrittSchliessenNach: '). Danach vergibt er keine Nummer mehr.',
-  schrittNachfolgerVor: 'Den Nachfolger eröffnen und seinen',
-  schrittNachfolgerMitte: 'auf den',
-  schrittNachfolgerNach:
-    'des Vorgängers setzen — damit reisst die Kette am Jahreswechsel nicht.',
-  schrittVorgaengerVor: 'Den Vorgänger eintragen (',
-  schrittVorgaengerNach:
-    '), damit die Prüfung den Übergang nachrechnen kann (§5.7 Schritt 3b).',
+  schrittSchliessenNach: ', mit Datum. Danach vergibt er keine Nummer mehr.',
+  schrittNachfolger:
+    'Den Nachfolger eröffnen und seine Kette mit dem letzten Glied der Kette des '
+    + 'Vorgängers beginnen lassen — damit reisst die Kette am Jahreswechsel nicht.',
+  schrittVorgaenger:
+    'Beim Nachfolger den Vorgänger eintragen, damit die Prüfung den Übergang '
+    + 'nachrechnen kann (§5.7 Schritt 3b).',
   keinKnopfDafuer: 'Es gibt hier keinen Knopf dafür (O-352).',
   keinKnopfWer: 'Wer',
   keinKnopfNach:
@@ -632,16 +617,15 @@ const DE: UebersichtTexte = {
     'Eine Prüfliste, die ihre eigenen Grenzen verschweigt, wird für '
     + 'vollständig gehalten. Deshalb stehen sie hier — als benannte offene '
     + 'Fragen und nicht als leere Rubrik.',
-  fin18MengeVor: 'Die FIN-18-Menge kommt aus',
-  fin18MengeNachFunktion: 'und nicht aus der Sicht',
-  fin18MengeNachSicht: ': die läuft mit',
-  fin18MengeNachInvoker: ', und eine Buchhaltung ohne',
+  fin18MengeVor:
+    'Die FIN-18-Liste kommt aus einer eigenen Abfrage der Datenbank, die nur '
+    + 'sagt, ob an einem Auftrag Zeit erfasst ist. Sie liest nicht die erfassten '
+    + 'Zeiten selbst: dort sähe eine Buchhaltung ohne',
   fin18MengeNachRecht:
-    'bekäme dort überall null Minuten — also bei jedem Auftrag eine Warnung. '
-    + 'Eine Warnung, die immer kommt, wird nach dem dritten Mal ungelesen '
-    + 'weggeklickt. Sie kommt auch nicht aus',
-  fin18MengeNachMinuten: ': die verlangt',
-  fin18MengeNachFestschreiben: ', während diese Route mit',
+    'überall null Minuten — also bei jedem Auftrag eine Warnung. Eine Warnung, '
+    + 'die immer kommt, wird nach dem dritten Mal ungelesen weggeklickt. Sie fragt '
+    + 'auch nicht die Minutensumme ab: die verlangt',
+  fin18MengeNachFestschreiben: ', während diese Seite mit',
   fin18MengeSchluss:
     'öffnet — die Liste brach damit genau dann, wenn der erste abgeschlossene '
     + 'Auftrag im Bestand stand. Die Minutenzahl selbst bleibt hinter dem '
@@ -818,8 +802,7 @@ const EN: UebersichtTexte = {
     + 'does any that follows. That is the evidence §146 AO and the GoBD '
     + 'require.',
   nachtlaufTitel: 'The nightly check run',
-  keinLaufVor: 'The check run',
-  keinLaufNach: 'has never run here.',
+  keinLauf: 'The nightly check run of the chain has never run here.',
   keinLaufMitte:
     'It is entered in the job register (daily 03:20 Berlin time), but no '
     + 'result is on record. That does',
@@ -920,19 +903,18 @@ const EN: UebersichtTexte = {
   nichtFestgeschrieben: 'In a placeholder Nummernkreis nothing is finalised',
   erfundeneNummer: '— a number out of it would be an invented one.',
   einWiderspruch:
-    'One Nummernkreis claims an unconfirmed mask in its label but carries '
-    + 'ist_platzhalter = false.',
+    'One Nummernkreis claims an unconfirmed mask in its label but is not '
+    + 'marked as a placeholder.',
   widersprucheNach:
-    'Nummernkreise claim an unconfirmed mask in their label but carry '
-    + 'ist_platzhalter = false.',
-  widerspruchMitte:
+    'Nummernkreise claim an unconfirmed mask in their label but are not '
+    + 'marked as placeholders.',
+  widerspruch:
     'The placeholder protection therefore does not bite: for invoice and '
-    + 'Gutschrift (credit note) Nummernkreise it sits solely in',
-  widerspruchNachSpalte:
-    ', and that checks exactly this column. Whether the column ought to read',
-  widerspruchSchluss:
-    'is a data decision with effect on Belege already finalised '
-    + '(festgeschrieben) — it is named here and not taken (O-606).',
+    + 'Gutschrift (credit note) Nummernkreise it sits solely in the database '
+    + 'function that draws the number, and that checks exactly this marking. '
+    + 'Whether the Nummernkreis ought to be marked as a placeholder is a data '
+    + 'decision with effect on Belege already finalised (festgeschrieben) — it is '
+    + 'named here and not taken (O-606).',
   keinNummernkreis:
     'No Nummernkreis is set up for this company. Without one no number arises '
     + 'and hence no invoice, no quotation and no Leistungsnachweis (proof of '
@@ -958,24 +940,22 @@ const EN: UebersichtTexte = {
   vorgaengerZusatz: ' · predecessor: ',
   offenZusatz: ' · open',
   geschlossenZusatz: ' · closed ',
-  zugDefiner: 'drawn in the database (definer)',
+  zugDefiner: 'drawn in the database',
   zugAnwendung: 'drawn in the application',
-  widerspruchZeileVor: 'Label and',
-  widerspruchZeileNach: 'contradict each other (O-606).',
+  widerspruchZeile: 'Label and placeholder marking contradict each other (O-606).',
   jahreswechselTitel: 'The turn of the year — described, not triggerable',
   jahreswechselEinleitung:
     'A Nummernkreis with a yearly reset is not simply counted on. The '
     + 'procedure has three steps, and they belong in one transaction:',
   schrittSchliessenVor: 'The predecessor Nummernkreis is',
   schrittSchliessenWort: 'closed',
-  schrittSchliessenNach: '). After that it issues no further number.',
-  schrittNachfolgerVor: 'Open the successor and set its',
-  schrittNachfolgerMitte: 'to the',
-  schrittNachfolgerNach:
-    'of the predecessor — so that the chain does not tear at the turn of the year.',
-  schrittVorgaengerVor: 'Record the predecessor (',
-  schrittVorgaengerNach:
-    '), so that the check can recompute the transition (§5.7 step 3b).',
+  schrittSchliessenNach: ', with a date. After that it issues no further number.',
+  schrittNachfolger:
+    'Open the successor and let its chain begin with the last link of the '
+    + 'predecessor’s chain — so that the chain does not tear at the turn of the year.',
+  schrittVorgaenger:
+    'Record the predecessor on the successor, so that the check can recompute '
+    + 'the transition (§5.7 step 3b).',
   keinKnopfDafuer: 'There is no button for it here (O-352).',
   keinKnopfWer: 'Who holds',
   keinKnopfNach:
@@ -1010,16 +990,15 @@ const EN: UebersichtTexte = {
     'A checklist that keeps quiet about its own limits is taken for complete. '
     + 'That is why they stand here — as named open questions and not as an '
     + 'empty heading.',
-  fin18MengeVor: 'The FIN-18 set comes from',
-  fin18MengeNachFunktion: 'and not from the view',
-  fin18MengeNachSicht: ': that runs with',
-  fin18MengeNachInvoker: ', and an accounting user without',
+  fin18MengeVor:
+    'The FIN-18 list comes from a separate database query that only says '
+    + 'whether time has been recorded on an Auftrag. It does not read the '
+    + 'recorded times themselves: there an accounting user without',
   fin18MengeNachRecht:
-    'would get zero minutes everywhere there — that is, a warning on every '
-    + 'Auftrag. A warning that always comes is clicked away unread after the '
-    + 'third time. Nor does it come from',
-  fin18MengeNachMinuten: ': that requires',
-  fin18MengeNachFestschreiben: ', while this route opens with',
+    'would see zero minutes everywhere — that is, a warning on every Auftrag. A '
+    + 'warning that always comes is clicked away unread after the third time. '
+    + 'Nor does it ask for the sum of minutes: that requires',
+  fin18MengeNachFestschreiben: ', while this page opens with',
   fin18MengeSchluss:
     '— the list thus broke exactly when the first completed Auftrag was in the '
     + 'data. The number of minutes itself stays behind the Festschreibung '

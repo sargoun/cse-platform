@@ -60,10 +60,10 @@ interface Kopf {
 }
 
 /*
- * Kennungen, keine Woerter: der Pfad und der Name eines Rechts lauten in
- * beiden Sprachen gleich und werden deshalb nicht uebersetzt.
+ * Eine Kennung, kein Wort: der Name eines Rechts lautet in beiden Sprachen
+ * gleich und wird deshalb nicht uebersetzt; auf dem Schirm steht er als Satz
+ * (`<Recht>`).
  */
-const PFAD_STORNO = '/storno';
 const RECHT_STORNIEREN = 'finanzen.stornieren';
 
 export default async function Verwerfenblatt(
@@ -273,7 +273,7 @@ export default async function Verwerfenblatt(
             </p>
           ) : k.status === 'festgeschrieben' ? (
             <p className="m-0 mt-s2 text-sm text-text-muted">
-              {t.stornoLaeuftUeber} <code>{PFAD_STORNO}</code> {t.undVerlangt}{' '}
+              {t.stornoLaeuftUeber}{' '}
               <Recht schluessel={RECHT_STORNIEREN} sprache={zugang.sprache} />{t.rechtFehltErklaerung}
             </p>
           ) : null}

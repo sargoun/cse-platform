@@ -111,9 +111,8 @@ export default async function Reinigungsklassen(
                className="mb-s7 max-w-[72ch]">
         {lesbar ? (
           <>
-            <strong>Der Code wird erst mit dem Archivieren wieder frei.</strong> Der
-            Teilindex <code>reinigungsklasse_code_uk</code> lässt einen Code nur einmal
-            aktiv zu. Vor dem Archivieren steht in der Zeile, wie viele Räume und
+            <strong>Der Code wird erst mit dem Archivieren wieder frei.</strong> Die
+            Datenbank lässt einen Code nur einmal aktiv zu. Vor dem Archivieren steht in der Zeile, wie viele Räume und
             Importzeilen noch daran hängen: die Einstufung bleibt an diesen Räumen
             stehen, und eine Klasse stillschweigend wegzunehmen liesse sie ohne
             Bedeutung zurück (O-693).
@@ -123,10 +122,11 @@ export default async function Reinigungsklassen(
             <strong>Diese Liste bleibt mit Ihrer Rolle leer, und gespeichert werden
             kann hier nichts.</strong> Gelesen wird der Katalog mit
             {' '}<Recht schluessel="objekt.lesen" />, gepflegt mit
-            {' '}<Recht schluessel="stammdaten.verwalten" /> (0021) — Ihrer Rolle fehlt das erste.
+            {' '}<Recht schluessel="stammdaten.verwalten" /> — Ihrer Rolle fehlt das erste.
             Eine leere Tabelle heisst hier also nicht „keine Klassen". Auch das
-            Anlegen schüge fehl: Postgres wendet auf das <code>returning</code> eines{' '}
-            <code>insert</code> die Lesepolicy an. Die Formulare sind deshalb
+            Anlegen schüge fehl: die Datenbank gibt eine neu angelegte Klasse nur an
+            ein Konto zurück, das den Katalog lesen darf, und weist das Anlegen sonst
+            ab. Die Formulare sind deshalb
             ausgeblendet, statt ein Versprechen zu geben, das die Datenbank
             zurücknimmt.
           </>

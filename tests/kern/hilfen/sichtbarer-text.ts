@@ -42,8 +42,15 @@ const ts = createRequire(import.meta.url)('typescript') as typeof TS;
 export interface TextBefund {
   readonly datei: string;
   readonly zeile: number;
-  readonly art: 'schluessel' | 'backtick';
-  /** Der Schlüssel, oder der Backtick. */
+  /**
+   * `schluessel` ein Rechteschlüssel, `backtick` ein Markdown-Backtick,
+   * `bezeichner` ein Name aus dem Quelltext (`quelle_ausgabe_uk`,
+   * `app.berlin_heute()`, `fuelleTatsachen()`), `pfad` ein Dateipfad
+   * (`server/benachrichtigung/registry.ts`), `sql` ein SQL-Wort in
+   * Grossbuchstaben (`UPDATE`, `NULL`, `CHECK`).
+   */
+  readonly art: 'schluessel' | 'backtick' | 'bezeichner' | 'pfad' | 'sql';
+  /** Der Schlüssel, der Backtick, der Name, der Pfad oder das Wort. */
   readonly fund: string;
   readonly text: string;
 }
@@ -66,6 +73,19 @@ export const SICHTBARE_ATTRIBUTE: ReadonlySet<string> = new Set([
 
 /** `modul.aktion`, auch dreiteilig (`gruppe.abrechnung.lesen`). */
 const SCHLUESSEL_KANDIDAT = /[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){1,2}/gu;
+
+/**
+ * Ein Name aus dem Quelltext: mit Unterstrich, auch mit Punkt davor oder
+ * dahinter (`quelle_ausgabe_uk`, `super_admin`, `app.darf_kontaktiert_werden`),
+ * oder mit Aufrufklammern (`app.berlin_heute()`, `fuelleTatsachen()`, `gate()`).
+ */
+const BEZEICHNER = /(?<![\w./@-])(?:(?=[a-z0-9_.]*_)[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*(?:\(\))?|[a-z][a-zA-Z0-9_]*(?:\.[a-z][a-zA-Z0-9_]*)*\(\))(?![\w@])/gu;
+
+/** Ein Dateipfad mit Endung des Quelltexts (`server/agent/policy.ts`, `docs/DESIGN.md`). */
+const PFAD = /[\w.-]*\/[\w./-]*\.(?:tsx?|jsx?|mjs|cjs|sql|md)\b/gu;
+
+/** SQL in Grossbuchstaben — in einem deutschen oder englischen Satz ist das kein Wort. */
+const SQL_WORT = /\b(?:SELECT|INSERT|UPDATE|DELETE|RETURNING|WHERE|NULL|CHECK|TRIGGER|POLICY|GRANT|REVOKE|TRUNCATE|JOIN|RLS)\b/gu;
 
 function baum(datei: string, quelle: string): TS.SourceFile {
   return ts.createSourceFile(datei, quelle, ts.ScriptTarget.Latest, true,
@@ -103,20 +123,40 @@ function holeBaum(lauf: Lauf, datei: string): TS.SourceFile | null {
  */
 function pruefeText(
   lauf: Lauf, sf: TS.SourceFile, ort: TS.Node, text: string, nurImSatz: boolean,
+  /** Ein Eingabebeispiel (`placeholder`): ein Name darin ist, was der Mensch tippt. */
+  eingabe = false,
 ): void {
   const zeile = sf.getLineAndCharacterOfPosition(ort.getStart(sf)).line + 1;
   const kurz = text.replace(/\s+/gu, ' ').trim().slice(0, 120);
   if (text.includes('`')) {
     lauf.befunde.push({ datei: sf.fileName, zeile, art: 'backtick', fund: '`', text: kurz });
   }
-  if (nurImSatz && lauf.schluessel.has(text.trim())) return;
+  // Ein Wert, der NUR ein Name ist (`recht: 'crm.lesen'`, `wert: 'einwand_mitarbeiter'`),
+  // ist in einer Tabelle Steuerung und kein Satz.
+  if (nurImSatz && (lauf.schluessel.has(text.trim())
+      || /^[A-Za-z0-9](?:[\w./:@-]*[A-Za-z0-9)])?$/u.test(text.trim()))) return;
+  const schluessel: string[] = [];
   for (const m of text.matchAll(SCHLUESSEL_KANDIDAT)) {
     const start = m.index ?? 0;
     const vor = text[start - 1] ?? '';
     // Teil eines längeren Namens (`app.hat_recht`, `/pfad/crm.lesen`): kein eigener Schlüssel.
     if (/[\w./]/u.test(vor)) continue;
     if (!lauf.schluessel.has(m[0])) continue;
+    schluessel.push(m[0]);
     lauf.befunde.push({ datei: sf.fileName, zeile, art: 'schluessel', fund: m[0], text: kurz });
+  }
+  if (eingabe) return;
+  for (const m of text.matchAll(PFAD)) {
+    lauf.befunde.push({ datei: sf.fileName, zeile, art: 'pfad', fund: m[0], text: kurz });
+  }
+  for (const m of text.matchAll(BEZEICHNER)) {
+    // Ein Rechteschlüssel ist oben schon gemeldet; ein Teil eines Pfads ebenso.
+    if (schluessel.some((s) => m[0].startsWith(s))) continue;
+    if ([...text.matchAll(PFAD)].some((p) => p[0].includes(m[0]))) continue;
+    lauf.befunde.push({ datei: sf.fileName, zeile, art: 'bezeichner', fund: m[0], text: kurz });
+  }
+  for (const m of text.matchAll(SQL_WORT)) {
+    lauf.befunde.push({ datei: sf.fileName, zeile, art: 'sql', fund: m[0], text: kurz });
   }
 }
 
@@ -269,6 +309,20 @@ function rueckgaben(lauf: Lauf, sf: TS.SourceFile, f: TS.SignatureDeclaration, o
   lauf.offen.delete(f);
 }
 
+/**
+ * `wert` und `defaultValue` sind als Attribut eines Feldes Text
+ * (`<Feld wert="…">`, ein vorbelegtes Textfeld) — als Objektfeld aber der
+ * Wert einer Auswahl (`{ wert: 'zeit_korrektur', text: 'Zeitkorrektur' }`).
+ */
+const NUR_ALS_ATTRIBUT: ReadonlySet<string> = new Set(['wert', 'defaultValue']);
+
+/** `defaultValue` einer Auswahlliste ist der Wert der vorgewählten Option, kein Text. */
+function vorauswahl(a: TS.JsxAttribute, sf: TS.SourceFile): boolean {
+  if (a.name.getText(sf) !== 'defaultValue') return false;
+  const el = a.parent.parent;
+  return el.tagName.getText(sf) === 'select';
+}
+
 function eigenschaftsName(p: TS.PropertyAssignment): string {
   const n = p.name;
   if (ts.isIdentifier(n) || ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) return n.text;
@@ -283,11 +337,16 @@ function pruefeTsx(lauf: Lauf, sf: TS.SourceFile): void {
         && (ts.isJsxElement(k.parent) || ts.isJsxFragment(k.parent))) {
       wert(lauf, sf, k.expression);
     } else if (ts.isJsxAttribute(k) && SICHTBARE_ATTRIBUTE.has(k.name.getText(sf))
-        && k.initializer !== undefined) {
+        && k.initializer !== undefined && !vorauswahl(k, sf)) {
       const i = k.initializer;
-      if (ts.isStringLiteral(i)) pruefeText(lauf, sf, i, i.text, false);
-      else if (ts.isJsxExpression(i) && i.expression !== undefined) wert(lauf, sf, i.expression);
-    } else if (ts.isPropertyAssignment(k) && SICHTBARE_ATTRIBUTE.has(eigenschaftsName(k))) {
+      // Ein Platzhalter zeigt, was der Mensch tippt — auch einen Schlüssel wie `vollzeit_39`.
+      const eingabe = k.name.getText(sf) === 'placeholder';
+      const fest = ts.isJsxExpression(i) && i.expression !== undefined ? ohneHuelle(i.expression) : i;
+      if (ts.isStringLiteral(fest) || ts.isNoSubstitutionTemplateLiteral(fest)) {
+        pruefeText(lauf, sf, fest, fest.text, false, eingabe);
+      } else if (ts.isJsxExpression(i) && i.expression !== undefined) wert(lauf, sf, i.expression);
+    } else if (ts.isPropertyAssignment(k) && SICHTBARE_ATTRIBUTE.has(eigenschaftsName(k))
+        && !NUR_ALS_ATTRIBUT.has(eigenschaftsName(k))) {
       wert(lauf, sf, k.initializer);
     } else if (ts.isPropertyAssignment(k) && eigenschaftsName(k) === 'zelle'
         && (ts.isArrowFunction(k.initializer) || ts.isFunctionExpression(k.initializer))) {
@@ -299,17 +358,32 @@ function pruefeTsx(lauf: Lauf, sf: TS.SourceFile): void {
   gehe(sf);
 }
 
+/**
+ * Der Text einer Kette aus `+`, als EIN Satz gelesen — `'Ihnen fehlt ' +
+ * 'objekt.schreiben.'` ist ein Satz mit Schlüssel, nicht zwei Stücke, von
+ * denen eines „nur ein Name" wäre. Was erst zur Laufzeit entsteht, steht als
+ * `…` darin; `null`, wenn gar kein Text dabei ist.
+ */
+function kette(e: TS.Expression): string | null {
+  const x = ohneHuelle(e);
+  if (ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x)) return x.text;
+  if (ts.isTemplateExpression(x)) return [x.head.text, ...x.templateSpans.map((s) => s.literal.text)].join('…');
+  if (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const l = kette(x.left);
+    const r = kette(x.right);
+    return l === null && r === null ? null : `${l ?? '…'}${r ?? '…'}`;
+  }
+  return null;
+}
+
 /** Die Werte der Objektfelder einer Datei — auch durch `+`, `?:` und Vorlagen. */
 function pruefeTabelle(lauf: Lauf, sf: TS.SourceFile): void {
   const satz = (e: TS.Expression): void => {
     const x = ohneHuelle(e);
-    if (ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x)) {
-      pruefeText(lauf, sf, x, x.text, true);
-    } else if (ts.isTemplateExpression(x)) {
-      pruefeText(lauf, sf, x, [x.head.text, ...x.templateSpans.map((s) => s.literal.text)].join('…'), true);
-    } else if (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken) {
-      satz(x.left);
-      satz(x.right);
+    if (ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x) || ts.isTemplateExpression(x)
+        || (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken)) {
+      const text = kette(x);
+      if (text !== null) pruefeText(lauf, sf, x, text, true);
     } else if (ts.isConditionalExpression(x)) {
       satz(x.whenTrue);
       satz(x.whenFalse);

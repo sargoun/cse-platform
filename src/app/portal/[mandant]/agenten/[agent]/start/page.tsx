@@ -243,8 +243,8 @@ export default async function AgentStart(
         <h2 className="text-h2 text-text">Was dieser Lauf tut</h2>
         {auftrag === undefined ? (
           <p className="mt-s3 text-sm text-text-muted" data-cse="start-ohne-auftrag">
-            Für diesen Agenten ist kein von Hand auslösbarer Auftrag hinterlegt
-            (<code className="text-xs">server/agent/auftraege.ts</code>). Solange keiner
+            Für diesen Agenten ist kein von Hand auslösbarer Auftrag hinterlegt; die
+            Aufträge stehen fest im Programm. Solange keiner
             eingetragen ist, gibt es hier nichts zu starten — die Liste der Aufträge ist
             der geschlossene Satz, und ein Formular, das eine Vorlage mitgäbe, wäre ein
             Weg, das Modell an den Diensten vorbei zu füttern.
@@ -288,14 +288,13 @@ export default async function AgentStart(
           Genau diese Werte gehen in den Entwurf. Sie sind aus den Tabellen dieser
           Gesellschaft gezählt — <strong>gerechnet, nicht vom Modell geschätzt</strong>
           {' '}(Invariante 6). Das Modell setzt sie in Sätze und rechnet nichts; nach dem
-          Lauf prüft <code className="text-xs">pruefeZahlenherkunft</code>, dass keine Zahl
-          dazugekommen ist. Das Datum kommt von der Serveruhr
-          (<code className="text-xs">app.berlin_heute()</code>), nie aus dem Browser.
+          Lauf prüft das Programm, dass keine Zahl dazugekommen ist. Das Datum kommt
+          von der Serveruhr, in Berliner Zeit, nie aus dem Browser.
         </p>
         {Object.keys(tatsachen).length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für diesen Agenten füllt <code className="text-xs">fuelleTatsachen()</code>
-            {' '}keine Werte. Ein Platzhalter ohne Tatsache bleibt im Entwurf STEHEN und
+            Für diesen Agenten liefert das Programm keine Werte. Ein Platzhalter ohne
+            Tatsache bleibt im Entwurf STEHEN und
             fällt auf — er wird nicht stillschweigend leer.
           </p>
         ) : (

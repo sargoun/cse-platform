@@ -371,9 +371,8 @@ export default async function Steuer(
                        defaultValue={blatt.kopf.leitweg_id ?? ''}
                        data-cse="steuer-leitweg-feld" />
                 <span className="text-xs text-text-muted">
-                  Der CHECK <code className="text-text">kunde_leitweg_form</code> nimmt
-                  Ziffern, Buchstaben, Doppelpunkt, Punkt und Bindestrich, 3 bis 46
-                  Zeichen.
+                  Die Datenbank nimmt Ziffern, Buchstaben, Doppelpunkt, Punkt und
+                  Bindestrich, 3 bis 46 Zeichen.
                 </span>
               </label>
               <label className="flex flex-col gap-s2 text-sm text-text">
@@ -484,10 +483,8 @@ export default async function Steuer(
               ))}
             </div>
             <p className="mt-s3 max-w-prose text-xs text-text-muted">
-              Diese Antwort kommt aus{' '}
-              <code className="text-text">reverseChargeLage</code> — derselben
-              geprüften Funktion, die auch die Rechnung fragt. Die Seite rechnet
-              nichts.
+              Diese Antwort kommt aus derselben geprüften Regel, die auch die
+              Rechnung fragt. Die Seite rechnet nichts.
             </p>
 
             {blatt.bauleistender.length === 0 ? (

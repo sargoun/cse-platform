@@ -191,9 +191,7 @@ export default async function TurnusBlattSeite(
           <strong className="text-text">künftige</strong> Schichten des Tages
           werden dabei storniert, nicht gelöscht. Schichten, die bereits
           begonnen haben, und solche mit erfasster Zeit bleiben stehen — eine
-          geleistete Schicht verschwindet nicht, weil die Regel sich ändert
-          (<code>storniereVerwaiste</code>: nur <code>beginn_zeitpunkt &gt;
-          now()</code> und ohne Zeiterfassung).
+          geleistete Schicht verschwindet nicht, weil die Regel sich ändert.
         </Hinweis>
       )}
 

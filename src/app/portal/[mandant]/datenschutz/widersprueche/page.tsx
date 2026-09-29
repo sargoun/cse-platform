@@ -203,9 +203,8 @@ export default async function Widerspruechseite(
 
       <Hinweis art="hinweis" cse="widerspruch-unwiderruflich" className="mb-s5 max-w-prose">
         <strong className="block">Es gibt hier keinen Zurücknehmen-Knopf.</strong>
-        Beide Zeitstempel sind schreibbar-einmal und nicht räumbar: der Auslöser{' '}
-        <code className="mx-s1 font-mono">kern.erzwinge_widerspruch()</code>{' '}
-        wirft, wenn jemand sie auf NULL setzt. Sie zurückzunehmen ist keine
+        Beide Zeitstempel lassen sich einmal setzen und nie wieder leeren: die
+        Datenbank weist jeden Versuch ab, sie zu entfernen. Sie zurückzunehmen ist keine
         Datenpflege, sondern das Löschen eines Beweises.
       </Hinweis>
 
@@ -214,9 +213,9 @@ export default async function Widerspruechseite(
           <strong className="block">Die Kontaktspalten sind nicht lesbar.</strong>
           Für die Liste braucht es
           {' '}<Recht schluessel="crm.rechtsgrundlage_lesen" />: die
-          Spalten von <code className="font-mono">ansprechpartner</code> sind der
-          Anwendung entzogen (K-05) und kommen über eine Definer-Funktion, die
-          dieses Recht prüft und jeden Abruf protokolliert.
+          Kontaktangaben der Ansprechpartner sind der Anwendung entzogen (K-05) und
+          kommen nur über eine eigene Abfrage, die dieses Recht prüft und jeden Abruf
+          protokolliert.
         </Hinweis>
       ) : null}
 
@@ -251,16 +250,16 @@ export default async function Widerspruechseite(
           Die beiden Zeitstempel oben sagen, DASS widersprochen wurde. Sie sagen
           nicht, auf welchem Weg und welche Nachricht der Anlass war — und das ist
           die Hälfte, auf die es in einer Abmahnung ankommt. Diese Zeilen entstehen
-          seit <code className="font-mono">0222</code>; frühere Widersprüche haben
-          keine, und das Blatt erfindet sie nicht.
+          erst, seit es dieses Protokoll gibt; frühere Widersprüche haben keine, und
+          das Blatt erfindet sie nicht.
         </p>
 
         {daten.spur.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
             Noch keine Protokollzeile. Sie entsteht beim Klick auf den
-            Widerspruchslink einer Werbenachricht, beim tokenlosen Formular{' '}
-            <code className="mx-s1 font-mono">/werbewiderspruch</code> und bei
-            einem Widerspruch, den ein Mensch im Vorgang festhält.
+            Widerspruchslink einer Werbenachricht, beim öffentlichen Formular „Keine
+            Werbung mehr" auf der Website und bei einem Widerspruch, den ein Mensch
+            im Vorgang festhält.
           </p>
         ) : (
           <DataTable
@@ -335,9 +334,8 @@ export default async function Widerspruechseite(
           <li>
             <strong>O-65</strong> — gilt eine transaktionale Nachricht
             (Terminbestätigung, Leistungsnachweis, Mahnung) als vertraglich
-            notwendig? Bis das entschieden ist, weist
-            {' '}<code className="font-mono">app.darf_kontaktiert_werden</code> sie
-            bei Werbewiderspruch ab, statt sie lautlos zu senden — der restriktive
+            notwendig? Bis das entschieden ist, weist die Prüfung vor dem Versand
+            sie bei Werbewiderspruch ab, statt sie lautlos zu senden — der restriktive
             Zweig, sichtbar statt still.
           </li>
         </ul>

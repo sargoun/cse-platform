@@ -36,8 +36,8 @@ export default async function Bewerbungen(
             <h1 className="mb-s5 text-h1 text-text">Bewerbungen</h1>
             {zeilen.length === 0 ? (
               <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-                Keine Bewerbung. Was über <code className="break-all">/karriere</code>{' '}
-                eingeht, steht hier — sofort und ohne Vorsortierung.
+                Keine Bewerbung. Was über die Karriereseite der Website eingeht, steht
+                hier — sofort und ohne Vorsortierung.
               </p>
             ) : (
               <DataTable

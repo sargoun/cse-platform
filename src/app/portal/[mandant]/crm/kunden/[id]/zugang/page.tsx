@@ -309,9 +309,9 @@ export default async function Kundenzugang(
           <Hinweis art="warnung" cse="zugang-kein-aal2" className="mt-s3">
             <strong>Dafür fehlt der zweite Faktor.</strong> Einen Portalzugang für einen
             Externen auszustellen heisst, ein Konto anzulegen und ihm eine
-            Mitgliedschaft zu geben — <code className="text-text">benutzer_mandant</code>
-            {' '}trägt dafür die Policy <code className="text-text">p_bm_aal2</code>, und
-            die Definer-Funktion prüft es selbst. Melden Sie sich mit zweitem Faktor an;
+            Mitgliedschaft zu geben — beides nimmt die Datenbank nur aus einer Sitzung
+            mit zweitem Faktor an, und der Dienst, der den Zugang anlegt, prüft es noch
+            einmal selbst. Melden Sie sich mit zweitem Faktor an;
             danach steht das Formular hier.
           </Hinweis>
         ) : (
@@ -358,10 +358,9 @@ export default async function Kundenzugang(
                 {ZUGANG_UMFANG.map((s) => <li key={s}>{s}</li>)}
               </ul>
               <p className="m-0 mt-s3 text-xs text-text-muted">
-                Die Grenze ist keine Einstellung, sondern die K-04-Decke: zwei
-                restriktive Policies auf jeder Tabelle und
-                <code className="text-text"> app.aktuelle_kunden()</code> als Filter.
-                Dasselbe Konto sieht nichts von anderen Kunden — auch nicht durch einen
+                Die Grenze ist keine Einstellung, sondern die K-04-Decke: auf jeder
+                Tabelle gibt die Datenbank diesem Konto nur die Zeilen seines eigenen
+                Kunden heraus. Dasselbe Konto sieht nichts von anderen Kunden — auch nicht durch einen
                 Tippfehler in einer Adresse.
               </p>
             </div>
@@ -373,9 +372,8 @@ export default async function Kundenzugang(
               Zugang ausstellen
             </button>
             <p className="m-0 text-xs text-text-muted">
-              Danach steht der Einladungslink oben — einmal. Der Kunde setzt darüber
-              sein Kennwort unter <code className="text-text">/auth/einladung/…</code>;
-              die Einladung gilt eine Woche.
+              Danach steht der Einladungslink oben — einmal. Der Kunde setzt über diesen
+              Link sein Kennwort; die Einladung gilt eine Woche.
             </p>
           </form>
         )}

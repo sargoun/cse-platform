@@ -318,8 +318,8 @@ export default async function Zeiteintragsblatt(
 
         <h3 className="mb-s2 mt-s5 text-base text-text">Standort</h3>
         <p className="mb-s3 max-w-prose text-sm text-text-muted">
-          Ob überhaupt ein Standort erfasst wird, entscheidet die Einstellung{' '}
-          <code className="mx-s1 text-xs">zeit.geolokalisierung</code> je Bereich —
+          Ob überhaupt ein Standort erfasst wird, entscheidet die Einstellung zur
+          Standorterfassung je Bereich —
           nicht diese Seite. Steht sie aus, ist hier nichts gespeichert, und das
           ist kein Fehler (LEG-10, § 87 Abs. 1 Nr. 6 BetrVG).
         </p>

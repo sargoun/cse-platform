@@ -111,8 +111,7 @@ export default async function Leistungskatalog(
           Welche Zeitwerte, Leistungswerte und Standardpreise gelten und wer sie
           freigibt, ist nicht entschieden. Die Zahlen stehen als{' '}
           <em>gekennzeichnete Platzhalter</em> da — nicht als Preise, und nicht
-          als Nullwerte: der CHECK <code>lkp_kalkulierbar</code> verlangt
-          mindestens einen Wert je Position, „keinen erfinden" kann hier also
+          als Nullwerte: die Datenbank verlangt mindestens einen Wert je Position, „keinen erfinden" kann hier also
           nicht „leer lassen" heißen.
         </Hinweis>
       ) : null}

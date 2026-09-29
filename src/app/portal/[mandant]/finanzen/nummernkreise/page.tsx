@@ -52,17 +52,11 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Nummernkreise — Finanzen' };
 
 /*
- * Spalten-, Funktions- und Rechtenamen lauten in beiden Sprachen gleich und
- * stehen deshalb hier und nicht in der Texttabelle (siehe deren Kopf).
+ * Der Rechteschlüssel lautet in beiden Sprachen gleich und steht deshalb hier
+ * und nicht in der Texttabelle; auf dem Schirm steht er als Satz (`<Recht>`).
+ * Spalten- und Funktionsnamen stehen seit V-251 gar nicht mehr da.
  */
-const FN_NUMMER_ZIEHEN = 'fin.rechnung_nummer_ziehen';
-const SPALTE_IST_PLATZHALTER = 'ist_platzhalter';
-const SPALTE_GESCHLOSSEN_AM = 'geschlossen_am';
-const SPALTE_GENESIS_HASH = 'genesis_hash';
-const SPALTE_LETZTER_HASH = 'letzter_hash';
-const SPALTE_VORGAENGER = 'vorgaenger_nummernkreis_id';
 const RECHT_VERWALTEN = 'nummernkreis.verwalten';
-const WERT_TRUE = 'true';
 
 /**
  * Ein Hash, gekürzt auf 12 Zeichen, Auslassung, die letzten 6 — lesbar, und
@@ -160,9 +154,7 @@ export default async function Nummernkreisblatt(
                 ? t.einWiderspruch
                 : `${String(widersprueche.length)} ${t.widersprucheNach}`}
             </strong>{' '}
-            {t.widerspruchMitte}{' '}
-            <code>{FN_NUMMER_ZIEHEN}</code>{t.widerspruchNachSpalte}{' '}
-            <code>{WERT_TRUE}</code> {t.widerspruchSchluss}
+            {t.widerspruch}
           </p>
         </Hinweis>
       ) : null}
@@ -275,8 +267,7 @@ export default async function Nummernkreisblatt(
                   )}
                   {widerspruechlich(k) ? (
                     <span className="max-w-prose text-xs text-warning">
-                      {t.widerspruchZeileVor} <code>{SPALTE_IST_PLATZHALTER}</code>{' '}
-                      {t.widerspruchZeileNach}
+                      {t.widerspruchZeile}
                     </span>
                   ) : null}
                 </span>
@@ -299,17 +290,14 @@ export default async function Nummernkreisblatt(
           </p>
           <ol className="mt-s3 max-w-prose list-decimal space-y-s2 pl-s5">
             <li>
-              {t.schrittSchliessenVor} <strong>{t.schrittSchliessenWort}</strong> (
-              <code>{SPALTE_GESCHLOSSEN_AM}</code>{t.schrittSchliessenNach}
+              {t.schrittSchliessenVor} <strong>{t.schrittSchliessenWort}</strong>
+              {t.schrittSchliessenNach}
             </li>
             <li>
-              {t.schrittNachfolgerVor} <code>{SPALTE_GENESIS_HASH}</code>{' '}
-              {t.schrittNachfolgerMitte} <code>{SPALTE_LETZTER_HASH}</code>{' '}
-              {t.schrittNachfolgerNach}
+              {t.schrittNachfolger}
             </li>
             <li>
-              {t.schrittVorgaengerVor}
-              <code>{SPALTE_VORGAENGER}</code>{t.schrittVorgaengerNach}
+              {t.schrittVorgaenger}
             </li>
           </ol>
           <p className="m-0 mt-s3 max-w-prose text-warning">

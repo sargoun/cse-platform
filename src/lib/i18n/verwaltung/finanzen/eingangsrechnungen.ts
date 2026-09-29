@@ -224,9 +224,7 @@ export interface EingangsrechnungenTexte {
   readonly grundlageNach: string;
   readonly keineVerlagerung: string;
   readonly hinweistextLautet: string;
-  readonly status13bVor: string;
-  readonly status13bMitte: string;
-  readonly status13bNach: string;
+  readonly status13b: string;
   readonly titel48: string;
   readonly ausgangNichtBewertbarVor: string;
   readonly ausgangNichtBewertbarNach: string;
@@ -240,14 +238,12 @@ export interface EingangsrechnungenTexte {
    * dahin stand hier „Die Policy auf `freistellungsbescheinigung` …".
    */
   readonly nichtBewertbarNach: string;
-  readonly keinSatzVor: string;
-  readonly keinSatzNach: string;
+  readonly keinSatz: string;
   readonly ohneStichtag: string;
   readonly grundlageBrutto: string;
   readonly satz: string;
   readonly keinSatzHinterlegt: string;
-  readonly satzAusEinstellungVor: string;
-  readonly satzAusEinstellungNach: string;
+  readonly satzAusEinstellung: string;
   readonly satzVomBeleg: string;
   readonly abweichungVor: string;
   readonly abweichungMitte: string;
@@ -285,11 +281,9 @@ export interface EingangsrechnungenTexte {
   readonly keinDokument: string;
   readonly pflegeOffenBetont: string;
   readonly pflegeOffenVor: string;
-  readonly pflegeOffenZwei: string;
   readonly pflegeOffenDrei: string;
   readonly pflegeOffenNach: string;
-  readonly schlussVor: string;
-  readonly schlussNach: string;
+  readonly schluss: string;
   readonly geprueftNichtVermerkt: string;
   readonly geprueftAm: string;
 }
@@ -542,7 +536,7 @@ const DE: EingangsrechnungenTexte = {
   keinDatumPruefbar: 'kein Datum — nichts prüfbar',
   welchesDatum: 'Welches Datum das ist',
   stichtagErklaerung:
-    '— also das Ende des Leistungszeitraums, sonst das Leistungsdatum, sonst '
+    'Das Ende des Leistungszeitraums, sonst das Leistungsdatum, sonst '
     + 'das Rechnungsdatum. Der Gesetzeswortlaut des §48 EStG knüpft an die '
     + 'ZAHLUNG an, SPEC FIN-10 an das Leistungsdatum; welches gilt, ist offen '
     + '(O-176). Die Entscheidung unten ist gegen den genannten Tag getroffen '
@@ -565,13 +559,12 @@ const DE: EingangsrechnungenTexte = {
     + '(§14c UStG) und ist korrigierbar, eine zu Unrecht verlagerte ist '
     + 'beim Empfänger ein Ausfall.',
   hinweistextLautet: 'Der feste Hinweistext auf dem Beleg lautet:',
-  status13bVor:
+  status13b:
     'Der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin '
-    + 'ist nirgends als Zeitreihe hinterlegt —',
-  status13bMitte: 'trägt kein entsprechendes Feld, und',
-  status13bNach:
-    'beschreibt die Ausgangsseite. Was hier steht, ist deshalb der auf dem '
-    + 'BELEG gespeicherte Stand und keine tagesaktuelle Neubewertung (O-605).',
+    + 'ist nirgends als Zeitreihe hinterlegt — die Stammdaten der Gesellschaft '
+    + 'tragen kein entsprechendes Feld, und der Status als Bauleistender am '
+    + 'Kunden beschreibt die Ausgangsseite. Was hier steht, ist deshalb der auf '
+    + 'dem BELEG gespeicherte Stand und keine tagesaktuelle Neubewertung (O-605).',
   titel48: '§48 EStG — Bauabzugsteuer, drei Ausgänge',
   ausgangNichtBewertbarVor: 'Nicht bewertbar —',
   ausgangNichtBewertbarNach: 'fehlt',
@@ -587,9 +580,9 @@ const DE: EingangsrechnungenTexte = {
     + 'sichtbar" bedeutet. Aus einer so geleerten Liste wird hier kein Ausgang '
     + 'bestimmt und kein Einbehalt gerechnet (O-604). Wer entscheidet, braucht '
     + 'das Leserecht.',
-  keinSatzVor: 'Auf diesem Beleg steht kein Abzugssatz, und die Einstellung',
-  keinSatzNach:
-    'ist nicht belegt. Beides fehlt — also wird nichts gerechnet. 15 % wären '
+  keinSatz:
+    'Auf diesem Beleg steht kein Abzugssatz, und die Einstellung für den Satz '
+    + 'der Bauabzugsteuer ist nicht belegt. Beides fehlt — also wird nichts gerechnet. 15 % wären '
     + 'hier eine Zahl aus dem Nichts, auch wenn sie im Gesetz stehen: der Satz '
     + 'ist eine datierte Einstellung, damit eine Änderung nicht jede '
     + 'historische Rechnung neu bewertet.',
@@ -599,8 +592,9 @@ const DE: EingangsrechnungenTexte = {
   grundlageBrutto: 'Grundlage (brutto)',
   satz: 'Satz',
   keinSatzHinterlegt: 'kein Satz hinterlegt',
-  satzAusEinstellungVor: 'Aus der datierten Einstellung',
-  satzAusEinstellungNach: '— auf dem Beleg selbst steht keiner.',
+  satzAusEinstellung:
+    'Aus der datierten Einstellung für den Satz der Bauabzugsteuer — auf dem '
+    + 'Beleg selbst steht keiner.',
   satzVomBeleg:
     'Der auf dem BELEG gespeicherte Satz. Er gilt, auch wenn die Einstellung '
     + 'heute eine andere nennt: gebucht wurde nach dem Beleg.',
@@ -656,15 +650,16 @@ const DE: EingangsrechnungenTexte = {
   pflegeOffenBetont:
     'Hochladen, Gültigkeit setzen und Widerruf sind hier nicht möglich (O-604).',
   pflegeOffenVor:
-    'Für diese Route ist im Register kein Schreibrecht eingetragen; die Policy auf',
-  pflegeOffenZwei: 'verlangt zum Schreiben',
-  pflegeOffenDrei: ', während die Route mit',
+    'Für diese Seite ist kein Schreibrecht eingetragen; die Datenbank nimmt eine '
+    + 'Freistellungsbescheinigung nur mit',
+  pflegeOffenDrei: ' an, während die Seite mit',
   pflegeOffenNach:
-    ' öffnet. Welcher Schlüssel gelten soll, ist eine Entscheidung am '
-    + 'Rechtemodell — und eine Maske, die auf eine Policy trifft, die sie '
-    + 'abweist, ist schlechter als keine.',
-  schlussVor: 'Der Einbehaltbetrag kommt aus',
-  schlussNach: 'und nie aus einem Modell (Invariante 6).',
+    ' öffnet. Welches Recht gelten soll, ist eine Entscheidung am '
+    + 'Rechtemodell — und eine Maske, die die Datenbank abweist, ist schlechter '
+    + 'als keine.',
+  schluss:
+    'Der Einbehaltbetrag kommt aus einer geprüften Rechenregel des Programms und '
+    + 'nie aus einem Modell (Invariante 6).',
   geprueftNichtVermerkt: ' Geprüft wurde die Bescheinigung auf dem Beleg nicht vermerkt.',
   geprueftAm: ' Geprüft wurde die Bescheinigung laut Beleg am',
 };
@@ -921,7 +916,7 @@ const EN: EingangsrechnungenTexte = {
   keinDatumPruefbar: 'no date — nothing can be checked',
   welchesDatum: 'Which date that is',
   stichtagErklaerung:
-    '— that is, the end of the period of supply, failing that the date of '
+    'The end of the period of supply, failing that the date of '
     + 'supply, failing that the invoice date. The wording of §48 EStG attaches '
     + 'to PAYMENT, SPEC FIN-10 to the date of supply; which of them applies is '
     + 'open (O-176). The decision below was taken against the day named and '
@@ -945,12 +940,11 @@ const EN: EingangsrechnungenTexte = {
     + 'without justification is owed (§14c UStG) and can be corrected, whereas '
     + 'liability shifted without justification is a loss at the recipient.',
   hinweistextLautet: 'The fixed note on the document reads:',
-  status13bVor:
+  status13b:
     'The §13b status of this company’s OWN position as recipient of the supply '
-    + 'is recorded nowhere as a time series —',
-  status13bMitte: 'carries no field for it, and',
-  status13bNach:
-    'describes the outgoing side. What stands here is therefore the state '
+    + 'is recorded nowhere as a time series — the company’s master data carry no '
+    + 'field for it, and the construction-service status on the customer '
+    + 'describes the outgoing side. What stands here is therefore the state '
     + 'stored on the DOCUMENT and not a re-assessment as at today (O-605).',
   titel48:
     '§48 EStG — Bauabzugsteuer (construction withholding tax), three outcomes',
@@ -971,9 +965,9 @@ const EN: EingangsrechnungenTexte = {
     + 'it means "not visible". No outcome is determined and no retention '
     + 'computed here from a list emptied that way (O-604). Whoever decides needs '
     + 'the read right.',
-  keinSatzVor: 'This document carries no withholding rate, and the setting',
-  keinSatzNach:
-    'holds no value. Both are missing — so nothing is computed. 15 % would be a '
+  keinSatz:
+    'This document carries no withholding rate, and the setting for the '
+    + 'Bauabzugsteuer (construction withholding tax) rate holds no value. Both are missing — so nothing is computed. 15 % would be a '
     + 'figure out of nowhere here, even though it stands in the statute: the '
     + 'rate is a dated setting, so that a change does not re-assess every '
     + 'historical invoice.',
@@ -983,8 +977,9 @@ const EN: EingangsrechnungenTexte = {
   grundlageBrutto: 'Basis (gross)',
   satz: 'Rate',
   keinSatzHinterlegt: 'no rate recorded',
-  satzAusEinstellungVor: 'From the dated setting',
-  satzAusEinstellungNach: '— the document itself carries none.',
+  satzAusEinstellung:
+    'From the dated setting for the Bauabzugsteuer rate — the document itself '
+    + 'carries none.',
   satzVomBeleg:
     'The rate stored on the DOCUMENT. It applies even if the setting names a '
     + 'different one today: the booking followed the document.',
@@ -1045,14 +1040,15 @@ const EN: EingangsrechnungenTexte = {
   pflegeOffenBetont:
     'Uploading, setting validity and revoking are not possible here (O-604).',
   pflegeOffenVor:
-    'No write right is entered in the register for this route; the policy on',
-  pflegeOffenZwei: 'requires',
-  pflegeOffenDrei: ' to write, while the route opens with',
+    'No write right is entered for this page; the database accepts a '
+    + 'Freistellungsbescheinigung (exemption certificate) only with',
+  pflegeOffenDrei: ', while the page opens with',
   pflegeOffenNach:
-    '. Which key is to apply is a decision about the rights model — and a form '
-    + 'that runs into a policy rejecting it is worse than no form at all.',
-  schlussVor: 'The retained amount comes from',
-  schlussNach: 'and never from a model (invariant 6).',
+    '. Which right is to apply is a decision about the rights model — and a '
+    + 'form that the database rejects is worse than no form at all.',
+  schluss:
+    'The retained amount comes from a tested calculation rule of the program '
+    + 'and never from a model (invariant 6).',
   geprueftNichtVermerkt:
     ' The document does not record that the certificate was checked.',
   geprueftAm: ' According to the document the certificate was checked on',

@@ -200,6 +200,21 @@ describe('kein Katalogschlüssel und kein Backtick im sichtbaren Text', () => {
       .toEqual(['schluessel:objekt.schreiben']);
     expect(befunde("export const T = { de: { rolle: '`admin` — Administration' } };", '/x/t.ts'))
       .toEqual(['backtick:`']);
+    // Quelltext im Satz (V-251): ein Name mit Unterstrich, mit Schema, mit Aufrufklammern …
+    expect(befunde('const a = <p>führt das Konto soll_minuten = 0</p>;')).toEqual(['bezeichner:soll_minuten']);
+    expect(befunde('const a = <p>aus app.darf_kontaktiert_werden, derselben Prüfung</p>;'))
+      .toEqual(['bezeichner:app.darf_kontaktiert_werden']);
+    expect(befunde('const a = <p>Hier füllt fuelleTatsachen() nichts.</p>;'))
+      .toEqual(['bezeichner:fuelleTatsachen()']);
+    expect(befunde("const I = 'quelle_ausgabe_uk'; const a = <p>{`der Teilindex ${I} lässt`}</p>;"))
+      .toEqual(['bezeichner:quelle_ausgabe_uk']);
+    // … ein Dateipfad, ein SQL-Wort, und dasselbe in einer Satztabelle.
+    expect(befunde('const a = <p>steht im Code (server/benachrichtigung/registry.ts)</p>;'))
+      .toEqual(['pfad:server/benachrichtigung/registry.ts']);
+    expect(befunde('const a = <p>eine neue Anzeige, kein UPDATE — der CHECK greift</p>;'))
+      .toEqual(['sql:UPDATE', 'sql:CHECK']);
+    expect(befunde("export const T = { de: { satz: 'trägt aber ist_platzhalter = false.' } };", '/x/t.ts'))
+      .toEqual(['bezeichner:ist_platzhalter']);
   });
 
   it('und findet nichts, wo kein Text entsteht', () => {
@@ -213,7 +228,18 @@ describe('kein Katalogschlüssel und kein Backtick im sichtbaren Text', () => {
     expect(befunde("const a = <p>{darf['crm.lesen'] === true ? 'ja' : 'nein'}</p>;")).toEqual([]);
     expect(befunde("const a = <p>{hatRecht('crm.lesen') ? 'ja' : 'nein'}</p>;")).toEqual([]);
     expect(befunde("export const M = { recht: 'crm.lesen', pfad: '/crm' };", '/x/m.ts')).toEqual([]);
-    // Ein längerer Name, der einen Schlüssel enthält, ist keiner.
-    expect(befunde('const a = <p>Die Funktion app.crm.lesen_alt gibt es nicht.</p>;')).toEqual([]);
+    // Ein längerer Name, der einen Schlüssel enthält, ist kein Schlüssel — aber ein Name.
+    expect(befunde('const a = <p>Die Funktion app.crm.lesen_alt gibt es nicht.</p>;'))
+      .toEqual(['app.crm.lesen_alt']);
+    // Was der Mensch tippt oder wählt, ist kein Satz: ein Platzhalter, die Vorwahl einer
+    // Auswahl, der Wert einer Option, ein Wert, der nur ein Name ist.
+    expect(befunde('const a = <input placeholder="vollzeit_39" />;')).toEqual([]);
+    expect(befunde('const a = <select defaultValue="nur_storno"><option value="nur_storno">x</option></select>;'))
+      .toEqual([]);
+    expect(befunde("const L = [{ wert: 'zeit_korrektur', text: 'Zeitkorrektur' }];")).toEqual([]);
+    expect(befunde("export const M = { tabelle: 'lead_aktivitaet', pfad: 'crm/leads' };", '/x/m.ts'))
+      .toEqual([]);
+    // Eine Adresse mit Unterstrich und ein Kürzel in Grossbuchstaben sind kein Quelltext.
+    expect(befunde('const a = <p>an max_muster@firma.de, nach DSGVO und UWG</p>;')).toEqual([]);
   });
 });

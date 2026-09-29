@@ -266,10 +266,9 @@ export default async function SecurityKopfSeite(
           Alle Nachweise dieser Gesellschaft, die abgelaufen sind oder im
           Vorwarnfenster stehen — nicht nur die nach § 34a; die
           Bewacherqualifikationen sind in der Liste markiert. Die Schwellen
-          kommen aus <code>qualifikation.warnung_tage</code>, nie aus dieser
-          Ansicht. Ob eine abgelaufene Zeile eine Einteilung <em>sperrt</em>,
-          entscheidet die Anforderung des jeweiligen Postens
-          (<code>einsatzanforderung.zwingend</code>), nicht diese Liste —
+          kommen aus dem Qualifikationskatalog, nie aus dieser Ansicht. Ob eine
+          abgelaufene Zeile eine Einteilung <em>sperrt</em>, entscheidet die
+          Anforderung des jeweiligen Postens — ob sie zwingend ist —, nicht diese Liste —
           welche Teilmenge der Modulkopf zeigen soll, ist offen (O-706).
         </p>
 

@@ -112,7 +112,7 @@ export default async function BehinderungDetail(
           Erzeugt aus der Vorlage {b.vorlage_schluessel ?? '—'} (§ 6 Abs. 1 VOB/B).
           {abgesendet
             && ' Seit dem Versand unveränderlich — eine Korrektur ist eine neue Anzeige,'
-              + ' kein UPDATE.'}
+              + ' keine Änderung an dieser.'}
         </p>
       </section>
 

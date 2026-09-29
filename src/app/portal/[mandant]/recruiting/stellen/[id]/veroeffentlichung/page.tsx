@@ -96,8 +96,8 @@ export default async function Veroeffentlichung(
             <div className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5">
               <p className="m-0 text-sm text-text">
                 <strong className="text-success">Verbunden.</strong> Eine
-                freigegebene und veröffentlichte Stelle steht sofort unter{' '}
-                <code className="break-all">/karriere</code> — ohne Vertrag,
+                freigegebene und veröffentlichte Stelle steht sofort auf der
+                Karriereseite der Website — ohne Vertrag,
                 ohne fremde Kennung.
               </p>
               <p className="m-0 mt-s3 text-sm text-text-muted">

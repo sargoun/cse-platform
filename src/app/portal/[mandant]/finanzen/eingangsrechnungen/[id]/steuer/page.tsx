@@ -11,7 +11,7 @@ import {
   abzugLage, giltAm, type AbzugLage, type Bescheinigung,
 } from '@/server/services/finanz/estg48/abzug';
 import {
-  BAGATELLGRENZE_PLATZHALTER, STICHTAG_QUELLE,
+  BAGATELLGRENZE_PLATZHALTER,
 } from '@/server/services/finanz/estg48/grenzen.platzhalter';
 import { HINWEIS_13B } from '@/server/services/finanz/steuer/nachweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -59,19 +59,15 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Steuerliche Lage — Eingangsrechnung' };
 
 /*
- * Kennungen, keine Woerter. Rechte-, Tabellen-, Spalten-, Einstellungs- und
- * Dateinamen lauten in beiden Sprachen gleich; sie stehen deshalb hier und
- * nicht in der Texttabelle, wo eine zweite Spalte nur eine Erfindung waere.
+ * Kennungen, keine Woerter: Rechteschlüssel lauten in beiden Sprachen gleich;
+ * sie stehen deshalb hier und nicht in der Texttabelle, und auf dem Schirm als
+ * Satz (`<Recht>`). Tabellen-, Spalten-, Einstellungs- und Dateinamen stehen
+ * seit V-251 gar nicht mehr da — die Sätze sagen, was gilt.
  */
 const RECHT_EINGANG_LESEN = 'eingang.lesen';
 const RECHT_FREISTELLUNG_PFLEGEN = 'abrechnung.freistellung_pflegen';
 const RECHT_FINANZEN_LESEN = 'finanzen.lesen';
 const RECHT_FINANZEN_SCHREIBEN = 'finanzen.schreiben';
-const TABELLE_FREISTELLUNG = 'freistellungsbescheinigung';
-const TABELLE_MANDANT = 'mandant';
-const SPALTE_KUNDE_STATUS = 'kunde_bauleistender_status';
-const EINSTELLUNG_SATZ = 'finanzen.bauabzugsteuer_satz_bp';
-const DIENST_ABZUG = 'services/finanz/estg48/abzug.ts';
 
 interface Kopf {
   readonly id: string;
@@ -394,7 +390,7 @@ export default async function Steuerblatt(
         <div className="sm:col-span-3">
           <dt className="text-xs text-text-muted">{t.welchesDatum}</dt>
           <dd className="max-w-prose text-xs text-text-muted">
-            <code>{STICHTAG_QUELLE}</code> {t.stichtagErklaerung}
+            {t.stichtagErklaerung}
           </dd>
         </div>
       </dl>
@@ -436,9 +432,7 @@ export default async function Steuerblatt(
             </p>
           ) : null}
           <p className="m-0 mt-s3 max-w-prose text-xs text-text-muted">
-            {t.status13bVor} <code>{TABELLE_MANDANT}</code>{' '}
-            {t.status13bMitte} <code>{SPALTE_KUNDE_STATUS}</code>{' '}
-            {t.status13bNach}
+            {t.status13b}
           </p>
         </div>
       </section>
@@ -486,7 +480,7 @@ export default async function Steuerblatt(
               </>
             )
               : ausgang === 'kein_satz'
-                ? `${t.keinSatzVor} ${EINSTELLUNG_SATZ} ${t.keinSatzNach}`
+                ? t.keinSatz
                 : lage === null
                   ? t.ohneStichtag
                   : lage.grund}
@@ -508,8 +502,7 @@ export default async function Steuerblatt(
                 </dd>
                 <dd className="mt-s1 text-xs text-text-muted">
                   {k.bauabzugsteuer_satz_bp === null
-                    ? `${t.satzAusEinstellungVor} ${EINSTELLUNG_SATZ} `
-                      + t.satzAusEinstellungNach
+                    ? t.satzAusEinstellung
                     : t.satzVomBeleg}
                 </dd>
               </div>
@@ -677,7 +670,6 @@ export default async function Steuerblatt(
         <Hinweis art="warnung" cse="steuer-pflege-offen" className="mt-s5">
           <p className="m-0 max-w-prose">
             <strong>{t.pflegeOffenBetont}</strong> {t.pflegeOffenVor}{' '}
-            <code>{TABELLE_FREISTELLUNG}</code> {t.pflegeOffenZwei}{' '}
             <Recht schluessel={RECHT_FINANZEN_SCHREIBEN} sprache={zugang.sprache} />{t.pflegeOffenDrei}{' '}
             <Recht schluessel={RECHT_FREISTELLUNG_PFLEGEN} sprache={zugang.sprache} />{t.pflegeOffenNach}
           </p>
@@ -685,8 +677,7 @@ export default async function Steuerblatt(
       </section>
 
       <p className="mt-s7 max-w-prose text-xs text-text-muted">
-        {t.schlussVor} <code>{DIENST_ABZUG}</code>{' '}
-        {t.schlussNach}
+        {t.schluss}
         {k.freistellung_geprueft_am === null
           ? t.geprueftNichtVermerkt
           : `${t.geprueftAm} ${k.freistellung_geprueft_am}.`}

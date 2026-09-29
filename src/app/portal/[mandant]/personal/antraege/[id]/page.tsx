@@ -378,8 +378,8 @@ export default async function Antragsblatt({
           <p className="m-0 text-xs text-text-subtle">
             Eine Genehmigung schreibt die Abwesenheit, rechnet die Arbeitstage
             und bucht das Urlaubskonto des Jahres — in einer Transaktion. Das
-            Zurückziehen ist die Handlung des Antragstellers und steht unter
-            <span className="font-mono"> /portal/mein</span>, nicht hier.
+            Zurückziehen ist die Handlung des Antragstellers und steht in seinem
+            Arbeiterportal, nicht hier.
           </p>
         </form>
       )}

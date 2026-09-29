@@ -305,9 +305,9 @@ export default async function WebsiteFormular(
       {felderUnlesbar && (
         <Hinweis art="warnung" cse="felder-unlesbar" className="mb-s5 max-w-prose">
           <strong className="block">Die Feldliste geht nicht durch ihren Vertrag.</strong>
-          <code className="font-mono">lib/formular/schema.ts</code> ist die einzige Quelle
-          für Validierung und Anzeige; was sie nicht liest, kann{' '}
-          <code className="font-mono">/angebot</code> nicht rendern. Diese Version ist in
+          Die Feldbeschreibung im Programm ist die einzige Quelle für Validierung und
+          Anzeige; was sie nicht liest, kann das Anfrageformular auf{' '}
+          <code className="font-mono">/angebot</code> nicht zeigen. Diese Version ist in
           diesem Zustand nicht veröffentlichungsfähig.
         </Hinweis>
       )}
@@ -456,8 +456,7 @@ export default async function WebsiteFormular(
             ? 'Eine veröffentlichte Version ist eingefroren — eine Änderung ist '
               + 'Version + 1. '
             : 'Auch in einem Entwurf nicht: '}
-          Die englische Fassung eines Feldes lebt im Code
-          (<code className="font-mono">lib/i18n/formular-en.ts</code>), nicht in der
+          Die englische Fassung eines Feldes steht fest im Programm, nicht in der
           Datenbank; ein hier angelegtes Feld stünde auf{' '}
           <code className="font-mono">/en/angebot</code> deutsch da. Das ist offen
           (O-680) und deshalb ausdrücklich nicht gebaut — statt halb.

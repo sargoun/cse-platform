@@ -274,8 +274,8 @@ export default async function Stapelmappe({
         Konfidenz. Wer danach genehmigt, hat gesehen, was er genehmigt (APR-02).
         Markierte Vorgänge und solche mit unsicheren Feldern sind ausgenommen und
         stehen unten mit ihrem Grund (APR-03, APR-04). Jede Genehmigung bekommt ihren
-        eigenen Schnappschuss und eine Ansichtszeile mit dem Kanal <code>stapel</code>{' '}
-        (APR-07, APR-08).
+        eigenen Schnappschuss und eine Ansichtszeile, die festhält, dass sie über
+        den Stapel kam (APR-07, APR-08).
       </p>
 
       {genehmigt !== null && (

@@ -245,9 +245,9 @@ export default async function Vorlagen(
           </span>
         </p>
         <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
-          Titel und Text jeder Art stehen <strong>im Code</strong>{' '}
-          (<code>server/benachrichtigung/registry.ts</code>) und nicht in der Datenbank —
-          deshalb gibt es hier kein Formular, das nichts speichern würde. Zustellt wird
+          Titel und Text jeder Art stehen <strong>fest im Programm</strong> und nicht
+          in der Datenbank — deshalb gibt es hier kein Formular, das nichts speichern
+          würde. Zustellt wird
           in den Posteingang des Portals; nach draussen geht nichts, solange kein
           EU-gehosteter Versender mit Vertrag zur Auftragsverarbeitung gewählt ist
           (O-36), und welche Absenderadresse je Gesellschaft gilt sowie ob DKIM und

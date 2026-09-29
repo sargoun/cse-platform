@@ -188,9 +188,9 @@ export default async function Wissen(
         </p>
         <p className="mt-s3 text-xs text-text-subtle">
           Modell: <span className="font-mono">{EINBETTUNG_MODELL}</span> ·{' '}
-          {String(EINBETTUNG_DIMENSION)} Dimensionen. Die Zahl steht in der Spalte und in einem
-          CHECK: ein Modellwechsel ist eine Migration und ein vollständiger Neuaufbau, keine
-          Einstellung. Zwei Vektoren aus verschiedenen Modellen im selben Index sind kein Index.
+          {String(EINBETTUNG_DIMENSION)} Dimensionen. Die Datenbank hält die Zahl fest und
+          nimmt keinen Vektor anderer Länge an: ein Modellwechsel ist ein Umbau der Datenbank
+          und ein vollständiger Neuaufbau, keine Einstellung. Zwei Vektoren aus verschiedenen Modellen im selben Index sind kein Index.
         </p>
       </section>
     </PortalRahmen>

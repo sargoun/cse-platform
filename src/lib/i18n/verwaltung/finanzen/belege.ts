@@ -33,16 +33,18 @@
  * selbst.
  *
  * **Warum hier Satzbruchstuecke stehen.** Mehrere Saetze dieser Blaetter
- * tragen eine Zahl, ein Datum, einen Hash, einen Spalten- oder einen
- * Rechtenamen MITTEN im Satz. Ein Bruchstueck mit fuehrendem Leerzeichen
+ * tragen eine Zahl, ein Datum, einen Hash oder ein Recht MITTEN im Satz. Ein
+ * Bruchstueck mit fuehrendem Leerzeichen
  * (`' Belege tragen keine Aufbewahrungsfrist.'`) ist deshalb Absicht und kein
  * Tippfehler: das eingesetzte Stueck steht davor. Wo der englische Satz an
  * dieser Stelle anders gebaut ist, steht die Fuge anderswo — der Satz muss
  * auf Englisch richtig sein, nicht gleich gebaut.
  *
- * **Spalten-, Rechte-, Index- und Ereignisnamen stehen NICHT hier.** Sie
- * lauten in beiden Sprachen gleich; sie stehen als Konstante im Seitenrumpf,
- * wo eine zweite Spalte nur eine Erfindung waere.
+ * **Ein Name aus der Datenbank steht in keinem Satz** (V-251): kein Spalten-,
+ * Index-, Auslöser- oder Ereignisname. Der Satz sagt, was die Datenbank tut
+ * („eine zweite wirksame Zeile nimmt die Datenbank nicht an"). Ein Recht
+ * steht als `<Recht>` im Seitenrumpf; sein Schlüssel lautet in beiden
+ * Sprachen gleich.
  *
  * **Die offenen Fragen bleiben Fragen.** O-05 (Aufwandskategorien und ihre
  * SKR-Abbildung), O-46 (die Aufbewahrungsfrist je Belegklasse), O-185
@@ -124,8 +126,7 @@ export interface BelegeTexte {
    * heisst `To`, ein Datum steht `until 31.12.2035`.
    */
   readonly bisZum: string;
-  readonly listeFussnoteVor: string;
-  readonly listeFussnoteNach: string;
+  readonly listeFussnote: string;
 
   readonly typNamen: Readonly<Record<BelegTypSchluessel, string>>;
   readonly quelleNamen: Readonly<Record<BelegQuelleSchluessel, string>>;
@@ -137,9 +138,7 @@ export interface BelegeTexte {
   readonly eingegangenBerlin: string;
   readonly sha256Erklaerung: string;
   readonly dieDatei: string;
-  readonly keineDokumentversionVor: string;
-  readonly keineDokumentversionMitte: string;
-  readonly keineDokumentversionNach: string;
+  readonly keineDokumentversion: string;
   readonly hashAbweichungTitel: string;
   readonly belegBezeugt: string;
   readonly versionTraegt: string;
@@ -172,8 +171,7 @@ export interface BelegeTexte {
   readonly tabelleZugriffe: string;
   readonly zeitpunkt: string;
   readonly konto: string;
-  readonly belegFussnoteVor: string;
-  readonly belegFussnoteNach: string;
+  readonly belegFussnote: string;
   readonly zumGobdArchiv: string;
 
   readonly verwendungNamen: Readonly<Record<VerwendungSchluessel, string>>;
@@ -260,11 +258,9 @@ export interface BelegeTexte {
   readonly keineAngabeErstattungNach: string;
   readonly erstattetAnAnstellung: string;
   readonly ohnePersonalnummer: string;
-  readonly erstattungAnAnstellungVor: string;
-  readonly erstattungAnAnstellungNach: string;
+  readonly erstattungAnAnstellung: string;
   readonly weiterberechnungTitel: string;
-  readonly nochNichtWeiterberechnetVor: string;
-  readonly nochNichtWeiterberechnetNach: string;
+  readonly nochNichtWeiterberechnet: string;
   readonly nichtWeiterberechenbar: string;
   readonly tabelleWeiterberechnung: string;
   readonly rechnung: string;
@@ -276,8 +272,7 @@ export interface BelegeTexte {
   readonly unwirksamAusStorno: string;
   readonly zustandsverlauf: string;
   readonly hier: string;
-  readonly uebergangErzwungenVor: string;
-  readonly uebergangErzwungenMitte: string;
+  readonly uebergangErzwungen: string;
   readonly geloeschtWirdNichts: string;
   readonly uebergangErzwungenNach: string;
   readonly gebuchtWort: string;
@@ -333,12 +328,12 @@ const DE: BelegeTexte = {
   loeschsperre: 'Löschsperre',
   keineSperre: 'keine Sperre',
   bisZum: 'bis',
-  listeFussnoteVor:
+  listeFussnote:
     'Die Datei selbst ist hier nicht verlinkt. Sie wird auf der Belegseite über '
     + 'eine kurzlebige signierte URL ausgeliefert, und zwar erst nach der '
     + 'Rechteentscheidung (DOC-03, SEC-A6). Gelöscht wird kein Beleg '
-    + '(Invariante 8) — was ausscheidet, scheidet über',
-  listeFussnoteNach: 'und die Löschsperre aus.',
+    + '(Invariante 8) — was ausscheidet, scheidet über das Ende seiner '
+    + 'Aufbewahrungsfrist und die Löschsperre aus.',
 
   typNamen: {
     ausgangsrechnung: 'Ausgangsrechnung',
@@ -363,15 +358,12 @@ const DE: BelegeTexte = {
   eingegangenBerlin: 'Eingegangen (Europe/Berlin)',
   sha256Erklaerung: 'SHA-256 der Datei — der Nachweis, dass sie dieselbe ist',
   dieDatei: 'Die Datei',
-  keineDokumentversionVor:
+  keineDokumentversion:
     'Zu diesem Beleg lässt sich keine Dokumentversion lesen. Das darf nicht '
-    + 'vorkommen:',
-  keineDokumentversionMitte:
-    'ist ein Pflichtfeld mit zusammengesetztem Fremdschlüssel. Fehlt sie hier, '
-    + 'fehlt ein Recht auf',
-  keineDokumentversionNach:
-    'oder die Zeile ist beschädigt — beides gehört gemeldet und nicht '
-    + 'weggeklickt.',
+    + 'vorkommen: jeder Beleg verweist auf eine Dokumentversion, und die '
+    + 'Datenbank nimmt keinen Verweis auf eine an, die es nicht gibt. Fehlt sie '
+    + 'hier, fehlt ein Recht auf die Dokumente, oder die Zeile ist beschädigt — '
+    + 'beides gehört gemeldet und nicht weggeklickt.',
   hashAbweichungTitel:
     'Der Hash des Belegs weicht vom Hash der Dokumentversion ab.',
   belegBezeugt: 'Der Beleg bezeugt',
@@ -429,14 +421,13 @@ const DE: BelegeTexte = {
   tabelleZugriffe: 'Die letzten Zugriffe auf die Belegdatei',
   zeitpunkt: 'Zeitpunkt',
   konto: 'Konto',
-  belegFussnoteVor:
+  belegFussnote:
     'Es gibt hier keinen Löschknopf und keinen ausgegrauten (Invariante 8). '
     + 'Entfernen heisst in dieser Domäne archivieren, und für die '
     + 'Finanzkategorien schliesst der Dokumentendienst selbst das aus. Was '
-    + 'ausscheidet, scheidet über',
-  belegFussnoteNach:
-    'und die Löschsperre aus — und darüber entscheidet die Aufbewahrungsregel, '
-    + 'nicht diese Seite.',
+    + 'ausscheidet, scheidet über das Ende seiner Aufbewahrungsfrist und die '
+    + 'Löschsperre aus — und darüber entscheidet die Aufbewahrungsregel, nicht '
+    + 'diese Seite.',
   zumGobdArchiv: 'Zum GoBD-Archiv →',
 
   verwendungNamen: {
@@ -579,17 +570,16 @@ const DE: BelegeTexte = {
     + 'verweigert (AUT-06).',
   erstattetAnAnstellung: 'Erstattet an Anstellung',
   ohnePersonalnummer: 'ohne Personalnummer',
-  erstattungAnAnstellungVor:
+  erstattungAnAnstellung:
     'Eine Erstattung ist ein Kostensatz und hängt deshalb an der ANSTELLUNG, '
     + 'nie an der Person (D-09, Invariante 9). Dieser Lesezugriff steht im '
-    + 'Protokoll —',
-  erstattungAnAnstellungNach: ', mit Konto und Zeitpunkt.',
+    + 'Prüfprotokoll, mit Konto und Zeitpunkt.',
   weiterberechnungTitel: 'Weiterberechnung (FIN-07)',
-  nochNichtWeiterberechnetVor:
+  nochNichtWeiterberechnet:
     'Noch nicht weiterberechnet. Diese Ausgabe darf als Materialzeile auf einer '
     + 'Rechnung erscheinen — im Rechnungsentwurf unter „Position hinzufügen“, '
-    + 'Herkunft „Material“ — und genau einmal: der Teilindex ',
-  nochNichtWeiterberechnetNach: ' lässt eine zweite wirksame Zeile nicht zu.',
+    + 'Herkunft „Material“ — und genau einmal: eine zweite wirksame Zeile nimmt '
+    + 'die Datenbank nicht an.',
   nichtWeiterberechenbar:
     'Diese Ausgabe ist nicht als weiterberechenbar gekennzeichnet und erscheint '
     + 'auf keiner Rechnung.',
@@ -603,8 +593,7 @@ const DE: BelegeTexte = {
   unwirksamAusStorno: 'unwirksam — aus einem Storno übernommen',
   zustandsverlauf: 'Der Zustandsverlauf',
   hier: 'hier',
-  uebergangErzwungenVor: 'Der Übergang wird in der Datenbank erzwungen (',
-  uebergangErzwungenMitte: '), nicht in der Oberfläche angeboten.',
+  uebergangErzwungen: 'Den Übergang erzwingt die Datenbank; die Oberfläche bietet ihn nicht an.',
   geloeschtWirdNichts: 'Gelöscht wird nichts',
   uebergangErzwungenNach: '(Invariante 8); zurückgewiesen wird mit Grund, und ab',
   gebuchtWort: 'gebucht',
@@ -668,12 +657,11 @@ const EN: BelegeTexte = {
   loeschsperre: 'deletion lock',
   keineSperre: 'no lock',
   bisZum: 'until',
-  listeFussnoteVor:
+  listeFussnote:
     'The file itself is not linked here. It is delivered on the Beleg page '
     + 'through a short-lived signed URL, and only after the permission decision '
     + '(DOC-03, SEC-A6). No Beleg is deleted (invariant 8) — what falls away '
-    + 'falls away through',
-  listeFussnoteNach: 'and the deletion lock.',
+    + 'falls away through the end of its retention period and the deletion lock.',
 
   typNamen: {
     ausgangsrechnung: 'Outgoing invoice',
@@ -698,14 +686,12 @@ const EN: BelegeTexte = {
   eingegangenBerlin: 'Received (Europe/Berlin)',
   sha256Erklaerung: 'SHA-256 of the file — the proof that it is the same one',
   dieDatei: 'The file',
-  keineDokumentversionVor:
-    'No document version can be read for this Beleg. That must not happen:',
-  keineDokumentversionMitte:
-    'is a mandatory field with a composite foreign key. If it is missing here, '
-    + 'a permission on',
-  keineDokumentversionNach:
-    'is missing or the row is damaged — either belongs in a report and is not '
-    + 'clicked away.',
+  keineDokumentversion:
+    'No document version can be read for this Beleg. That must not happen: '
+    + 'every Beleg points to a document version, and the database accepts no '
+    + 'reference to one that does not exist. If it is missing here, a permission '
+    + 'on the documents is missing or the row is damaged — either belongs in a '
+    + 'report and is not clicked away.',
   hashAbweichungTitel:
     'The hash of the Beleg differs from the hash of the document version.',
   belegBezeugt: 'The Beleg attests',
@@ -763,14 +749,12 @@ const EN: BelegeTexte = {
   tabelleZugriffe: 'The most recent accesses to the Beleg file',
   zeitpunkt: 'Time',
   konto: 'Account',
-  belegFussnoteVor:
+  belegFussnote:
     'There is no delete button here, and no greyed-out one either (invariant '
     + '8). In this domain removing means archiving, and for the finance '
     + 'categories the document service itself rules it out. What falls away '
-    + 'falls away through',
-  belegFussnoteNach:
-    'and the deletion lock — and that is decided by the retention rule, not by '
-    + 'this page.',
+    + 'falls away through the end of its retention period and the deletion lock '
+    + '— and that is decided by the retention rule, not by this page.',
   zumGobdArchiv: 'To the GoBD archive →',
 
   verwendungNamen: {
@@ -915,17 +899,15 @@ const EN: BelegeTexte = {
     + 'permission withholds (AUT-06).',
   erstattetAnAnstellung: 'Reimbursed to Anstellung (employment)',
   ohnePersonalnummer: 'no staff number',
-  erstattungAnAnstellungVor:
+  erstattungAnAnstellung:
     'A reimbursement is a costed item and therefore hangs on the ANSTELLUNG '
     + '(employment), never on the person (D-09, invariant 9). This read access '
-    + 'is in the log —',
-  erstattungAnAnstellungNach: ', with account and time.',
+    + 'is in the audit log, with account and time.',
   weiterberechnungTitel: 'Recharging (FIN-07)',
-  nochNichtWeiterberechnetVor:
+  nochNichtWeiterberechnet:
     'Not recharged yet. This expense may appear as a material line on an '
     + 'invoice — in the invoice draft under “Add line item”, origin “Material” — and '
-    + 'exactly once: the partial index ',
-  nochNichtWeiterberechnetNach: ' does not admit a second effective line.',
+    + 'exactly once: the database does not accept a second effective line.',
   nichtWeiterberechenbar:
     'This expense is not marked as rechargeable and appears on no invoice.',
   tabelleWeiterberechnung: 'Invoice lines that recharge this expense',
@@ -939,8 +921,7 @@ const EN: BelegeTexte = {
     'not effective — carried over from a Storno (reversing entry)',
   zustandsverlauf: 'The sequence of states',
   hier: 'here',
-  uebergangErzwungenVor: 'The transition is enforced in the database (',
-  uebergangErzwungenMitte: '), not offered in the interface.',
+  uebergangErzwungen: 'The database enforces the transition; the interface does not offer it.',
   geloeschtWirdNichts: 'Nothing is deleted',
   uebergangErzwungenNach:
     '(invariant 8); rejection carries a reason, and from',
