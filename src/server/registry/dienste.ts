@@ -581,6 +581,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'dienstplan', pfad: 'dienstplan/generator',
     schreibend: true, schreibRecht: 'dienstplan.schreiben',
   },
+  /**
+   * V-178 — der Feiertagskalender. Er schreibt `feiertag`, aber nicht als
+   * Mensch mit einem Katalogrecht: `cse_app` hat auf der Tabelle nur Lesen,
+   * geschrieben wird als `cse_job` (Policy `f_job`, 0028) vom Lauf
+   * `feiertage_pflegen` und vom Seed. Ein Schreibrecht aus dem Katalog gibt
+   * es dafuer nicht und soll es nicht geben — ein Feiertag ist Landesrecht,
+   * kein Stammdatensatz. Deshalb `schreibend: false` wie die Wachen oben: in
+   * der Gruppenansicht fuehrt kein Weg hierher.
+   */
+  { modul: 'dienstplan', pfad: 'dienstplan/feiertage', schreibend: false },
   { modul: 'dokument', pfad: 'dokument/kategorie', schreibend: false },
   {
     modul: 'dokument', pfad: 'dokument/upload',
@@ -875,6 +885,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'security.schreiben',
   },
   /**
+   * V-179 — die verlangten Nachweise (SEC-01, SEC-04). Sie SCHREIBEN
+   * `einsatzanforderung` mit `security.schreiben`, demselben Recht, das die
+   * `WITH CHECK`-Hälfte von `t_mandant` verlangt (0031). Dass eine neue Zeile
+   * die künftigen Schichten neu bewertet, tut der Auslöser aus 0465 — nicht
+   * dieser Dienst, und deshalb auch nicht an ihm vorbei.
+   */
+  {
+    modul: 'security', pfad: 'security/anforderung',
+    schreibend: true, schreibRecht: 'security.schreiben',
+  },
+  /**
    * Das Wachbuch schreibt mit `wachbuch.schreiben` — dem einen Schreibrecht,
    * das die Rolle `mitarbeiter` in dieser Domäne tatsächlich hält (SEC-05: die
    * Wache führt das Buch). Gelesen wird mit `wachbuch.lesen`, im eigenen
@@ -995,6 +1016,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   {
     modul: 'bau', pfad: 'bau/bautagebuch',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  /**
+   * V-182 — der Gewerkekatalog, gegen den das Bautagebuch Mannstunden bucht.
+   * Er SCHREIBT `gewerk` mit `bau.schreiben` — dem Recht der `WITH
+   * CHECK`-Hälfte von `gewerk.t_mandant` (0082) und dem der Mannstunden
+   * selbst: wer das Bautagebuch führen darf, trägt die Gewerke ein.
+   */
+  {
+    modul: 'bau', pfad: 'bau/gewerk',
     schreibend: true, schreibRecht: 'bau.schreiben',
   },
   /**

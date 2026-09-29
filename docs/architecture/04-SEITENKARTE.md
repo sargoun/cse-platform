@@ -1203,6 +1203,7 @@ still unsubmitted", not "which of project 14's".
 | `/portal/[mandant]/bau/nachtraege` — across projects, "announced but not submitted" filter | `bau.lesen` | `M1` | BAU-04, BAU-05 | 5 |
 | `/portal/[mandant]/bau/behinderungen` — across projects | `bau.lesen` | `M1` | BAU-06 | 5 |
 | `/portal/[mandant]/bau/bautagebuch` — across projects | `bau.lesen` | `M1` | BAU-07 | 5 |
+| `/portal/[mandant]/bau/gewerke` — the Gewerk catalogue behind Mannstunden per trade: enter, rename, archive, never delete (V-182, O-159) | `bau.lesen` / `bau.schreiben` | `M1` | BAU-07 | 5 |
 
 `[datum]` is a **Berlin calendar date** converted to a half-open UTC range
 `[berlin_start, berlin_start + 1 day)` (K-11). A Bautagebuch day resolved at UTC midnight

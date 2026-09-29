@@ -45,6 +45,8 @@ import { registriereBewerberLoeschung } from './bewerberLoeschung.js';
 import { registriereDokumentAufbewahrung } from './dokumentAufbewahrung.js';
 import { registriereKontenRollover } from './kontenRollover.js';
 import { registriereUrlaubskontenJahr } from './urlaubskontenJahr.js';
+import { registriereFeiertagePflegen } from './feiertagePflegen.js';
+import { registriereWetterZuordnung } from './wetterZuordnung.js';
 
 /*
  * Methodensyntax, nicht Eigenschaftssyntax — wie ueberall sonst im Baum
@@ -78,6 +80,8 @@ let geschehen = false;
  */
 export function alleJobs(db: Abfrage): readonly JobDefinition[] {
   if (!geschehen) {
+    /* V-178 — der Kalender, aus dem der Generator die Feiertage liest. */
+    registriereFeiertagePflegen(db);
     registriereEinsatzGenerator(db);
     registriereKonfliktDetektor(db);
     registriereLeadSlaJob(db);
@@ -106,6 +110,8 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereUrlaubskontenJahr(db);
     registriereRadar(db);
     registriereAkquise(db);
+    /* V-183 — das Wetter, das BAU-08 automatisch angeheftet verlangt. */
+    registriereWetterZuordnung(db);
     geschehen = true;
   }
   return jobs();

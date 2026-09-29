@@ -31,6 +31,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import type { PortalSprache } from '../../../lib/i18n/texte.js';
 
 /* ---------------------------------------------------------------------------
  * 0. Fehler und Vokabular
@@ -976,6 +977,20 @@ export interface GewerkZeile {
 }
 
 /**
+ * Der Ausdruck fuer die Bezeichnung eines Gewerks `g` in der Sprache aus dem
+ * Parameter `platz` — `NULL` heisst deutsch. Eine Stelle fuer beide
+ * Lesewege, damit Auswahlliste und Mannstundenzeile dasselbe zeigen.
+ */
+function gewerkInSprache(platz: string): string {
+  return `coalesce(nullif(g.bezeichnung_i18n ->> ${platz}::text, ''), g.bezeichnung)`;
+}
+
+/** Deutsch ist `bezeichnung` selbst — dann wird nicht in der Karte nachgeschlagen. */
+function uebersetzungsSprache(sprache: PortalSprache): string | null {
+  return sprache === 'de' ? null : sprache;
+}
+
+/**
  * Der Gewerkekatalog EINER Gesellschaft — heute leer (O-159).
  *
  * **Der Mandant ist ein Parameter und keine Annahme.** Vorher stand hier kein
@@ -992,17 +1007,26 @@ export interface GewerkZeile {
  * Der Mandant kommt vom Aufrufer aus dem BEZUG der Schicht, nie aus der
  * Anfrage (K-02). `null` heisst „was diese Sitzung ohnehin sieht" und ist der
  * Weg des internen Portals, wo der aktive Mandant die Grenze schon zieht.
+ *
+ * **Die Bezeichnung in der Sprache des Mitarbeiterportals** (EMP-12, V-182,
+ * V-185, D-676 Nr. 4). Der Katalog fuehrt en/ar/tr in `bezeichnung_i18n`,
+ * und die Pflegeseite verspricht: mit Uebersetzung sieht die Kraft sie, ohne
+ * die deutsche. Gelesen hat die Spalte bis dahin kein Weg — die tuerkische
+ * Kraft sah „Trockenbau", auch wenn „Kuru yapı" eingetragen war. Deutsch ist
+ * die Bezeichnung selbst, nie ein Eintrag der Karte; eine leere Uebersetzung
+ * faellt auf sie zurueck.
  */
 export async function listeGewerke(
-  kontext: LeseKontext, mandantId: string | null = null,
+  kontext: LeseKontext, mandantId: string | null = null, sprache: PortalSprache = 'de',
 ): Promise<readonly GewerkZeile[]> {
   return kontext.abfrage<GewerkZeile>(
-    `select g.id, g.code, g.bezeichnung, g.ist_platzhalter as "istPlatzhalter"
+    `select g.id, g.code, ${gewerkInSprache('$2')} as bezeichnung,
+            g.ist_platzhalter as "istPlatzhalter"
        from gewerk g
       where g.archiviert_am is null
         and ($1::uuid is null or g.mandant_id = $1::uuid)
       order by g.sortierung, g.code`,
-    [mandantId],
+    [mandantId, uebersetzungsSprache(sprache)],
   );
 }
 
@@ -1152,9 +1176,11 @@ export interface MannstundenZeile {
  */
 export async function leseMannstunden(
   kontext: LeseKontext, bautagebuchId: string,
+  /** Die Sprache des Mitarbeiterportals fuer den Gewerknamen (V-185) — sonst deutsch. */
+  sprache: PortalSprache = 'de',
 ): Promise<readonly MannstundenZeile[]> {
   return kontext.abfrage<MannstundenZeile>(
-    `select m.id, m.gewerk_id, g.bezeichnung as gewerk, g.code as gewerk_code,
+    `select m.id, m.gewerk_id, ${gewerkInSprache('$2')} as gewerk, g.code as gewerk_code,
             m.herkunft::text as herkunft,
             -- Der SCHNAPPSCHUSS zuerst: firma ist ueber kunde gedeckt (CRM), und
             -- ein Nachunternehmer ist selten ein Kunde — die Policy gaebe dann NULL
@@ -1177,7 +1203,7 @@ export async function leseMannstunden(
       -- weil zwei Zeilen derselben Transaktion dasselbe erstellt_am tragen —
       -- ohne sie waere die Reihenfolge von Lauf zu Lauf verschieden.
       order by g.sortierung, g.code, m.erstellt_am, m.id`,
-    [bautagebuchId],
+    [bautagebuchId, uebersetzungsSprache(sprache)],
   );
 }
 

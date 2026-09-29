@@ -25,16 +25,23 @@ import {
 import {
   assertBesetzungVeroeffentlichbar, PostenUnterbesetzt,
 } from '@/server/services/security/posten';
+import {
+  leseAnforderungen, waehlbareQualifikationen, type AnforderungZeile,
+} from '@/server/services/security/anforderung';
+import { ANFORDERUNG_TEXTE } from '@/lib/i18n/verwaltung/anforderung';
+import { Anforderungsblock } from '../../Anforderungsblock';
 
 /**
  * `/portal/[mandant]/security/posten/[id]` — ein Posten: verlangte Nachweise,
  * Mindestbesetzung, Abdeckung (SEC-01, SEC-04, TIM-04).
  *
- * **Die Anforderungen stehen hier, angelegt werden sie woanders.** Der Katalog
- * `qualifikation` und die Zeilen von `einsatzanforderung` gehören der
- * Personal- bzw. der Nachweisdomäne (PR 31); `04-SEITENKARTE.md` §5.8 sagt
- * dasselbe — ohne eine Route, die den Katalog pflegt, zeigt diese Seite die
- * geltenden Anforderungen und einen Satz dazu, wo sie herkommen.
+ * **Die Anforderungen stehen hier — und werden hier eingetragen** (V-179).
+ * Bis dahin stand an dieser Stelle „angelegt werden sie woanders", und ein
+ * solches Woanders gab es nicht: für `einsatzanforderung` fehlten Dienst,
+ * Route und Formular, und das SEC-04-Tor meldete ohne Zeile jede Einteilung
+ * als erfüllt. Der KATALOG der Qualifikationen gehört weiter den Stammdaten
+ * (`/stammdaten/qualifikationen`); was dieser Posten davon VERLANGT, trägt
+ * die Sicherheitsleitung hier ein (`security.schreiben`, `Anforderungsblock`).
  *
  * **Der Veröffentlichungsknopf ist hier KEIN Knopf, sondern ein Befund.** Die
  * Freigabe eines Planungszeitraums an die Belegschaft ist
@@ -64,16 +71,6 @@ interface PostenKopf {
   readonly auftrag_leistung_id: string | null;
   /** Archiviert: kein Formular für den Anker, sondern ein Satz (V-192). */
   readonly archiviert: boolean;
-}
-
-interface Anforderung {
-  readonly qualifikation: string;
-  readonly zwingend: boolean;
-  readonly geltung: string;
-  readonly register: boolean;
-  readonly rechtsgrundlage: string | null;
-  readonly bereich: string;
-  readonly platzhalter: boolean;
 }
 
 interface Schicht {
@@ -134,20 +131,11 @@ export default async function PostenBlatt(
          * sie liest (§9.2). Nur die Postenzeilen zu zeigen hiesse, eine
          * §34a-Grundanforderung zu verschweigen, die trotzdem greift.
          */
-        const anforderungen = await kontext.abfrage<Anforderung>(
-          `select q.bezeichnung as qualifikation, ea.zwingend,
-                  ea.geltung::text as geltung,
-                  ea.bewacherregister_pflicht as register, ea.rechtsgrundlage,
-                  ea.geltungsbereich::text as bereich, ea.ist_platzhalter as platzhalter
-             from einsatzanforderung ea
-             join qualifikation q on q.id = ea.qualifikation_id
-            where ea.archiviert_am is null
-              and (ea.posten_id = $1::uuid
-                   or (ea.geltungsbereich = 'objekt' and ea.objekt_id = $2::uuid)
-                   or ea.geltungsbereich = 'mandant')
-            order by ea.zwingend desc, q.bezeichnung`,
-          [id, kopf.objekt_id],
-        );
+        const anforderungen = await leseAnforderungen(kontext, {
+          art: 'posten', id, objektId: kopf.objekt_id,
+        });
+        const qualifikationen = darf['security.schreiben'] === true
+          ? await waehlbareQualifikationen(kontext) : [];
 
         const schichten = await kontext.abfrage<Schicht>(
           `select e.id,
@@ -184,10 +172,13 @@ export default async function PostenBlatt(
         const anker = darf['auftrag.lesen'] === true
           ? await listeAnkerbareLeistungen(kontext, kopf.auftrag_leistung_id) : null;
 
-        return { kopf, anforderungen, schichten, veroeffentlichbar, luecken, anker };
+        return {
+          kopf, anforderungen, qualifikationen, schichten, veroeffentlichbar, luecken, anker,
+        };
       })) as Promise<{
         kopf: PostenKopf;
-        anforderungen: readonly Anforderung[];
+        anforderungen: readonly AnforderungZeile[];
+        qualifikationen: readonly { readonly id: string; readonly bezeichnung: string }[];
         schichten: readonly Schicht[];
         veroeffentlichbar: boolean;
         luecken: number;
@@ -196,9 +187,33 @@ export default async function PostenBlatt(
 
   // AUT-06: eine fremde Zeile ist nicht vorhanden, nicht verboten.
   if (daten === null) notFound();
-  const { kopf, anforderungen, schichten, veroeffentlichbar, luecken, anker } = daten;
+  const {
+    kopf, anforderungen, qualifikationen, schichten, veroeffentlichbar, luecken, anker,
+  } = daten;
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
-  const ankerFehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const tA = nachSprache(ANFORDERUNG_TEXTE, zugang.sprache);
+  /* D-599/D-728: der Grund einer Abweisung kommt als Schlüssel aus der
+     Adresse und wird nur als EIGENER Eintrag nachgeschlagen. */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  /*
+   * **Zwei Formulare, EIN `?fehler=`** (zusammengeführt, D-692 Nachsatz):
+   * der Leistungsanker (V-191, `/api/sicherheit/posten`) schickt nur Gründe
+   * aus `LEISTUNGSANKER_TEXTE`, der Anforderungsblock (V-179,
+   * `/api/sicherheit/anforderungen`) jeden anderen. Ein Grund steht deshalb
+   * genau an dem Formular, das ihn ausgelöst hat — nicht als „unbekannt" am
+   * anderen.
+   */
+  const ankerFehler = fehler !== null && eigenerEintrag(tL.fehler, fehler) !== undefined
+    ? fehler : null;
+  const anforderungFehler = ankerFehler === null ? fehler : null;
+  const erfolg = typeof suche['anforderung'] === 'string' ? suche['anforderung'] : null;
+  const meldung = anforderungFehler !== null
+    ? {
+      art: 'warnung' as const,
+      text: eigenerEintrag(tA.fehler, anforderungFehler) ?? tA.fehlerUnbekannt,
+    }
+    : erfolg === 'angelegt' ? { art: 'erfolg' as const, text: tA.angelegt }
+      : erfolg === 'archiviert' ? { art: 'erfolg' as const, text: tA.archiviert } : null;
 
   return (
     <PortalRahmen
@@ -266,45 +281,16 @@ export default async function PostenBlatt(
         )}
       </section>
 
-      <section className="mb-s6">
-        <h2 className="mb-s2 text-h3 text-text">Verlangte Nachweise</h2>
-        {anforderungen.length === 0 ? (
-          <p className="m-0 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Für diesen Posten ist keine Qualifikation hinterlegt — auch keine
-            mandantenweite. Die Einteilung wird dann als <em>ungeprüft</em>
-            {' '}
-            aufgezeichnet, nicht als bestanden (§9.5): der Nachweis, dass geprüft
-            wurde, unterscheidet sich von dem, dass es nichts zu prüfen gab.
-          </p>
-        ) : (
-          <ul className="m-0 list-none p-0">
-            {anforderungen.map((a, i) => (
-              <li
-                key={`${a.qualifikation}-${String(i)}`}
-                data-cse="anforderung"
-                className="mb-s2 rounded-lg border border-line bg-surface p-s4 text-sm"
-              >
-                <span className="text-text">{a.qualifikation}</span>
-                {' · '}
-                <span className={a.zwingend ? 'text-danger' : 'text-warning'}>
-                  {a.zwingend ? 'Sperre' : 'Warnung'}
-                </span>
-                {' · '}
-                <span className="text-text-muted">
-                  {a.geltung === 'jeder' ? 'jede eingesetzte Person' : 'mindestens eine Person'}
-                  {' · Geltungsbereich '}
-                  {a.bereich}
-                  {a.register && ' · zusätzlich Eintragung im Bewacherregister'}
-                  {a.rechtsgrundlage !== null && ` · ${a.rechtsgrundlage}`}
-                </span>
-                {a.platzhalter && (
-                  <span className="ml-s2 text-warning">· Anforderung unbestätigt</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <Anforderungsblock
+        texte={tA}
+        anforderungen={anforderungen}
+        qualifikationen={qualifikationen}
+        herkunft={{ art: 'posten', id: kopf.id }}
+        hatObjekt
+        darfSchreiben={darf['security.schreiben'] === true}
+        zurueck={pfad}
+        meldung={meldung}
+      />
 
       <section>
         <h2 className="mb-s2 text-h3 text-text">

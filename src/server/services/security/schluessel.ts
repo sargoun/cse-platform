@@ -41,6 +41,7 @@ import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { kanonisiere, type KanonischerWert } from '../finanz/kanonisch.js';
+import { schreibeEintrag } from './wachbuch.js';
 
 /** Die acht Lebenszyklusereignisse (`schluessel_ereignis_art`, 0079 §1). */
 export const SCHLUESSEL_EREIGNISSE = [
@@ -238,6 +239,16 @@ export interface QuittungEingabe {
   readonly geraeteZeit?: string | null;
   /** Die Zeile lag offline in der Warteschlange (TIM-09). */
   readonly nachgetragen?: boolean;
+  /**
+   * V-180: dieselbe Bewegung zugleich als Seite `schluessel` im Wachbuch des
+   * Objekts — in DERSELBEN Transaktion, und die Quittung zeigt auf sie
+   * (`schluessel_quittung.wachbuch_eintrag_id`, 0079). Eine AUSDRUECKLICHE
+   * Wahl und keine Vorgabe: der Urheber einer Wachbuchseite ist eine
+   * Beschaeftigung in dieser Gesellschaft (§10.5), und wer ohne eine bucht,
+   * bekaeme sonst still keine Seite — oder die ganze Quittung scheiterte an
+   * etwas, das er nicht gewaehlt hat.
+   */
+  readonly imWachbuch?: boolean;
 }
 
 interface QuittungKopf {
@@ -362,6 +373,25 @@ export async function buche(
   const abzug = baueAbzug(kopf, eingabe, empfaengerName);
   const hash = createHash('sha256').update(kanonisiere(abzug)).digest('hex');
 
+  /*
+   * Erst die Wachbuchseite, dann die Quittung, die auf sie zeigt — andersherum
+   * stuende zwischendurch ein Verweis auf eine Zeile, die es noch nicht gibt.
+   * `sq_wachbuch_fk` (0079) haelt beide am SELBEN Objekt; `schreibeEintrag`
+   * loest den Urheber aus der Sitzung auf und prueft den Schluessel gegen das
+   * Objekt der Seite.
+   */
+  const wachbuchId = eingabe.imWachbuch === true
+    ? await schreibeEintrag(kontext, {
+      objektId: kopf.objekt_id,
+      art: 'schluessel',
+      schluesselId: kopf.schluessel_id,
+      betreff: wachbuchBetreff(kopf, eingabe.art),
+      eintragstext: wachbuchText(eingabe, empfaengerName),
+      geraeteZeit: eingabe.geraeteZeit ?? null,
+      nachgetragen: eingabe.nachgetragen === true,
+    })
+    : null;
+
   const id = randomUUID();
   try {
     await kontext.schreibe(
@@ -370,11 +400,11 @@ export async function buche(
           empfaenger_art, anstellung_id, person_id, kunde_id, firma_id,
           empfaenger_name, geraete_zeit, nachgetragen, ausgegeben_von_benutzer_id,
           geplante_rueckgabe, unterzeichner_name, snapshot, snapshot_hash,
-          bemerkung, erstellt_von_art, erstellt_von)
+          bemerkung, erstellt_von_art, erstellt_von, wachbuch_eintrag_id)
        values ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::schluessel_ereignis_art,
                $6::uuid, $7::schluessel_empfaenger_art, $8::uuid, $20::uuid,
                $9::uuid, $10::uuid, $11, $12::timestamptz, $13::boolean, $14::uuid,
-               $15::date, $16, $17::text::jsonb, $18, $19, 'mensch', $14::uuid)`,
+               $15::date, $16, $17::text::jsonb, $18, $19, 'mensch', $14::uuid, $21::uuid)`,
       [
         id, kontext.aktiverMandantId, eingabe.schluesselId, kopf.objekt_id,
         eingabe.art,
@@ -393,6 +423,7 @@ export async function buche(
         hash,
         leer(eingabe.bemerkung),
         personId,
+        wachbuchId,
       ],
     );
   } catch (fehler) {
@@ -447,6 +478,38 @@ function baueAbzug(
     nachgetragen: eingabe.nachgetragen === true,
     bemerkung: leer(eingabe.bemerkung),
   };
+}
+
+/**
+ * Der Betreff der Wachbuchseite zu einer Quittung — das Ereignis und der
+ * Schluessel, wie ihn das Buch nennt (V-180). Gespeicherter Text, deutsch wie
+ * jede Seite dieses Buchs; uebersetzt wird die Oberflaeche, nicht die Akte.
+ */
+function wachbuchBetreff(kopf: QuittungKopf, art: SchluesselEreignis): string {
+  const nummer = kopf.schluessel_nummer === null ? '' : ` (${kopf.schluessel_nummer})`;
+  return `Schlüssel ${EREIGNIS_TEXT[art]}: ${kopf.bezeichnung}${nummer}`;
+}
+
+/**
+ * Der Text der Wachbuchseite — nur, was die Quittung selbst sagt: Ereignis,
+ * Empfaenger, Unterzeichner, geplante Rueckgabe, Bemerkung. Keine Zeit: die
+ * stempelt der Server an beiden Zeilen (Invariante 5).
+ */
+function wachbuchText(eingabe: QuittungEingabe, empfaengerName: string | null): string {
+  const zeilen = [`${EREIGNIS_TEXT[eingabe.art]} laut Schlüsselquittung.`];
+  if (eingabe.empfaengerArt != null) {
+    zeilen.push(`Empfänger: ${empfaengerName ?? '—'} (${EMPFAENGER_TEXT[eingabe.empfaengerArt]}).`);
+  }
+  const unterzeichner = leer(eingabe.unterzeichnerName);
+  if (unterzeichner !== null) zeilen.push(`Quittiert von: ${unterzeichner}.`);
+  const rueckgabe = leer(eingabe.geplanteRueckgabe);
+  if (rueckgabe !== null) {
+    const [j, m, t] = rueckgabe.split('-');
+    zeilen.push(`Geplante Rückgabe: ${t ?? ''}.${m ?? ''}.${j ?? ''}.`);
+  }
+  const bemerkung = leer(eingabe.bemerkung);
+  if (bemerkung !== null) zeilen.push(`Bemerkung: ${bemerkung}`);
+  return zeilen.join('\n');
 }
 
 /** Die Uebergabe (Abnahme 3) — eine Journalzeile der Art `ausgabe`. */
@@ -605,6 +668,8 @@ export interface QuittungZeile {
   readonly offen: boolean;
   /** Ob die Unterschrift als BILD hinterlegt ist — heute nie (DOC-06). */
   readonly signaturHinterlegt: boolean;
+  /** V-180: die Wachbuchseite derselben Bewegung — oder `null`. */
+  readonly wachbuchEintragId: string | null;
 }
 
 export async function leseQuittungen(
@@ -617,7 +682,7 @@ export async function leseQuittungen(
     geplante_rueckgabe: string | null; zeitabweichung_sek: number | null;
     nachgetragen: boolean; bemerkung: string | null; snapshot_hash: string;
     geschlossen_durch_id: string | null; geschlossen_lokal: string | null;
-    offen: boolean; signatur_hinterlegt: boolean;
+    offen: boolean; signatur_hinterlegt: boolean; wachbuch_eintrag_id: string | null;
   }>(
     `select q.id, q.art::text as art,
             to_char(q.quittiert_am at time zone 'Europe/Berlin',
@@ -631,7 +696,8 @@ export async function leseQuittungen(
             to_char(g.quittiert_am at time zone 'Europe/Berlin',
                     'DD.MM.YYYY HH24:MI')            as geschlossen_lokal,
             (q.offen_schluessel_id is not null)      as offen,
-            (q.signatur_medien_id is not null)       as signatur_hinterlegt
+            (q.signatur_medien_id is not null)       as signatur_hinterlegt,
+            q.wachbuch_eintrag_id
        from schluessel_quittung q
        left join benutzer b on b.id = q.ausgegeben_von_benutzer_id
        left join schluessel_quittung g
@@ -657,6 +723,7 @@ export async function leseQuittungen(
     geschlossenLokal: z.geschlossen_lokal,
     offen: z.offen,
     signaturHinterlegt: z.signatur_hinterlegt,
+    wachbuchEintragId: z.wachbuch_eintrag_id,
   }));
 }
 

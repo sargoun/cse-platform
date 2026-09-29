@@ -37,8 +37,9 @@ export const FORMULAR_FEHLER_GRUENDE = [
   /* Antrag (EMP-10) */
   'keine_antragsart', 'fehlt_zeitraum', 'fehlt_abwesenheitsart', 'fehlt_einsatz',
   'fehlt_tauschpartner',
-  /* Wachbuch (SEC-05) */
-  'kein_betreff', 'kein_text', 'kein_objekt', 'schluessel_art',
+  /* Wachbuch (SEC-05) — was V-180/V-181 dazubrachten (`schluessel_fehlt`,
+     `foto_…`, `fremder_…`), steht in der Tabelle der Seite (`wachbuch-schicht.ts`) */
+  'kein_betreff', 'kein_text', 'kein_objekt',
   'praesenz_ohne_kontrollpunkt', 'kein_korrekturgrund', 'kein_urheber',
   /* Leistungsnachweis (CLN-04) */
   'menge_ungueltig', 'keine_position', 'kein_name', 'keine_pruefsumme',
@@ -115,9 +116,6 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       kein_betreff: 'Ein Eintrag braucht einen Betreff.',
       kein_text: 'Ein Eintrag braucht einen Text: Was ist passiert?',
       kein_objekt: 'Diese Schicht hat kein Objekt — dafür gibt es hier kein Buch.',
-      schluessel_art:
-        'Schlüsselbewegungen werden noch nicht hier erfasst. Tragen Sie sie als „Übergabe" ein '
-        + 'und nennen Sie den Schlüssel im Text.',
       praesenz_ohne_kontrollpunkt:
         'Ein Präsenznachweis braucht den Kontrollpunkt, an dem er entstanden ist. Bitte wählen '
         + 'Sie den Kontrollpunkt — oder nehmen Sie den Haken „Präsenz bestätigt" heraus.',
@@ -189,9 +187,6 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       kein_betreff: 'An entry needs a subject.',
       kein_text: 'An entry needs a text: what happened?',
       kein_objekt: 'This shift has no site — there is no book for it here.',
-      schluessel_art:
-        'Key movements are not recorded here yet. Enter them as “Handover” and name the '
-        + 'key in the text.',
       praesenz_ohne_kontrollpunkt:
         'A presence check needs the checkpoint where it was made. Please choose the '
         + 'checkpoint — or untick “Presence confirmed”.',
@@ -263,8 +258,6 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       kein_betreff: 'يحتاج الإدخال إلى موضوع.',
       kein_text: 'يحتاج الإدخال إلى نص: ماذا حدث؟',
       kein_objekt: 'هذه المناوبة ليس لها موقع — لا يوجد لها سجل هنا.',
-      schluessel_art:
-        'لا تُسجَّل حركات المفاتيح هنا بعد. أدخلها كـ«التسليم» واذكر المفتاح في النص.',
       praesenz_ohne_kontrollpunkt:
         'يحتاج إثبات الحضور إلى نقطة التفتيش التي تم فيها. يرجى اختيار نقطة التفتيش — أو إزالة '
         + 'علامة «تم تأكيد الحضور».',
@@ -334,9 +327,6 @@ export const MEIN_FORMULAR_TEXTE: Readonly<Record<PortalSprache, MeinFormularTex
       kein_betreff: 'Bir kaydın konusu olmalıdır.',
       kein_text: 'Bir kaydın metni olmalıdır: Ne oldu?',
       kein_objekt: 'Bu vardiyanın bir nesnesi yok — burada bunun için bir defter yok.',
-      schluessel_art:
-        'Anahtar hareketleri burada henüz kaydedilmiyor. Bunları “Devir teslim” olarak girin ve '
-        + 'anahtarı metinde belirtin.',
       praesenz_ohne_kontrollpunkt:
         'Bir varlık kaydı, yapıldığı kontrol noktasını gerektirir. Lütfen kontrol noktasını '
         + 'seçin — ya da “Mevcudiyet onaylandı” işaretini kaldırın.',
