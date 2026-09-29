@@ -131,6 +131,10 @@ Readonly<Record<InternSprache, NachweisErfassenTexte>> = {
       grund_fehlt: 'Ein Widerruf ohne Grund ist keine Auskunft.',
       zeitraum: 'Das Ende der Gültigkeit liegt vor ihrem Beginn.',
       kein_datum: 'Ein Datum ließ sich nicht lesen. Nichts wurde gespeichert.',
+      unbekannte_handlung: 'Diesen Schritt kennt das Formular nicht. Nichts wurde geändert.',
+      keine_kennung:
+        'Welcher Nachweis gemeint ist, kam nicht an. Nichts wurde geändert — laden Sie das '
+        + 'Blatt neu.',
     },
     fehlerSonst: 'Der Schritt lief nicht durch. Der Nachweis steht, wie er war.',
   },
@@ -204,6 +208,9 @@ Readonly<Record<InternSprache, NachweisErfassenTexte>> = {
       grund_fehlt: 'A revocation without a reason is no answer.',
       zeitraum: 'The end of validity lies before its start.',
       kein_datum: 'A date could not be read. Nothing was saved.',
+      unbekannte_handlung: 'The form does not know this step. Nothing was changed.',
+      keine_kennung:
+        'Which certificate was meant did not arrive. Nothing was changed — reload the page.',
     },
     fehlerSonst: 'The step did not go through. The certificate is as it was.',
   },

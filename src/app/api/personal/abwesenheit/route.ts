@@ -8,8 +8,12 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { grundAufsFormularweg } from '@/app/api/formular-antwort';
-import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
-import { AuBisVorBeginn, meldeAbwesenheit } from '@/server/services/abwesenheit/index';
+import {
+  autorisierungsAntwort, nichtGefundenAntwort, ohneSitzungAntwort,
+} from '@/server/auth/antwort';
+import {
+  AbwesenheitNichtGefunden, ArtUngeklaertFehler, AuBisVorBeginn, meldeAbwesenheit,
+} from '@/server/services/abwesenheit/index';
 import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
 
 /**
@@ -131,6 +135,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const status = (fehler as { status?: number }).status;
     const code = (fehler as { code?: string }).code;
     /*
+     * **Ein Formular kommt mit seinem Grund zurück, ein Programm bekommt JSON**
+     * (D-599, D-766, V-273). Formular heisst: `fehlerweg`, sonst `zurueck` —
+     * dieselbe Regel wie für die frühen Eingabefehler oben
+     * (`grundAufsFormularweg`). Vorher galt hier nur `fehlerweg`, und die
+     * allgemeine Weiche unten antwortete auch einem Formular mit JSON.
+     */
+    const weg = textOder(daten, 'fehlerweg') ?? textOder(daten, 'zurueck');
+    const aufsFormular = (g: string): NextResponse | null => {
+      if (weg === null) return null;
+      const ziel = new URL(internesZiel(weg, '/portal', anfrage));
+      ziel.searchParams.set('fehler', g);
+      return NextResponse.redirect(ziel, 303);
+    };
+    /*
      * **Zeitraum und Bescheinigung** (V-188): „Bis" vor „Von", mehr als ein
      * Jahr, „Bescheinigung gültig bis" vor dem ersten Tag. Der Dienst nennt
      * den Grund (`ZeitraumFehler.grund`, `AuBisVorBeginn`); ein `23514` der
@@ -140,36 +158,49 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const grund = fehler instanceof ZeitraumFehler || fehler instanceof AuBisVorBeginn
       ? fehler.grund
       : code === '23514' ? 'ungueltige_eingabe' : null;
-    const rueckweg = textOder(daten, 'fehlerweg');
     if (grund !== null) {
-      if (rueckweg === null) return NextResponse.json({ fehler: grund }, { status: 400 });
-      const ziel = new URL(internesZiel(rueckweg, '/portal', anfrage));
-      ziel.searchParams.set('fehler', grund);
-      return NextResponse.redirect(ziel, 303);
+      return aufsFormular(grund) ?? NextResponse.json({ fehler: grund }, { status: 400 });
     }
     /*
      * Die Ausschlussbedingung `abwesenheit_kein_ueberlapp` (0073) meldet sich
      * als `23P01`. Zwei Abwesenheiten derselben Anstellung im selben Zeitraum
      * sind kein Serverfehler, sondern die haeufigste Eingabe am Telefon: der
      * Mensch hat sich gestern schon gemeldet.
+     *
+     * **Zurueck auf das Formular, nicht als JSON.** Die Portalformulare
+     * laufen ohne JavaScript; eine JSON-Antwort mit 409 waere fuer den
+     * Menschen am Telefon eine weisse Seite mit geschweiften Klammern. Der
+     * Weg fuehrt auf die Aufnahmeseite, die den Satz dazu kennt.
      */
     if (code === '23P01') {
-      /*
-       * **Zurueck auf das Formular, nicht als JSON.** Die Portalformulare
-       * laufen ohne JavaScript; eine JSON-Antwort mit 409 waere fuer den
-       * Menschen am Telefon eine weisse Seite mit geschweiften Klammern. Der
-       * Weg fuehrt auf die Aufnahmeseite, die den Satz dazu kennt.
-       */
-      const weg = textOder(daten, 'fehlerweg');
-      if (weg !== null) {
-        const ziel = new URL(internesZiel(weg, '/portal', anfrage));
-        ziel.searchParams.set('fehler', 'ueberlappt');
-        return NextResponse.redirect(ziel, 303);
-      }
-      return NextResponse.json({ fehler: 'ueberlappt' }, { status: 409 });
+      return aufsFormular('ueberlappt')
+        ?? NextResponse.json({ fehler: 'ueberlappt' }, { status: 409 });
+    }
+    /*
+     * **Die Art und die Anstellung** (V-273, D-771 Nr. 15) — dieselben Gründe
+     * wie `mein/abwesenheit`. `pruefeArt` weist eine Art ab, die es nicht
+     * (mehr) gibt (`AbwesenheitNichtGefunden` → `art_nicht_waehlbar`), oder
+     * eine, deren Bezahlung nicht hinterlegt ist (`ArtUngeklaertFehler` →
+     * `art_ungeklaert`, O-139). Die Sätze der Klassen nennen die Art bzw.
+     * ihre Kennung und gehen deshalb nur an ein Programm, unten in der
+     * allgemeinen Weiche (D-599).
+     * Eine Anstellung, die es in dieser Gesellschaft nicht gibt, meldet der
+     * Fremdschlüssel `ab_anstellung_fk` (0073) als 23503: `nicht_gefunden`,
+     * für ein Programm die byte-gleiche 404 (AUT-06) — vorher eine 500.
+     */
+    if (fehler instanceof ArtUngeklaertFehler || fehler instanceof AbwesenheitNichtGefunden) {
+      const zurueck = aufsFormular(
+        fehler instanceof ArtUngeklaertFehler ? 'art_ungeklaert' : 'art_nicht_waehlbar');
+      if (zurueck !== null) return zurueck;
+    }
+    if (code === '23503'
+        && (fehler as { constraint_name?: unknown }).constraint_name === 'ab_anstellung_fk') {
+      return aufsFormular('nicht_gefunden') ?? nichtGefundenAntwort();
     }
     if (typeof status === 'number' && typeof code === 'string') {
-      return NextResponse.json(
+      /* Ein Formular bekommt den Code als Grund (die Seite hat einen allgemeinen
+         Satz dafür), ein Programm Code und Satz. */
+      return aufsFormular(code) ?? NextResponse.json(
         { fehler: code, meldung: (fehler as Error).message }, { status });
     }
     throw fehler;

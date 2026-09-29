@@ -20,6 +20,7 @@ import {
 } from '../../src/server/services/abwesenheit/index.js';
 import { rechneTage, ZeitraumFehler } from '../../src/server/services/abwesenheit/tage.js';
 import { NichtGefundenFehler } from '../../src/server/auth/fehler.js';
+import { nichtGefundenAntwort } from '../../src/server/auth/antwort.js';
 import { MELDUNG_GRUENDE } from '../../src/lib/i18n/mein-formulare.js';
 import { ABWESENHEIT_AUFNAHME_TEXTE } from '../../src/lib/i18n/verwaltung/personal.js';
 
@@ -291,6 +292,81 @@ describe('POST /api/personal/abwesenheit — auch das Büro kommt zurück', () =
       }
     }
     expect(zustand.melde).not.toHaveBeenCalled();
+  });
+
+  it('die Art und die Anstellung: ein Formular bekommt den Grund der Seite, ein Programm JSON wie bisher (D-771 Nr. 15)', async () => {
+    const fk = (constraint: string): Error => Object.assign(
+      new Error(`insert or update on table "abwesenheit" violates foreign key constraint "${constraint}"`),
+      { name: 'PostgresError', code: '23503', constraint_name: constraint });
+    for (const [fehler, grund, programmStatus, programmFehler] of [
+      [new ArtUngeklaertFehler('Kurzarbeit Null'), 'art_ungeklaert', 409, 'ungueltiger_zustand'],
+      [new AbwesenheitNichtGefunden(ART), 'art_nicht_waehlbar', 404, 'nicht_gefunden'],
+      [fk('ab_anstellung_fk'), 'nicht_gefunden', 404, 'nicht_gefunden'],
+    ] as const) {
+      zustand.melde.mockRejectedValueOnce(fehler);
+      const formular = await buero(anfrage('/api/personal/abwesenheit',
+        { ...GUELTIG, zurueck: AUFNAHME, fehlerweg: AUFNAHME }));
+      expect(formular.status, grund).toBe(303);
+      expect(ziel(formular).pathname).toBe(AUFNAHME);
+      expect(ziel(formular).searchParams.get('fehler')).toBe(grund);
+      // Der Name der Art reist nicht, und die Seite nennt ihn auch nicht.
+      expect(ziel(formular).toString()).not.toContain('Kurzarbeit');
+      for (const t of Object.values(ABWESENHEIT_AUFNAHME_TEXTE)) {
+        const satz = Object.hasOwn(t.abgewiesen, grund)
+          ? t.abgewiesen[grund as keyof typeof t.abgewiesen] : undefined;
+        expect(satz, grund).toBeTruthy();
+        expect(satz).not.toContain('Kurzarbeit');
+      }
+
+      zustand.melde.mockRejectedValueOnce(fehler);
+      const programm = await buero(anfrage('/api/personal/abwesenheit', alsProgramm(GUELTIG)));
+      expect(programm.status).toBe(programmStatus);
+      expect((await programm.json() as { fehler: string }).fehler).toBe(programmFehler);
+    }
+    /* Die fremde Anstellung ist für ein Programm die byte-gleiche 404 (AUT-06). */
+    zustand.melde.mockRejectedValueOnce(fk('ab_anstellung_fk'));
+    const fremd = await buero(anfrage('/api/personal/abwesenheit', alsProgramm(GUELTIG)));
+    expect(await fremd.text()).toBe(await nichtGefundenAntwort().text());
+    /* Ein anderer Fremdschlüssel wird keine erfundene Abweisung. */
+    const anders = fk('ab_art_fk');
+    zustand.melde.mockRejectedValueOnce(anders);
+    await expect(buero(anfrage('/api/personal/abwesenheit',
+      { ...GUELTIG, zurueck: AUFNAHME, fehlerweg: AUFNAHME }))).rejects.toBe(anders);
+  });
+
+  it('ein fehlendes Recht bleibt die byte-gleiche 404 — auch hinter dem Formular (Autorisierung zuerst)', async () => {
+    zustand.authorize.mockRejectedValueOnce(new NichtGefundenFehler());
+    const antwort = await buero(anfrage('/api/personal/abwesenheit',
+      { ...GUELTIG, zurueck: AUFNAHME, fehlerweg: AUFNAHME }));
+    expect(antwort.status).toBe(404);
+    expect(await antwort.text()).toBe(await nichtGefundenAntwort().text());
+    expect(zustand.melde).not.toHaveBeenCalled();
+  });
+
+  it('die allgemeine Weiche: ein Formular bekommt den Code als Grund, ein Programm Code und Satz', async () => {
+    const fremd = Object.assign(new Error('Irgendein Satz des Dienstes.'),
+      { status: 422, code: 'irgendein_grund' });
+    zustand.melde.mockRejectedValueOnce(fremd);
+    const formular = await buero(anfrage('/api/personal/abwesenheit',
+      { ...GUELTIG, zurueck: AUFNAHME, fehlerweg: AUFNAHME }));
+    expect(formular.status).toBe(303);
+    expect(ziel(formular).searchParams.get('fehler')).toBe('irgendein_grund');
+    expect(ziel(formular).toString()).not.toContain('Satz');
+    zustand.melde.mockRejectedValueOnce(fremd);
+    const programm = await buero(anfrage('/api/personal/abwesenheit', alsProgramm(GUELTIG)));
+    expect(programm.status).toBe(422);
+    expect(await programm.json()).toEqual(
+      { fehler: 'irgendein_grund', meldung: 'Irgendein Satz des Dienstes.' });
+  });
+
+  it('ein Formular nur mit `zurueck` ist auch ein Formular — der Rückweg führt dorthin, nicht in JSON', async () => {
+    zustand.melde.mockRejectedValueOnce(Object.assign(new Error('x'),
+      { name: 'PostgresError', code: '23P01' }));
+    const antwort = await buero(anfrage('/api/personal/abwesenheit',
+      { ...GUELTIG, zurueck: AUFNAHME }));
+    expect(antwort.status).toBe(303);
+    expect(ziel(antwort).pathname).toBe(AUFNAHME);
+    expect(ziel(antwort).searchParams.get('fehler')).toBe('ueberlappt');
   });
 
   it('die doppelte Meldung bleibt, wie sie war', async () => {

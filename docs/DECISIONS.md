@@ -23515,6 +23515,36 @@ demselben Zweig):
       `AbwesenheitNichtGefunden` und `ArtUngeklaertFehler` weiter in die
       allgemeine Weiche laufen (JSON mit `meldung`) — nicht Teil dieses
       Schritts.
+15. **Kein Personalformular bekommt mehr JSON** (der Nebenbefund zu Nr. 14,
+    auf Nachfrage, und die Durchsicht aller Routen unter `api/personal/**`).
+    - `personal/abwesenheit`: `AbwesenheitNichtGefunden` und
+      `ArtUngeklaertFehler` aus `pruefeArt` liefen in die allgemeine Weiche —
+      ein Formular bekam `{ fehler, meldung }`, und die Meldung nannte die Art.
+      Jetzt wie `mein/abwesenheit`: `art_nicht_waehlbar` und `art_ungeklaert`
+      als Grund auf die Aufnahmeseite; ein Programm bekommt dasselbe JSON wie
+      bisher. Eine Anstellung, die es in dieser Gesellschaft nicht gibt, war
+      ein 23503 auf `ab_anstellung_fk` (0073) und eine 500 — jetzt
+      `nicht_gefunden`, für ein Programm die byte-gleiche 404 (AUT-06); ein
+      anderer 23503 bleibt ein Wurf. Die allgemeine Weiche führt ein Formular
+      mit dem Code als Grund zurück (ein Programm bekommt Code und Satz), und
+      „Formular" heisst in der ganzen Route `fehlerweg`, sonst `zurueck` —
+      vorher galt für die Abweisungen des Dienstes nur `fehlerweg`. Ein
+      fehlendes Recht bleibt die byte-gleiche 404: `autorisierungsAntwort`
+      steht vor jeder Weiche. Die Aufnahmeseite hat die drei Sätze neu
+      (de/en), ohne den Namen der Art.
+    - `personal/nachweise` und `personal/zugang` antworteten auf eine
+      unbekannte Handlung und eine fehlende Kennung mit JSON, auch ihrem
+      Formular. Jetzt `grundAufsFormularweg`, mit Sätzen auf beiden Seiten
+      (de/en).
+    - **Bewusst JSON bleiben:** `fremder_ursprung` (403, die
+      Ursprungsprüfung vor allem anderen — kein Formular dieser Anwendung);
+      die `nicht_gefunden`-404 für eine Kennung im Pfad, die keine ist
+      (byte-gleich mit `nichtGefundenAntwort`, AUT-06); `unlesbarer_rumpf` in
+      `gemeinsam.ts` (ein Rumpf, der weder Formular noch JSON ist); und
+      `unvollstaendig` in `zugang-code` — dieses Formular schickt kein
+      `zurueck`, seine Zielseite entsteht erst aus den Werten, die dort
+      fehlen. `urlaubsanspruch` führt die Abweisungen des Dienstes nur über
+      `fehlerweg` zurück; sein Formular schickt ihn.
 
-| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts`, `src/app/api/personal/{abwesenheit,urlaubsanspruch}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/server/services/abwesenheit/tage.ts`, `src/server/services/nachweis/aufnahme.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/{personal-kalendertag,meldung-rueckweg,antrag-rueckweg}.test.ts`, `tests/isolation/{abwesenheit-aufnehmen,nachweis-aufnehmen}.test.ts`, `src/server/services/zeit/urlaubskonto.ts`, `src/lib/i18n/verwaltung/{urlaubskonten,personal}.ts`, `drizzle/0061_urlaubskonto.sql` |
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts`, `src/app/api/personal/{abwesenheit,urlaubsanspruch}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/server/services/abwesenheit/tage.ts`, `src/server/services/nachweis/aufnahme.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/{personal-kalendertag,meldung-rueckweg,antrag-rueckweg}.test.ts`, `tests/isolation/{abwesenheit-aufnehmen,nachweis-aufnehmen}.test.ts`, `src/server/services/zeit/urlaubskonto.ts`, `src/lib/i18n/verwaltung/{urlaubskonten,personal}.ts`, `drizzle/0061_urlaubskonto.sql`, `src/app/api/personal/{nachweise,zugang}/route.ts`, `src/lib/i18n/verwaltung/personal-zugang.ts`, `tests/kern/personal-formularweg.test.ts` |
 |---|---|
