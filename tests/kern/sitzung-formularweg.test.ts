@@ -324,6 +324,23 @@ describe('(5a) die Anmeldungen führen zurück — auch die der Beschäftigten',
     }
   });
 
+  it('die Anmeldung der Verwaltung trägt weiter durch den zweiten Faktor', async () => {
+    const { wegNachAnmeldung } = await import('../../src/server/auth/kennwort-anmeldung.js');
+    const a = {
+      ergebnis: 'ok' as const, token: 't', sitzungId: 's', benutzerId: 'b',
+      brauchtFaktor: true, faktorVorhanden: true, mussWechseln: false,
+    };
+    expect(wegNachAnmeldung(a, BLATT))
+      .toBe(`/auth/zwei-faktor/pruefen?weiter=${encodeURIComponent(BLATT)}`);
+    expect(wegNachAnmeldung({ ...a, faktorVorhanden: false }, BLATT))
+      .toBe(`/auth/zwei-faktor/einrichten?weiter=${encodeURIComponent(BLATT)}`);
+    expect(wegNachAnmeldung({ ...a, mussWechseln: true }, BLATT))
+      .toBe(`/auth/zwei-faktor/pruefen?wechsel=1&weiter=${encodeURIComponent(BLATT)}`);
+    /* Eine fremde Rückkehr reist auch hier nicht mit. */
+    expect(wegNachAnmeldung(a, '//evil.example')).toBe('/auth/zwei-faktor/pruefen');
+    expect(wegNachAnmeldung(a, null)).toBe('/auth/zwei-faktor/pruefen');
+  });
+
   it('beide Schritte der Anmeldung tragen weiter — Formular, Weiterleitung, Sprachwahl', () => {
     for (const datei of ['src/app/auth/mitarbeiter/page.tsx', 'src/app/auth/mitarbeiter/code/page.tsx']) {
       const s = quelle(datei);

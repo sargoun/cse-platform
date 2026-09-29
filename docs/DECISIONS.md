@@ -20912,10 +20912,12 @@ JSON-Seite, die Eingabe war weg. 218 Stellen in 170 Dateien unter
 `src/app/api` schrieben die Antwort selbst: 153 Wächter vor dem Rumpf,
 56 Fangzweige für `NichtAngemeldetFehler`/`ZweiterFaktorFehler`, die Gerüste
 (`fuehreUebergangAus`, `fuehrePersonalAus`, Recruiting, Social, Website), die
-Schichtbrücke `aufDerSchicht` und vier Übersetzer (`sicherheit/antwort.ts`,
-`bau/bautagebuch/antwort.ts`, `zeit/korrektur` `fehlerschluessel`,
-`finanzen/eingangsrechnungen` `uebersetze`). D-692 Nr. 7 hatte die Wächter
-ausdrücklich bei JSON gelassen („wie auf allen Schreibwegen der Plattform").
+Schichtbrücke `aufDerSchicht` und drei Übersetzer (`sicherheit/antwort.ts`,
+`zeit/korrektur` `fehlerschluessel`, `finanzen/eingangsrechnungen`
+`uebersetze`); `bau/bautagebuch/antwort.ts` reichte an
+`autorisierungsAntwort` weiter und bekommt jetzt die Anfrage mit. D-692 Nr. 7
+hatte die Wächter ausdrücklich bei JSON gelassen („wie auf allen
+Schreibwegen der Plattform").
 `fuehrePersonalAus` erkannte beide Würfe an `status` und `code` als
 Dienstfehler und schickte sie als `?meldung=` zurück aufs Formular — auf eine
 Seite, die ohne Sitzung gar nicht geht.
@@ -20972,7 +20974,12 @@ Seite, die ohne Sitzung gar nicht geht.
    `/portal/mein?angemeldet=1&weiter=…`: „Heute" leitet mit Sitzung weiter
    und zeigt ohne sie den Satz aus D-488 (Keks abgelehnt) — direkt auf
    `weiter` verlöre die Seite dahinter ihn. Nur mit `angemeldet=1`: „Heute"
-   wird kein allgemeiner Umleiter.
+   wird kein allgemeiner Umleiter. Die Anmeldung der Verwaltung las `weiter`
+   schon (AUT-01), verlor es aber am zweiten Faktor: `wegNachAnmeldung`
+   schickte ein Konto mit Faktorpflicht ohne `weiter` auf
+   `einrichten`/`pruefen`, und wer nach Kennwort und Code zurück aufs
+   Formular wollte, landete auf `/portal`. Es reist jetzt mit (`mitWeiter`;
+   nachgebessert, geprüft in `sitzung-formularweg.test.ts` (5a)).
 7. **Was JSON bleibt.** Der CSRF-Wächter (fremder Ursprung, 403) — ein
    Formular vom eigenen Ursprung löst ihn nie aus. Ein fehlendes Recht,
    byte-gleich 404, auch hinter einem Formular (D-656 Nr. 2, D-682 Nr. 2).
