@@ -43,6 +43,18 @@ export function formular(
   return new NextRequest(new URL(pfad, HIER), { method: 'POST', body: daten, headers: kopf });
 }
 
+/** Dasselbe Formular von einem fremden Ursprung — der Riegel davor antwortet mit JSON (403). */
+export function fremdesFormular(
+  pfad: string, felder: readonly (readonly [string, string])[],
+): NextRequest {
+  const daten = new FormData();
+  for (const [k, v] of felder) daten.append(k, v);
+  const kopf = new Headers({
+    host: 'localhost:3001', origin: 'https://fremd.example', accept: 'text/html',
+  });
+  return new NextRequest(new URL(pfad, HIER), { method: 'POST', body: daten, headers: kopf });
+}
+
 /**
  * Die Adresse eines Rückwegs — und dass sie nur Schlüssel trägt: 303, eigener
  * Ursprung, kein `meldung=`, keine Kennung und kein Leerzeichen in der Suche
@@ -109,7 +121,8 @@ const RUECKMELDUNG = new Set(['meldung', 'erfolg', 'ok', 'hinweis', 'fehler', 'g
 export function pruefeSeite(pfad: string, nachschlagen: readonly string[]): void {
   const datei = resolve(WURZEL, pfad);
   const quelle = readFileSync(datei, 'utf8');
-  expect(quelle, pfad).not.toMatch(/\[\s*['"]meldung['"]\s*\]/u);
+  /* Weder `?meldung=` noch `?ok=` wird gelesen (D-769 Nr. 1–2). */
+  expect(quelle, pfad).not.toMatch(/\[\s*['"](?:meldung|ok)['"]\s*\]/u);
   expect(quelle, pfad).not.toMatch(/\{\s*[^}]*\bmeldung\b[^}]*\}\s*=\s*(?:await\s+)?searchParams/u);
   for (const n of nachschlagen) expect(quelle, pfad).toContain(n);
   const lies = (d: string): string | null => {

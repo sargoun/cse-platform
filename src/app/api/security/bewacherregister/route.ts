@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { ohneSitzungAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -10,9 +10,8 @@ import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
   aktualisiereEintrag, erfasseEintrag, securityGebucht,
-  BEWACHER_STATUS, type BewacherStatus,
+  BEWACHER_STATUS, type BewacherErfolg, type BewacherGrund, type BewacherStatus,
 } from '@/server/services/security/bewacherregister';
-import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
  * `POST /api/security/bewacherregister` — einen Registereintrag erfassen oder
@@ -31,6 +30,13 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * `personal.bewacher_verwalten`, und `personal` ist ein Querschnittsmodul —
  * die zentrale Modulsperre greift also nicht. Ein Schreibweg, der nur auf der
  * Seite geprüft wird, ist keiner: die Adresse ist ohne die Seite erreichbar.
+ *
+ * **Zurück auf die Liste gehen nur Schlüssel** (V-275, D-773, D-769): ein
+ * Erfolg als `?erfolg=erfasst|fortgeschrieben`, eine Abweisung als
+ * `?fehler=<grund>`; die Seite schlägt beide nach. Hier standen vorher die
+ * Sätze selbst in `?ok=` und `?fehler=` — und die Weiche ersetzte JEDE
+ * Antwort von `alsAntwort` mit Meldung durch den Rückweg, auch die Umleitung
+ * auf Anmeldung oder Faktor-Schritt (D-766). Die Anmeldung kommt jetzt zuerst.
  */
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +48,7 @@ function text(daten: FormData, feld: string): string | null {
 class Unvollstaendig extends Error {
   readonly code = 'unvollstaendig';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: BewacherGrund) {
     super(nachricht);
     this.name = 'Unvollstaendig';
   }
@@ -65,9 +71,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const liste = `/portal/${mandant}/security/bewacherregister`;
 
-  let meldung: string;
+  let erfolg: BewacherErfolg;
   try {
-    meldung = await (db().begin(async (tx: postgres.TransactionSql) =>
+    erfolg = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         await authorize(
           sitzung, { recht: 'personal.bewacher_verwalten', schreibend: true },
@@ -84,7 +90,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         const status: BewacherStatus | undefined =
           BEWACHER_STATUS.find((s) => s === roherStatus);
         if (personId === null || bewacherId === null || status === undefined) {
-          throw new Unvollstaendig('Person, Bewacher-ID und Status sind Pflicht.');
+          throw new Unvollstaendig(
+            'Person, Bewacher-ID und Status sind Pflicht.', 'pflichtangaben_fehlen');
         }
         const felder = {
           personId,
@@ -102,29 +109,45 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
         if (art === 'erfassen') {
           await erfasseEintrag(kontext, felder);
-          return 'Der Registereintrag ist erfasst — handerfasst, ohne Abgleich.';
+          return 'erfasst';
         }
         const eintragId = text(daten, 'eintrag');
-        if (eintragId === null) throw new Unvollstaendig('Der Eintrag fehlt.');
+        if (eintragId === null) throw new Unvollstaendig('Der Eintrag fehlt.', 'eintrag_fehlt');
         await aktualisiereEintrag(kontext, { ...felder, id: eintragId });
-        return 'Der Registereintrag ist fortgeschrieben; die Änderung steht im Protokoll.';
-      })) as Promise<string>);
+        return 'fortgeschrieben';
+      })) as Promise<BewacherErfolg>);
   } catch (fehler) {
-    const antwort = alsAntwort(fehler, anfrage);
-    if (antwort !== null) {
-      const nachricht = (fehler as { message?: string }).message;
-      if (typeof nachricht === 'string' && nachricht !== ''
-        && !(fehler instanceof NichtGefundenFehler)) {
-        return NextResponse.redirect(
-          internesZiel(`${liste}?fehler=${encodeURIComponent(nachricht)}`, liste, anfrage), 303,
-        );
-      }
-      return antwort;
+    /*
+     * **Die Anmeldung zuerst** (D-766, D-769 Nr. 7): ein fehlendes Recht und
+     * ein nicht gebuchtes Security-Modul sind die byte-gleiche 404 (AUT-06),
+     * ohne zweiten Faktor geht es auf den Faktor-Schritt — keines davon wird
+     * je ein Rückweg auf die Liste.
+     */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
+    /*
+     * Ein fachlicher Fehler trägt `status` und `code` — und seinen GRUND
+     * (`BEWACHER_GRUENDE`); eine Klasse ohne eigenen Grund reist mit ihrem
+     * `code`, und die Seite zeigt dafür ihren allgemeinen Satz. Alles andere
+     * bleibt ein Wurf (ein Programmfehler ist ein roter Lauf).
+     */
+    const status = (fehler as { status?: unknown }).status;
+    const code = (fehler as { code?: unknown }).code;
+    if (typeof status === 'number' && typeof code === 'string') {
+      const grund = (fehler as { grund?: unknown }).grund;
+      return zurueckAufDieListe(anfrage, liste, 'fehler', typeof grund === 'string' ? grund : code);
     }
     throw fehler;
   }
 
-  return NextResponse.redirect(
-    internesZiel(`${liste}?ok=${encodeURIComponent(meldung)}`, liste, anfrage), 303,
-  );
+  return zurueckAufDieListe(anfrage, liste, 'erfolg', erfolg);
+}
+
+/** 303 auf die Liste mit genau EINEM Schlüssel — nie einem Satz (V-275, D-769). */
+function zurueckAufDieListe(
+  anfrage: NextRequest, liste: string, name: 'erfolg' | 'fehler', schluessel: string,
+): NextResponse {
+  const ziel = internesZiel(liste, liste, anfrage);
+  ziel.searchParams.set(name, schluessel);
+  return NextResponse.redirect(ziel, 303);
 }

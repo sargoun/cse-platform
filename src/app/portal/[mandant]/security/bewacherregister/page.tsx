@@ -19,6 +19,8 @@ import {
   STATUS_TEXT, type BewacherStatus, type RegisterAusschnitt,
 } from '@/server/services/security/bewacherregister';
 import { Recht } from '@/components/ui/Recht';
+import { BEWACHERREGISTER_TEXTE } from '@/lib/i18n/verwaltung/security';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 
 /**
  * `/portal/[mandant]/security/bewacherregister` — § 34a GewO, handerfasst
@@ -83,8 +85,16 @@ export default async function Bewacherregister(
 ) {
   const { mandant } = await params;
   const suche = await searchParams;
-  const meldung = typeof suche['ok'] === 'string' ? suche['ok'] : null;
+  /*
+   * Erfolg und Abweisung kommen als SCHLÜSSEL (`?erfolg=`, `?fehler=`; V-275,
+   * D-769) und werden hier ein Satz — nur als eigener Eintrag nachgeschlagen
+   * (D-728). Ein unbekannter Erfolg zeigt keinen Kasten, ein unbekannter Grund
+   * den allgemeinen Satz; nie steht, was in der Adresse stand.
+   */
+  const tR = BEWACHERREGISTER_TEXTE.de;
+  const erfolgText = eigenerEintrag(tR.erfolg, suche['erfolg']) ?? null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerText = fehler === null ? null : (eigenerEintrag(tR.fehler, fehler) ?? tR.sonst);
 
   const tor = await mandantTor(`/portal/${mandant}/security/bewacherregister`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -173,14 +183,14 @@ export default async function Bewacherregister(
         entscheidet.
       </Hinweis>
 
-      {meldung !== null && (
-        <Hinweis art="erfolg" cse="register-ok" className="mb-s5 max-w-prose">
-          <strong>Gespeichert.</strong> {meldung}
+      {erfolgText !== null && (
+        <Hinweis art="erfolg" rolle="status" cse="register-erfolg" className="mb-s5 max-w-prose">
+          <strong>{tR.gespeichert}</strong> {erfolgText}
         </Hinweis>
       )}
-      {fehler !== null && (
-        <Hinweis art="warnung" cse="register-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {fehler}
+      {fehlerText !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="register-fehler" className="mb-s5 max-w-prose">
+          <strong>{tR.titel}</strong> {fehlerText}
         </Hinweis>
       )}
 

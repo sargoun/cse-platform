@@ -54,8 +54,23 @@ import type { SchreibKontext } from '../../kontext/index.js';
  * Deutschland die Sommerzeit abschafft.
  */
 
+/**
+ * Warum eine Veranstaltung NICHT angelegt, geändert oder archiviert wurde —
+ * als Schlüssel (V-275, D-773, D-769). `POST /api/security/veranstaltungen`
+ * schickt ihn als `?fehler=<grund>` zurück aufs Formular, und die Seite
+ * schlägt ihn in der Sprache der Sitzung nach (`VERANSTALTUNG_FEHLER_TEXTE`).
+ * Bis dahin reiste der deutsche Satz als `?meldung=` mit — samt der Zahl
+ * offener Schichten, die die Seite nicht mehr braucht.
+ */
+export const VERANSTALTUNG_GRUENDE = [
+  'id_fehlt', 'bezeichnung_fehlt', 'kunde_fehlt', 'ort_fehlt', 'zeitpunkt_ungueltig',
+  'fenster_ungueltig', 'zahl_ungueltig', 'nicht_angelegt', 'veranstaltung_unbekannt',
+  'einsaetze_offen',
+] as const;
+export type VeranstaltungGrund = (typeof VERANSTALTUNG_GRUENDE)[number];
+
 export class VeranstaltungFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: VeranstaltungGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'VeranstaltungFehler';
   }
