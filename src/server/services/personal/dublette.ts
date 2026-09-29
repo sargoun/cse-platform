@@ -45,10 +45,21 @@ export interface DublettenKandidat {
   readonly erstelltAm: Date;
 }
 
+/**
+ * Warum eine Zusammenführung abgewiesen wird — der GRUND, der als `?fehler=`
+ * auf die Zusammenführungsseite zurückreist (D-771, D-769, V-273). Der Satz
+ * der Klasse bleibt deutsch und geht nur an eine Schnittstelle (D-599).
+ * `keine_auswahl` wirft die Route selbst, bevor sie diesen Dienst ruft.
+ */
+export const ZUSAMMENFUEHREN_GRUENDE = [
+  'keine_auswahl', 'dieselbe_zeile', 'grund_fehlt', 'fuehrend_nicht_sichtbar',
+] as const;
+export type ZusammenfuehrenGrund = (typeof ZUSAMMENFUEHREN_GRUENDE)[number];
+
 export class ZusammenfuehrenFehler extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
-  constructor(nachricht: string) {
+  constructor(readonly grund: ZusammenfuehrenGrund, nachricht: string) {
     super(nachricht);
     this.name = 'ZusammenfuehrenFehler';
   }
@@ -57,6 +68,8 @@ export class ZusammenfuehrenFehler extends Error {
 export class BestaetigungFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
+  /** Der Grund für `?fehler=` (D-771). */
+  readonly grund = 'bestaetigung_falsch';
   constructor() {
     super(
       'Die getippte Bestätigung stimmt nicht. Eine Zusammenführung ist nicht '
@@ -150,10 +163,11 @@ export async function fuehreZusammen(
   kontext: SchreibKontext, eingabe: ZusammenfuehrenEingabe,
 ): Promise<void> {
   if (eingabe.dublettePersonId === eingabe.fuehrendPersonId) {
-    throw new ZusammenfuehrenFehler('Ein Mensch ist keine Dublette von sich selbst.');
+    throw new ZusammenfuehrenFehler('dieselbe_zeile',
+      'Ein Mensch ist keine Dublette von sich selbst.');
   }
   if (eingabe.grund.trim() === '') {
-    throw new ZusammenfuehrenFehler(
+    throw new ZusammenfuehrenFehler('grund_fehlt',
       'Eine Zusammenführung ohne Begründung ist kein Vorgang, sondern ein Klick.');
   }
 
@@ -162,7 +176,7 @@ export async function fuehreZusammen(
     [eingabe.fuehrendPersonId],
   );
   if (fuehrend === undefined) {
-    throw new ZusammenfuehrenFehler(
+    throw new ZusammenfuehrenFehler('fuehrend_nicht_sichtbar',
       'Die führende Zeile ist in dieser Gesellschaft nicht sichtbar.');
   }
   if (eingabe.bestaetigung.trim().toLowerCase() !== fuehrend.nachname.trim().toLowerCase()) {

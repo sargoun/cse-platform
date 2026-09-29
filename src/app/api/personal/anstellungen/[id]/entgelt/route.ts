@@ -39,7 +39,7 @@ export async function POST(
           satz = parseGeld(roh);
         } catch (fehler) {
           if (fehler instanceof GeldFehler) {
-            throw new VertragEingabeFehler(
+            throw new VertragEingabeFehler('betrag_ungueltig',
               `„${roh}" ist kein Eurobetrag in deutscher Schreibweise. Erwartet wird `
               + 'etwa „17,50" — Komma vor den Cent, Punkt für die Tausender.');
           }

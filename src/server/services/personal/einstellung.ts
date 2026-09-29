@@ -39,10 +39,27 @@ export type Sprache = (typeof SPRACHEN)[number];
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
 
+/**
+ * Warum `pruefeEingabe` oder `stelleEin` eine Einstellung abweisen — der
+ * GRUND, der als `?fehler=` auf die Einstellungsseite zurückreist (D-771,
+ * D-769, V-273).
+ *
+ * **Der Satz daneben bleibt, er reist nur nicht mehr.** Er ist deutsch, und
+ * `person_zusammengefuehrt` trägt — wie `DubletteImHaus` unten — einen Namen
+ * aus der Datenbank; eine Schnittstelle bekommt ihn weiter als `meldung`
+ * (D-599), die Seite schlägt den Grund in ihrer Tabelle nach
+ * (`lib/i18n/verwaltung/personal-rueckweg.ts`).
+ */
+export const EINSTELLUNG_GRUENDE = [
+  'personalnummer_fehlt', 'personalnummer_zu_lang', 'eintritt_ungueltig', 'kein_mensch_gewaehlt',
+  'name_fehlt', 'name_zu_lang', 'sprache_ungueltig', 'telefon_zu_lang', 'person_zusammengefuehrt',
+] as const;
+export type EinstellungGrund = (typeof EINSTELLUNG_GRUENDE)[number];
+
 export class EinstellungFehler extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(readonly grund: EinstellungGrund, nachricht: string) {
     super(nachricht);
     this.name = 'EinstellungFehler';
   }
@@ -51,6 +68,8 @@ export class EinstellungFehler extends Error {
 export class DubletteImHaus extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
+  /** Der Grund für `?fehler=` (D-771) — der Satz unten nennt den Namen, die Seite keinen. */
+  readonly grund = 'dublette_im_haus';
   constructor(name: string) {
     super(
       `„${name}" wird in dieser Gesellschaft bereits als Mensch geführt. Eine zweite `
@@ -67,6 +86,8 @@ export class DubletteImHaus extends Error {
 export class PersonNichtSichtbar extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  /** Der Grund für `?fehler=` (D-771). */
+  readonly grund = 'person_nicht_sichtbar';
   constructor() {
     super(
       'Dieser Mensch ist von dieser Gesellschaft aus nicht sichtbar. `person` trägt '
@@ -80,6 +101,8 @@ export class PersonNichtSichtbar extends Error {
 export class PersonalnummerVergeben extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
+  /** Der Grund für `?fehler=` (D-771) — der Satz unten wiederholt die Eingabe, die Seite nicht. */
+  readonly grund = 'personalnummer_vergeben';
   constructor(nummer: string) {
     super(
       `Die Personalnummer „${nummer}" ist in dieser Gesellschaft schon vergeben. `
@@ -137,21 +160,23 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 export function pruefeEingabe(eingabe: EinstellungEingabe): GeprueftEingabe {
   const nummer = eingabe.personalnummer.trim();
   if (nummer === '') {
-    throw new EinstellungFehler(
+    throw new EinstellungFehler('personalnummer_fehlt',
       'Die Personalnummer ist Pflicht — sie ist der Schlüssel, unter dem diese '
       + 'Gesellschaft die Beschäftigung führt (eindeutig je Gesellschaft, D-09).');
   }
   if (nummer.length > 40) {
-    throw new EinstellungFehler('Die Personalnummer ist länger als 40 Zeichen.');
+    throw new EinstellungFehler('personalnummer_zu_lang',
+      'Die Personalnummer ist länger als 40 Zeichen.');
   }
   if (!DATUM.test(eingabe.eintritt)) {
-    throw new EinstellungFehler('Der Eintritt erwartet einen Kalendertag als JJJJ-MM-TT.');
+    throw new EinstellungFehler('eintritt_ungueltig',
+      'Der Eintritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
 
   if (eingabe.mensch.art === 'bestehend') {
     const id = eingabe.mensch.personId.trim();
     if (!UUID.test(id)) {
-      throw new EinstellungFehler(
+      throw new EinstellungFehler('kein_mensch_gewaehlt',
         'Es ist kein Mensch gewählt. Suchen Sie zuerst — eine Beschäftigung ohne '
         + 'Menschen gibt es nicht (D-09).');
     }
@@ -162,19 +187,19 @@ export function pruefeEingabe(eingabe: EinstellungEingabe): GeprueftEingabe {
   const vorname = eingabe.mensch.vorname.trim();
   const nachname = eingabe.mensch.nachname.trim();
   if (vorname === '' || nachname === '') {
-    throw new EinstellungFehler('Vorname und Nachname sind Pflicht.');
+    throw new EinstellungFehler('name_fehlt', 'Vorname und Nachname sind Pflicht.');
   }
   if (vorname.length > 80 || nachname.length > 80) {
-    throw new EinstellungFehler('Vorname und Nachname fassen je 80 Zeichen.');
+    throw new EinstellungFehler('name_zu_lang', 'Vorname und Nachname fassen je 80 Zeichen.');
   }
   const sprache = eingabe.mensch.sprache.trim();
   if (!(SPRACHEN as readonly string[]).includes(sprache)) {
-    throw new EinstellungFehler(
+    throw new EinstellungFehler('sprache_ungueltig',
       `Die Sprache muss eine der vier aus EMP-12 sein: ${SPRACHEN.join(', ')}.`);
   }
   const telefon = (eingabe.mensch.telefon ?? '').trim();
   if (telefon.length > 40) {
-    throw new EinstellungFehler('Die Telefonnummer fasst 40 Zeichen.');
+    throw new EinstellungFehler('telefon_zu_lang', 'Die Telefonnummer fasst 40 Zeichen.');
   }
   return {
     mensch: {
@@ -289,7 +314,7 @@ export async function stelleEin(
       [eingabe.mensch.personId]);
     if (p === undefined) throw new PersonNichtSichtbar();
     if (p.merge !== null) {
-      throw new EinstellungFehler(
+      throw new EinstellungFehler('person_zusammengefuehrt',
         `„${p.name}" ist eine zusammengeführte Zeile und zeigt auf einen anderen `
         + 'Datensatz (§6.13). Stellen Sie den führenden Menschen ein — sonst hängt '
         + 'die Beschäftigung an einer Kennung, die kein Lesepfad mehr als den '
