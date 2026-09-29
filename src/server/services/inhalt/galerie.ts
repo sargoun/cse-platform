@@ -10,6 +10,11 @@ import type { LeseKontext } from '@/server/kontext';
  * `where`-Bedingung von einem Datenschutzvorfall entfernt. Hier steht die
  * Bedingung an EINER Stelle, und sie ist positiv formuliert: gezeigt wird, was
  * ausdrücklich einen `galerie_rang` trägt, nicht „alles ausser…".
+ *
+ * Und nur der Bildbestand der Website: ein hochgeladenes Bild eines
+ * Social-Beitrags (`objekt_schluessel`, V-225) trägt nie einen Rang
+ * (`medien_beitragsbild_nicht_in_galerie`, 0487, V-268) — die Bedingung steht
+ * trotzdem hier, weil diese Seite ohne Sitzung liest.
  */
 export interface GalerieBildZeile {
   readonly id: string;
@@ -28,6 +33,7 @@ export async function galerieDerGesellschaft(
        from medien m
       where m.mandant_id = $1::uuid
         and m.galerie_rang is not null
+        and m.objekt_schluessel is null
       order by m.galerie_rang, m.erstellt_am, m.id
       limit $2::int`,
     [mandantId, grenze]);

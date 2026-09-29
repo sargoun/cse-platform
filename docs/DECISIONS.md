@@ -20156,7 +20156,7 @@ Person zurück.
 | Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
 |---|---|
 
-### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde (V-268)
+### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde, und es gehört nicht in den Bildbestand der Website (V-268)
 
 **Der Befund** (V-268 a; Prüfung der Gruppe kalender-dokumente, Sicherheit):
 0473 macht `medien.bucket` und `medien.objekt_schluessel` zu dem Zeiger, auf
@@ -20195,6 +20195,17 @@ des Anlegens (Policy, CHECK) hatte keine Isolationsprobe.
 5. **Die Wege, die heute schreiben, bleiben**: die Galeriepflege der Website,
    das Beitragsbild und der Seed. Geprüft mit fremder Gesellschaft, eigener
    Redaktion, Gruppenansicht und Eigentümer.
+6. **Ein Beitragsbild gehört nicht in den Bildbestand der Website** (V-268 b).
+   Es ist für den BEITRAG freigegeben. Die Leser des Website-Bestands —
+   `listeGalerie`, `bilderZurWahl` (Referenzen, Profil) und die öffentliche
+   `galerieDerGesellschaft` — lesen nur `objekt_schluessel is null`;
+   `setzeGalerieRang` und `aendereReferenz` weisen ein hochgeladenes Bild mit
+   eigenem Grund ab (`bild_beitrag`, auf dem Referenzblatt de/en). Die zweite
+   Linie (`0487`): CHECK `medien_beitragsbild_nicht_in_galerie` und der
+   Auslöser `referenz_bild_der_website`. Vorher standen die Bilder in
+   Galeriepflege und Auswahl als kaputte Kacheln (der Bildoptimierer holt
+   ohne Sitzung und folgt keiner Weiterleitung) und liessen sich öffentlich
+   machen.
 
-| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/redaktion.ts` (`setzeGalerieRang`), `tests/isolation/social-beitragsbild.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
+| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `drizzle/0487_beitragsbild_nicht_auf_der_website.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/{redaktion,galerie}.ts`, `src/lib/i18n/verwaltung/website-referenz.ts`, `tests/isolation/{social-beitragsbild,website-pflege}.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
 |---|---|
