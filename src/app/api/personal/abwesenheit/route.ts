@@ -7,6 +7,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { AuBisVorBeginn, meldeAbwesenheit } from '@/server/services/abwesenheit/index';
 import { ZeitraumFehler } from '@/server/services/abwesenheit/tage';
@@ -41,6 +42,14 @@ export const dynamic = 'force-dynamic';
  * 22008 — hier eine 500 statt des Grundes, den die Route für ein unlesbares
  * Datum schon hat.
  */
+/*
+ * **Ein Formular bekommt auch bei einem frühen Eingabefehler seinen Rückweg**
+ * (D-599, D-766, V-273): `grundAufsFormularweg` führt mit `fehlerweg` (sonst
+ * `zurueck`) und dem Grund als `?fehler=` zurück auf die Seite, die den Satz
+ * dazu kennt. Vorher kam hier JSON — auf einem Formular ohne JavaScript eine
+ * weisse Seite mit geschweiften Klammern. Ein Aufruf ohne beide Felder ist
+ * ein Programm und bekommt weiter `{ fehler }` mit 400.
+ */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 function textOder(daten: FormData, feld: string): string | null {
@@ -64,19 +73,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const bis = textOder(daten, 'bis');
 
   if (anstellungId === null || !UUID.test(anstellungId)) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400);
   }
   if (abwesenheitsartId === null || !UUID.test(abwesenheitsartId)) {
-    return NextResponse.json({ fehler: 'keine_art' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_art', 400);
   }
   if (von === null || bis === null
       || !istGueltigerKalendertag(von) || !istGueltigerKalendertag(bis)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400);
   }
 
   const auBis = textOder(daten, 'au_bis');
   if (auBis !== null && !istGueltigerKalendertag(auBis)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400);
   }
 
   try {

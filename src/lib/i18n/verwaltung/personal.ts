@@ -51,7 +51,7 @@ export interface AbwesenheitAufnahmeTexte {
    */
   readonly abgewiesen: Readonly<Record<
     'au_bis_vor_von' | 'zeitraum_verkehrt' | 'zeitraum_zu_lang' | 'kein_datum'
-    | 'ungueltige_eingabe', string>>;
+    | 'ungueltige_eingabe' | 'keine_anstellung' | 'keine_art', string>>;
 }
 
 export const ABWESENHEIT_AUFNAHME_TEXTE:
@@ -136,6 +136,9 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       kein_datum: 'Ein Datum ließ sich nicht lesen. Nichts wurde gespeichert.',
       ungueltige_eingabe:
         'Die Angaben passen nicht zusammen. Nichts wurde gespeichert — bitte prüfen Sie sie.',
+      /* Die frühen Eingabefehler der Route, seit V-273 als Rückweg statt JSON (D-771). */
+      keine_anstellung: 'Bitte wählen Sie eine Anstellung. Nichts wurde gespeichert.',
+      keine_art: 'Bitte wählen Sie eine Art. Nichts wurde gespeichert.',
     },
   },
 
@@ -216,6 +219,8 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       kein_datum: 'A date could not be read. Nothing was saved.',
       ungueltige_eingabe:
         'The details do not fit together. Nothing was saved — please check them.',
+      keine_anstellung: 'Please choose an Anstellung. Nothing was saved.',
+      keine_art: 'Please choose a type. Nothing was saved.',
     },
   },
 };

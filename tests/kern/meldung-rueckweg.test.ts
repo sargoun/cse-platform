@@ -77,6 +77,12 @@ function ziel(antwort: Response): URL {
   return new URL(antwort.headers.get('location') ?? '');
 }
 
+/** Dieselben Felder ohne `zurueck` und `fehlerweg` — so ruft ein Programm, kein Formular (D-599). */
+function alsProgramm(felder: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(felder).filter(([k]) => k !== 'zurueck' && k !== 'fehlerweg'));
+}
+
 beforeEach(() => {
   zustand.sitzung = {
     benutzerId: '00000000-0000-4000-8000-000000000001',
@@ -240,17 +246,49 @@ describe('POST /api/personal/abwesenheit — auch das Büro kommt zurück', () =
 
   it('VORHER 500: ein Tag, den es nicht gibt, ist „kein_datum" — wie ein unlesbarer (D-771 Nachtrag)', async () => {
     /* Das Muster liess `2029-02-31` durch, die Datenbank antwortete mit 22008,
-       und diese Route kannte ihn nicht. Jetzt dieselbe Antwort wie für „06.03.2029". */
+       und diese Route kannte ihn nicht. Jetzt dieselbe Antwort wie für „06.03.2029" —
+       als Formular der Rückweg (seit Nr. 14), als Programm JSON. */
     for (const felder of [
       { ...GUELTIG, von: '2029-02-31' },
       { ...GUELTIG, bis: '2029-02-30' },
       { ...GUELTIG, au_bis: '2029-04-31' },
       { ...GUELTIG, au_bis: '06.03.2029' },
     ]) {
-      const antwort = await buero(anfrage('/api/personal/abwesenheit',
+      const formular = await buero(anfrage('/api/personal/abwesenheit',
         { ...felder, zurueck: AUFNAHME, fehlerweg: AUFNAHME }));
-      expect(antwort.status).toBe(400);
-      expect(await antwort.json()).toEqual({ fehler: 'kein_datum' });
+      expect(formular.status).toBe(303);
+      expect(ziel(formular).searchParams.get('fehler')).toBe('kein_datum');
+      const programm = await buero(anfrage('/api/personal/abwesenheit', alsProgramm(felder)));
+      expect(programm.status).toBe(400);
+      expect(await programm.json()).toEqual({ fehler: 'kein_datum' });
+    }
+    expect(zustand.melde).not.toHaveBeenCalled();
+  });
+
+  it('ein früher Eingabefehler führt ein Formular zurück, ein Programm bekommt JSON (D-599, D-766)', async () => {
+    /* Vorher bekam auch das Formular der Aufnahmeseite `{"fehler":…}` — eine weisse Seite. */
+    for (const [felder, grund] of [
+      [{ ...GUELTIG, anstellung: '' }, 'keine_anstellung'],
+      [{ ...GUELTIG, anstellung: 'nicht-uuid' }, 'keine_anstellung'],
+      [{ ...GUELTIG, abwesenheitsart: 'krank' }, 'keine_art'],
+      [{ ...GUELTIG, bis: '' }, 'kein_datum'],
+    ] as const) {
+      const formular = await buero(anfrage('/api/personal/abwesenheit',
+        { ...felder, zurueck: AUFNAHME, fehlerweg: AUFNAHME }));
+      expect(formular.status, grund).toBe(303);
+      expect(ziel(formular).pathname).toBe(AUFNAHME);
+      expect(ziel(formular).searchParams.get('fehler')).toBe(grund);
+      /* Nur der Grund reist — keine Eingabe, keine Bemerkung (Art. 9 DSGVO). */
+      expect([...ziel(formular).searchParams.keys()]).toEqual(['fehler']);
+
+      const programm = await buero(anfrage('/api/personal/abwesenheit', alsProgramm(felder)));
+      expect(programm.status).toBe(400);
+      expect(await programm.json()).toEqual({ fehler: grund });
+
+      // Die Aufnahmeseite hat für jeden dieser Gründe einen eigenen Satz, in beiden Sprachen.
+      for (const t of Object.values(ABWESENHEIT_AUFNAHME_TEXTE)) {
+        expect(Object.hasOwn(t.abgewiesen, grund), grund).toBe(true);
+      }
     }
     expect(zustand.melde).not.toHaveBeenCalled();
   });
