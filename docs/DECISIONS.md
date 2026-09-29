@@ -23393,6 +23393,20 @@ englisch — zeigten ihn im `role="alert"`-Kasten:
 **Nachrunde** (nach der Prüfung des Teils, dieselbe Nummer): (a) die Kästen
 der Website sind Hinweise — Nr. 9.
 
+(b) **Ein Name des Prototyps ist kein Bereich.** `formularSchluessel`
+(`lib/formular/bereiche.ts`) schlug `FORMULAR_SCHLUESSEL[bereich]` nach —
+mit einem `bereich` aus der Adresse (`/angebot/[bereich]`, `…/danke`) oder aus
+dem Formular (`POST /api/anfrage`). `toString`, `constructor` und `__proto__`
+fanden eine Funktion bzw. `Object.prototype` und galten als bekannter Bereich:
+Seite und Route fragten die Datenbank nach einem Formular, dessen Schlüssel der
+Treiber aus dem Wert machte („[object Object]", „function Object() { [native
+code] }"), und kamen erst am leeren Ergebnis zu 404 bzw. `keinFormular`;
+`/angebot/__proto__/danke?nr=…` bestätigte dagegen eine Anfrage, die es nie
+geben konnte. Jetzt nur als eigener Eintrag (`eigenerEintrag`, D-728): die
+Seite antwortet 404 ohne Frage an die Datenbank, die Dankseite ebenso, und die
+Route weist mit dem vorhandenen Grund `keinFormular` ab (Seite: `/angebot`,
+Programm: 404). Die Auswahl fragt dieselbe Funktion statt der Tabelle daneben.
+
 **Geprüft:** `tests/kern/angebot-rueckweg.test.ts` und
 `tests/kern/pflichtweg-rueckweg.test.ts` — die echten Routen (ersetzt nur
 Datenbank, Kontexte, Speicher, Bestätigungsmail; `nimmAn` und die
@@ -23412,5 +23426,5 @@ Dienste und die Annahme laden): `anfrage-aufnehmen`, `datenschutz-dienste`,
 englischen Abweisung trägt `fehler=pruefen` und `felder`, kein `meldung`, der
 Satz ist englisch) und neu (8), `tests/e2e/angebot.spec.ts` (6).
 
-| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `src/app/(public)/karriere/{page,Formular}.tsx`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx` (Nachrunde (a)), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf,website-hinweise,einteilung-bewerbung-rueckweg}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
+| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `src/app/(public)/karriere/{page,Formular}.tsx`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx` (Nachrunde (a)), `src/lib/formular/bereiche.ts` (`formularSchluessel`, Nachrunde (b)), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf,website-hinweise,einteilung-bewerbung-rueckweg}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
 |---|---|

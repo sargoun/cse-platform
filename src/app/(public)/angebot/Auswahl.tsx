@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { basisAusAnfrage, herkunftDerAnfrage } from '@/server/inhalt/seiten-daten';
 import { herkunftAlsSuche } from '@/lib/formular/herkunft';
-import { FORMULAR_SCHLUESSEL, angebotPfad } from '@/lib/formular/bereiche';
+import { angebotPfad, formularSchluessel } from '@/lib/formular/bereiche';
 import { bereicheLesen, oeffentlichLesen } from '@/server/inhalt/lesen';
 import { ANGEBOT_FEHLER_TEXTE, AUSWAHL_TEXTE } from '@/lib/i18n/texte';
 import { eigenerEintrag } from '@/lib/nachschlagen';
@@ -57,7 +57,7 @@ export async function Angebotsauswahl(
 ) {
   const bereiche = await oeffentlichLesen((k) => bereicheLesen(k, sprache));
   const mitFormular = bereiche.filter(
-    (b) => FORMULAR_SCHLUESSEL[b.slug] !== undefined,
+    (b) => formularSchluessel(b.slug) !== undefined,
   );
   // Kein Bereich mit Formular hiesse: diese Seite hat nichts zu zeigen. Eine
   // leere Auswahlseite sähe aus wie ein Ladefehler.

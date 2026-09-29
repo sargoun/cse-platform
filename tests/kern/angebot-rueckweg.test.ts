@@ -39,6 +39,8 @@ import type * as Annahme from '../../src/server/services/lead/annahme.js';
 const zustand = vi.hoisted(() => ({
   /** Die veröffentlichte Formularversion je Schlüssel — fehlt einer, ist keine veröffentlicht. */
   formulare: new Map<string, Record<string, unknown>>(),
+  /** Wie oft eine öffentliche Lesung die Datenbank erreichte. */
+  lesungen: 0,
   nimmAn: vi.fn(),
   ladeHoch: vi.fn(),
   bestaetige: vi.fn(),
@@ -50,6 +52,7 @@ vi.mock('@/server/db/pool', () => ({
 vi.mock('@/server/kontext/oeffentlich', () => ({
   withOeffentlich: <T,>(_tx: unknown, fn: (k: unknown) => Promise<T>) => fn({
     abfrage: (_sql: string, werte: readonly unknown[] = []) => {
+      zustand.lesungen += 1;
       const zeile = zustand.formulare.get(String(werte[0]));
       return Promise.resolve(zeile === undefined ? [] : [zeile]);
     },
@@ -92,6 +95,8 @@ const { POST } = await import('../../src/app/api/anfrage/route.js');
 const { AngebotSeiteFuer, abweisungAus } =
   await import('../../src/app/(public)/angebot/[bereich]/Angebot.js');
 const { Angebotsauswahl } = await import('../../src/app/(public)/angebot/Auswahl.js');
+const { DankeSeiteFuer } = await import('../../src/app/(public)/angebot/[bereich]/danke/Danke.js');
+const { FORMULAR_SCHLUESSEL, formularSchluessel } = await import('../../src/lib/formular/bereiche.js');
 
 const WURZEL = resolve(import.meta.dirname, '../..');
 const HIER = 'https://cse.example';
@@ -447,4 +452,63 @@ describe('am Quelltext: keine Seite liest `meldung`, keine Route schreibt einen 
     expect(readFileSync(join(WURZEL, P, 'angebot/Auswahl.tsx'), 'utf8'))
       .toContain('eigenerEintrag(fehlerTexte.fehler, grund) ?? fehlerTexte.sonst');
   });
+});
+
+/* ── Nachrunde: ein Name des Prototyps ist kein Bereich ─────────────────── */
+
+/**
+ * **`formularSchluessel` schlägt nur einen EIGENEN Eintrag nach** (D-728,
+ * Nachrunde zu V-272).
+ *
+ * Hier stand `FORMULAR_SCHLUESSEL[bereich]`. `toString`, `constructor` und
+ * `__proto__` fanden eine Funktion bzw. `Object.prototype` und galten als
+ * bekannter Bereich: Seite und Route fragten die Datenbank nach einem
+ * Formular namens „function Object() { [native code] }", und
+ * `/angebot/__proto__/danke?nr=…` bestätigte eine Anfrage, die es nie geben
+ * konnte. Geprüft an der echten Seite und der echten Route.
+ */
+describe('Nachrunde: ein Name des Prototyps ist kein Bereich', () => {
+  const PROTOTYP = ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf'];
+
+  /** Der Wurf von `notFound()` — Next.js antwortet darauf mit 404. */
+  const istNichtGefunden = (e: unknown): boolean =>
+    (e as { digest?: unknown } | null)?.digest === 'NEXT_HTTP_ERROR_FALLBACK;404';
+
+  it('formularSchluessel kennt die vier Bereiche — und keinen Namen des Prototyps', () => {
+    for (const [bereich, schluessel] of Object.entries(FORMULAR_SCHLUESSEL)) {
+      expect(formularSchluessel(bereich), bereich).toBe(schluessel);
+    }
+    for (const k of [...PROTOTYP, '', 'gibtsnicht']) {
+      expect(formularSchluessel(k), k).toBeUndefined();
+    }
+  });
+
+  it.each(PROTOTYP)('/angebot/%s ist 404 — ohne Frage an die Datenbank, kein 500', async (bereich) => {
+    zustand.lesungen = 0;
+    for (const sprache of ['de', 'en'] as const) {
+      const wurf = await AngebotSeiteFuer(bereich, sprache, {}).then(() => null, (e: unknown) => e);
+      expect(istNichtGefunden(wurf), `${sprache}: ${String(wurf)}`).toBe(true);
+    }
+    /* Und die Dankseite bestätigt keine Anfrage für einen solchen „Bereich". */
+    let dank: unknown = null;
+    try { DankeSeiteFuer(bereich, 'L-7Q2K'); } catch (e) { dank = e; }
+    expect(istNichtGefunden(dank), String(dank)).toBe(true);
+    expect(zustand.lesungen).toBe(0);
+  });
+
+  it.each(['constructor', '__proto__', 'toString'])(
+    'POST /api/anfrage mit bereich=%s weist mit dem vorhandenen Grund ab', async (bereich) => {
+      zustand.lesungen = 0;
+      const seite = await POST(post({ ...REINIGUNG_GUT, bereich, antwort: 'seite' }));
+      expect(seite.status).toBe(303);
+      expect(seite.headers.get('location')).toBe(`${HIER}/angebot?fehler=keinFormular`);
+
+      const programm = await POST(post({ ...REINIGUNG_GUT, bereich, sprache: 'en' }));
+      expect(programm.status).toBe(404);
+      expect(await programm.json())
+        .toEqual({ ok: false, meldung: API_TEXTE.en.keinFormular, felder: {} });
+      /* Kein Formular wurde gesucht und keine Annahme versucht. */
+      expect(zustand.lesungen).toBe(0);
+      expect(zustand.nimmAn).not.toHaveBeenCalled();
+    });
 });
