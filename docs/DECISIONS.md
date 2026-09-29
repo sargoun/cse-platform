@@ -20919,7 +20919,8 @@ eine Prüfung, die den Satz nur aufrief.
    alte Aussage; `tests/kern/antrag-rueckweg.test.ts` prüft die
    Entwurfskennung jetzt am tatsächlich gezeigten Satz
    (`setzeEin(MEIN_FORMULAR_TEXTE[s].pflichtBei, …)`) statt an der
-   ungenutzten Funktion.
+   ungenutzten Funktion. Die Wache über den ganzen Baum — kein Feld einer
+   Satztabelle, das niemand liest — ist D-744.
 
 | Betrifft | EMP-10, D-663, D-681, D-692, O-613, O-925, V-187, V-260, `src/lib/i18n/mein-formular.ts` (`fehlt_einsatz`), `src/lib/i18n/mein-formulare.ts` (`AntragFormTexte`), `tests/kern/{mein-formular-rueckweg,antrag-rueckweg}.test.ts` |
 |---|---|
@@ -21147,4 +21148,71 @@ Vorlesen und in der Suche.
    (`sm:flex`), gilt als Fliesstext und wird geprüft.
 
 | Betrifft | V-252, V-250, V-251, V-123, `tests/kern/jsx-leerraum.test.ts`, `tests/kern/hilfen/jsx-leerraum.ts`, 21 Seiten unter `src/app/portal/[mandant]` (Agentenlauf, Kontaktblatt, Rechtsgrundlagen, Konditionen, Steuer, Wiedervorlagen, Datenschutz ×3, Vorlagen, Eingangsrechnung-Freigabe, Rechnung, ZUGFeRD, Raum, Turnus, Security ×2, Reinigungsklassen, Zeitkorrektur, Zeiteintrag, Zeitfreigabe) |
+|---|---|
+
+### D-744 · Ein Satz, den keine Seite zeigt, fällt auf — Wache über jede Satztabelle bis zum gelesenen Feld (V-249)
+
+**Der Befund.** `ANTRAG_FORM_TEXTE.pflichtBei` (D-740) stand in vier
+Sprachen in der Tabelle der Antragsmaske und erschien nirgends; die einzige
+Prüfung daran bestätigte einen Satz, den kein Mensch liest. Die Frage
+dahinter: wie viele solche Sätze stehen in den Tabellen? Über den Baum
+gezählt: 87 Satztabellen unter `src/lib/i18n` mit 3450 Feldern. 98 Felder in
+21 Tabellen liest keine Seite, kein Baustein und kein Dienst — 48 davon im
+gemeinsamen Wortschatz der Verwaltung (`VERWALTUNG_TEXTE`, D-592), sieben in
+`MEIN_TEXTE` (`gesperrt`, `offen`, `vorlaeufig`, `sprache`, `summe`,
+`dienstanweisungLesen`, `zurueck`),
+dazu etwa `SHELL_TEXTE.menueSchliessen`, die Bearbeiten-Titel von Projekt,
+Revier und Veranstaltung, deren Seiten nur anlegen, und acht Felder in
+`KETTE_TEXTE` — zwei davon (`typWerte`, `richtungWerte`) prüft
+`crm-kette.test.ts` auf Vollständigkeit, gezeigt wird keines.
+
+**Die Entscheidung.**
+
+1. **Verfolgt wird der Weg bis zum Feld, nicht der Name**
+   (`tests/kern/hilfen/satztabellen.ts`). Eine Satztabelle ist eine
+   Konstante unter `src/lib/i18n` mit Sprachen als Schlüsseln; ihre Felder
+   sind die des ersten Spracheintrags. Ein Eintrag entsteht aus `T[sprache]`,
+   `T.de` oder einer Wahlfunktion (`nachSprache(T, …)`) und wird weiter
+   verfolgt: in eine Bindung (`const t`, `t = …`, ein Vorgabewert), in eine
+   Funktion und einen Baustein (auch über den Import, zerlegt, umbenannt oder
+   über `props`), aus einer Funktion an jeden ihrer Aufrufe (`meinTexte(…)`),
+   in jede Funktion einer Tabelle von Funktionen, aus der erst zur Laufzeit
+   gewählt wird (`ANTWORT_TEXT`), und in ein Objekt unter einem Namen, dann
+   an jedes `x.name` im Baum (`basis.texte` im Arbeiterportal — das zählt
+   eher zu viele Leser als zu wenige). Ein Vergleich, `!` und `typeof` lesen
+   nichts.
+2. **Wo die Verfolgung aufhört, gilt jedes Feld als gelesen** — ein
+   Schlüssel, der erst zur Laufzeit feststeht, ein Aufruf, der sich nicht
+   auflösen lässt. Lieber ein totes Feld übersehen als ein gelesenes für tot
+   erklären. Diese blinden Tabellen stehen mit Namen fest
+   (`NICHT_VERFOLGTE_SATZTABELLEN`, neun: die Beschriftungen der Navigation,
+   die Pillen, fünf Wertelisten des Arbeiterportals, die Dokumentkategorien,
+   die Rückmeldungen des Recruitings); eine Tabelle, die neu blind wird,
+   bricht die Prüfung, bis sie dort steht.
+3. **Eingefroren, nicht gelöscht.** Die 98 Felder stehen in
+   `tests/kern/satztabellen-bestand.ts` (`UNGELESENE_SATZFELDER`) und dürfen
+   nur weniger werden; der Bestand muss genau sein. Ein Feld zu entfernen ist
+   eine Entscheidung je Tabelle — der Wortschatz steht mit Absicht bereit, ein
+   Titel fürs Bearbeiten kündigt eine fehlende Seite an — und keine
+   Textkorrektur; dieser Durchgang ändert kein Verhalten.
+4. **Die vier Formulartabellen des Arbeiterportals** (`MEIN_FORMULAR_TEXTE`,
+   `ANTRAG_FORM_TEXTE`, `MELDUNG_FORM_TEXTE`, `EINWAND_FORM_TEXTE`) werden
+   ohne blinde Stelle bis zum Feld verfolgt, jedes Feld hat einen Leser, und
+   keine steht im Bestand. Auf 21561fd meldet die Prüfung gegenüber heute
+   genau ein Feld mehr: `ANTRAG_FORM_TEXTE.pflichtBei`.
+5. **Geprüft** (`tests/kern/satztabellen-leser.test.ts`): über den ganzen
+   Baum kein ungelesenes Feld ausserhalb des Bestands, der Bestand genau, die
+   blinden Tabellen genau; die Gegenprobe findet ein totes Feld und zählt
+   jeden Weg aus Nr. 1 als Leser (Feldzugriff, Sprache als Name, Zerlegung,
+   Wahlfunktion, Baustein zerlegt/umbenannt/`props`/Vorgabewert, Funktion,
+   Rückgabe über den Import, Objekt, Funktionstabelle, Vergleich), und eine
+   Tabelle mit Schlüssel zur Laufzeit oder unaufgelöstem Aufruf gilt als ganz
+   gelesen.
+6. **Nicht erfasst, bewusst:** Felder unterhalb der obersten Ebene
+   (`gruende.fehlt_einsatz`, `nachweisBlatt.summe`) — ein toter Grund in einer
+   Grundtabelle bleibt unsichtbar; Satztabellen neben den Seiten
+   (`FEHLERTEXT`), die ein Schlüssel aus der Adresse wählt; eine Prüfung, die
+   einen Satz aufruft, zählt nicht als Leser — sie ist keiner.
+
+| Betrifft | V-249, D-740, D-592, `tests/kern/satztabellen-leser.test.ts`, `tests/kern/satztabellen-bestand.ts`, `tests/kern/hilfen/satztabellen.ts`, `src/lib/i18n/**` |
 |---|---|
