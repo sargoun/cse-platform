@@ -28,6 +28,7 @@ import {
   ANTRAG_GRUENDE, EINWAND_GRUENDE, MELDUNG_GRUENDE,
 } from '../../src/lib/i18n/mein-formulare.js';
 import { PORTAL_SPRACHEN } from '../../src/lib/i18n/texte.js';
+import { WACHBUCH_SCHICHT_TEXTE } from '../../src/lib/i18n/wachbuch-schicht.js';
 import { pflichtfeldGrund } from '../../src/server/services/abwesenheit/antrag.js';
 import { WachbuchEingabeFehlt } from '../../src/server/services/security/wachbuch.js';
 import { dienstFehlerAntwort } from '../../src/app/api/mein/schichten/bruecke.js';
@@ -173,8 +174,9 @@ describe('jeder Grund hat einen Satz — in vier Sprachen', () => {
 
   it('jeder Grund, den eine Route unter api/mein zurückschickt, steht in der Tabelle', () => {
     /*
-     * Drei Routen führen auf Masken mit EIGENER Satztabelle (V-187…V-189,
-     * `mein-formulare.ts`), die `formularFehlerSatz` vor dieser nachschlägt
+     * Vier Routen führen auf Masken mit EIGENER Satztabelle (V-187…V-189,
+     * `mein-formulare.ts`; das Wachbuch der Schicht seit V-180/V-181,
+     * `wachbuch-schicht.ts`), die `formularFehlerSatz` vor dieser nachschlägt
      * (zusammengeführt, D-692 Nachsatz). Für sie zählt ein Grund auch, wenn
      * ihn die Maske kennt, auf die die Route führt — und nur diese.
      */
@@ -182,6 +184,8 @@ describe('jeder Grund hat einen Satz — in vier Sprachen', () => {
       'src/app/api/mein/abwesenheit/route.ts': MELDUNG_GRUENDE,
       'src/app/api/mein/antraege/route.ts': ANTRAG_GRUENDE,
       'src/app/api/zeit/einwand/route.ts': EINWAND_GRUENDE,
+      'src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts':
+        Object.keys(WACHBUCH_SCHICHT_TEXTE.de.fehler),
     };
     const bekannt = new Set<string>(FORMULAR_FEHLER_GRUENDE);
     const alle = new Set<string>();

@@ -4,6 +4,8 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
+import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { rechteImKontext } from '@/server/auth/kontext-rechte';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import {
@@ -37,6 +39,16 @@ import { feldText as text } from '../../../formular';
  * `POST /api/dokumente/upload-ticket` und eine Zeile im geschlossenen Register
  * `einsatz_medien_bezug`; beides gibt es für `schluessel_quittung` nicht, und
  * die Oberfläche sagt das, statt einen Erfolg vorzutäuschen (D-232).
+ *
+ * **Die Bewegung kann zugleich ins Wachbuch** (V-180, SEC-05 „key"):
+ * `im_wachbuch=1` schreibt in derselben Transaktion eine Seite der Art
+ * `schluessel` und hängt die Quittung an sie. Dafür braucht es ZUSÄTZLICH
+ * `wachbuch.schreiben` — geprüft vorher, mit einem Satz statt eines
+ * Zeilenschutzfehlers.
+ *
+ * **Ein Browser bekommt eine Seite, kein JSON** (D-599): mit
+ * `zurueck_fehler` führt eine Abweisung dorthin zurück, der Grund als
+ * `?fehler=` (D-728 auf der Seite).
  */
 export const dynamic = 'force-dynamic';
 
@@ -55,11 +67,22 @@ export async function POST(
   const { id } = await kontextParam.params;
   const daten = await anfrage.formData();
   const mandant = String(daten.get('mandant') ?? '');
+  const fehlerZiel = text(daten, 'zurueck_fehler');
+  /** D-599: ein Formular geht mit dem Grund zurück auf seine Seite. */
+  const abgewiesen = (grund: string, antwort: () => NextResponse): NextResponse => {
+    if (fehlerZiel === null) return antwort();
+    const trenner = fehlerZiel.includes('?') ? '&' : '?';
+    return NextResponse.redirect(internesZiel(
+      `${fehlerZiel}${trenner}fehler=${encodeURIComponent(grund)}`,
+      `/portal/${mandant}/security/schluessel/${id}`, anfrage), 303);
+  };
   const art = daten.get('art');
   if (!istEreignis(art)) {
-    return NextResponse.json({ fehler: 'pflichtfeld_fehlt' }, { status: 400 });
+    return abgewiesen('pflichtfeld_fehlt', () =>
+      NextResponse.json({ fehler: 'pflichtfeld_fehlt' }, { status: 400 }));
   }
   const empfaengerArt = daten.get('empfaenger_art');
+  const imWachbuch = daten.get('im_wachbuch') === '1';
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>
@@ -69,6 +92,15 @@ export async function POST(
           { recht: 'schluessel.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        if (imWachbuch) {
+          const rechte = await rechteImKontext(kontext, 'wachbuch.schreiben');
+          if (rechte['wachbuch.schreiben'] !== true) {
+            throw Object.assign(new Error(
+              'Ins Wachbuch schreibt, wer das Wachbuch führen darf (wachbuch.schreiben).'), {
+              code: 'kein_wachbuchrecht', status: 403,
+            });
+          }
+        }
         return buche(kontext, {
           schluesselId: id,
           art,
@@ -89,9 +121,18 @@ export async function POST(
            */
           geraeteZeit: text(daten, 'geraete_zeit'),
           nachgetragen: daten.get('nachgetragen') === '1',
+          imWachbuch,
         });
       }));
   } catch (fehler) {
+    const f = fehler as { status?: unknown; code?: unknown };
+    if (typeof f.status === 'number' && typeof f.code === 'string') {
+      const grund = f.code;
+      return abgewiesen(grund, () => alsAntwort(fehler) ?? NextResponse.json(
+        { fehler: grund }, { status: 400 }));
+    }
+    const autorisierung = autorisierungsAntwort(fehler);
+    if (autorisierung !== null) return autorisierung;
     const antwort = alsAntwort(fehler);
     if (antwort !== null) return antwort;
     throw fehler;

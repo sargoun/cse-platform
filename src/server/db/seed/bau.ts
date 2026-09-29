@@ -70,6 +70,7 @@ import type { Speicher } from '../../storage/adapter.js';
 import { protokolliereAbnahme } from '../../services/bau/abnahme.js';
 import { legeLvImportAn } from '../../services/bau/lv-import.js';
 import { hefteWetterAn } from '../../services/bau/wetter.js';
+import { legeGewerkAn } from '../../services/bau/gewerk.js';
 import { wetterPort } from '../../versand/dwd.js';
 import { nutzlastHash } from '../../agent/policy.js';
 
@@ -975,16 +976,20 @@ export async function seedBau(
     /* 4 — das Bautagebuch                                                 */
     /* ------------------------------------------------------------------ */
 
+    /*
+     * V-182: ueber den ECHTEN Dienst, denselben, den die Katalogseite
+     * `/bau/gewerke` ruft — mit `bestaetigt: false`, also `ist_platzhalter`,
+     * weil O-159 offen ist. Vorher schrieb der Seed die Zeilen selbst, und der
+     * Seed war der einzige Weg, auf dem ueberhaupt ein Gewerk entstand.
+     */
     const gewerkIds = new Map<string, string>();
     for (const g of GEWERKE) {
-      const [neu] = await kontext.schreibe<{ id: string }>(
-        `insert into gewerk (mandant_id, code, bezeichnung, leistungsbereich, sortierung,
-                             ist_platzhalter, erstellt_von_art, erstellt_von)
-         values ($1, $2, $3, $4, 0, true, 'mensch', app.aktueller_benutzer())
-         returning id`,
-        [kontext.aktiverMandantId, g.code, g.bezeichnung, g.leistungsbereich],
-      );
-      if (neu !== undefined) gewerkIds.set(g.code, neu.id);
+      gewerkIds.set(g.code, await legeGewerkAn(kontext, {
+        code: g.code,
+        bezeichnung: g.bezeichnung,
+        leistungsbereich: g.leistungsbereich,
+        bestaetigt: false,
+      }));
     }
 
     let bautage = 0;

@@ -29,11 +29,17 @@
  * loeschbar (Invariante 8, §1.14), ein Fehlgriff bliebe also fuer immer
  * stehen.
  */
+import { crc32, deflateSync } from 'node:zlib';
 import type postgres from 'postgres';
 import type { SchreibKontext } from '../../kontext/index.js';
+import type { Speicher } from '../../storage/adapter.js';
+import { legeWachbuchFotosAb } from '../../services/zeit/medien.js';
 import {
   korrigiereEintrag, schreibeEintrag,
 } from '../../services/security/wachbuch.js';
+import {
+  legeSchluesselAn, nimmZurueck, uebergib,
+} from '../../services/security/schluessel.js';
 import { alsPortalSitzung } from './sitzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -232,4 +238,186 @@ export async function seedWachbuch(
     }));
 
   return { eintraege: 4, storniert: 1 };
+}
+
+export interface SchluesselbuchErgebnis {
+  /** Neu angelegte Schluessel — beim zweiten Lauf 0. */
+  readonly schluessel: number;
+  /** Quittungen, die zugleich eine Wachbuchseite `schluessel` schreiben. */
+  readonly quittungen: number;
+}
+
+/** Der Bund, von dem die Uebergabeseite oben spricht („Schlüsselbund OS-1"). */
+const DEMO_BUND = 'Schlüsselbund Objektschutz';
+
+/**
+ * V-180 — der Schluessel im Wachbuch (SEC-05 „key", SEC-07).
+ *
+ * Bis dahin wies das Wachbuch die Art `schluessel` ab, und keine Quittung
+ * zeigte je auf eine Seite (`schluessel_quittung.wachbuch_eintrag_id`, 0079,
+ * blieb in jeder Zeile NULL). Die Uebergabeseite dieser Demo sprach vom
+ * „Schlüsselbund OS-1" — einen solchen Schluessel gab es nirgends.
+ *
+ * Hier entsteht er, ueber den ECHTEN Dienst, und wandert einmal hin und
+ * zurueck: Ausgabe an die Wache zum Dienstbeginn, Ruecknahme bei der
+ * Uebergabe. Beide Quittungen mit „auch ins Wachbuch" (`imWachbuch`) — die
+ * Seite und die Quittung entstehen in EINER Transaktion, und die Quittung
+ * zeigt auf die Seite. Danach liegt der Bund wieder im Depot, das Journal
+ * zeigt beide Bewegungen und das Buch beide Seiten.
+ *
+ * Geschrieben wird als WACHLEITUNG (s. o.): der Urheber einer Seite ist eine
+ * Beschaeftigung in dieser Gesellschaft, und `schluessel.schreiben` haelt die
+ * Leitung ebenso wie `wachbuch.schreiben` (0008).
+ *
+ * **Idempotent durch LESEN ZUERST:** steht der Bund schon am Objekt,
+ * geschieht nichts — eine Quittung und eine Wachbuchseite sind beide nicht
+ * loeschbar (Invariante 8).
+ */
+export async function seedSchluesselImWachbuch(
+  sql: Sql, mandantId: string, objektId: string | null,
+): Promise<SchluesselbuchErgebnis> {
+  const nichts: SchluesselbuchErgebnis = { schluessel: 0, quittungen: 0 };
+  if (objektId === null) return nichts;
+
+  const [da] = await sql<{ id: string }[]>`
+    select id from schluessel
+     where mandant_id = ${mandantId} and objekt_id = ${objektId}
+       and bezeichnung = ${DEMO_BUND}
+     limit 1`;
+  if (da !== undefined) return nichts;
+
+  const wache = await wachleitung(sql, mandantId);
+  if (wache === undefined) return nichts;
+
+  /* Die Wache, die den Bund bekommt: eine andere Beschaeftigung derselben
+     Gesellschaft als die Leitung, die quittiert. */
+  const [empfaenger] = await sql<{ id: string; name: string }[]>`
+    select a.id, p.vorname || ' ' || p.nachname as name
+      from anstellung a
+      join person p on p.id = a.person_id
+     where a.mandant_id = ${mandantId} and a.status = 'aktiv' and a.geloescht_am is null
+       and a.person_id <> ${wache.person_id}
+     order by a.personalnummer
+     limit 1`;
+  if (empfaenger === undefined) return nichts;
+
+  const schluesselId = await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    (k) => legeSchluesselAn(k, {
+      objektId,
+      bezeichnung: DEMO_BUND,
+      schluesselNummer: 'OS-1',
+    }));
+
+  const bewegung = {
+    schluesselId,
+    empfaengerArt: 'mitarbeiter',
+    anstellungId: empfaenger.id,
+    empfaengerName: empfaenger.name,
+    unterzeichnerName: empfaenger.name,
+    imWachbuch: true,
+  } as const;
+
+  await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    (k) => uebergib(k, { ...bewegung, bemerkung: 'Dienstbeginn Nachtwache, Bund vollzählig.' }));
+  await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    (k) => nimmZurueck(k, { ...bewegung, bemerkung: 'Übergabe an den Tagdienst, Bund vollzählig.' }));
+
+  return { schluessel: 1, quittungen: 2 };
+}
+
+export interface WachbuchFotoErgebnis {
+  /** Seiten mit Foto, die DIESER Lauf geschrieben hat. */
+  readonly seiten: number;
+  readonly fotos: number;
+  /** Warum keine — `null`, wenn geschrieben wurde oder schon da war. */
+  readonly grund: 'nicht_verbunden' | 'keine_leitung' | null;
+}
+
+const FOTO_BETREFF = 'Schranke Tiefgarage beschädigt vorgefunden';
+
+/**
+ * Ein graues Platzhalterbild, 32 × 24 Pixel, als ECHTES PNG gebaut (IHDR,
+ * IDAT, IEND, je mit CRC-32) — kein Foto vom Objekt, und die Beschreibung
+ * der Aufnahme sagt das (DEMODATEN).
+ */
+function demoPng(): Uint8Array {
+  const breite = 32;
+  const hoehe = 24;
+  const stueck = (art: string, inhalt: Uint8Array): Buffer => {
+    const laenge = Buffer.alloc(4);
+    laenge.writeUInt32BE(inhalt.length);
+    const kopfUndInhalt = Buffer.concat([Buffer.from(art, 'latin1'), inhalt]);
+    const pruef = Buffer.alloc(4);
+    pruef.writeUInt32BE(crc32(kopfUndInhalt) >>> 0);
+    return Buffer.concat([laenge, kopfUndInhalt, pruef]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(breite, 0);
+  ihdr.writeUInt32BE(hoehe, 4);
+  ihdr[8] = 8; // Bittiefe
+  ihdr[9] = 0; // Graustufen
+  const zeilen = Buffer.alloc(hoehe * (1 + breite));
+  for (let y = 0; y < hoehe; y += 1) {
+    zeilen[y * (1 + breite)] = 0; // Filter: keiner
+    for (let x = 0; x < breite; x += 1) {
+      zeilen[y * (1 + breite) + 1 + x] = (x + y) % 2 === 0 ? 0x80 : 0x90;
+    }
+  }
+  return new Uint8Array(Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    stueck('IHDR', ihdr),
+    stueck('IDAT', deflateSync(zeilen)),
+    stueck('IEND', new Uint8Array(0)),
+  ]));
+}
+
+/**
+ * V-181 — eine Wachbuchseite MIT Foto (SEC-05 „with server time and photos").
+ *
+ * **Nur mit verbundenem Speicher.** Ohne ihn entsteht KEINE Seite: ein Foto
+ * kommt mit der Seite und nie danach (0467) — eine Seite, die dieser Lauf
+ * ohne Foto schriebe, bekaeme auch spaeter keines, und eine selbst
+ * geschriebene Medienzeile ohne Datei waere ein vorgetaeuschter Beleg.
+ *
+ * Geschrieben wird ueber die ECHTEN Dienste in EINER Transaktion der
+ * Wachleitung: `schreibeEintrag`, dann `legeWachbuchFotosAb` (pruefen,
+ * bereinigen, Zeile, Speicher). Idempotent ueber den Betreff am Objekt.
+ */
+export async function seedWachbuchFoto(
+  sql: Sql, mandantId: string, postenId: string | null, objektId: string | null,
+  speicher: Speicher | null,
+): Promise<WachbuchFotoErgebnis> {
+  if (postenId === null || objektId === null) return { seiten: 0, fotos: 0, grund: null };
+  if (speicher === null || !speicher.verbunden) {
+    return { seiten: 0, fotos: 0, grund: 'nicht_verbunden' };
+  }
+  const [da] = await sql<{ id: string }[]>`
+    select id from wachbuch_eintrag
+     where mandant_id = ${mandantId} and objekt_id = ${objektId} and betreff = ${FOTO_BETREFF}
+     limit 1`;
+  if (da !== undefined) return { seiten: 0, fotos: 0, grund: null };
+
+  const wache = await wachleitung(sql, mandantId);
+  if (wache === undefined) return { seiten: 0, fotos: 0, grund: 'keine_leitung' };
+
+  const fotos = await alsWache(sql, mandantId, wache.benutzer_id, wache.person_id,
+    async (k) => {
+      const eintragId = await schreibeEintrag(k, {
+        objektId,
+        postenId,
+        art: 'vorkommnis',
+        betreff: FOTO_BETREFF,
+        eintragstext:
+          'Beim Rundgang 3 stand die Schranke der Tiefgaragenzufahrt schräg, der '
+          + 'Schrankenbaum ist am Gelenk eingerissen. Kein Fahrzeug in der Nähe, '
+          + 'niemand angetroffen. Zufahrt mit Leitkegeln gesichert, Haustechnik über '
+          + 'die Rufbereitschaft verständigt. Foto anbei.',
+      });
+      return legeWachbuchFotosAb(k, {
+        eintragId,
+        dateien: [{ daten: demoPng(), behaupteterTyp: 'image/png' }],
+        beschreibung: 'DEMODATEN — Platzhalterbild, keine Aufnahme vom Objekt',
+      }, speicher);
+    });
+  return { seiten: 1, fotos: fotos.length, grund: null };
 }

@@ -69,6 +69,8 @@ Readonly<Record<InternSprache, NutzlastSeitenTexte>> = {
       text: 'Text',
       nachricht: 'Nachricht',
       hinweis: 'Hinweis',
+      /* V-178: die Meldung des Generatorlaufs an der Serie. */
+      feiertagskalender_fehlt: 'Feiertagskalender fehlt für',
       empfehlung: 'Empfehlung',
       begruendung: 'Begründung',
       kanal: 'Kanal',
@@ -128,6 +130,8 @@ Readonly<Record<InternSprache, NutzlastSeitenTexte>> = {
       text: 'Text',
       nachricht: 'Message',
       hinweis: 'Note',
+      /* V-178: the generator run's note on the series. */
+      feiertagskalender_fehlt: 'Holiday calendar missing for',
       empfehlung: 'Recommendation',
       begruendung: 'Reason',
       kanal: 'Channel',

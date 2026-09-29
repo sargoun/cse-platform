@@ -18,6 +18,8 @@ import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { QUITTUNG_WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
 
 /**
  * `/portal/[mandant]/security/schluessel/[id]` — der aktuelle Halter und die
@@ -54,7 +56,8 @@ export default async function Schluessel(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'schluessel.schreiben');
+  const darf = await haeltRechte(sitzung, 'schluessel.schreiben', 'wachbuch.lesen');
+  const tQ = nachSprache(QUITTUNG_WACHBUCH_TEXTE, zugang.sprache);
   if (sitzung.aktiverMandantId === null) notFound();
 
   const { schluessel, quittungen, befund } = await (db().begin(
@@ -213,6 +216,18 @@ export default async function Schluessel(
               )}
               {q.bemerkung !== null && (
                 <p className="m-0 mt-s2 text-sm text-text">{q.bemerkung}</p>
+              )}
+              {/* V-180: die Seite derselben Bewegung im Wachbuch — verlinkt nur,
+                  wo ihr Ziel lesbar ist (AUT-06). */}
+              {q.wachbuchEintragId !== null && darf['wachbuch.lesen'] === true && (
+                <p className="m-0 mt-s2 text-sm" data-cse="quittung-wachbuch">
+                  <Link
+                    href={`/portal/${mandant}/security/wachbuch/${q.wachbuchEintragId}`}
+                    className="text-text underline-offset-2 hover:underline"
+                  >
+                    {tQ.wachbuchVerweis}
+                  </Link>
+                </p>
               )}
               {!q.signaturHinterlegt && ['ausgabe', 'ruecknahme'].includes(q.art) && (
                 <p className="m-0 mt-s2 text-sm text-text-subtle" data-cse="signatur-bild">

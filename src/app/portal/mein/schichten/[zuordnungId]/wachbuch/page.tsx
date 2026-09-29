@@ -10,6 +10,10 @@ import { findeEigeneSchicht, type EigeneSchicht }
 import { leseSchichtbuch, type Schichtbuch }
   from '@/server/services/mitarbeiter/schichtbuch';
 import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang';
+import { WACHBUCH_SCHICHT_TEXTE, wachbuchSchichtMaske } from '@/lib/i18n/wachbuch-schicht';
+import { listeWachbuchMedien, type SchichtMedium } from '@/server/services/mitarbeiter/medien';
+import { signierteAdressen } from '@/server/services/zeit/medien';
+import { waehleSpeicher } from '@/server/storage/waehle';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
 import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
@@ -39,22 +43,44 @@ import { FormularFehler } from '../../../FormularAntwort';
  * **Ein echtes `<form method="post">`** ohne JavaScript: die Geraete sind alte
  * Diensttelefone im Treppenhaus (SEITENKARTE §13).
  *
- * **Kein Foto am Eintrag.** SEC-05 nennt Bilder; sie haengen an
- * `einsatz_medien`, und der Bezug, den diese Schicht traegt, ist ihr `einsatz`
- * — die Aufnahme geht deshalb ueber `/fotos` derselben Schicht und steht in
- * derselben Beweiskette. Ein zweiter Uploadweg mit einem zweiten Bezug waere
- * eine zweite Stelle, an der dasselbe Bild liegt.
+ * **Fotos am Eintrag** (V-181, SEC-05 „with server time and photos"). Hier
+ * stand „Kein Foto am Eintrag — die Aufnahme geht ueber `/fotos`". Die
+ * Schichtfotos erreichten aber weder das Wachbuchblatt noch die Leitstelle,
+ * und ein Vorkommnisfoto gehoert zur Seite, die das Vorkommnis beschreibt.
+ * Jetzt nimmt das Formular Fotos MIT der Seite an (Bezug `wachbuch_eintrag`,
+ * 0070/0467) — nur beim Schreiben, nie nachtraeglich. `/fotos` bleibt fuer
+ * die Dokumentation der Schicht, die keine Wachbuchseite ist.
+ *
+ * **Der Schluessel** (V-180, SEC-05 „key"): fuehrt das Objekt Schluessel,
+ * bietet das Formular die Art `schluessel` und die Auswahl an. Eine
+ * Abweisung kommt als Seite mit Grund zurueck (`?fehler=`, D-599) und steht
+ * EINMAL, ueber dem Buch: im Kasten aller Formulare des Portals
+ * (`FormularFehler`), mit den Saetzen dieser Seite zuerst und denen des
+ * Portals dahinter (`wachbuchSchichtMaske`; zusammengefuehrt, D-692
+ * Nachsatz). Oben und nicht im Formular, weil es das Formular nicht immer
+ * gibt — `kein_objekt` kommt gerade dann, wenn kein Buch da ist.
  */
 export const dynamic = 'force-dynamic';
 
 interface Blatt {
   readonly schicht: EigeneSchicht;
   readonly buch: Schichtbuch | null;
+  /** V-181: die eigenen Fotos je Seite, signiert (`t_person`: nur eigene Aufnahmen). */
+  readonly fotos: ReadonlyMap<string, readonly {
+    readonly medium: SchichtMedium; readonly adresse: string | null;
+  }[]>;
 }
 
-/** Die vier Arten, die der Dienst heute annimmt. */
-const ARTEN: readonly WachbuchArtSchluessel[] = [
+/**
+ * Die Arten, die das Formular anbietet. `schluessel` nur, wo das Objekt
+ * Schluessel fuehrt (V-180): der Dienst verlangt bei dieser Art einen, und
+ * eine Wahl, die nur scheitern kann, ist keine.
+ */
+const ARTEN_OHNE_SCHLUESSEL: readonly WachbuchArtSchluessel[] = [
   'rundgang', 'vorkommnis', 'uebergabe', 'alarm',
+];
+const ARTEN_MIT_SCHLUESSEL: readonly WachbuchArtSchluessel[] = [
+  'rundgang', 'vorkommnis', 'uebergabe', 'schluessel', 'alarm',
 ];
 
 export default async function MeinWachbuch(
@@ -66,6 +92,7 @@ export default async function MeinWachbuch(
   const { zuordnungId } = await params;
   /* Der Grund einer Abweisung, zurückgeschickt von der Route (V-198, D-692). */
   const fehler = (await searchParams)['fehler'];
+  const speicher = waehleSpeicher();
   const ergebnis = await meinPortal<Blatt | null>(
     `/portal/mein/schichten/${zuordnungId}/wachbuch`,
     async (kontext) => {
@@ -80,16 +107,27 @@ export default async function MeinWachbuch(
         : await leseSchichtbuch(kontext, {
           objektId: schicht.objektId, mandantId: bezug.mandantId,
         });
-      return { schicht, buch };
+      const roh = await listeWachbuchMedien(kontext, buch?.eintraege.map((e) => e.id) ?? []);
+      const jetzt = Math.floor(Date.now() / 1000);
+      const fotos = new Map<string, readonly {
+        readonly medium: SchichtMedium; readonly adresse: string | null;
+      }[]>();
+      for (const [eintragId, medien] of roh) {
+        fotos.set(eintragId, await signierteAdressen(kontext, medien, speicher, jetzt));
+      }
+      return { schicht, buch, fotos };
     },
   );
   if (ergebnis.art === 'anmeldung') return <AnmeldungNoetig />;
   if (ergebnis.daten === null) notFound();
 
   const { basis } = ergebnis;
-  const { schicht, buch } = ergebnis.daten;
+  const { schicht, buch, fotos } = ergebnis.daten;
   const t = basis.texte;
   const arten = WACHBUCH_ART_TEXTE[basis.sprache];
+  const tW = WACHBUCH_SCHICHT_TEXTE[basis.sprache];
+  const schluessel = buch?.schluessel ?? [];
+  const ARTEN = schluessel.length > 0 ? ARTEN_MIT_SCHLUESSEL : ARTEN_OHNE_SCHLUESSEL;
   /*
    * Warum hier kein Formular mehr steht — und nicht: warum es scheitert.
    *
@@ -115,7 +153,8 @@ export default async function MeinWachbuch(
         {schicht.objekt ?? '—'} · <span className="cse-zahl">{tagInSprache(schicht.planDatum, basis.sprache)}</span>
       </p>
 
-      <FormularFehler sprache={basis.sprache} grund={fehler} />
+      <FormularFehler sprache={basis.sprache} grund={fehler}
+        maske={wachbuchSchichtMaske(basis.sprache)} />
 
       {schicht.objektId === null ? (
         <Leer text={t.keineEintraege} />
@@ -170,6 +209,33 @@ export default async function MeinWachbuch(
                             ? '—' : `${String(e.zeitabweichungSek)} s`}
                         </span>
                       </Feld>
+                      {e.schluessel !== null && (
+                        <Feld label={tW.schluessel}>{e.schluessel}</Feld>
+                      )}
+                      {(fotos.get(e.id)?.length ?? 0) > 0 && (
+                        <Feld label={tW.fotos}>
+                          <ul className="m-0 flex list-none flex-col gap-s1 p-0"
+                              data-cse="wachbuch-fotos">
+                            {(fotos.get(e.id) ?? []).map(({ medium, adresse }) => (
+                              <li key={medium.id} className="text-base">
+                                {adresse !== null ? (
+                                  <a href={adresse}
+                                     className="inline-flex min-h-11 items-center text-base
+                                                text-text underline">
+                                    {t.oeffnen}
+                                  </a>
+                                ) : (
+                                  <span className="text-text-muted">{tW.fotoOhneAdresse}</span>
+                                )}
+                                <span className="cse-zahl text-text-muted">
+                                  {' · '}
+                                  {medium.erfasstLokal}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </Feld>
+                      )}
                       {e.storniert && (
                         <Feld label={t.entscheidung}>{e.stornoGrund ?? '—'}</Feld>
                       )}
@@ -189,6 +255,7 @@ export default async function MeinWachbuch(
             </p>
             <form
               method="post"
+              encType="multipart/form-data"
               action={`/api/mein/schichten/${zuordnungId}/wachbuch`}
               className="flex max-w-prose flex-col gap-s4"
             >
@@ -256,11 +323,52 @@ export default async function MeinWachbuch(
                 </>
               )}
 
+              {schluessel.length > 0 && (
+                <div className="flex flex-col gap-s2">
+                  <label htmlFor="wb-schluessel" className="text-base text-text">
+                    {tW.schluessel}
+                  </label>
+                  <select id="wb-schluessel" name="schluessel" className={eingabe}
+                          aria-describedby="wb-schluessel-hinweis"
+                          data-cse="wachbuch-schluessel">
+                    <option value="">—</option>
+                    {schluessel.map((k) => (
+                      <option key={k.id} value={k.id}>{k.bezeichnung}</option>
+                    ))}
+                  </select>
+                  <span id="wb-schluessel-hinweis" className="text-base text-text-muted">
+                    {tW.schluesselHinweis}
+                  </span>
+                </div>
+              )}
+
               <label className="flex min-h-11 items-center gap-s3 text-base text-text">
                 <input type="checkbox" name="polizei" value="ja"
                        className="min-h-11 min-w-11 shrink-0" />
                 {t.polizei}
               </label>
+
+              {/*
+                V-181: Fotos MIT der Seite — danach nimmt die Datenbank keines
+                mehr an (0467). Ohne verbundenen Speicher steht statt eines
+                Dateifelds, das nur scheitern kann, der Satz, warum es fehlt.
+              */}
+              {speicher.verbunden ? (
+                <div className="flex flex-col gap-s2" data-cse="wachbuch-foto-feld">
+                  <label htmlFor="wb-fotos" className="text-base text-text">
+                    {tW.fotos}
+                  </label>
+                  <input id="wb-fotos" name="foto" type="file" accept="image/*" multiple
+                         aria-describedby="wb-fotos-hinweis" className={eingabe} />
+                  <span id="wb-fotos-hinweis" className="text-base text-text-muted">
+                    {tW.fotoHinweis}
+                  </span>
+                </div>
+              ) : (
+                <p className="m-0 text-base text-text-muted" data-cse="wachbuch-foto-nicht-verbunden">
+                  {tW.fotoNichtVerbunden}
+                </p>
+              )}
 
               {/*
                 * **Nachgetragen** (V-078, TIM-09).

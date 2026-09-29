@@ -17,6 +17,13 @@ import {
   findeVeranstaltung, type VeranstaltungBlatt,
 } from '@/server/services/security/veranstaltung';
 import { Recht } from '@/components/ui/Recht';
+import {
+  leseAnforderungen, waehlbareQualifikationen, type AnforderungZeile,
+} from '@/server/services/security/anforderung';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { ANFORDERUNG_TEXTE } from '@/lib/i18n/verwaltung/anforderung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { Anforderungsblock } from '../../Anforderungsblock';
 
 /**
  * `/portal/[mandant]/security/veranstaltungen/[id]` — ein Eventdienst und sein
@@ -48,9 +55,15 @@ export const dynamic = 'force-dynamic';
 const UNGEPRUEFT = 'nicht geprüft';
 
 export default async function VeranstaltungBlattSeite(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  {
+    params, searchParams,
+  }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  const suche = await searchParams;
   kennungOder404(id);
   const tor = await mandantTor(
     `/portal/${mandant}/security/veranstaltungen/${id}`, mandant,
@@ -65,16 +78,44 @@ export default async function VeranstaltungBlattSeite(
      Recht SEINES Ziels — ein Verweis auf 404 verrät, was er nicht zeigen darf. */
   const darf = await haeltRechte(
     sitzung, 'dienstplan.schreiben', 'dienstanweisung.lesen', 'personal.lesen',
-    'objekt.lesen', 'personal.nachweis_lesen',
+    'objekt.lesen', 'personal.nachweis_lesen', 'security.schreiben',
   );
 
-  const blatt = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) =>
-      findeVeranstaltung(kontext, id))) as Promise<VeranstaltungBlatt | null>);
+  /*
+   * V-179: die verlangten Nachweise stehen mit im Schnappschuss derselben
+   * Transaktion — SEC-08 ist kurzfristige Besetzung OHNE festen Posten, und
+   * gerade dort muss die Veranstaltung selbst sagen können, was sie verlangt.
+   */
+  const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => {
+      const gefunden = await findeVeranstaltung(kontext, id);
+      if (gefunden === null) return null;
+      return {
+        blatt: gefunden,
+        anforderungen: await leseAnforderungen(kontext, {
+          art: 'veranstaltung', id, objektId: gefunden.kopf.objektId,
+        }),
+        qualifikationen: darf['security.schreiben'] === true
+          ? await waehlbareQualifikationen(kontext) : [],
+      };
+    })) as Promise<{
+      blatt: VeranstaltungBlatt;
+      anforderungen: readonly AnforderungZeile[];
+      qualifikationen: readonly { readonly id: string; readonly bezeichnung: string }[];
+    } | null>);
 
   // AUT-06: eine fremde Veranstaltung ist nicht vorhanden, nicht verboten.
-  if (blatt === null) notFound();
+  if (daten === null) notFound();
+  const { blatt } = daten;
   const { kopf, schichten } = blatt;
+  const tA = nachSprache(ANFORDERUNG_TEXTE, zugang.sprache);
+  /* D-599/D-728: der Grund einer Abweisung nur als EIGENER Eintrag. */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const erfolg = typeof suche['anforderung'] === 'string' ? suche['anforderung'] : null;
+  const meldung = fehler !== null
+    ? { art: 'warnung' as const, text: eigenerEintrag(tA.fehler, fehler) ?? tA.fehlerUnbekannt }
+    : erfolg === 'angelegt' ? { art: 'erfolg' as const, text: tA.angelegt }
+      : erfolg === 'archiviert' ? { art: 'erfolg' as const, text: tA.archiviert } : null;
 
   const lebende = schichten?.filter((s) => !s.storniert) ?? [];
   const besetzt = lebende.reduce((summe, s) => summe + s.besetztAnzahl, 0);
@@ -238,6 +279,17 @@ export default async function VeranstaltungBlattSeite(
           </p>
         </Card>
       </div>
+
+      <Anforderungsblock
+        texte={tA}
+        anforderungen={daten.anforderungen}
+        qualifikationen={daten.qualifikationen}
+        herkunft={{ art: 'veranstaltung', id: kopf.id }}
+        hatObjekt={kopf.objektId !== null}
+        darfSchreiben={darf['security.schreiben'] === true}
+        zurueck={`/portal/${mandant}/security/veranstaltungen/${kopf.id}`}
+        meldung={meldung}
+      />
 
       {/* --- Block 2: der Besetzungsstand ---------------------------------- */}
       <section className="mb-s6" data-cse="veranstaltung-besetzung">

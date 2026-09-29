@@ -59,6 +59,13 @@ describe('(1) jede der vier Erfassungen kann es sagen', () => {
 
   it.each([
     ['Wachbuch', 'src/app/api/sicherheit/wachbuch/route.ts'],
+    /*
+     * Die Route, an die das Formular der WACHE schickt (oben die erste
+     * Seite). Sie reichte das Häkchen bis V-180 nicht weiter — und stand
+     * deshalb nicht in dieser Liste, die genau das hätte bemerken sollen.
+     * Dass es im Dienst ankommt, prüft `wachbuch-schicht-route.test.ts` (1).
+     */
+    ['Wachbuch der Schicht', 'src/app/api/mein/schichten/[zuordnungId]/wachbuch/route.ts'],
     ['Schlüsselquittung', 'src/app/api/sicherheit/schluessel/[id]/quittung/route.ts'],
     ['Qualitätsprüfung', 'src/app/api/qualitaet/pruefungen/route.ts'],
     ['Unterschrift', 'src/app/api/reinigung/leistungsnachweise/route.ts'],
