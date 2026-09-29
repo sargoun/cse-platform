@@ -7,7 +7,9 @@
  * JEDES Fehlers, den `alsAntwort` annahm —, und die Seite zeigte ihn vor
  * ihrer eigenen Tabelle. Jeder präparierte Link schrieb damit seine eigene
  * Systemmeldung, und der Satz des Dienstes nannte, was der Mensch getippt
- * hatte.
+ * hatte. `POST /api/dokumente/aufbewahrung` tat dasselbe mit dem Satz von
+ * `AufbewahrungFehler` — samt der Kategorie, wie das Formular sie schickte,
+ * und der Mindestfrist.
  *
  * **Deutsch, in der Form der zweisprachigen Tabellen.** Beide Seiten stehen
  * auf der Ausnahmeliste der Übersetzungswache
@@ -83,5 +85,49 @@ export const UPLOAD_RUECKWEG_TEXTE: Readonly<Record<'de', UploadRueckwegTexte>> 
         + 'nicht.',
     },
     sonst: 'Die Ablage ist nicht erfolgt.',
+  },
+};
+
+/* ── Aufbewahrungsregeln (`/dokumente/aufbewahrung`) ───────────────────── */
+
+/**
+ * Jeder Grund, den `POST /api/dokumente/aufbewahrung` zurückschickt — die
+ * Gründe von `AufbewahrungFehler`; `jahre` prüft die Route auch selbst.
+ */
+export const AUFBEWAHRUNG_FEHLER_GRUENDE = [
+  'kategorie', 'jahre', 'untergrenze', 'grundlage', 'nicht_gesetzt',
+] as const;
+export type AufbewahrungFehlerGrund = (typeof AUFBEWAHRUNG_FEHLER_GRUENDE)[number];
+
+export interface AufbewahrungRueckwegTexte {
+  /** Die fett gesetzten ersten Worte des Warnkastens (DESIGN §5 „Notices"). */
+  readonly titel: string;
+  readonly fehler: Readonly<Record<AufbewahrungFehlerGrund, string>>;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly sonst: string;
+}
+
+/**
+ * Ohne die Werte des Dienstes: die Kategorie, wie das Formular sie schickte,
+ * und die Mindestfrist standen in seinem Satz. Die Mindestfrist steht in der
+ * Zeile jeder Kategorie („Gesetzliche Untergrenze") — der Satz zeigt dorthin.
+ */
+export const AUFBEWAHRUNG_RUECKWEG_TEXTE: Readonly<Record<'de', AufbewahrungRueckwegTexte>> = {
+  de: {
+    titel: 'Nicht gesetzt.',
+    fehler: {
+      kategorie: 'Diese Kategorie gibt es nicht — DOC-01 nennt genau neun, und jede steht unten '
+        + 'mit ihrer Regel.',
+      jahre: 'Die Frist ist eine ganze Zahl von Jahren zwischen 0 und 30 — oder sie bleibt '
+        + 'offen.',
+      untergrenze:
+        'Die Frist liegt unter der gesetzlichen Mindestfrist dieser Kategorie (§ 147 AO, '
+        + '§ 257 HGB); sie steht in ihrer Zeile. Länger ist möglich, kürzer nicht.',
+      grundlage: 'Die Rechtsgrundlage gehört in die Zeile — mindestens fünf Zeichen.',
+      nicht_gesetzt:
+        'Die Regel wurde nicht gespeichert — die Datenbank hat sie für diesen Bereich nicht '
+        + 'angenommen.',
+    },
+    sonst: 'Die Regel wurde abgewiesen.',
   },
 };

@@ -23365,6 +23365,19 @@ daraus konkret gemacht hat.
      die Tabelle am Quelltext der Seite; sie steht jetzt unter `lib/i18n`, und
      geprüft wird dort — dazu, dass der Satz derselbe Wert wie auf dem Blatt
      ist und die Seite ihn nachschlägt.
+4. **Aufbewahrungsregeln** (`POST /api/dokumente/aufbewahrung`,
+   `…/dokumente/aufbewahrung`). `AufbewahrungFehler` trug seinen Grund
+   schon; die Route schickt jetzt NUR ihn (`?fehler=<grund>`), auch für ihre
+   eigene Prüfung der Frist (`jahre`). Der Satz des Dienstes reiste mit —
+   samt der Kategorie, wie das Formular sie schickte, und der Mindestfrist.
+   Die Sätze der Seite kommen ohne diese Werte aus: die Mindestfrist steht in
+   der Zeile jeder Kategorie („Gesetzliche Untergrenze"), der Satz zeigt
+   dorthin (D-769 Nr. 5). `autorisierungsAntwort` läuft vor der Weiche der
+   Fachklasse (vorher `anmeldungsAntwort` und eine eigene 404 danach —
+   byte-gleich, jetzt an einer Stelle). Tabelle deutsch
+   (`AUFBEWAHRUNG_RUECKWEG_TEXTE`, Ausnahmeliste), Warnkasten
+   `rolle="alert"`, der Erfolgskasten (`?gesetzt=`, schon ein Schlüssel)
+   `rolle="status"`.
 
-| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|

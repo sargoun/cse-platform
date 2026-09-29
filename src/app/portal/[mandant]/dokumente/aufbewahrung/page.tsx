@@ -15,6 +15,7 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { KATEGORIE } from '../darstellung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { AUFBEWAHRUNG_RUECKWEG_TEXTE } from '@/lib/i18n/verwaltung/dokument-rueckweg';
 
 /**
  * `/portal/[mandant]/dokumente/aufbewahrung` — die Aufbewahrungsregeln je
@@ -25,16 +26,13 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * ist oder ein Platzhalter (K-17). Gesetzt wird ueber den Dienst, unter
  * `dokument.aufbewahrung_verwalten`, nie unter die gesetzliche Untergrenze —
  * die steht in der Zeile, damit niemand sie erst aus dem Fehler erfaehrt.
+ *
+ * **Eine Abweisung kommt als Grund zurück** (`?fehler=`, D-769, D-774) und
+ * steht hier als Satz aus `AUFBEWAHRUNG_RUECKWEG_TEXTE`, nachgeschlagen als
+ * eigener Eintrag. Bis dahin ging ein mitgeschickter Satz aus `?meldung=` der
+ * Tabelle vor — also auch jeder Text eines präparierten Links.
  */
 export const dynamic = 'force-dynamic';
-
-const FEHLER_TEXT: Readonly<Record<string, string>> = {
-  untergrenze: 'Die Frist liegt unter der gesetzlichen Mindestfrist.',
-  grundlage: 'Die Rechtsgrundlage fehlt.',
-  jahre: 'Die Frist ist keine ganze Zahl von Jahren.',
-  kategorie: 'Unbekannte Kategorie.',
-  nicht_gesetzt: 'Die Regel wurde nicht gespeichert.',
-};
 
 export default async function Aufbewahrung(
   { params, searchParams }: {
@@ -55,7 +53,8 @@ export default async function Aufbewahrung(
   const suche = await searchParams;
   const gesetzt = typeof suche['gesetzt'] === 'string' ? suche['gesetzt'] : null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /* Fest deutsch: die Seite steht auf der Ausnahmeliste der Übersetzungswache. */
+  const t = AUFBEWAHRUNG_RUECKWEG_TEXTE.de;
   /* Der Name der Kategorie — eine, die die Seite nicht kennt, bleibt ungenannt (V-250). */
   const gesetztName = gesetzt === null ? undefined : eigenerEintrag(KATEGORIE, gesetzt);
 
@@ -96,14 +95,15 @@ export default async function Aufbewahrung(
       </p>
 
       {gesetzt !== null ? (
-        <Hinweis art="erfolg" cse="aufbewahrung-gesetzt" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="aufbewahrung-gesetzt" className="mb-s5 max-w-prose">
           <strong>Regel gesetzt</strong>
           {gesetztName === undefined ? null : <> für „{gesetztName}"</>} — mit Spur im Protokoll.
         </Hinweis>
       ) : null}
       {fehler !== null ? (
-        <Hinweis art="warnung" cse="aufbewahrung-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht gesetzt.</strong> {meldung ?? eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Regel wurde abgewiesen.'}
+        <Hinweis art="warnung" rolle="alert" cse="aufbewahrung-fehler" className="mb-s5 max-w-prose">
+          <strong>{t.titel}</strong>{' '}
+          {eigenerEintrag(t.fehler, fehler) ?? t.sonst}
         </Hinweis>
       ) : null}
 
