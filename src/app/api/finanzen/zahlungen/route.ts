@@ -11,7 +11,7 @@ import {
   ZahlungFehler, bucheBauabzug, gleicheAus, legeBankkontoAn, storniereZahlung,
   verbucheZahlungsausgang, verbucheZahlungseingang, type Zahlungsart,
 } from '@/server/services/finanz/zahlung/index';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { maskeMitEingaben } from '@/lib/formular/maske';
 import { istUuid } from '@/lib/uuid';
 import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
@@ -92,7 +92,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -283,7 +283,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: fehler.grund, daten });
       }
     }
-    const auth = autorisierungsAntwort(fehler);
+    const auth = autorisierungsAntwort(fehler, anfrage);
     if (auth !== null) return auth;
     if (fehler instanceof GeldFehler) {
       return NextResponse.json({ fehler: 'ungueltig', felder: ['betrag'] }, { status: 400 });

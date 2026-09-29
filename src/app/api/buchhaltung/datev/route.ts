@@ -5,7 +5,7 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { autorisierungsAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { withTenant } from '@/server/kontext/index';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import { ExportFehler, erzeugeDatevExport }
@@ -38,7 +38,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -131,7 +131,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       archiviert: ergebnis.dokumentId !== null,
     });
   } catch (fehler) {
-    const auth = autorisierungsAntwort(fehler);
+    const auth = autorisierungsAntwort(fehler, anfrage);
     if (auth !== null) return auth;
     if (fehler instanceof ExportFehler) {
       /* Ein Zeitraum über zwei Wirtschaftsjahre ist eine falsche EINGABE (V-212). */

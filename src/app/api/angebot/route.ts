@@ -1,13 +1,13 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, erwarteterUrsprung, internesZiel }
   from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtGefundenFehler, NichtAngemeldetFehler, ZweiterFaktorFehler }
-  from '@/server/auth/fehler';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { TarifFehler } from '@/server/services/kalkulation/tarif';
 import {
@@ -133,7 +133,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const koerper = await koerperAus(anfrage);
@@ -243,12 +243,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   } catch (fehler) {
     // Die Antworten des Tors: 401 ohne Sitzung, 403 ohne zweiten Faktor,
     // 404 fuer ein fehlendes Recht — nie 403, das die Existenz bestaetigte.
-    if (fehler instanceof NichtAngemeldetFehler) {
-      return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-    }
-    if (fehler instanceof ZweiterFaktorFehler) {
-      return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-    }
+    const anmeldung = anmeldungsAntwort(fehler, anfrage);
+    if (anmeldung !== null) return anmeldung;
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }

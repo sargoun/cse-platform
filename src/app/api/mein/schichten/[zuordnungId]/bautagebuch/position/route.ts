@@ -72,7 +72,7 @@ export async function POST(
         einheit: textOder(daten, 'einheit'),
         beschreibung: textOder(daten, 'beschreibung'),
       });
-    });
+    }, daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
       return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);

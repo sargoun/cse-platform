@@ -20501,6 +20501,17 @@ Zusammenführung den Rückfall gezeigt. (k) Das Postenblatt liest EIN
 `?fehler=`: ein Grund des Leistungsankers (`LEISTUNGSANKER_TEXTE`, D-686)
 steht im Kasten der Leistung, jeder andere im Anforderungsblock (D-673).
 
+**Nachsatz (D-766, V-256): Nr. 7 ist für Sitzung und zweiten Faktor
+abgelöst.** Die Wächter „keine Sitzung" (401) und „zweiter Faktor" (403)
+antworten einem Browserformular nicht mehr mit JSON, sondern mit einer
+Seite: der passenden Anmeldung bzw. dem Faktor-Schritt, jeweils mit der
+Rückkehr auf die Seite des Formulars; ein Programm bekommt JSON wie hier
+beschrieben. Die Weiche steht an EINER Stelle (`server/auth/antwort.ts`),
+das Arbeiterportal ruft sie über `ohneSitzungBeschaeftigte`
+(`api/mein/formular.ts`), die Schichtbrücke mit dem schon gelesenen
+Formular. JSON bleiben der fremde Ursprung (403, CSRF), das Konto ohne
+Person (404) und Eingaben, die kein Formular dieses Portals erzeugt.
+
 | Betrifft | D-599, D-728, D-691, EMP-07, EMP-09, EMP-10, EMP-11, EMP-12, SEC-05, CLN-04, BAU-07, TIM-10, O-139, V-198, `src/app/api/formular-antwort.ts`, `src/app/api/zeit/einwand/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/[id]/zurueckziehen/route.ts`, `src/app/api/mein/dienstanweisungen/[id]/kenntnisnahme/route.ts`, `src/app/api/mein/nachrichten/[id]/route.ts`, `src/app/api/mein/schichten/**`, `src/server/services/abwesenheit/antrag.ts` (`pflichtfeldGrund`), `src/server/services/security/wachbuch.ts`, `src/lib/i18n/mein-formular.ts`, `src/app/portal/mein/FormularAntwort.tsx`, `src/components/ui/Hinweis.tsx` (`groesse`), DESIGN §5 „Notices", `src/lib/i18n/wachbuch-schicht.ts` (`wachbuchSchichtMaske`), `src/lib/i18n/verwaltung/wachbuch.ts`, `src/app/portal/[mandant]/security/posten/[id]/page.tsx`, `tests/kern/mein-formular-rueckweg.test.ts`, `tests/kern/{wachbuch-schicht-route,wachbuch-schluessel-texte}.test.ts`, `tests/e2e/mitarbeiter.spec.ts` |
 |---|---|
 
@@ -20888,4 +20899,117 @@ und damit die Sperre `ab_keine_dublette` (0073): 23P01 ohne Status, eine 500.
    der Genehmigung ändert nichts).
 
 | Betrifft | EMP-10, D-599, D-691, D-728, V-158, V-197, O-18, O-139, `src/app/api/{abwesenheiten,antraege}/[id]/route.ts`, `src/app/api/formular-antwort.ts`, `src/server/services/abwesenheit/{index,antrag}.ts` (`grund`, `entscheideAntrag`), `src/lib/i18n/verwaltung/personal-entscheidung.ts`, `src/app/portal/[mandant]/personal/{abwesenheiten,antraege}/{page,[id]/page}.tsx`, `tests/kern/{personal-entscheidung-rueckweg,fehler-rueckweg-seiten}.test.ts`, `tests/isolation/abwesenheit.test.ts` |
+|---|---|
+
+### D-766 · Ohne Sitzung und ohne zweiten Faktor bekommt ein Browserformular eine Seite — die Weiche steht an einer Stelle und ersetzt D-692 Nr. 7 (V-256)
+
+**Der Befund** (V-256; von mehreren unabhängigen Prüfungen als eigene
+Aufgabe benannt): Die Schreibwege antworteten einem nativen
+`<form method="post">` bei abgelaufener Sitzung mit
+`{"fehler":"keine_sitzung"}` (401) und ohne zweiten Faktor mit
+`{"fehler":"zweiter_faktor"}` (403) — der Browser zeigte eine weisse
+JSON-Seite, die Eingabe war weg. 218 Stellen in 170 Dateien unter
+`src/app/api` schrieben die Antwort selbst: 153 Wächter vor dem Rumpf,
+56 Fangzweige für `NichtAngemeldetFehler`/`ZweiterFaktorFehler`, die Gerüste
+(`fuehreUebergangAus`, `fuehrePersonalAus`, Recruiting, Social, Website), die
+Schichtbrücke `aufDerSchicht` und vier Übersetzer (`sicherheit/antwort.ts`,
+`bau/bautagebuch/antwort.ts`, `zeit/korrektur` `fehlerschluessel`,
+`finanzen/eingangsrechnungen` `uebersetze`). D-692 Nr. 7 hatte die Wächter
+ausdrücklich bei JSON gelassen („wie auf allen Schreibwegen der Plattform").
+`fuehrePersonalAus` erkannte beide Würfe an `status` und `code` als
+Dienstfehler und schickte sie als `?meldung=` zurück aufs Formular — auf eine
+Seite, die ohne Sitzung gar nicht geht.
+
+**Die Entscheidung** (ersetzt D-692 Nr. 7 für Sitzung und zweiten Faktor):
+
+1. **Die Weiche steht in `src/server/auth/antwort.ts`**:
+   `ohneSitzungAntwort(anfrage, sitzung, weg?)`,
+   `ohneFaktorAntwort(anfrage, weg?)` und
+   `anmeldungsAntwort(fehler, anfrage, weg?)`; `autorisierungsAntwort`
+   nimmt die Anfrage jetzt als Pflicht — ohne sie lässt sich nicht
+   entscheiden, ob ein Formular fragt. Routen rufen die Weiche, statt die
+   Antwort zu schreiben; das Arbeiterportal über `ohneSitzungBeschaeftigte`
+   (`api/mein/formular.ts`), die Schichtbrücke mit dem schon gelesenen
+   Formular (`aufDerSchicht(…, daten)`), die Gerüste und Übersetzer vor
+   ihrer allgemeinen `status`/`code`-Weiche.
+2. **Das Kriterium ist das vorhandene, kein neues** (`istBrowserFormular`).
+   Sind die Felder gelesen, entscheiden `fehlerweg`/`zurueck`
+   (`grundAufsFormularweg`, D-692 Nr. 1; ein JSON-Rumpf nie). Vor dem Rumpf
+   — dort stehen fast alle Wächter — entscheidet der Rumpf selbst:
+   `application/x-www-form-urlencoded` oder `multipart/form-data`, wie die
+   Grössenprüfung der Schichtwege (D-692 Nachsatz (i)), und dazu
+   `Accept: text/html`, damit ein Skript, das `FormData` postet
+   (`Schichtfoto`), weiter JSON bekommt (`fetch` schickt nur den
+   Platzhalter). Der Wächter liest den Rumpf NICHT, um die Felder zu fragen:
+   wer keine Sitzung hat, bekommt keine Arbeit — ein `multipart`-Rumpf mit
+   Fotos wäre sonst ganz gelesen. D-599 hatte `Accept` als ALLEINIGE Weiche
+   des Erfolgswegs verworfen; hier gilt er nur, wo es keine Felder gibt, und
+   schickt ein Browser kein `text/html`, bekommt er die Antwort von vorher.
+3. **401 → die passende Anmeldung, 303**: `/auth/login` (Verwaltung,
+   Leitung, Kunden) oder `/auth/mitarbeiter` (Beschäftigte: `api/mein/**`,
+   `zeit/einwand`, die Schichtbrücke — und jede Route, deren Rückkehr unter
+   `/portal/mein` liegt, etwa der Sprachwechsel), mit
+   `weiter=<Rückkehradresse>`. Eine Sitzung OHNE aktiven Bereich
+   (Gruppenansicht, vor der Bereichswahl; Invariante 10) ist angemeldet: sie
+   geht auf `/portal`, den Wegweiser, nicht auf die Anmeldung.
+4. **403 zweiter Faktor → `/auth/zwei-faktor/einrichten?weiter=…`** — die
+   Route weiss nach dem Wurf nicht, ob ein Faktor hinterlegt ist; `einrichten`
+   reicht ein Konto mit bestätigtem Faktor an `pruefen` weiter und nimmt
+   `weiter` jetzt mit (vorher fiel es dort weg). Dasselbe Ende wie die Pforte
+   der Seiten (`portal/zugang.ts`, V-136), einen Schritt später.
+5. **Die Rückkehr führt nur auf eigene Pfade.** Gesucht wird die Seite des
+   Formulars: `fehlerweg`, sonst `Referer` (eigene Seiten schicken ihn ganz,
+   `strict-origin-when-cross-origin`, SEC-A7), sonst `zurueck`. Jeder
+   Kandidat geht durch `internerPfad` (neu in `ursprung.ts`: derselbe Riegel
+   wie `internesZiel` samt der Normalisierung aus V-159, aber ohne
+   Rückfall); fremder Ursprung, Schema- oder Portwechsel, `//…`, `/\…`,
+   `/.//…` und `javascript:` fallen durch, ebenso `/api/…` (keine Seite) und
+   `/auth/…` (eine Schleife). Die Anmeldung prüft `weiter` noch einmal
+   (`sichererRueckweg`).
+6. **Die Anmeldung der Beschäftigten kennt die Rückkehr jetzt** — durch
+   beide Schritte, die Sprachwahl und „Andere Nummer" (`mitWeiter`,
+   `kennwort-anmeldung.ts`). Nach dem Code geht es über
+   `/portal/mein?angemeldet=1&weiter=…`: „Heute" leitet mit Sitzung weiter
+   und zeigt ohne sie den Satz aus D-488 (Keks abgelehnt) — direkt auf
+   `weiter` verlöre die Seite dahinter ihn. Nur mit `angemeldet=1`: „Heute"
+   wird kein allgemeiner Umleiter.
+7. **Was JSON bleibt.** Der CSRF-Wächter (fremder Ursprung, 403) — ein
+   Formular vom eigenen Ursprung löst ihn nie aus. Ein fehlendes Recht,
+   byte-gleich 404, auch hinter einem Formular (D-656 Nr. 2, D-682 Nr. 2).
+   Jeder Aufruf ohne Formularmerkmale: `{"fehler":"keine_sitzung"}` (401)
+   bzw. `{"fehler":"zweiter_faktor"}` (403) wie bisher — drei
+   Benachrichtigungswege (`gelesen`, `praeferenz`, `[id]/oeffnen`), die nur
+   Formulare rufen, schrieben `nicht_angemeldet` und schreiben jetzt
+   denselben Code wie alle. Lesewege (`GET`: Belege, Exporte, Downloads) sind
+   kein Formular und unverändert — offen als V-258.
+8. **Tote Zweige entfernt (geprüft).** `mein/abwesenheit` ruft `authorize`
+   mit der geprüften Sitzung und ohne `erfordert2fa`: es übersetzt nur noch
+   das 404 (`nichtGefundenAntwort`). `mein/antraege` und `zeit/einwand`
+   rufen `authorize` gar nicht, und weder ihre Dienste noch die Bindungen
+   werfen einen Auth-Fehler: `autorisierungsAntwort` entfällt dort. Der Zweig
+   „zweiter Faktor" hätte eine Kraft, die sich mit Mobilnummer und Code
+   anmeldet, auf den Authenticator-Schritt der Verwaltung geschickt. In den
+   Verwaltungsrouten bleibt die zentrale Übersetzung (`anmeldungsAntwort`):
+   dort lebt `ZweiterFaktorFehler` mit jedem `erfordert2fa`
+   (`einstellungen/rollenrecht`, `einstellungen/mitgliedschaft-module`,
+   `stundenkonto/[id]/monat-abschliessen`), und „keine Sitzung" bleibt die
+   Antwort von `authorize` auf einen fehlenden Akteur.
+9. **Geprüft:** `tests/kern/sitzung-formularweg.test.ts` — die Weiche
+   (Formular gegen Programm, Felder gegen Köpfe, 401 gegen 403, Sitzung ohne
+   Bereich, Rückkehr nur eigen: `//evil.example`, `https://evil.example/…`,
+   `/\…`, `/.//…`, Schema- und Portwechsel im `Referer`), echte Routen jeder
+   Bauart ohne Sitzung (eigener Wächter `crm/notiz`, Gerüst `raum`,
+   Arbeiterportal `mein/abwesenheit/[id]/zurueckziehen`, Schichtbrücke),
+   die Rückkehr durch beide Anmeldungen, und die Wache über den Baum
+   (`tests/kern/hilfen/sitzungswache.ts`, Syntaxbaum): keine Datei unter
+   `src/app/api`, die schreibt oder einem Schreibweg zuarbeitet, trägt die
+   Zahl 401 oder einen Anmeldecode im Code, und jede, die `aktuelleSitzung()`
+   fragt, ruft die Weiche; Ausnahmen stehen mit Grund in einer Liste — heute
+   keine. Angepasst, nicht abgeschwächt: `autorisierung-uebersetzt` (die
+   Anfrage im Aufruf), `mein-formular-rueckweg` (nach dem Formular sind nur
+   noch `nicht_gefunden` und `unbekannter_vorgang` JSON), `auftrag-angaben`
+   und `radar-plattform` (die Codes der Anmeldung stehen nicht mehr in der
+   Route, die Weiche schon). Browserprüfungen laufen in diesem Zweig nicht.
+
+| Betrifft | D-599, D-692, D-656, D-682, D-488, D-560, V-136, V-159, V-256, V-258, AUT-02, AUT-06, EMP-01, SEC-A7, `src/server/auth/{antwort,ursprung,kennwort-anmeldung}.ts`, `src/app/api/**` (Wächter, Gerüste, Übersetzer), `src/app/api/mein/formular.ts`, `src/app/api/mein/schichten/bruecke.ts`, `src/app/auth/mitarbeiter/{page,code/page}.tsx`, `src/app/auth/zwei-faktor/einrichten/page.tsx`, `src/app/portal/mein/page.tsx`, `tests/kern/sitzung-formularweg.test.ts`, `tests/kern/hilfen/sitzungswache.ts`, `tests/kern/{autorisierung-uebersetzt,mein-formular-rueckweg,auftrag-angaben,radar-plattform}.test.ts` |
 |---|---|

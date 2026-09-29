@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
-import {
-  NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler,
-} from '@/server/auth/fehler';
+import { NextResponse, type NextRequest } from 'next/server';
+import { anmeldungsAntwort, nichtGefundenAntwort } from '@/server/auth/antwort';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 
 /**
  * Die Fehlerübersetzung der drei Sicherheitsrouten — an EINER Stelle.
@@ -16,16 +15,16 @@ import {
  * Muster wie `EinsatzNichtGefunden` in `dienstplan/einteilung.ts`); sie
  * brauchen hier keine Zeile, sondern nur diesen einen Zweig.
  */
-export function alsAntwort(fehler: unknown): NextResponse | null {
-  if (fehler instanceof NichtGefundenFehler) {
-    return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-  }
-  if (fehler instanceof NichtAngemeldetFehler) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
-  }
-  if (fehler instanceof ZweiterFaktorFehler) {
-    return NextResponse.json({ fehler: 'zweiter_faktor' }, { status: 403 });
-  }
+export function alsAntwort(fehler: unknown, anfrage: NextRequest): NextResponse | null {
+  if (fehler instanceof NichtGefundenFehler) return nichtGefundenAntwort();
+  /*
+   * Keine Sitzung, kein zweiter Faktor: für ein Browserformular eine Seite
+   * (Anmeldung, Faktor-Schritt), für ein Programm JSON wie bisher (D-766).
+   * VOR der allgemeinen Weiche unten — beide Klassen tragen `status` und
+   * `code` und wären dort ein „fachlicher Fehler".
+   */
+  const anmeldung = anmeldungsAntwort(fehler, anfrage);
+  if (anmeldung !== null) return anmeldung;
   const status = (fehler as { status?: number }).status;
   const code = (fehler as { code?: string }).code;
   const meldung = (fehler as { message?: string }).message;

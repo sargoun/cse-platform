@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -50,7 +51,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -93,7 +94,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       if (fehler instanceof LeistungsankerFehler || fehler instanceof PostenArchiviert) {
         return zurueckMit('fehler', fehler.grund);
       }
-      const antwort = alsAntwort(fehler);
+      const antwort = alsAntwort(fehler, anfrage);
       if (antwort !== null) return antwort;
       throw fehler;
     }
@@ -161,7 +162,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.redirect(
         internesZiel(maske, `/portal/${mandant}/security/posten`, anfrage), 303);
     }
-    const antwort = alsAntwort(fehler);
+    const antwort = alsAntwort(fehler, anfrage);
     if (antwort !== null) return antwort;
     throw fehler;
   }

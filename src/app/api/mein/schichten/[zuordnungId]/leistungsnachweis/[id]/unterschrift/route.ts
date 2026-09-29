@@ -67,7 +67,7 @@ export async function POST(
       bestaetigtePruefsumme: pruefsumme,
       ip: anfrage.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
       userAgent: anfrage.headers.get('user-agent'),
-    }));
+    }), daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
   } catch (fehler: unknown) {
     const antwort = dienstFehlerAntwort(fehler, { anfrage, daten });

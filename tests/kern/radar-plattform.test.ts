@@ -160,10 +160,11 @@ describe('(6) die Route nimmt den Bereich aus der Sitzung und antwortet mit der 
     expect(route).toContain('select m.slug from mandant m where m.id = app.aktiver_mandant()');
   });
 
-  it('JSON nur ohne Seite: fremder Ursprung und keine Sitzung', () => {
+  it('JSON nur ohne Seite: fremder Ursprung — keine Sitzung über die Weiche (D-766)', () => {
     const codes = [...route.matchAll(/NextResponse\.json\(\{ fehler: '([a-z_]+)'/gu)]
       .map((m) => m[1]);
-    expect(new Set(codes)).toEqual(new Set(['fremder_ursprung', 'keine_sitzung']));
+    expect(new Set(codes)).toEqual(new Set(['fremder_ursprung']));
+    expect(route).toContain('return ohneSitzungAntwort(anfrage, sitzung);');
     expect(route).toContain('?fehler=${fehler.code}');
   });
 

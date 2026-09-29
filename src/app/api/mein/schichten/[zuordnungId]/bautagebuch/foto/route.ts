@@ -123,7 +123,7 @@ export async function POST(
       /* Jetzt, und noch in der Transaktion: wirft es, gibt es auch die Zeile nicht. */
       await speicher.schreibeJetzt();
       return medienId;
-    });
+    }, daten);
     if (ergebnis.art === 'antwort') return ergebnis.antwort;
     if (ergebnis.wert === null) {
       return grundAufsFormularweg(anfrage, daten, 'kein_projekt', 422);

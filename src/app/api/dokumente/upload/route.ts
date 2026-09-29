@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
+import { ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -45,7 +46,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
   const sitzung = await aktuelleSitzung();
   if (sitzung === null || sitzung.aktiverMandantId === null) {
-    return NextResponse.json({ fehler: 'keine_sitzung' }, { status: 401 });
+    return ohneSitzungAntwort(anfrage, sitzung);
   }
 
   const daten = await anfrage.formData();
@@ -105,7 +106,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         + 'Behauptung.');
     }
     if (fehler instanceof MimeFehler) return mit('datei', fehler.message);
-    const antwort = alsAntwort(fehler);
+    const antwort = alsAntwort(fehler, anfrage);
     if (antwort !== null) {
       /* Ein Dienstfehler geht als Satz auf die Seite zurück, nicht als JSON auf
          eine weisse Seite: das Formular hat kein JavaScript, und der Entwurf
