@@ -7,7 +7,7 @@ import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
-import { CrmFehler, type Rechtsgrundlage } from '@/server/services/crm/anlegen';
+import { CrmFehler } from '@/server/services/crm/anlegen';
 import { setzeGrundlage } from '@/server/services/crm/kontakt-grundlage';
 import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
@@ -71,7 +71,8 @@ export async function POST(
         );
         await setzeGrundlage(kontext, {
           ansprechpartnerId: id,
-          rechtsgrundlage: String(daten.get('rechtsgrundlage') ?? 'keine') as Rechtsgrundlage,
+          /* Das Wort, wie es kam — der Dienst prüft es gegen das Enum (D-772 Nr. 14). */
+          rechtsgrundlage: String(daten.get('rechtsgrundlage') ?? 'keine'),
           nachweisQuelle: wert('nachweisQuelle'),
           nachweisAm: wert('nachweisAm'),
           belegDokumentId: wert('belegDokumentId'),

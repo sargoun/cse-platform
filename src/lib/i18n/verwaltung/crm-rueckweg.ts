@@ -399,12 +399,13 @@ export const ZUGANG_RUECKWEG: NurDeutsch<RueckwegTexte<ZugangGrund, ZugangErfolg
 
 export const GRUNDLAGE_GRUENDE = [
   /* die Grundlage setzen (`setzeGrundlage`) */
-  'kein_setzrecht', 'kein_schreibrecht', 'grundlage_ohne_quelle', 'einwilligung_ohne_kanal',
-  'beleg_keine_kennung', 'aehnlich_ohne_begruendung', 'nachweis_in_zukunft', 'nicht_gefunden',
+  'kein_setzrecht', 'kein_schreibrecht', 'unbekannte_grundlage', 'grundlage_ohne_quelle',
+  'einwilligung_ohne_kanal', 'beleg_keine_kennung', 'aehnlich_ohne_begruendung',
+  'nachweis_kein_datum', 'nachweis_in_zukunft', 'nicht_gefunden',
   /* einen Widerspruch erfassen (`erfasseWerbewiderspruch`, `erfasseVollwiderspruch`) */
   'ohne_betroffenen', 'nicht_erfasst', 'ohne_begruendung', 'nur_intern', 'gruppenansicht',
-  'kein_widerspruchsrecht', 'ohne_konto', 'eingang_in_zukunft', 'kanal_unbekannt',
-  'widerspruch_abgewiesen',
+  'kein_widerspruchsrecht', 'ohne_konto', 'eingang_kein_datum', 'eingang_in_zukunft',
+  'kanal_unbekannt', 'widerspruch_abgewiesen',
 ] as const satisfies readonly CrmGrund[];
 export type GrundlageGrund = (typeof GRUNDLAGE_GRUENDE)[number];
 
@@ -441,6 +442,12 @@ export const GRUNDLAGE_RUECKWEG: NurDeutsch<RueckwegTexte<GrundlageGrund, Grundl
         'Die Feststellung „ähnliche eigene Leistung" (§ 7 Abs. 3 Nr. 2 UWG) ist eine rechtliche '
         + 'Wertung und braucht ihre Begründung — eine Wertung, die niemand begründet hat, ist '
         + 'kein Nachweis.',
+      unbekannte_grundlage:
+        'Diese Rechtsgrundlage gibt es nicht — wählen Sie unter „Dürfen wir ihn bewerben?" eine '
+        + 'der vier.',
+      nachweis_kein_datum:
+        '„Seit wann ist sie belegt?" erwartet einen Kalendertag, den es gibt. Leer heisst '
+        + '„jetzt".',
       nachweis_in_zukunft: 'Ein Nachweis kann nicht in der Zukunft erbracht worden sein.',
       nicht_gefunden: 'Diesen Kontakt gibt es in dieser Gesellschaft nicht, oder er ist archiviert.',
       ohne_betroffenen: 'Ohne Betroffenen gibt es keinen Widerspruch.',
@@ -458,6 +465,8 @@ export const GRUNDLAGE_RUECKWEG: NurDeutsch<RueckwegTexte<GrundlageGrund, Grundl
       ohne_konto:
         'Ein von Hand erfasster Widerspruch braucht ein angemeldetes Konto — er nennt, wer ihn '
         + 'erfasst hat.',
+      eingang_kein_datum:
+        '„Eingegangen am" erwartet einen Kalendertag, den es gibt. Leer heisst „jetzt".',
       eingang_in_zukunft: 'Ein Widerspruch kann nicht in der Zukunft eingegangen sein.',
       kanal_unbekannt: 'Diesen Eingangsweg gibt es nicht — wählen Sie einen aus der Liste.',
       widerspruch_abgewiesen: 'Die Datenbank hat den Widerspruch abgewiesen; es wurde nichts erfasst.',

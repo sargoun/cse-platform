@@ -22,6 +22,9 @@
  *  4. Dasselbe für die beiden Widerspruchs-Definer (0248, 0222): jeder
  *     erreichbare Wurf wird ein `CrmFehler` mit seinem Grund
  *     (`WIDERSPRUCH_DATENBANK_GRUENDE`), mit dem Status seines SQLSTATE.
+ *  5. Eine Eingabe erreicht keinen Cast, an dem sie scheitern würde: die
+ *     Grundlagen sind die Werte des Enums, und einen Tag, den die Datenbank
+ *     mit `22008` abwiese, weist schon der Dienst mit Grund ab (D-772 Nr. 14).
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createHash, randomBytes } from 'node:crypto';
@@ -32,8 +35,9 @@ import {
 } from '../../src/server/services/crm/kundenzugang.js';
 import { CrmFehler } from '../../src/server/services/crm/anlegen.js';
 import {
-  WIDERSPRUCH_DATENBANK_GRUENDE, erfasseVollwiderspruch, erfasseWerbewiderspruch,
+  WIDERSPRUCH_DATENBANK_GRUENDE, erfasseVollwiderspruch, erfasseWerbewiderspruch, setzeGrundlage,
 } from '../../src/server/services/crm/kontakt-grundlage.js';
+import { GRUNDLAGEN } from '../../src/server/services/crm/uwg-matrix.js';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 
 let f: Fixtur;
@@ -360,5 +364,45 @@ describe('Widerspruch · jeder erreichbare Wurf der Definer wird ein CrmFehler m
       `select count(*)::text as n from werbewiderspruch
         where ansprechpartner_id = $1 and art = 'verarbeitung'`, [a]);
     expect(z!.n).toBe('1');
+  });
+});
+
+describe('Eine Eingabe endet nie in einer 500 — geprüft vor dem Cast (D-772 Nr. 14)', () => {
+  it('die geprüften Grundlagen sind die Werte des Enums in der Datenbank', async () => {
+    const [z] = await sql.unsafe<{ werte: string[] }[]>(
+      `select enum_range(null::rechtsgrundlage)::text[] as werte`);
+    expect([...z!.werte].sort()).toEqual([...GRUNDLAGEN].sort());
+  });
+
+  it('die Datenbank wiese diese Tage mit 22008 ab — der Dienst lässt sie nicht hin', async () => {
+    for (const tag of ['2025-02-31', '0000-01-01']) {
+      await expect(sql.unsafe(`select '${tag}'::date`)).rejects.toMatchObject({ code: '22008' });
+    }
+    const a = await kontakt(f.reinigung);
+    const eingang = await wurf(als({}, (k) => erfasseWerbewiderspruch(k, {
+      ansprechpartnerId: a, eingegangenAm: '2025-02-31',
+    })), CrmFehler);
+    expect([eingang.grund, eingang.status]).toEqual(['eingang_kein_datum', 400]);
+    const nachweis = await wurf(als({}, (k) => setzeGrundlage(k, {
+      ansprechpartnerId: a, rechtsgrundlage: 'bestandskunde', nachweisQuelle: 'Rahmenvertrag',
+      nachweisAm: '0000-01-01',
+    })), CrmFehler);
+    expect(nachweis.grund).toBe('nachweis_kein_datum');
+    const wort = await wurf(als({}, (k) => setzeGrundlage(k, {
+      ansprechpartnerId: a, rechtsgrundlage: 'irgendwas',
+    })), CrmFehler);
+    expect(wort.grund).toBe('unbekannte_grundlage');
+  });
+
+  it('ein gültiger Tag geht durch bis in die Zeile', async () => {
+    const a = await kontakt(f.reinigung);
+    await als({}, (k) => setzeGrundlage(k, {
+      ansprechpartnerId: a, rechtsgrundlage: 'bestandskunde', nachweisQuelle: 'Rahmenvertrag',
+      nachweisAm: '2024-02-29',
+    }));
+    const [z] = await sql.unsafe<{ tag: string }[]>(
+      `select (rechtsgrundlage_erfasst_am at time zone 'Europe/Berlin')::date::text as tag
+         from ansprechpartner where id = $1`, [a]);
+    expect(z!.tag).toBe('2024-02-29');
   });
 });

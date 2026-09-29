@@ -33,6 +33,7 @@ import { Abweisung, Bestaetigung } from '../../src/components/portal/Rueckweg.js
 import {
   NichtAngemeldetFehler, NichtGefundenFehler, ZweiterFaktorFehler,
 } from '../../src/server/auth/fehler.js';
+import { GRUNDLAGEN } from '../../src/server/services/crm/uwg-matrix.js';
 import { gruendeAb } from './hilfen/gruende.js';
 
 (globalThis as { React?: typeof React }).React = React;
@@ -41,7 +42,10 @@ const zustand = vi.hoisted(() => ({
   sitzung: null as null | Record<string, unknown>,
   authorize: vi.fn(),
   setzeGrundlage: vi.fn(),
+  abfrage: vi.fn(),
   schreibe: vi.fn(),
+  /** Der echte Dienst — für die Prüfungen vor dem Cast (D-772 Nr. 14). */
+  echtesSetzen: null as null | ((k: unknown, e: unknown) => Promise<void>),
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -57,14 +61,15 @@ vi.mock('@/server/db/pool', () => ({
  */
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]), schreibe: zustand.schreibe }),
+    fn({ abfrage: zustand.abfrage, schreibe: zustand.schreibe }),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: zustand.authorize }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
-vi.mock('@/server/services/crm/kontakt-grundlage', async (original) => ({
-  ...(await original<Record<string, unknown>>()),
-  setzeGrundlage: zustand.setzeGrundlage,
-}));
+vi.mock('@/server/services/crm/kontakt-grundlage', async (original) => {
+  const echt = await original<Record<string, unknown>>();
+  zustand.echtesSetzen = echt['setzeGrundlage'] as typeof zustand.echtesSetzen;
+  return { ...echt, setzeGrundlage: zustand.setzeGrundlage };
+});
 
 const { CrmFehler } = await import('../../src/server/services/crm/anlegen.js');
 const { WIDERSPRUCH_DATENBANK_GRUENDE, grundAusWiderspruch } =
@@ -141,8 +146,14 @@ beforeEach(() => {
     personId: null, ansicht: 'mandant', aal: 'aal2', portal: 'intern',
     sitzungId: '00000000-0000-4000-8000-000000000003',
   };
-  for (const f of [zustand.authorize, zustand.setzeGrundlage, zustand.schreibe]) f.mockReset();
+  for (const f of [zustand.authorize, zustand.setzeGrundlage, zustand.abfrage, zustand.schreibe]) {
+    f.mockReset();
+  }
   zustand.authorize.mockResolvedValue(undefined);
+  /* Die Rechtefrage des Dienstes sagt ja, der Tag liegt nicht in der Zukunft. */
+  zustand.abfrage.mockImplementation((sql: string) => Promise.resolve(
+    /hat_recht/u.test(sql) ? [{ setzen: true, schreiben: true }]
+      : /berlin_heute/u.test(sql) ? [{ zukunft: false }] : []));
 });
 
 describe('die Sätze der Widerspruchs-Definer werden Gründe — gegen den Text von 0248 und 0222', () => {
@@ -176,7 +187,7 @@ describe('POST …/rechtsgrundlage — Abweisung als `?fehler=<grund>`, Erfolg a
     expect(ALLE).toEqual([
       'aehnlich_ohne_begruendung', 'beleg_keine_kennung', 'einwilligung_ohne_kanal',
       'grundlage_ohne_quelle', 'kein_schreibrecht', 'kein_setzrecht', 'nachweis_in_zukunft',
-      'nicht_gefunden',
+      'nachweis_kein_datum', 'nicht_gefunden', 'unbekannte_grundlage',
     ]);
   });
 
@@ -208,8 +219,8 @@ describe('POST …/rechtsgrundlage — Abweisung als `?fehler=<grund>`, Erfolg a
   });
 
   it('ein unbekannter Fehler bleibt ein Fehler; JSON wie bisher für eine fremde Kennung', async () => {
-    zustand.setzeGrundlage.mockRejectedValue(datenbankFehler('22P02', 'invalid input value for enum'));
-    await expect(grundlage({ rechtsgrundlage: 'irgendwas' })).rejects.toThrow('invalid input');
+    zustand.setzeGrundlage.mockRejectedValue(datenbankFehler('08006', 'Connection terminated unexpectedly'));
+    await expect(grundlage({ rechtsgrundlage: 'keine' })).rejects.toThrow('Connection terminated');
     const r = await grundlage({ rechtsgrundlage: 'keine' }, undefined, 'x');
     expect(r.status).toBe(404);
     expect(await r.json()).toEqual({ fehler: 'unbekannte_kennung' });
@@ -221,7 +232,7 @@ describe('POST …/widerspruch — die Abweisungen der Definer als `?fehler=<gru
     expect(WIDERSPRUCH_FUND.offen.map((o) => o.replace(/:\d+$/u, '')))
       .toEqual(['src/server/services/crm/kontakt-grundlage.ts#widerspruchsDefiner']);
     expect([...WIDERSPRUCH_FUND.gruende].sort())
-      .toEqual(['nicht_erfasst', 'ohne_begruendung', 'ohne_betroffenen']);
+      .toEqual(['eingang_kein_datum', 'nicht_erfasst', 'ohne_begruendung', 'ohne_betroffenen']);
   });
 
   it.each([
@@ -254,15 +265,18 @@ describe('POST …/widerspruch — die Abweisungen der Definer als `?fehler=<gru
   });
 
   it('ein anderer Fehler bleibt ein Fehler — keine erfundene Abweisung, kein roher Text', async () => {
+    /*
+     * Ein Datum, das keines ist, gehört nicht mehr hierher: es erreicht die
+     * Datenbank nicht (unten, D-772 Nr. 14).
+     */
     for (const f of [
-      datenbankFehler('22007', 'invalid input syntax for type date: "morgen"'),
       datenbankFehler('23001', 'Ein Werbewiderspruch wird nicht zurueckgenommen (ansprechpartner.werbewiderspruch_am)'),
+      datenbankFehler('40P01', 'deadlock detected'),
       datenbankFehler('08006', 'Connection terminated unexpectedly'),
       new TypeError('kaputt'),
     ]) {
       zustand.schreibe.mockRejectedValue(f);
-      await expect(widerspruch({ umfang: 'werbung', eingegangenAm: 'morgen' }), f.message)
-        .rejects.toThrow(f.message);
+      await expect(widerspruch({ umfang: 'werbung' }), f.message).rejects.toThrow(f.message);
     }
   });
 });
@@ -303,6 +317,82 @@ describe('POST …/widerspruch — Erfolg, Anmeldung und Recht zuerst, JSON wie 
     const kennung = await widerspruch({ umfang: 'werbung' }, undefined, 'x');
     expect(kennung.status).toBe(404);
     expect(await kennung.json()).toEqual({ fehler: 'unbekannte_kennung' });
+  });
+});
+
+/** Die Werte eines Enums, wie die Migrationen in `drizzle/` es anlegen und erweitern. */
+function enumAusMigrationen(name: string): readonly string[] {
+  const werte: string[] = [];
+  for (const datei of readdirSync(resolve(WURZEL, 'drizzle')).filter((d) => d.endsWith('.sql')).sort()) {
+    const sql = readFileSync(resolve(WURZEL, 'drizzle', datei), 'utf8').replace(/--[^\n]*/gu, '');
+    for (const m of sql.matchAll(new RegExp(String.raw`create type ${name}\s+as enum \(([^)]*)\)`, 'gu'))) {
+      werte.push(...[...(m[1] ?? '').matchAll(/'([^']*)'/gu)].map((w) => w[1] ?? ''));
+    }
+    for (const m of sql.matchAll(
+      new RegExp(String.raw`alter type ${name} add value (?:if not exists )?'([^']*)'`, 'gu'))) {
+      werte.push(m[1] ?? '');
+    }
+  }
+  return werte;
+}
+
+describe('eine Eingabe des Menschen endet nie in einer 500 — sie wird ein Grund (D-772 Nr. 14)', () => {
+  /* Hier läuft der ECHTE `setzeGrundlage`; ersetzt ist nur die Antwort der Datenbank. */
+  beforeEach(() => {
+    zustand.setzeGrundlage.mockImplementation((k: unknown, e: unknown) => {
+      if (zustand.echtesSetzen === null) throw new Error('Der echte Dienst fehlt.');
+      return zustand.echtesSetzen(k, e);
+    });
+  });
+  const castNachDatum = (): boolean =>
+    zustand.abfrage.mock.calls.some(([sql]) => /::date/u.test(String(sql)))
+    || zustand.schreibe.mock.calls.length > 0;
+
+  it('die geprüfte Liste ist die des Enums in der Migration — und die des Formulars', () => {
+    const imEnum = enumAusMigrationen('rechtsgrundlage');
+    expect(imEnum).toHaveLength(4);
+    expect([...GRUNDLAGEN].sort()).toEqual([...imEnum].sort());
+    const seite = readFileSync(resolve(WURZEL, SEITE), 'utf8');
+    const auswahl = seite.slice(seite.indexOf('Dürfen wir ihn bewerben?'),
+      seite.indexOf('name="rechtsgrundlage"'));
+    expect([...auswahl.matchAll(/\['(\w+)', '/gu)].map((m) => m[1]).sort()).toEqual([...imEnum].sort());
+  });
+
+  it.each(['irgendwas', 'Einwilligung', 'constructor', '__proto__', ''])(
+    'Rechtsgrundlage „%s" → `unbekannte_grundlage`, ohne die Datenbank', async (wert) => {
+      const r = await grundlage({ rechtsgrundlage: wert, nachweisQuelle: 'Rahmenvertrag' });
+      expect(r.status).toBe(303);
+      expect(r.headers.get('location')).toBe(`${HIER}${BLATT}?fehler=unbekannte_grundlage`);
+      expect(castNachDatum()).toBe(false);
+    });
+
+  it.each(['2025-02-31', 'morgen', '12.03.2025', '2025-2-3', '0000-01-01'])(
+    'Nachweis vom „%s" → `nachweis_kein_datum`, ohne die Datenbank', async (tag) => {
+      const r = await grundlage({
+        rechtsgrundlage: 'bestandskunde', nachweisQuelle: 'Rahmenvertrag', nachweisAm: tag,
+      });
+      expect(r.status).toBe(303);
+      expect(r.headers.get('location')).toBe(`${HIER}${BLATT}?fehler=nachweis_kein_datum`);
+      expect(castNachDatum()).toBe(false);
+    });
+
+  it.each(['2025-02-31', 'morgen', '12.03.2025', '2025-2-3', '0000-01-01'])(
+    'Widerspruch eingegangen am „%s" → `eingang_kein_datum`, ohne die Datenbank', async (tag) => {
+      const r = await widerspruch({ umfang: 'werbung', eingegangenAm: tag });
+      expect(r.status).toBe(303);
+      expect(r.headers.get('location')).toBe(`${HIER}${BLATT}?fehler=eingang_kein_datum`);
+      expect(zustand.schreibe).not.toHaveBeenCalled();
+    });
+
+  it('ein Tag, den es gibt, geht weiter — auch der 29. Februar eines Schaltjahrs', async () => {
+    zustand.schreibe.mockResolvedValue([{ anzahl: 1 }]);
+    const w = await widerspruch({ umfang: 'werbung', eingegangenAm: '2024-02-29' });
+    expect(w.headers.get('location')).toBe(`${HIER}${BLATT}?erfolg=werbewiderspruch`);
+    zustand.schreibe.mockResolvedValue([{ id: KONTAKT }]);
+    const g = await grundlage({
+      rechtsgrundlage: 'bestandskunde', nachweisQuelle: 'Rahmenvertrag', nachweisAm: '2024-02-29',
+    });
+    expect(g.headers.get('location')).toBe(`${HIER}${BLATT}?erfolg=gespeichert`);
   });
 });
 

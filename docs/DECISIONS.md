@@ -23316,10 +23316,13 @@ aus der Adresse mit eckigen Klammern nach.
    `widerspruch_abgewiesen` — der allgemeine Satz der Seite, nie der Text.
    Zum Grund wird nur eine ABWEISUNG: `insufficient_privilege` und
    `no_data_found`, beim Widerspruch dazu `check_violation` (dort Zukunft,
-   Kanal, Begründung). Alles andere bleibt ein Fehler: der
-   `check_violation` am Einladungstoken (0249) ist ein Programmfehler, ein
-   Datum, das keines ist, ergibt beim Widerspruch jetzt einen Fehler statt
-   des rohen Postgres-Satzes im Kasten. Die Kerntests lesen die Sätze aus
+   Kanal, Begründung). Alles andere bleibt ein Fehler — etwa der
+   `check_violation` am Einladungstoken (0249), ein Programmfehler. **Eine
+   Eingabe des Menschen endet nie in einer 500** (berichtigt in der
+   Nachrunde, Nr. 14): ein Wort außerhalb der Rechtsgrundlagen und ein Tag,
+   den es nicht gibt, werden VOR dem Cast geprüft und sind Gründe mit Satz
+   auf der Seite. Hier stand, ein ungültiges Datum ende beim Widerspruch
+   gewollt als Fehler — das gilt nicht mehr. Die Kerntests lesen die Sätze aus
    der letzten Fassung jedes Definers in `drizzle/`, die Isolation löst sie
    an der echten Datenbank aus.
 5. **Die Anmeldung zuerst, in allen neun Routen** (D-769 Nr. 7, D-766).
@@ -23385,6 +23388,20 @@ aus der Adresse mit eckigen Klammern nach.
     einen trägt, schickte sonst ein fehlendes Recht als Grund aufs
     Kontaktblatt statt als byte-gleiche 404. Die Schlüssel (`?fehler=`,
     `?gesendet=1`, `#senden`) bleiben.
+14. **Nachrunde — Eingaben vor dem Cast** (Rechtsgrundlage und Widerspruch;
+    berichtigt Nr. 4). `setzeGrundlage` nimmt das Wort des Formulars
+    ungecastet und prüft es mit `alsGrundlage` gegen `GRUNDLAGEN`
+    (`uwg-matrix.ts`, die vier Werte des Enums). Der Kerntest gleicht die
+    Liste gegen `create type rechtsgrundlage` in `drizzle/` und gegen die
+    Auswahl des Formulars ab, die Isolation gegen `enum_range`; die zweite,
+    gleiche Liste in `kontakt-grundlage.ts` entfällt. `nachweisAm` und das
+    Eingangsdatum des Widerspruchs prüft `istGueltigerKalendertag` vor dem
+    Cast. Das Jahr 0000 lässt diese Prüfung durch, Postgres weist es mit
+    `22008` ab — `istTag` weist es deshalb zusätzlich ab. Neue Gründe
+    `nachweis_kein_datum` und `eingang_kein_datum` (`unbekannte_grundlage`
+    gab es schon), je mit Satz in `GRUNDLAGE_RUECKWEG`. Vorher endeten ein
+    ungültiges Wort (`22P02`) und ein ungültiger Tag (`22007`/`22008`) in
+    einer 500.
 
-| Betrifft | D-769, D-753, D-728, D-599, D-766, AUT-06, V-274, `src/app/api/crm/rueckweg.ts`, `src/app/api/crm/{kunde,lead,wiedervorlage,notiz}/route.ts`, `src/app/api/crm/kunde/{steuer,konditionen,zugang}/route.ts`, `src/app/api/crm/ansprechpartner/[id]/{rechtsgrundlage,widerspruch}/route.ts`, `src/server/services/crm/{anlegen,wiedervorlage,kundenzugang,kontakt-grundlage}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/components/portal/Rueckweg.tsx`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/{crm-rueckweg,crm-kunde}.ts`, Seiten unter `src/app/portal/[mandant]/crm` (`kunden/neu`, `kunden/[id]` mit `steuer`, `zugang`, `konditionen`, `wiedervorlagen`, `kontakte/[id]` mit `rechtsgrundlage`, `leads/neu`, `leads/[id]`) und `src/app/portal/[mandant]/radar/[id]`, `tests/kern/crm-*-rueckweg.test.ts`, `tests/kern/crm-rueckweg.test.ts`, `tests/kern/crm-notiz-route.test.ts`, `tests/kern/hilfen/gruende.ts`, `tests/kern/formular-rueckwege.test.ts`, `tests/isolation/crm-rueckweg-datenbank.test.ts`, `tests/e2e/crm-anlegen.spec.ts`, `src/app/api/lead/route.ts`, `tests/kern/lead-route.test.ts`, `src/app/api/crm/nachrichten/route.ts`, `tests/kern/crm-nachrichten-route.test.ts` |
+| Betrifft | D-769, D-753, D-728, D-599, D-766, AUT-06, V-274, `src/app/api/crm/rueckweg.ts`, `src/app/api/crm/{kunde,lead,wiedervorlage,notiz}/route.ts`, `src/app/api/crm/kunde/{steuer,konditionen,zugang}/route.ts`, `src/app/api/crm/ansprechpartner/[id]/{rechtsgrundlage,widerspruch}/route.ts`, `src/server/services/crm/{anlegen,wiedervorlage,kundenzugang,kontakt-grundlage}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/components/portal/Rueckweg.tsx`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/{crm-rueckweg,crm-kunde}.ts`, Seiten unter `src/app/portal/[mandant]/crm` (`kunden/neu`, `kunden/[id]` mit `steuer`, `zugang`, `konditionen`, `wiedervorlagen`, `kontakte/[id]` mit `rechtsgrundlage`, `leads/neu`, `leads/[id]`) und `src/app/portal/[mandant]/radar/[id]`, `tests/kern/crm-*-rueckweg.test.ts`, `tests/kern/crm-rueckweg.test.ts`, `tests/kern/crm-notiz-route.test.ts`, `tests/kern/hilfen/gruende.ts`, `tests/kern/formular-rueckwege.test.ts`, `tests/isolation/crm-rueckweg-datenbank.test.ts`, `tests/e2e/crm-anlegen.spec.ts`, `src/app/api/lead/route.ts`, `tests/kern/lead-route.test.ts`, `src/app/api/crm/nachrichten/route.ts`, `tests/kern/crm-nachrichten-route.test.ts`, `src/server/services/crm/uwg-matrix.ts` (`GRUNDLAGEN`), `src/lib/datum/kalendertag.ts` (`istGueltigerKalendertag`) |
 |---|---|

@@ -63,6 +63,7 @@ export const CRM_GRUENDE = [
   /* Rechtsgrundlage und Widerspruch (`kontakt-grundlage.ts`) */
   'unbekannte_grundlage', 'kein_setzrecht', 'beleg_keine_kennung', 'aehnlich_ohne_begruendung',
   'nachweis_in_zukunft', 'ohne_betroffenen', 'nicht_erfasst', 'ohne_begruendung',
+  'nachweis_kein_datum', 'eingang_kein_datum',
   /* … und die Abweisungen ihrer Definer (0248, 0222), dort auf ihren Grund abgebildet */
   'nur_intern', 'gruppenansicht', 'kein_widerspruchsrecht', 'ohne_konto', 'eingang_in_zukunft',
   'kanal_unbekannt', 'widerspruch_abgewiesen',

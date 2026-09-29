@@ -2,8 +2,9 @@ import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { CrmFehler, type CrmGrund, type Rechtsgrundlage } from './anlegen.js';
 import { istUuid } from '../../../lib/uuid.js';
+import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
 import {
-  GRUNDLAGEN as MATRIX_GRUNDLAGEN, KANAELE,
+  GRUNDLAGEN, KANAELE,
   type Kanal, type KontaktLage, type KundenLage,
 } from './uwg-matrix.js';
 
@@ -64,8 +65,13 @@ interface BlattZeile {
   readonly aehnliche_begruendung: string | null;
 }
 
-const GRUNDLAGEN = ['einwilligung', 'bestandskunde', 'anfrage', 'keine'] as const;
-
+/**
+ * Eine Rechtsgrundlage aus einem Wort — nur einer der vier Werte des Enums
+ * `rechtsgrundlage` (`GRUNDLAGEN` aus `uwg-matrix.ts`; der Kerntest gleicht
+ * die Liste gegen die Migration ab). Geprüft VOR jedem Cast: ein anderes Wort
+ * wäre in der Datenbank `22P02` und für den Menschen ein Fehler 500 (D-772
+ * Nr. 14). Hier stand eine zweite Liste derselben vier Werte.
+ */
 function alsGrundlage(wert: string): Rechtsgrundlage {
   const g = GRUNDLAGEN.find((x) => x === wert);
   if (g === undefined) {
@@ -139,7 +145,7 @@ export async function leseKundenLage(
       where k.mandant_id = app.aktiver_mandant() and k.id = $1::uuid`, [kundeId]);
   if (z === undefined) return null;
   return {
-    grundlage: MATRIX_GRUNDLAGEN.find((g) => g === z.rechtsgrundlage) ?? 'keine',
+    grundlage: GRUNDLAGEN.find((g) => g === z.rechtsgrundlage) ?? 'keine',
     widerspruch: z.widerspruch,
     werbewiderspruch: z.werbewiderspruch,
     gesperrt: z.gesperrt,
@@ -268,9 +274,24 @@ async function pruefeSchreibrecht(kontext: SchreibKontext): Promise<void> {
   }
 }
 
+/**
+ * Ein Kalendertag, den die Datenbank als `date` annimmt — geprüft VOR dem
+ * Cast, damit eine Eingabe des Menschen nie in einer 500 endet (D-772
+ * Nr. 14). `istGueltigerKalendertag` weist Freitext und den 31. Februar ab;
+ * das Jahr 0000 lässt es durch (JavaScript zählt ein Jahr 0, Postgres nicht —
+ * `22008`), deshalb steht es hier ausdrücklich.
+ */
+function istTag(wert: string): boolean {
+  return istGueltigerKalendertag(wert) && !wert.startsWith('0000-');
+}
+
 export interface GrundlageSetzen {
   readonly ansprechpartnerId: string;
-  readonly rechtsgrundlage: Rechtsgrundlage;
+  /**
+   * Das Wort, wie das Formular es schickt — `alsGrundlage` prüft es gegen
+   * die vier Werte des Enums, bevor es die Datenbank sieht.
+   */
+  readonly rechtsgrundlage: string;
   /** Woher sie stammt. Pflicht, sobald sie nicht `keine` ist. */
   readonly nachweisQuelle?: string | undefined;
   /**
@@ -304,7 +325,7 @@ export async function setzeGrundlage(
 ): Promise<void> {
   await pruefeSchreibrecht(kontext);
 
-  const grundlage = eingabe.rechtsgrundlage;
+  const grundlage = alsGrundlage(eingabe.rechtsgrundlage);
   const quelle = eingabe.nachweisQuelle?.trim() ?? '';
   if (grundlage !== 'keine' && quelle === '') {
     throw new CrmFehler(
@@ -361,6 +382,11 @@ export async function setzeGrundlage(
    * ist vom 12.03.), die Zukunft nicht.
    */
   if (eingabe.nachweisAm !== undefined && eingabe.nachweisAm !== '') {
+    if (!istTag(eingabe.nachweisAm)) {
+      throw new CrmFehler(
+        '„Seit wann ist sie belegt?" erwartet einen Kalendertag, den es gibt (JJJJ-MM-TT).',
+        'nachweis_kein_datum');
+    }
     const [pruefung] = await kontext.abfrage<{ zukunft: boolean }>(
       `select ($1::date > app.berlin_heute()) as zukunft`, [eingabe.nachweisAm]);
     if (pruefung?.zukunft === true) {
@@ -514,6 +540,11 @@ export async function erfasseWerbewiderspruch(
    * ungenutzter Zweig trotzdem geprüft wird, ist kein Schutz.
    */
   const tag = eingabe.eingegangenAm?.trim();
+  /* Ein Tag, den es nicht gibt, erreicht den Cast nicht (D-772 Nr. 14). */
+  if (tag !== undefined && tag !== '' && !istTag(tag)) {
+    throw new CrmFehler(
+      'Das Eingangsdatum ist kein Kalendertag, den es gibt (JJJJ-MM-TT).', 'eingang_kein_datum');
+  }
   const [z] = await widerspruchsDefiner(() => kontext.schreibe<{ anzahl: number }>(
     `select app.werbewiderspruch_manuell_setzen(
               $1::uuid, $2::uuid, $3,
