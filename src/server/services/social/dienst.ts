@@ -774,8 +774,8 @@ async function beitragsadresse(
  * dort dasselbe Nichts wie der relative Link (D-532). Ohne kanonische Basis
  * geht deshalb kein Bild mit, statt eines, das niemand laden kann.
  */
-function bildFuerKanal(
-  b: BeitragZeile, basis: string | null,
+export function bildFuerKanal(
+  b: Pick<BeitragZeile, 'bildAdresse' | 'bildTyp' | 'bildAlt'>, basis: string | null,
 ): { medien?: { url: string; mimeTyp: string; alt: string } } {
   if (b.bildAdresse === null || basis === null || basis === '') return {};
   return {

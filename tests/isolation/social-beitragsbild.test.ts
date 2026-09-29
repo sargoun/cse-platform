@@ -19,6 +19,7 @@ import {
   eigenesBeitragsbild, legeBeitragsbildAn, oeffentlichesBeitragsbild,
 } from '../../src/server/services/social/beitragsbild.js';
 import { ladeBeitrag, legeVor, setzeBeitragsbild } from '../../src/server/services/social/dienst.js';
+import { setzeGalerieRang } from '../../src/server/services/inhalt/redaktion.js';
 import { seedBeitragsbild } from '../../src/server/db/seed/beitragsbild.js';
 
 let f: Fixtur;
@@ -162,9 +163,14 @@ describe('(1) ein Bild annehmen — privat, bereinigt, mit Alternativtext', () =
 
   it('ohne social.schreiben legt niemand ein Bild an (t_medien_beitragsbild, 0473)', async () => {
     const leser = await konto(f.reinigung, 'mitarbeiter');
-    await expect(als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+    const speicher = new LokalerSpeicher();
+    await expect(als((k) => legeBeitragsbildAn(k, speicher, {
       daten: PNG, alt: 'Nicht erlaubt',
-    }), leser)).rejects.toThrow();
+    }), leser)).rejects.toThrow(/row-level security/u);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from medien where bucket is not null and mandant_id = $1`,
+      [f.reinigung]);
+    expect(n!.n, 'keine Zeile').toBe(0);
   });
 });
 
@@ -264,5 +270,171 @@ describe('(4) der Seed hängt dem Entwurf ein Bild an — über die Dienste', ()
     expect(await seedBeitragsbild(sql, ids, null, true))
       .toEqual({ angehaengt: 1, hochgeladen: false });
     expect((await als((k) => ladeBeitrag(k, zweiter)))!.bildPrivat).toBe(false);
+  });
+});
+
+/**
+ * **Die Mandantengrenze des Bildwegs** (V-268, D-761; 0473, 0486). Die Tür
+ * `/api/beitragsbild/[id]` signiert, was die `medien`-Zeile nennt. Bis 0486
+ * durfte jede Sitzung mit `referenz.schreiben` in IRGENDEINER Gesellschaft
+ * Zeiger, Adresse und Alternativtext jedes Beitragsbilds umschreiben — ein
+ * freigegebenes Bild liess sich auf ein nie freigegebenes Objekt umlenken.
+ */
+describe('(5) die Mandantengrenze — fremde Gesellschaft, Gruppenansicht, Eigentümer', () => {
+  const FREMDER_ORDNER = (): string => `${f.security}/beitrag/${'a'.repeat(64)}.png`;
+
+  async function redaktion(mandant: string): Promise<string> {
+    /* Eine Rolle mit genau dem Recht der Galeriepflege — sonst nichts. */
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+       values ($1, $2, 'Galeriepflege', 'mandant', 'intern') returning id`,
+      [mandant, `galerie_${zufall()}`]);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b where b.schluessel = 'referenz.schreiben'`,
+      [r!.id, mandant]);
+    const email = `galerie-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1,$2,'Galerie','aktiv')`,
+      [u!.id, email]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id) values ($1,$2,$3)`,
+      [u!.id, mandant, r!.id]);
+    return u!.id;
+  }
+
+  async function stand(id: string): Promise<{ schluessel: string; alt: string; pfad: string }> {
+    const [m] = await sql.unsafe<{ schluessel: string; alt: string; pfad: string }[]>(
+      `select objekt_schluessel as schluessel, alt_text as alt, pfad from medien where id = $1`,
+      [id]);
+    return m!;
+  }
+
+  it('SONDE: eine fremde Redaktion lenkt das Bild der Reinigung nicht um', async () => {
+    const m = await als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+      daten: PNG, alt: 'Freigegebenes Bild',
+    }));
+    const vorher = await stand(m);
+    const bau = await redaktion(f.bau);
+    await expect(alsApp({ scope: 'mandant', mandantId: f.bau, benutzerId: bau, portal: 'intern',
+                          readonly: false },
+    (tx) => tx.unsafe(
+      `update medien set objekt_schluessel = $2, alt_text = 'umgelenkt' where id = $1`,
+      [m, `${f.reinigung}/beitrag/${'b'.repeat(64)}.png`])))
+      .rejects.toThrow(/permission denied/u);
+    /* Selbst die eine zugeteilte Spalte trifft keine fremde Zeile. */
+    const rang = await alsApp({ scope: 'mandant', mandantId: f.bau, benutzerId: bau,
+                                portal: 'intern', readonly: false },
+    (tx) => tx.unsafe(`update medien set galerie_rang = 5 where id = $1 returning id`, [m]));
+    expect(rang.length).toBe(0);
+    expect(await stand(m)).toEqual(vorher);
+  });
+
+  it('auch die eigene Redaktion ändert nur den Rang — Zeiger und Text sind nicht zugeteilt', async () => {
+    const m = await als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+      daten: PNG, alt: 'Eigenes Bild',
+    }));
+    const eigen = await redaktion(f.reinigung);
+    for (const satz of [
+      `update medien set objekt_schluessel = '${f.reinigung}/beitrag/${'c'.repeat(64)}.png' where id = $1`,
+      `update medien set alt_text = 'anders' where id = $1`,
+      `update medien set pfad = '/bilder/reinigung.jpg' where id = $1`,
+      `update medien set mandant_id = '${f.security}' where id = $1`,
+    ]) {
+      await expect(alsApp({ scope: 'mandant', mandantId: f.reinigung, benutzerId: eigen,
+                            portal: 'intern', readonly: false },
+      (tx) => tx.unsafe(satz, [m]))).rejects.toThrow(/permission denied/u);
+    }
+    /* Der eine Weg, den es gibt, bleibt: die Galeriepflege an einem Website-Bild. */
+    const [statisch] = await sql.unsafe<{ id: string }[]>(
+      `insert into medien (mandant_id, pfad, alt_text, ist_platzhalter)
+       values ($1, '/bilder/reinigung.jpg', 'Motiv der Reinigung', true) returning id`,
+      [f.reinigung]);
+    await als((k) => setzeGalerieRang(k, statisch!.id, 3), eigen);
+    const [r] = await sql.unsafe<{ rang: number }[]>(
+      `select galerie_rang as rang from medien where id = $1`, [statisch!.id]);
+    expect(r!.rang).toBe(3);
+  });
+
+  it('angelegt wird nur im eigenen Ordner, nur mit Behälter, nur in der eigenen Gesellschaft', async () => {
+    const roh = (werte: { mandant: string; schluessel: string | null }) => als(
+      (k) => k.schreibe(
+        `with neu as (select gen_random_uuid() as id)
+         insert into medien (id, mandant_id, pfad, alt_text, ist_platzhalter, bucket,
+                             objekt_schluessel)
+         select neu.id, $1::uuid, '/api/beitragsbild/' || neu.id::text, 'Probe', false,
+                case when $2::text is null then null else 'marke' end, $2
+           from neu returning id`, [werte.mandant, werte.schluessel]));
+    await expect(roh({ mandant: f.reinigung, schluessel: FREMDER_ORDNER() }))
+      .rejects.toThrow(/medien_hochgeladen_eigen/u);
+    await expect(roh({ mandant: f.security, schluessel: FREMDER_ORDNER() }))
+      .rejects.toThrow(/row-level security/u);
+    await expect(roh({ mandant: f.reinigung, schluessel: null }))
+      .rejects.toThrow(/row-level security/u);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from medien where alt_text = 'Probe'`);
+    expect(n!.n).toBe(0);
+  });
+
+  it('die Gruppenansicht legt nichts an und ändert nichts (Invariante 10)', async () => {
+    const m = await als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+      daten: PNG, alt: 'Bild in der Gruppe',
+    }));
+    const [statisch] = await sql.unsafe<{ id: string }[]>(
+      `insert into medien (mandant_id, pfad, alt_text, ist_platzhalter)
+       values ($1, '/bilder/reinigung.jpg', 'Motiv der Reinigung', true) returning id`,
+      [f.reinigung]);
+    const gruppe = { scope: 'gruppe' as const, benutzerId: leitung, portal: 'intern' as const,
+                     mandantIds: [f.reinigung, f.security, f.bau], readonly: true };
+    await expect(alsApp(gruppe, (k) => legeBeitragsbildAn(kontextAus(k, leitung, ''),
+      new LokalerSpeicher(), { daten: PNG, alt: 'Aus der Gruppe' })))
+      .rejects.toThrow(/row-level security/u);
+    const rang = await alsApp(gruppe, (tx) => tx.unsafe(
+      `update medien set galerie_rang = 1 where id = any($1::uuid[]) returning id`,
+      [[m, statisch!.id]]));
+    expect(rang.length).toBe(0);
+  });
+
+  it('auch der Eigentümer lenkt ein hochgeladenes Bild nicht um (Auslöser)', async () => {
+    const m = await als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+      daten: PNG, alt: 'Festes Bild',
+    }));
+    await expect(sql.unsafe(
+      `update medien set objekt_schluessel = $2 where id = $1`,
+      [m, `${f.reinigung}/beitrag/${'d'.repeat(64)}.png`])).rejects.toThrow(/aendern sich nicht/u);
+    await expect(sql.unsafe(`update medien set alt_text = 'anders' where id = $1`, [m]))
+      .rejects.toThrow(/wie es angenommen wurde/u);
+  });
+
+  it('nach dem Vorlegen wechselt das Bild eines Beitrags nicht mehr — auch nicht am Dienst vorbei', async () => {
+    const speicher = new LokalerSpeicher();
+    const b = await entwurf();
+    const erstes = await als((k) => legeBeitragsbildAn(k, speicher, { daten: PNG, alt: 'Vorgelegt' }));
+    const zweites = await als((k) => legeBeitragsbildAn(k, speicher, {
+      daten: PNG_MIT_ORT, alt: 'Nie vorgelegt',
+    }));
+    await als((k) => setzeBeitragsbild(k, b, erstes));
+    await als((k) => legeVor(k, b));
+    await expect(als((k) => k.schreibe(
+      `update beitrag set medien_id = $2 where id = $1`, [b, zweites])))
+      .rejects.toThrow(/nur am Entwurf/u);
+    await expect(sql.unsafe(`update beitrag set medien_id = $2 where id = $1`, [b, zweites]))
+      .rejects.toThrow(/nur am Entwurf/u);
+    expect((await als((k) => ladeBeitrag(k, b)))!.medienId).toBe(erstes);
+  });
+
+  it('ein zurückgezogener Beitrag liefert sein Bild nicht mehr aus', async () => {
+    const m = await als((k) => legeBeitragsbildAn(k, new LokalerSpeicher(), {
+      daten: PNG, alt: 'Zurückgezogen',
+    }));
+    const b = await veroeffentlicht(m);
+    expect(await ohneSitzung((k) => oeffentlichesBeitragsbild(k, m))).not.toBeNull();
+    await sql.unsafe(
+      `update beitrag set status = 'zurueckgezogen', zurueckgezogen_am = now(),
+                          zurueckgezogen_grund = 'Motiv nicht mehr aktuell' where id = $1`,
+      [b]);
+    expect(await ohneSitzung((k) => oeffentlichesBeitragsbild(k, m))).toBeNull();
   });
 });

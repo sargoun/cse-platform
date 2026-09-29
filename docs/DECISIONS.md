@@ -20155,3 +20155,46 @@ Person zurück.
 
 | Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
 |---|---|
+
+### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde (V-268)
+
+**Der Befund** (V-268 a; Prüfung der Gruppe kalender-dokumente, Sicherheit):
+0473 macht `medien.bucket` und `medien.objekt_schluessel` zu dem Zeiger, auf
+den die Tür `/api/beitragsbild/[id]` eine signierte Adresse ausstellt; die
+Freigabe eines Beitrags bindet nur `medien_id` und den Alternativtext. Die
+neuen Spalten erbten das tabellenweite UPDATE aus 0014, und `t_medien_pflege`
+prüfte nur `app.hat_recht('referenz.schreiben', app.aktiver_mandant())` —
+ohne jede Bedingung an die Zeile. Eine Sitzung mit `referenz.schreiben` in
+IRGENDEINER Gesellschaft konnte Zeiger, Adresse und Alternativtext jedes
+Beitragsbilds umschreiben (nachgestellt: eine Redaktion der Bau-Gesellschaft
+lenkt das Bild der Reinigung um, 1 Zeile). Ein freigegebenes,
+veröffentlichtes Bild liess sich so auf ein nie freigegebenes Objekt lenken
+(Invariante 7), über Gesellschaftsgrenzen (Invariante 3). Die Mandantengrenze
+des Anlegens (Policy, CHECK) hatte keine Isolationsprobe.
+
+**Die Entscheidung — die sicherere von zwei Behebungen** (`0486`):
+
+1. **Zugeteilt wird nur, was ein Weg braucht.** Angelegt wird ein
+   `medien`-Eintrag im Betrieb an genau einer Stelle (`legeBeitragsbildAn`):
+   nur deren acht Spalten. Geändert wird genau eine Spalte
+   (`setzeGalerieRang`): `galerie_rang`. Alles andere schreibt nur der Seed als
+   Eigentümer. Die Zuteilung aus 0014 (ganze Tabelle) ist entzogen.
+2. **`t_medien_pflege` gilt nur noch für das UPDATE und nur in der eigenen
+   Gesellschaft** (`mandant_id = app.aktiver_mandant()`); die Gruppenansicht
+   hat keinen aktiven Mandanten und ist nur lesend (Invariante 10). Angelegt
+   wird nur über `t_medien_beitragsbild` (0473).
+3. **Ein hochgeladenes Bild bleibt, wie es angenommen wurde** — als Auslöser
+   (`kern.medien_bild_fest`), also auch für den Eigentümer und für jede
+   künftige Zuteilung: Behälter und Schlüssel ändern sich bei keinem Bild,
+   Gesellschaft, Adresse und Alternativtext eines hochgeladenen nicht. Ein
+   anderes Bild ist eine neue Zeile, und nur ein Entwurf hängt es an.
+4. **Das Bild eines Beitrags wechselt nur am Entwurf** — in der Datenbank
+   (`kern.beitrag_medien_eigen`, 0486 ersetzt 0473): sobald ein Beitrag
+   vorgelegt ist, hängt die Freigabe an genau diesem Bild; der Dienst prüfte
+   das schon (`darfBearbeiten`), an ihm vorbei nicht.
+5. **Die Wege, die heute schreiben, bleiben**: die Galeriepflege der Website,
+   das Beitragsbild und der Seed. Geprüft mit fremder Gesellschaft, eigener
+   Redaktion, Gruppenansicht und Eigentümer.
+
+| Betrifft | SOC-02, SOC-08, PUB-04, DOC-03, Invariante 3, Invariante 7, Invariante 10, D-719, V-225, V-268, `drizzle/0014` (`t_medien_pflege`), `drizzle/0170`, `drizzle/0473`, `drizzle/0486_medien_pflege_eigene_gesellschaft.sql`, `src/server/services/social/{beitragsbild,dienst}.ts`, `src/server/services/inhalt/redaktion.ts` (`setzeGalerieRang`), `tests/isolation/social-beitragsbild.test.ts`, `tests/kern/beitragsbild-kanal.test.ts` |
+|---|---|
