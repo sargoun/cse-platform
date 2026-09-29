@@ -23195,3 +23195,80 @@ Revier und Veranstaltung, deren Seiten nur anlegen, und acht Felder in
 
 | Betrifft | V-249, D-740, D-592, `tests/kern/satztabellen-leser.test.ts`, `tests/kern/satztabellen-bestand.ts`, `tests/kern/hilfen/satztabellen.ts`, `src/lib/i18n/**` |
 |---|---|
+
+### D-769 · Kein Satz aus der Adresse: ein Rückweg trägt Schlüssel, die Seite schlägt nach — auch für Erfolg, auch auf der Website (ersetzt D-599 „der Text reist mit“)
+
+**Der Befund** (Schlussdurchgang). 34 Seiten lasen den Suchparameter
+`meldung`; acht weitere zeigten `?erfolg=` oder `?ok=`, eine einen Satz in
+`?fehler=`. Etwa 25 Routen schrieben dafür den deutschen Satz eines Dienstes
+per `encodeURIComponent` in die Adresse. Vier Folgen:
+
+1. **Jeder präparierte Link schrieb seine eigene Systemmeldung.** Auf der
+   Website stand sie im `role="alert"`-Kasten des Angebotsformulars, der
+   Datenschutzanfrage und der Barrierefreiheits-Rückmeldung, je deutsch und
+   englisch. Im Portal stand sie in einem Warnkasten. React maskiert, es
+   läuft also kein Skript — aber der Inhalt ist verfälscht, auf Seiten, die
+   Kunden und Behörden sehen. D-753 hat dasselbe für vier Seiten als Mangel
+   behandelt; hier ist der Rest.
+2. **Eine englische Sitzung bekam den deutschen Satz**, auch auf Seiten, die
+   der Sitzungssprache folgen.
+3. **Kennungen, Eingaben und Datenbanktexte reisten mit**: UUIDs in drei
+   Sätzen (Hausregel „keine UUIDs“), die Eingabe des Menschen in zwei, rohe
+   Postgres-Meldungen und die deutschen `grund`-Sätze zweier SQL-Funktionen
+   in drei Routen.
+4. **Zwei Nachschlagestellen ohne `eigenerEintrag`** (D-728): `?stempel=__proto__`
+   brachte die Startseite des Arbeiterportals zum Absturz, `?grund=__proto__`
+   das Kundenblatt.
+
+**Die Entscheidung** (gilt für jeden Rückweg einer Seite; die fünf Teile
+V-272 bis V-276 setzen sie um):
+
+1. **Eine Umleitung zurück auf eine Seite trägt nur Schlüssel.** Eine
+   Abweisung reist als `?fehler=<grund>`, ein Erfolg als `?erfolg=<schluessel>`
+   oder als schon vorhandener Schlüsselparameter (`?stand=`, `?geschlossen=`).
+   `meldung=` gibt es nicht mehr, und auch keinen Satz, keine Eingabe und
+   keine Kennung in der Adresse.
+2. **Die Seite schlägt den Satz nach**, nur mit
+   `eigenerEintrag(TABELLE, schluessel)` und nie mit `TABELLE[schluessel]`.
+   Ein unbekannter oder fehlender Schlüssel ergibt den allgemeinen Satz der
+   Seite, nie den Schlüssel und nie Text aus der Adresse. Ein Warnkasten
+   einer Abweisung trägt `rolle="alert"`, ein Erfolgskasten `rolle="status"`.
+3. **Die Fehlerklasse trägt den Grund** (wie D-753 Nr. 1). Eine Klasse ohne
+   `grund` bekommt einen getypten. Die Route schickt ihn, wo es passt über
+   `grundAufsFormular`/`grundAufsFormularweg`. `fehlerAufsFormular` entfällt.
+4. **Sprache.** Eine Seite, die der Sitzungssprache folgt, hat de/en-Tabellen
+   unter `src/lib/i18n/verwaltung/…`. Eine Seite auf der Ausnahmeliste hat
+   eine deutsche Tabelle derselben Form. Die Website nimmt die Sprache aus dem
+   Pfad.
+5. **Werte, die ein Satz braucht** (Monat, Frist, Nummer, Anzahl), leitet die
+   Seite aus ihren eigenen Daten ab. Sonst reist ein streng geprüfter
+   Wertparameter mit, oder der Satz kommt ohne den Wert aus (wie D-753: „das
+   Jahr dieses Urlaubs“). Die Eingabe des Menschen reist nie zurück in die
+   Adresse.
+6. **Programme bekommen weiter JSON** (`{ fehler, meldung }` mit Status,
+   D-599). Nur der Weg zurück auf eine Seite ändert sich.
+7. **Die Anmeldung kommt zuerst.** `anmeldungsAntwort`,
+   `autorisierungsAntwort` bzw. `alsAntwort` laufen vor jedem allgemeinen
+   `status`/`code`-Zweig. Ein fehlendes Recht bleibt die byte-gleiche 404
+   (AUT-06), und die Umleitung auf Anmeldung oder Faktor-Schritt wird nie
+   durch einen Formular-Rückweg ersetzt (D-766).
+8. **Ein Datenbanktext erscheint nie auf dem Schirm.** Ein bekannter Schlüssel
+   wird abgebildet, alles andere ergibt den allgemeinen Satz. Ein unbekannter
+   Fehler bleibt ein Fehler; es gibt keine erfundene Abweisung.
+9. **Das Angebotsformular** (D-599 Nr. „Auch der Fehlerweg“) schickt
+   `?fehler=<grund>&felder=<k1,k2,…>`. Das sind nur Feldschlüssel, und die
+   Seite prüft sie gegen die Definition, die sie ohnehin lädt. Sie zeigt die
+   `fehlermeldung` des Felds aus derselben `formular_definition` (englisch
+   über `uebersetzeFelder`) und den Sammelsatz aus `API_TEXTE`. Die
+   Begründung von D-599 („eine zweite Liste liefe auseinander“) trägt nicht
+   mehr: es gibt keine zweite Liste, die Seite liest dieselbe Definition.
+
+**Die Wache.** Ab dem Zusammenführen aller fünf Teile prüft die Wache
+`adressparameter` (D-741) auch `direkt` für `meldung`, `erfolg` und `ok`:
+Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
+`tests/kern/rueckweg-schluessel.test.ts`, dass keine Datei in `src/app` oder
+`src/server` eine Adresse mit `meldung=` baut und dass kein Satz per
+`encodeURIComponent` in `fehler`, `erfolg`, `ok` oder `grund` geht.
+
+| Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
+|---|---|
