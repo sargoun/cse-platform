@@ -7,10 +7,9 @@ import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
-import { NichtVerbundenFehler } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
-import { MimeFehler } from '@/server/storage/mime';
-import { AblageFehler, FassungFehler, legeFassungAn } from '@/server/services/dokument/ablage';
+import { FassungFehler, legeFassungAn } from '@/server/services/dokument/ablage';
+import { fassungGrund } from './grund';
 
 /**
  * `POST /api/dokumente/[id]/version` — eine neue Fassung eines bestehenden
@@ -38,15 +37,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 function feld(daten: FormData, name: string): string {
   const wert = daten.get(name);
   return typeof wert === 'string' ? wert : '';
-}
-
-/** Der Grund einer Abweisung — ein Schlüssel für die Seite, nie ein Satz in der Adresse. */
-function grundVon(fehler: unknown): string | null {
-  if (fehler instanceof FassungFehler) return fehler.grund;
-  if (fehler instanceof NichtVerbundenFehler) return 'speicher';
-  if (fehler instanceof MimeFehler) return `datei_${fehler.grund}`;
-  if (fehler instanceof AblageFehler) return 'datei_zu_gross';
-  return null;
 }
 
 export async function POST(
@@ -96,7 +86,7 @@ export async function POST(
         anfrage),
       303);
   } catch (fehler: unknown) {
-    const grund = grundVon(fehler);
+    const grund = fassungGrund(fehler);
     if (grund !== null) {
       if (zurueck !== '') {
         const trenner = zurueck.includes('?') ? '&' : '?';

@@ -20116,7 +20116,7 @@ entfernt und die alte liegen lassen.
 | Betrifft | DOC-05, DOC-07, LEG-01, § 257 Abs. 5 HGB, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, O-955, D-49, D-713, V-219, V-266, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/{loeschung,ablage}.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf,dokument-fassung}.test.ts` |
 |---|---|
 
-### D-759 · Eine neue Fassung an einem für den Kunden freigegebenen Dokument legt ab, wer die Kundenfreigabe erteilen darf — mit ausdrücklichem Wort; und die Buchungssperre gilt für jede Sitzung (V-266)
+### D-759 · Eine neue Fassung an einem für den Kunden freigegebenen Dokument legt ab, wer die Kundenfreigabe erteilen darf — mit ausdrücklichem Wort; die Buchungssperre gilt für jede Sitzung, und jede Abweisung der Prüfkette ist ein Satz (V-266)
 
 **Der Befund** (V-266 c, d; Prüfung der Gruppe kalender-dokumente): (c) Die
 Kundenfreigabe ist der Schalter, der ein Dokument aus dem Haus lässt, mit
@@ -20163,11 +20163,24 @@ und Auslöser hatten keinen Test.
    fragen beide sie. Ohne gebundene Gesellschaft (Eigentümer, Seed) sieht sie
    nichts — Fassungen legt im Betrieb nur eine Sitzung an.
 
+6. **Eine Datei, deren Metadaten sich nicht sicher entfernen lassen, ist ein
+   Satz auf dem Blatt, kein 500** (V-266 e). `ladeHoch` wirft `ExifFehler` für
+   jedes erlaubte Bild ohne Bereinigungsverfahren (TIFF, GIF, WebP) und für
+   jedes verschlüsselte PDF — ausgerechnet den eingescannten oder signierten
+   Vertrag, den typischen Fall einer zweiten Fassung. Die Abbildung der Route
+   kannte ihn nicht. Jetzt steht sie in einer eigenen Datei
+   (`api/dokumente/[id]/version/grund.ts`, `fassungGrund`) und bildet ihn auf
+   `datei_metadaten` ab („als PDF ohne Verschlüsselung, JPEG oder PNG
+   ablegen", de/en); ein Kern-Test führt jeden Wurf der Prüfkette durch und
+   verlangt Grund und Satz in beiden Sprachen.
+
 **Nicht Teil:** ob der Kunde benachrichtigt wird, wenn eine neue Fassung
 erscheint (kein Postausgang, O-501; das Kundenportal liefert noch keine
-Dokumente, O-671).
+Dokumente, O-671). Die ältere Ablageroute `api/dokumente/upload` hat dieselbe
+Lücke beim ersten Ablegen (`ExifFehler` fällt durch `alsAntwort`) — sie ist
+vorbestehend und nicht Gegenstand dieser Gruppe.
 
-| Betrifft | DOC-04, DOC-05, ACC-03, Invariante 7, O-501, O-671, D-713, V-219, V-266, `drizzle/0297`, `drizzle/0325`, `drizzle/0488_fassung_kundenfreigabe_und_buchung.sql`, `src/server/services/dokument/ablage.ts`, `src/app/api/dokumente/[id]/version/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
+| Betrifft | DOC-04, DOC-05, ACC-03, Invariante 7, O-501, O-671, D-713, V-219, V-266, `drizzle/0297`, `drizzle/0325`, `drizzle/0488_fassung_kundenfreigabe_und_buchung.sql`, `src/server/services/dokument/ablage.ts`, `src/app/api/dokumente/[id]/version/{route,grund}.ts`, `src/server/storage/exif.ts` (`ExifFehler`), `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
 |---|---|
 
 ### D-760 · Kalender und Recruiting: wer einen Termin ändert, wirft niemanden still hinaus — und der Seed stellt die Bewerbung aus dem Postfach nicht vor die jüngste (V-267)

@@ -20,7 +20,7 @@ import type { InternSprache } from '../intern.js';
 export type FassungAbweisungText =
   | 'nicht_gefunden' | 'geloescht' | 'kategorie_gesperrt' | 'an_buchung' | 'ohne_kette'
   | 'leer' | 'kein_recht' | 'speicher' | 'datei_leer' | 'datei_unbekannt'
-  | 'datei_nicht_erlaubt' | 'datei_widerspruch' | 'datei_zu_gross'
+  | 'datei_nicht_erlaubt' | 'datei_widerspruch' | 'datei_zu_gross' | 'datei_metadaten'
   | 'kundenfreigabe_recht' | 'kundenfreigabe_bestaetigen';
 
 /** Die Gründe, mit denen die Mitarbeiterfreigabe abgewiesen wird (`DokumentfreigabeFehler`). */
@@ -151,6 +151,10 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       datei_widerspruch:
         'Der Inhalt der Datei passt nicht zu dem Typ, den der Browser angegeben hat.',
       datei_zu_gross: 'Die Datei ist zu groß.',
+      datei_metadaten:
+        'Aus dieser Datei lassen sich die Metadaten nicht sicher entfernen — ein verschlüsseltes '
+        + 'PDF oder ein Bildformat ohne Bereinigung (TIFF, GIF, WebP). Bitte als PDF ohne '
+        + 'Verschlüsselung, als JPEG oder als PNG ablegen.',
       kundenfreigabe_recht:
         'Dieses Dokument ist für den Kunden freigegeben. Eine neue Fassung legt ab, wer auch '
         + 'die Kundenfreigabe erteilen darf.',
@@ -263,6 +267,10 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       datei_nicht_erlaubt: 'This file type or size is not permitted.',
       datei_widerspruch: 'The file content does not match the type the browser declared.',
       datei_zu_gross: 'The file is too large.',
+      datei_metadaten:
+        'The metadata of this file cannot be removed safely — an encrypted PDF or an image '
+        + 'format without cleaning (TIFF, GIF, WebP). Please file it as an unencrypted PDF, as '
+        + 'JPEG or as PNG.',
       kundenfreigabe_recht:
         'This document is released to the customer. A new version is filed by whoever may '
         + 'also grant the customer release.',
