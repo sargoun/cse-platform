@@ -31,9 +31,18 @@ describe('das Bewerbungspostfach', () => {
     expect(z!.hinweis).toMatch(/Aus dem Postfach erfassen/u);
   });
 
+  /**
+   * Nur der Abschnitt „Open" — bis zur nächsten Überschrift, nicht bis zum
+   * Dateiende: dahinter stehen O-Zeilen in „Entschieden …"-Abschnitten, und
+   * der Test bliebe grün, wenn O-938 dorthin wanderte (Prüfung der Gruppe
+   * kalender-dokumente).
+   */
   it('die offene Frage steht in DECISIONS unter „Open"', () => {
     const d = readFileSync(resolve(WURZEL, 'docs/DECISIONS.md'), 'utf8');
-    const offen = d.slice(d.indexOf('## Open — ask, do not guess'));
-    expect(offen).toMatch(/^\| O-938 \|/mu);
+    const start = d.indexOf('## Open — ask, do not guess');
+    expect(start).toBeGreaterThan(-1);
+    const ende = d.indexOf('\n## ', start + 1);
+    expect(ende, 'der Abschnitt endet vor dem Dateiende').toBeGreaterThan(start);
+    expect(d.slice(start, ende)).toMatch(/^\| O-938 \|/mu);
   });
 });

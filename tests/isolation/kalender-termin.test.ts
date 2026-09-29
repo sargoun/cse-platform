@@ -104,7 +104,11 @@ describe('(1) anlegen', () => {
 
   it('ohne kalender.schreiben legt niemand an — der Dienst läuft in die Policy', async () => {
     const leser = await konto(f.reinigung, 'mitarbeiter', 'Nur lesen');
-    await expect(als(leser, f.reinigung, (k) => legeTerminAn(k, termin()))).rejects.toThrow();
+    await expect(als(leser, f.reinigung, (k) => legeTerminAn(k, termin({ titel: 'Ohne Recht' }))))
+      .rejects.toThrow(/row-level security policy for table "kalender_eintrag"/u);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from kalender_eintrag where titel = 'Ohne Recht'`);
+    expect(n!.n, 'keine Zeile').toBe(0);
   });
 
   it('ganztägig über die Umstellungsnacht: 25 Stunden, gespeichert als zwei Instants', async () => {

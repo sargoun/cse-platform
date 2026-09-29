@@ -165,7 +165,7 @@ describe('(2) ein Mensch bearbeitet den Entwurf — solange keine Freigabe daran
     }))).rejects.toMatchObject({ grund: 'schon_vorgelegt' });
   });
 
-  it('Titel und Beschreibung sind Pflicht; eine fremde Stelle ist unbekannt', async () => {
+  it('Titel und Beschreibung sind Pflicht; eine erfundene Kennung ist unbekannt', async () => {
     const id = await als((k) => legeStelleAn(k, {
       titel: 'Hausmeister', beschreibung: 'Entwurf.', anforderungen: [],
     }));
@@ -177,6 +177,28 @@ describe('(2) ein Mensch bearbeitet den Entwurf — solange keine Freigabe daran
       titel: 'x', beschreibung: 'x', anforderungen: [], einsatzort: null, wochenstunden: null,
       bewerbungsfrist: null,
     }))).rejects.toMatchObject({ grund: 'unbekannt' });
+  });
+
+  /**
+   * Die Fremdmandantenprobe, die der Titel oben versprach (AUT-06; Prüfung
+   * der Gruppe kalender-dokumente): eine ECHTE Stelle der Security, aus der
+   * Reinigung bearbeitet, ist unbekannt — und bleibt, wie sie war.
+   */
+  it('eine Stelle einer anderen Gesellschaft ist unbekannt und bleibt unberührt (AUT-06)', async () => {
+    const fremderChef = await konto(f.security);
+    const fremd = await alsApp({ scope: 'mandant', mandantId: f.security, benutzerId: fremderChef,
+                                 portal: 'intern', readonly: false },
+    (tx) => legeStelleAn(kontextAus(tx, fremderChef, f.security), {
+      titel: 'Objektschutz Nachtdienst', beschreibung: 'Entwurf der Security.',
+      anforderungen: ['Sachkunde § 34a GewO'],
+    }));
+    await expect(als((k) => aendereStelle(k, fremd, {
+      titel: 'Übernommen', beschreibung: 'Aus der Reinigung.', anforderungen: [],
+      einsatzort: null, wochenstunden: null, bewerbungsfrist: null,
+    }))).rejects.toMatchObject({ grund: 'unbekannt' });
+    const [z] = await sql.unsafe<{ titel: string; mandant: string }[]>(
+      `select titel, mandant_id::text as mandant from stelle where id = $1`, [fremd]);
+    expect(z).toEqual({ titel: 'Objektschutz Nachtdienst', mandant: f.security });
   });
 });
 

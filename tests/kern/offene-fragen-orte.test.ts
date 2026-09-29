@@ -45,7 +45,18 @@ function dateienMit(marke: string): string[] {
   return treffer;
 }
 
+/** Der Abschnitt „Open" — bis zur nächsten Überschrift, nicht bis zum Dateiende. */
+function abschnittOffen(): string {
+  const start = ENTSCHEIDUNGEN.indexOf('## Open — ask, do not guess');
+  const ende = ENTSCHEIDUNGEN.indexOf('\n## ', start + 1);
+  return ENTSCHEIDUNGEN.slice(start, ende);
+}
+
 describe('offene Fragen nennen bestehende Orte', () => {
+  it.each(FRAGEN)('%s steht im Abschnitt „Open"', (frage) => {
+    expect(abschnittOffen()).toContain(`\n| ${frage} |`);
+  });
+
   it.each(FRAGEN)('%s: jeder genannte Pfad besteht', (frage) => {
     const genannt = pfade(zeile(frage));
     expect(genannt.length, 'mindestens ein Ort').toBeGreaterThan(0);

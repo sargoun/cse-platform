@@ -249,6 +249,44 @@ describe('(3) als geführt vermerken', () => {
       .rejects.toMatchObject({ grund: 'falscher_status' });
   });
 
+  /**
+   * Die zweite Linie aus 0471 für den Vermerk — am Dienst vorbei (Prüfung der
+   * Gruppe kalender-dokumente): ohne Zeitpunkt kein geführtes Gespräch
+   * (`gespraech_vermerk_vollstaendig`), und ein geführtes ändert weder Termin
+   * noch Dauer noch Zustand (`kern.gespraech_weg`).
+   */
+  it('ohne Zeitpunkt kein geführtes Gespräch (CHECK aus 0471)', async () => {
+    const id = await vergangen();
+    await expect(als((_k, tx) => tx.unsafe(
+      `update gespraech set status = 'stattgefunden' where id = $1`, [id])))
+      .rejects.toThrow(/gespraech_vermerk_vollstaendig/u);
+    await expect(als((_k, tx) => tx.unsafe(
+      `update gespraech set stattgefunden_vermerkt_am = now() where id = $1`, [id])))
+      .rejects.toThrow(/gespraech_vermerk_vollstaendig/u);
+    expect((await als((k) => ladeGespraech(k, id)))!.status).toBe('geplant');
+  });
+
+  it('ein geführtes Gespräch ändert weder Termin noch Dauer noch Zustand — auch am Dienst vorbei', async () => {
+    const id = await vergangen();
+    await als((k) => vermerkeGespraech(k, id));
+    const vorher = await als((k) => ladeGespraech(k, id));
+    await expect(als((k) => verschiebeGespraech(k, id, new Date(Date.now() + 5 * TAG_MS), 60)))
+      .rejects.toMatchObject({ grund: 'falscher_status' });
+    for (const aenderung of [
+      `termin = termin + interval '1 day'`,
+      'dauer_minuten = 90',
+      `status = 'geplant', stattgefunden_vermerkt_am = null, stattgefunden_vermerkt_von = null`,
+    ]) {
+      await expect(als((_k, tx) => tx.unsafe(
+        `update gespraech set ${aenderung} where id = $1`, [id])), aenderung)
+        .rejects.toThrow(/aendert weder Zustand noch Termin/u);
+    }
+    const nachher = await als((k) => ladeGespraech(k, id));
+    expect(nachher).toMatchObject({
+      status: 'stattgefunden', termin: vorher!.termin, dauerMinuten: vorher!.dauerMinuten,
+    });
+  });
+
   it('ein Gespräch einer anderen Gesellschaft ist unbekannt (AUT-06)', async () => {
     const id = await plane();
     const fremd = await konto(f.security, 'leitung');
