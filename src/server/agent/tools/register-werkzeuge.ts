@@ -15,8 +15,9 @@ import type { Nebenwirkung } from './typen.js';
  * eine Katalogabfrage. Die anderen sieben brauchen eines — und es gibt
  * keinen Anbieter (D-435). Sie sind registriert und beschrieben, aber sie
  * haben KEINEN Ausführer (V-228, D-722): `tools/ausfuehrer.ts` hält fest,
- * welche zwei einen haben, und `ohneAusfuehrer` antwortet für die sieben mit
- * `kein_modellzugang`, statt etwas zu erfinden. Ein Werkzeug, das ohne Modell
+ * welche zwei einen haben, und das Tor `verlangeWerkzeug` weist die sieben
+ * mit `ohneAusfuehrer` ab — `kein_modellzugang` —, statt etwas zu erfinden
+ * (V-270). Ein Werkzeug, das ohne Modell
  * „irgendetwas" liefert, ist schlimmer als eines, das schweigt: das Ergebnis
  * sähe echt aus. Die Agentenseite zeigt sie deshalb nie als „bereit", auch
  * wenn eine Gesellschaft sie freigeschaltet hat (`tools/freischaltung.ts`).

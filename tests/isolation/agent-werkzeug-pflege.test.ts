@@ -176,6 +176,18 @@ describe('(4) das Tor liest den Stand der eigenen Gesellschaft', () => {
     const nachher = await imKontext((k) => verlangeWerkzeug(k, 'ceo_assistent', 'suche_bestand'));
     expect(nachher.bereit).toBe(true);
 
+    /* Ein Modellwerkzeug, freigeschaltet: das Tor weist es trotzdem ab — mit der
+       ehrlichen Antwort `kein_modellzugang` (D-495, D-722 Nr. 3, V-270). */
+    await imKontext((k) => setzeWerkzeug(k, {
+      agentId: ceo, werkzeug: 'lies_dokument', istAktiv: true, erfordertFreigabe: true,
+    }));
+    const modell = await imKontext((k) => verlangeWerkzeug(k, 'ceo_assistent', 'lies_dokument'))
+      .then(() => null, (e: unknown) => e);
+    expect(modell).toBeInstanceOf(WerkzeugNichtFreigeschaltet);
+    const gesperrt = modell as WerkzeugNichtFreigeschaltet;
+    expect(gesperrt.stand).toMatchObject({ freigeschaltet: true, ausfuehrbar: false });
+    expect(gesperrt.ergebnis).toMatchObject({ ok: false, fehler: { code: 'kein_modellzugang' } });
+
     /* Dieselbe Frage aus dem Bau: dort gibt es keine Zeile, also nichts freigeschaltet. */
     const bauLeser = await konto(f.bau, 'admin');
     await gewaehre('admin', 'agent.lesen', f.bau, true);

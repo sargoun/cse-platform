@@ -19784,7 +19784,10 @@ Kommentar im Register versprachen `kein_modellzugang`, gebaut war es nicht.
 3. **Ehrlich ohne Ausführer:** `tools/ausfuehrer.ts` hält fest, welche
    Werkzeuge einen Ausführer haben (die zwei mit `ohneModell`), und
    `ohneAusfuehrer` antwortet für die sieben mit `kein_modellzugang` ohne
-   Daten. Das Blatt zeigt drei Stände: „bereit" (freigeschaltet UND
+   Daten. **Berichtigt durch D-763 Nr. 8:** die Funktion hatte keinen
+   Aufrufer, und ein Kerntest prüfte nur, dass ein Kommentar ihren Namen
+   nennt; jetzt weist das Tor `verlangeWerkzeug` ein freigeschaltetes Werkzeug
+   ohne Ausführer mit genau dieser Antwort ab. Das Blatt zeigt drei Stände: „bereit" (freigeschaltet UND
    ausführbar), „freigeschaltet, aber ohne Ausführer — braucht Modellzugang",
    „nicht freigeschaltet". Ein Modellwerkzeug lässt sich freischalten — das
    ist die Entscheidung der Gesellschaft, es zu erlauben, sobald es läuft —,
@@ -20140,6 +20143,19 @@ Bedienelement ohne Wirkung.
 7. **Nicht Teil:** ein Rücknahmefenster für eine ausgelieferte Antwort. Die
    Aktion hat keinen Ausführer im Sinne von §4.8 (`fuehreAus`); die
    Genehmigung ist die Freigabe, und ein Fenster wird nicht armiert.
+8. **Das Tor antwortet für ein Werkzeug ohne Ausführer mit
+   `ohneAusfuehrer`** (D-495, D-722 Nr. 3). `verlangeWerkzeug` ist die eine
+   Stelle, die jeder Werkzeugaufruf passiert — heute der des CEO-Assistenten,
+   morgen der erste des Orchestrators (D-722 Nr. 2). Ein freigeschaltetes
+   Modellwerkzeug weist es ab, und die Abweisung trägt als `ergebnis` genau
+   die Antwort aus `ohneAusfuehrer`: `kein_modellzugang`, ohne Daten
+   (`sperrErgebnis`, `agent/tools/freischaltung.ts`); nicht freigeschaltet
+   heisst `nicht_erlaubt`. Bis hierher hatte `ohneAusfuehrer` keinen
+   Aufrufer, und der Kerntest „das Register verspricht nichts mehr, was kein
+   Code hält" prüfte einen Kommentar — er ist durch eine Prüfung der Antwort
+   ersetzt. Dass „die sieben antworten `kein_modellzugang`" (D-495, ROADMAP)
+   stimmt, heisst: an dem Tor, das jeder Aufruf passiert. Einen Dispatcher
+   für Werkzeuge, die niemand ruft, gibt es weiter nicht.
 
 **Geprüft:** `tests/kern/werkzeug-ergebnis-gate.test.ts` (Tor: genehmigt
 liefert, ohne/offen/abgelehnt/ohne Menschen/fremd/verändert nicht; Abdruck =
@@ -20149,8 +20165,12 @@ wartet mit offener Freigabe und ohne Antwort im Schritt, genehmigt über
 Antwort, abgelehnt bricht ab, nach der Freigabe verändert liefert nicht, ohne
 Schalter sofort und ohne Freigabe, ohne `freigabe.entscheiden` abgewiesen;
 die Fälle 1, 2 und 5 setzen den Schalter jetzt ausdrücklich aus.
+Nr. 8: `tests/kern/agent-werkzeug-pflege.test.ts` (für jedes der sieben die
+Abweisung = `ohneAusfuehrer`, nicht freigeschaltet = `nicht_erlaubt`),
+`tests/isolation/agent-werkzeug-pflege.test.ts` (4) (`lies_dokument`
+freigeschaltet: `kein_modellzugang` gegen die echte Zeile).
 
-| Betrifft | AGT-02, AGT-03, AGT-04, AGT-07, APR-07, APR-08, Invariante 7, D-722, D-723, V-228, V-270, `src/server/agent/policy.ts`, `src/server/agent/tools/ergebnis-freigabe.ts`, `drizzle/0475_werkzeugergebnis_folgt_freigabe.sql`, `src/server/services/agent/assistent.ts`, `src/app/portal/[mandant]/agenten/{assistent,[agent]}/page.tsx`, `src/server/db/seed/index.ts`, `tests/kern/werkzeug-ergebnis-gate.test.ts`, `tests/isolation/agent-assistent.test.ts` |
+| Betrifft | AGT-02, AGT-03, AGT-04, AGT-07, APR-07, APR-08, Invariante 7, D-495, D-722, D-723, V-228, V-270, `src/server/agent/policy.ts`, `src/server/agent/tools/{ergebnis-freigabe,freischaltung,ausfuehrer,register-werkzeuge}.ts`, `drizzle/0475_werkzeugergebnis_folgt_freigabe.sql`, `src/server/services/agent/assistent.ts`, `src/app/portal/[mandant]/agenten/{assistent,[agent]}/page.tsx`, `src/server/db/seed/index.ts`, `tests/kern/werkzeug-ergebnis-gate.test.ts`, `tests/isolation/agent-assistent.test.ts` |
 |---|---|
 
 ### D-764 · Der Akquise-Entwurf antwortet nur, wo jemand über das Formular gefragt hat — und nennt keinen internen Betreff (V-271)

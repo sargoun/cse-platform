@@ -18,6 +18,11 @@ import type { WerkzeugErgebnis } from './typen.js';
  * Anbieter, der formulieren, lesen oder sichten könnte. `ohneAusfuehrer`
  * antwortet für sie mit `kein_modellzugang` — ein Ergebnis, das nichts
  * enthält, statt eines, das echt aussähe (CLAUDE.md „No fake integrations").
+ * Gerufen wird es vom Tor, das jeder Werkzeugaufruf passiert: `verlangeWerkzeug`
+ * weist ein freigeschaltetes Werkzeug ohne Ausführer mit genau dieser Antwort
+ * ab (`sperrErgebnis` in `freischaltung.ts`, V-270). Bis dahin hatte die
+ * Funktion keinen Aufrufer, und ein Kerntest prüfte nur, dass ein Kommentar
+ * ihren Namen nennt.
  *
  * **Die Menge folgt aus dem Register, nicht aus einer zweiten Liste**: genau
  * die Werkzeuge mit `ohneModell` haben einen Ausführer. Kommt ein Ausführer
@@ -32,11 +37,14 @@ export function hatAusfuehrer(werkzeug: WerkzeugName): boolean {
   return MIT_AUSFUEHRER.has(werkzeug);
 }
 
+/** Ein Werkzeugergebnis, das nichts liefert — der Zweig `ok: false`. */
+export type Fehlschlag = Extract<WerkzeugErgebnis<never>, { readonly ok: false }>;
+
 /**
  * Die ehrliche Antwort eines Werkzeugs ohne Ausführer. Sie trägt keine Daten
  * und keine gebundenen Werte — es gibt nichts, woraus sie entstehen könnten.
  */
-export function ohneAusfuehrer(werkzeug: WerkzeugName): WerkzeugErgebnis<never> {
+export function ohneAusfuehrer(werkzeug: WerkzeugName): Fehlschlag {
   return {
     ok: false,
     fehler: {

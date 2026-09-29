@@ -1,5 +1,5 @@
 import 'server-only';
-import { hatAusfuehrer } from './ausfuehrer.js';
+import { hatAusfuehrer, ohneAusfuehrer, type Fehlschlag } from './ausfuehrer.js';
 import type { AgentKennung, WerkzeugName } from './register-werkzeuge.js';
 
 /**
@@ -69,13 +69,36 @@ export async function werkzeugStand(
   return standAus(werkzeug, zeile);
 }
 
+/**
+ * **Was ein Aufruf zurückbekäme, den das Tor abweist** (V-270): für ein
+ * freigeschaltetes Werkzeug ohne Ausführer die ehrliche Antwort aus
+ * `ohneAusfuehrer` — `kein_modellzugang`, ohne Daten (D-495, D-722 Nr. 3) —,
+ * sonst `nicht_erlaubt`. Rein, deshalb geprüft
+ * (`tests/kern/agent-werkzeug-pflege.test.ts`).
+ */
+export function sperrErgebnis(stand: WerkzeugStand): Fehlschlag {
+  return stand.freigeschaltet && !stand.ausfuehrbar
+    ? ohneAusfuehrer(stand.werkzeug)
+    : {
+      ok: false,
+      fehler: {
+        code: 'nicht_erlaubt',
+        nachricht: `Das Werkzeug „${stand.werkzeug}" ist in dieser Gesellschaft nicht `
+          + 'freigeschaltet.',
+      },
+    };
+}
+
 export class WerkzeugNichtFreigeschaltet extends Error {
   readonly code = 'werkzeug_gesperrt' as const;
   constructor(readonly stand: WerkzeugStand) {
-    super(stand.freigeschaltet
-      ? `Das Werkzeug „${stand.werkzeug}" ist freigeschaltet, hat aber keinen Ausführer.`
-      : `Das Werkzeug „${stand.werkzeug}" ist in dieser Gesellschaft nicht freigeschaltet.`);
+    super(sperrErgebnis(stand).fehler.nachricht);
     this.name = 'WerkzeugNichtFreigeschaltet';
+  }
+
+  /** Das Ergebnis, das der abgewiesene Aufruf bekommt (`sperrErgebnis`). */
+  get ergebnis(): Fehlschlag {
+    return sperrErgebnis(this.stand);
   }
 }
 
