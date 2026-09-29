@@ -14,6 +14,7 @@ import {
   EIGENE_ARTEN, TerminFehler, leseTerminZeiten, pruefeTermin, teilnehmerNachAenderung,
   type TerminEingabe,
 } from '../../src/server/services/kalender/termin.js';
+import { KALENDER_TERMIN_TEXTE } from '../../src/lib/i18n/verwaltung/kalender-termin.js';
 
 const STUNDE = 3600 * 1000;
 
@@ -153,5 +154,29 @@ describe('nach einer Abweisung stehen die Eingaben wieder da', () => {
     expect(blatt).toMatch(/mitEingaben = fehler !== null && fehler !== 'gleichzeitig'/u);
     expect(blatt).toContain("vorbelegteListe(suche, 'teilnehmer')");
     expect(blatt).toContain('werte={werte}');
+  });
+});
+
+/**
+ * Der Filter heisst auf `/kalender` in jeder Sprache „Nur meine" — die Seite
+ * steht auf der Ausnahmeliste und ist deutsch. Ein englischer Satz, der
+ * „Only mine" nennt, verweist auf einen Knopf, den es so nicht gibt
+ * (V-267, Prüfung der Gruppe kalender-dokumente).
+ */
+describe('die Hinweise nennen nur, was die Seite zeigt', () => {
+  it('kein englischer Satz nennt einen Filter „Only mine"', () => {
+    const uebersicht = readFileSync('src/app/portal/[mandant]/kalender/page.tsx', 'utf8');
+    expect(uebersicht).toContain('Nur meine');
+    expect(uebersicht).not.toContain('Only mine');
+    for (const [schluessel, text] of Object.entries(KALENDER_TERMIN_TEXTE.en)) {
+      if (typeof text === 'string') expect(text, schluessel).not.toMatch(/only mine/iu);
+    }
+    expect(KALENDER_TERMIN_TEXTE.en.teilnehmendeHinweis).toContain('in their own view');
+  });
+
+  it('ohne kalender.schreiben: „…, wer" + Recht + „hält." — und englisch ein ganzer Satz', () => {
+    expect(KALENDER_TERMIN_TEXTE.de.ohneRechtVor).toMatch(/, wer$/u);
+    expect(KALENDER_TERMIN_TEXTE.de.ohneRechtNach).toBe('hält.');
+    expect(KALENDER_TERMIN_TEXTE.en.ohneRechtNach).toMatch(/^[a-z].*\.$/u);
   });
 });

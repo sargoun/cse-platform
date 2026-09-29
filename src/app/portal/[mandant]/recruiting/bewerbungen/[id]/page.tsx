@@ -368,8 +368,9 @@ export default async function Bewerbungsblatt(
                   <p className="m-0 mb-s3 text-xs text-text-muted">{kt.kLebenslauf}</p>
                   {darf['agent.aufgabe_starten'] !== true ? (
                     <p className="m-0 text-sm text-text-muted" data-cse="kandidat-vorschlag-ohne-recht">
-                      {kt.kOhneRecht}{' '}
-                      <Recht schluessel="agent.aufgabe_starten" sprache={sprache} />
+                      {kt.kOhneRechtVor}{' '}
+                      <Recht schluessel="agent.aufgabe_starten" sprache={sprache} />{' '}
+                      {kt.kOhneRechtNach}
                     </p>
                   ) : d.auslesen === null || d.auslesen.modell === null ? (
                     <Hinweis art="warnung" cse="kandidat-ki-nicht-verfuegbar">

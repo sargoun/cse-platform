@@ -37,7 +37,9 @@ export interface RecruitingKandidatTexte {
   readonly kVorschlagDemo: string;
   readonly kVorschlagNichtVerfuegbar: string;
   readonly kLebenslauf: string;
-  readonly kOhneRecht: string;
+  /** Vor und nach dem Rechtenamen: „…, wer“ + Recht + „hält.“ (V-267). */
+  readonly kOhneRechtVor: string;
+  readonly kOhneRechtNach: string;
   readonly kErfassenOhneRecht: string;
   readonly kErledigt: Readonly<Record<'erfasst' | 'bestaetigt' | 'vorgeschlagen', string>>;
   readonly kNichtGespeichert: string;
@@ -110,7 +112,8 @@ export const RECRUITING_KANDIDAT_TEXTE: Readonly<Record<InternSprache, Recruitin
     kLebenslauf:
       'Ein Lebenslauf kommt als Datei nicht an, solange offen ist, wohin Bewerbungsunterlagen '
       + 'gehen (O-375) — ausgelesen wird nur die Nachricht der Bewerbung.',
-    kOhneRecht: 'Den Agenten startet, wer',
+    kOhneRechtVor: 'Den Agenten startet, wer',
+    kOhneRechtNach: 'hält.',
     kErfassenOhneRecht: 'Erfassen und bestätigen darf, wer dieses Recht hält:',
     kErledigt: {
       erfasst: 'Die Angaben sind gespeichert — unbestätigt, bis ein Mensch sie bestätigt.',
@@ -216,7 +219,8 @@ export const RECRUITING_KANDIDAT_TEXTE: Readonly<Record<InternSprache, Recruitin
     kLebenslauf:
       'A CV does not arrive as a file while it is open where application documents go (O-375) '
       + '— only the application message is read.',
-    kOhneRecht: 'The agent is started by whoever holds',
+    kOhneRechtVor: 'Only someone holding',
+    kOhneRechtNach: 'starts the agent.',
     kErfassenOhneRecht: 'Entering and confirming is for whoever holds this permission:',
     kErledigt: {
       erfasst: 'The details are saved — unconfirmed until a person confirms them.',

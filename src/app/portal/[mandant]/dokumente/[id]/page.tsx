@@ -344,8 +344,9 @@ export default async function Dokumentblatt(
         <h3 className="mb-s3 mt-s5 text-base font-semibold text-text">{t.faNeuTitel}</h3>
         {darf['dokument.schreiben'] !== true ? (
           <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-ohne-recht">
-            {t.faOhneRecht}{' '}
-            <Recht schluessel="dokument.schreiben" sprache={sprache} />.
+            {t.faOhneRechtVor}{' '}
+            <Recht schluessel="dokument.schreiben" sprache={sprache} />{' '}
+            {t.faOhneRechtNach}
           </p>
         ) : !fassungMoeglich(d.kategorie) ? (
           <p className="max-w-prose text-sm text-text-muted" data-cse="fassung-gesperrt">

@@ -47,7 +47,9 @@ export interface DokumentBlattTexte {
   readonly faNeuErklaerung: string;
   /** `{n}` ist die Nummer der neuen Fassung. */
   readonly faAbschicken: string;
-  readonly faOhneRecht: string;
+  /** Vor und nach dem Rechtenamen: „…, wer“ + Recht + „hält.“ (V-266). */
+  readonly faOhneRechtVor: string;
+  readonly faOhneRechtNach: string;
   readonly faGesperrtKategorie: string;
   readonly faGesperrtBuchung: string;
   readonly faOhneSpeicher: string;
@@ -112,7 +114,8 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       + 'Größe begrenzt. Die bisherige Fassung bleibt in der Kette und abrufbar. Mit der '
       + 'neuen Fassung beginnt ihre eigene Aufbewahrungsfrist; das Dokument behält die längere.',
     faAbschicken: 'Als Fassung {n} ablegen',
-    faOhneRecht: 'Neue Fassungen legt ab, wer',
+    faOhneRechtVor: 'Neue Fassungen legt ab, wer',
+    faOhneRechtNach: 'hält.',
     faGesperrtKategorie:
       'Rechnungen, Belege und Buchhaltungsunterlagen bekommen keine neue Fassung (GoBD, '
       + '§ 147 AO): berichtigt wird durch Gegenbuchung oder Storno, nie durch den Austausch '
@@ -231,7 +234,8 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       + 'limited. The previous version stays in the chain and can still be downloaded. The '
       + 'new version starts its own retention period; the document keeps the longer one.',
     faAbschicken: 'File as version {n}',
-    faOhneRecht: 'New versions are filed by a session holding',
+    faOhneRechtVor: 'Only a session holding',
+    faOhneRechtNach: 'files new versions.',
     faGesperrtKategorie:
       'Invoices, receipts and accounting records get no new version (GoBD, § 147 AO): they '
       + 'are corrected by a reversing entry or Storno, never by replacing the file.',

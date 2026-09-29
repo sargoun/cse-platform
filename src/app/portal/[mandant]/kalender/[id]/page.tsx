@@ -327,8 +327,9 @@ export default async function Termin({ params, searchParams }: {
         </p>
       ) : darf['kalender.schreiben'] !== true ? (
         <p className="text-sm text-text-muted" data-cse="termin-ohne-recht">
-          {t.ohneRecht}{' '}
-          <Recht schluessel="kalender.schreiben" sprache={sprache} />.
+          {t.ohneRechtVor}{' '}
+          <Recht schluessel="kalender.schreiben" sprache={sprache} />{' '}
+          {t.ohneRechtNach}
         </p>
       ) : (
         <div className="flex flex-col gap-s5">

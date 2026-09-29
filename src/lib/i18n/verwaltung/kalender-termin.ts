@@ -44,7 +44,9 @@ export interface KalenderTerminTexte {
   readonly absageGrundBeispiel: string;
   readonly absageHinweis: string;
   readonly absagen: string;
-  readonly ohneRecht: string;
+  /** Vor und nach dem Rechtenamen: „…, wer“ + Recht + „hält.“ (V-267). */
+  readonly ohneRechtVor: string;
+  readonly ohneRechtNach: string;
   readonly fremdeArtWiedervorlage: string;
   readonly fremdeArtGespraech: string;
   readonly abgesagtNichtAenderbar: string;
@@ -105,7 +107,8 @@ export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTermi
       'Der Termin bleibt stehen, durchgestrichen und mit Grund — wer ihn abonniert hat, '
       + 'sieht die Absage, statt dass er stillschweigend verschwindet.',
     absagen: 'Termin absagen',
-    ohneRecht: 'Termine ändert und sagt ab, wer',
+    ohneRechtVor: 'Termine ändert und sagt ab, wer',
+    ohneRechtNach: 'hält.',
     fremdeArtWiedervorlage:
       'Eine Wiedervorlage ändert man an ihrer Anfrage im CRM — der Kalender zeigt sie nur.',
     fremdeArtGespraech:
@@ -161,7 +164,7 @@ export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTermi
     beschreibung: 'Description',
     teilnehmende: 'Participants',
     teilnehmendeHinweis:
-      'Whoever creates the appointment leads it. Participants see it under “Only mine” and in '
+      'Whoever creates the appointment leads it. Participants see it in their own view and in '
       + 'their subscribed calendar.',
     teilnehmendeOhneRecht:
       'Other participants are chosen by whoever may read the names of this company’s users:',
@@ -183,7 +186,8 @@ export const KALENDER_TERMIN_TEXTE: Readonly<Record<InternSprache, KalenderTermi
       'The appointment stays, struck through and with its reason — whoever subscribed sees '
       + 'the cancellation instead of it silently disappearing.',
     absagen: 'Cancel the appointment',
-    ohneRecht: 'Appointments are changed and cancelled by whoever holds',
+    ohneRechtVor: 'Only someone holding',
+    ohneRechtNach: 'changes or cancels appointments.',
     fremdeArtWiedervorlage:
       'A follow-up is changed on its enquiry in the CRM — the calendar only shows it.',
     fremdeArtGespraech: 'An interview is changed in Recruiting — the calendar only shows it.',
