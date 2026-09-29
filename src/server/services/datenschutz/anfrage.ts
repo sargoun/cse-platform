@@ -78,8 +78,28 @@ export const ART_TEXT_EN: Readonly<Record<AnfrageArt, { kurz: string; lang: stri
   },
 };
 
+/**
+ * Warum eine Anfrage abgewiesen wurde — der SCHLÜSSEL, über den eine Seite
+ * ihren Satz findet (D-769, V-272).
+ *
+ * Er war ein freies `string`; die Seite `/datenschutz/anfrage` schlägt die
+ * Gründe des Eingangs jetzt nach (`PFLICHTWEG_FEHLER_TEXTE`), und ein
+ * Tippfehler an einem `throw` fiele dort erst als allgemeiner Satz auf. Der
+ * deutsche Satz der Klasse bleibt, was ein Programm als `meldung` bekommt
+ * (D-599) — er reist nie durch eine Adresse.
+ */
+export type AnfrageFehlerGrund =
+  /* der Eingang: öffentlich (`nimmAn`) und im Portal (`nimmAnfrageAuf`) */
+  | 'name_fehlt' | 'email_ungueltig' | 'art_fehlt' | 'nicht_gespeichert'
+  | 'weg_fehlt' | 'eingang_unlesbar' | 'eingang_zukunft'
+  /* Entscheidung, Identitätsnachfrage, Fristverlängerung */
+  | 'ohne_begruendung' | 'nicht_gefunden' | 'nicht_moeglich'
+  /* die Zuordnung zu einem Datensatz */
+  | 'ziel_fehlt' | 'person_unbekannt' | 'bewerbung_unbekannt' | 'kontakt_unbekannt'
+  | 'nicht_zuordenbar';
+
 export class AnfrageFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: AnfrageFehlerGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'AnfrageFehler';
   }

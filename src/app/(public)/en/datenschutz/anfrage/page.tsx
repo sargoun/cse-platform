@@ -26,7 +26,6 @@ export default async function EnglishDataRequest(
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
-  const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AnfrageSeiteFuer('en', meldung);
+  /* Dieselbe Weiche wie auf der deutschen Seite: nur der Grund reist (D-769). */
+  return AnfrageSeiteFuer('en', await searchParams);
 }

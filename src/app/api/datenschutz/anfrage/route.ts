@@ -4,9 +4,9 @@ import { db } from '@/server/db/pool';
 import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
-import { pflichtwegMeldung } from '@/lib/i18n/texte';
+import { PFLICHTWEG_FEHLER_TEXTE, pflichtwegMeldung } from '@/lib/i18n/texte';
 import {
-  AnfrageFehler, nimmAn, type AnfrageArt,
+  AnfrageFehler, nimmAn, type AnfrageArt, type AnfrageFehlerGrund,
 } from '@/server/services/datenschutz/anfrage';
 
 /**
@@ -49,12 +49,23 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const alsSeite = String(daten.get('antwort') ?? '') === 'seite';
   const bereich = String(daten.get('bereich') ?? '');
 
-  const fehler = (status: number, meldung: string): NextResponse => {
+  /**
+   * Eine Abweisung: ein Programm bekommt JSON mit dem Satz (D-599), ein
+   * Browser die Seite mit dem GRUND (D-769, V-272).
+   *
+   * **Nur der Grund reist durch die Adresse.** Hier reiste der Satz im
+   * Parameter `meldung`, und die Seite zeigte ihn in ihrem Warnkasten — auch
+   * den eines präparierten Links. Jetzt schlägt die Seite den Grund in ihrer
+   * Sprache nach (`PFLICHTWEG_FEHLER_TEXTE`); keine Eingabe des Anfragenden
+   * steht in der Adresse.
+   */
+  const abweisen = (
+    status: number, grund: AnfrageFehlerGrund | 'gesellschaft_fehlt', meldung: string,
+  ): NextResponse => {
     if (!alsSeite) return NextResponse.json({ ok: false, meldung }, { status });
-    return NextResponse.redirect(new URL(
-      `${mitSprache('/datenschutz/anfrage', sprache)}?meldung=${encodeURIComponent(meldung)}`,
-      anfrage.url,
-    ), 303);
+    const ziel = new URL(mitSprache('/datenschutz/anfrage', sprache), anfrage.url);
+    ziel.searchParams.set('fehler', grund);
+    return NextResponse.redirect(ziel, 303);
   };
 
   /*
@@ -69,9 +80,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     ))) as Promise<readonly { id: string }[]>);
 
   if (gesellschaft === undefined) {
-    return fehler(404, sprache === 'en'
-      ? 'Please choose one of the companies.'
-      : 'Bitte wählen Sie eine der Gesellschaften.');
+    return abweisen(404, 'gesellschaft_fehlt',
+      PFLICHTWEG_FEHLER_TEXTE[sprache].anfrage.fehler.gesellschaft_fehlt);
   }
 
   try {
@@ -85,12 +95,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       })));
   } catch (f) {
     /*
-     * Der Dienst spricht deutsch; die englische Seite bekommt den Satz zum
-     * GRUND (V-156) — sonst stünde „Bitte prüfen Sie die E-Mail-Adresse" auf
-     * `/en/datenschutz/anfrage`.
+     * Der Dienst spricht deutsch; ein Programm bekommt auf Englisch den Satz
+     * zum GRUND (V-156), die Seite nur den Grund selbst (D-769).
      */
     if (f instanceof AnfrageFehler) {
-      return fehler(f.status, pflichtwegMeldung('anfrage', sprache, f.grund, f.message));
+      return abweisen(f.status, f.grund,
+        pflichtwegMeldung('anfrage', sprache, f.grund, f.message));
     }
     throw f;
   }

@@ -13,13 +13,9 @@ export default async function Seite(
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
-  const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
   /*
-   * Die Bestaetigung steht auf DERSELBEN Seite und nicht auf einer eigenen:
-   * ein Screenreader liest `role="status"` vor, ohne dass der Nutzer die
-   * Orientierung verliert, und ein Seitenwechsel nach einem Formular ist fuer
-   * jemanden mit Bildschirmlupe ein Suchen von vorn.
+   * Bestätigung (`?ok=1`) und Abweisung (`?fehler=<grund>`) kommen als
+   * Schlüssel zurück (D-769) — `Feedback.tsx` schlägt sie nach.
    */
-  return FeedbackSeiteFuer(undefined, meldung, suche['ok'] === '1');
+  return FeedbackSeiteFuer(undefined, await searchParams);
 }
