@@ -33,8 +33,25 @@ import { fuehreLaufAus } from '../../agent/orchestrator.js';
 import { AgentInaktiv } from '../../agent/laufzeit.js';
 import { RecruitingFehler } from './dienst.js';
 
+/**
+ * **Der Abdruck des gezeigten Stands** (V-267, D-760). Die Bestätigung bindet
+ * an genau die Angaben, die der Mensch gesehen hat — Quelle und Felder. Ohne
+ * das bestätigte „Angaben bestätigen" den Stand, der beim KLICK dastand: hatte
+ * inzwischen der Agent ausgelesen oder jemand berichtigt, trug der Datensatz
+ * danach eine Bestätigung von jemandem, der ihn nie gesehen hat. Dieselbe
+ * Überlegung wie beim Abdruck der Stellenfreigabe (D-716 Nr. 5).
+ *
+ * In der Datenbank gerechnet, damit Anzeige und Bedingung im `update` aus
+ * derselben Quelle kommen.
+ */
+const ABDRUCK = `encode(sha256(convert_to(json_build_array(
+    k.quelle_art::text, k.qualifikationen, k.sprachen, k.erfahrung_jahre, k.notiz)::text,
+    'UTF8')), 'hex')`;
+
 export interface KandidatDatensatz {
   readonly id: string;
+  /** Der Abdruck des Stands, den die Seite zeigt — das Formular „Bestätigen" trägt ihn. */
+  readonly abdruck: string;
   readonly quelleArt: 'mensch' | 'agent' | 'system';
   readonly qualifikationen: readonly string[];
   readonly sprachen: readonly string[];
@@ -50,7 +67,8 @@ export async function ladeKandidat(
   kontext: LeseKontext, bewerbungId: string,
 ): Promise<KandidatDatensatz | null> {
   const [z] = await kontext.abfrage<KandidatDatensatz>(
-    `select k.id, k.quelle_art::text as "quelleArt", k.qualifikationen, k.sprachen,
+    `select k.id, ${ABDRUCK} as abdruck, k.quelle_art::text as "quelleArt",
+            k.qualifikationen, k.sprachen,
             k.erfahrung_jahre as "erfahrungJahre", k.notiz,
             k.bestaetigt_am as "bestaetigtAm",
             (select b.name from benutzer b where b.id = k.bestaetigt_von) as "bestaetigtVon",
@@ -152,32 +170,40 @@ export async function erfasseKandidat(
   return id;
 }
 
-/** Ein Mensch bestätigt — Zeitpunkt nach der Uhr der Datenbank (Invariante 5). */
+/**
+ * Ein Mensch bestätigt — Zeitpunkt nach der Uhr der Datenbank (Invariante 5),
+ * und nur den Stand, den er gesehen hat (`abdruck`, V-267).
+ */
 export async function bestaetigeKandidat(
-  kontext: SchreibKontext, bewerbungId: string,
+  kontext: SchreibKontext, bewerbungId: string, abdruck: string,
 ): Promise<void> {
   await lebendeBewerbung(kontext, bewerbungId);
   const zeilen = await kontext.schreibe<{ id: string; quelle: string }>(
-    `update kandidat
+    `update kandidat k
         set bestaetigt_am = now(), bestaetigt_von = app.aktueller_benutzer(),
             geaendert_von = app.aktueller_benutzer()
-      where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()
-        and bestaetigt_am is null
-      returning id, quelle_art::text as quelle`, [bewerbungId]);
+      where k.bewerbung_id = $1::uuid and k.mandant_id = app.aktiver_mandant()
+        and k.bestaetigt_am is null
+        and ${ABDRUCK} = $2
+      returning k.id, k.quelle_art::text as quelle`, [bewerbungId, abdruck]);
   const z = zeilen[0];
   if (z === undefined) {
-    const [da] = await kontext.abfrage<{ id: string }>(
-      `select id from kandidat where bewerbung_id = $1::uuid
-          and mandant_id = app.aktiver_mandant()`, [bewerbungId]);
+    const [da] = await kontext.abfrage<{ id: string; bestaetigt: boolean }>(
+      `select id, bestaetigt_am is not null as bestaetigt from kandidat
+        where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`, [bewerbungId]);
     throw da === undefined
       ? new RecruitingFehler('Es gibt noch keinen Datensatz, der bestätigt werden könnte.',
         'kein_datensatz', 409)
-      : new RecruitingFehler('Der Datensatz ist bereits bestätigt.', 'schon_bestaetigt', 409);
+      : da.bestaetigt
+        ? new RecruitingFehler('Der Datensatz ist bereits bestätigt.', 'schon_bestaetigt', 409)
+        : new RecruitingFehler(
+          'Der Datensatz hat sich geändert, seit die Seite ihn zeigte — bestätigt ist nichts. '
+          + 'Bitte die Angaben, wie sie jetzt dastehen, prüfen.', 'veraendert', 409);
   }
   await kontext.schreibe(
     `select app.protokolliere('recruiting.kandidat_bestaetigt', 'kandidat', $1, null,
                               $2::jsonb, app.aktiver_mandant())`,
-    [z.id, { quelle_art: z.quelle }]);
+    [z.id, { quelle_art: z.quelle, abdruck }]);
 }
 
 /**

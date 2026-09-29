@@ -8,6 +8,11 @@
  * der DATENBANK), dass jede Änderung die Bestätigung zurücknimmt, dass ein
  * Vorschlag des Agenten unbestätigt und als `agent` dasteht — und dass ohne
  * brauchbares Modell NICHTS entsteht.
+ *
+ * **Bestätigt wird der gezeigte Stand** (V-267, D-760 Nr. 8). Das Formular
+ * trägt den Abdruck dessen, was die Seite zeigte; hat sich der Datensatz
+ * seither geändert (ein Vorschlag, eine Berichtigung), bestätigt der Klick
+ * nichts.
  */
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -101,7 +106,7 @@ describe('(1) ein Mensch erfasst — der Datensatz gilt erst mit Bestätigung', 
       sprachen: ['Deutsch', 'Polnisch'], erfahrungJahre: 7, bestaetigtAm: null,
     });
 
-    await als((kt) => bestaetigeKandidat(kt, bewerbung));
+    await bestaetigeGezeigt();
     k = await als((kt) => ladeKandidat(kt, bewerbung));
     expect(k!.bestaetigtAm).toBeInstanceOf(Date);
     expect(k!.bestaetigtVon).toBe('Leitung Kandidat');
@@ -110,13 +115,13 @@ describe('(1) ein Mensch erfasst — der Datensatz gilt erst mit Bestätigung', 
          from kandidat where bewerbung_id = $1`, [bewerbung]);
     expect(z!.frisch).toBe(true);
 
-    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung)))
+    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung, k!.abdruck)))
       .rejects.toMatchObject({ grund: 'schon_bestaetigt' });
   });
 
   it('jede Änderung nimmt die Bestätigung zurück — bestätigt war der alte Stand', async () => {
     await erfasse();
-    await als((kt) => bestaetigeKandidat(kt, bewerbung));
+    await bestaetigeGezeigt();
     await als((kt) => erfasseKandidat(kt, bewerbung, {
       qualifikationen: ['Unterhaltsreinigung', 'Glasreinigung'], sprachen: ['Deutsch'],
       erfahrungJahre: null, notiz: null,
@@ -129,7 +134,7 @@ describe('(1) ein Mensch erfasst — der Datensatz gilt erst mit Bestätigung', 
   });
 
   it('ohne Datensatz gibt es nichts zu bestätigen; unsinnige Jahre werden abgewiesen', async () => {
-    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung)))
+    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung, '')))
       .rejects.toMatchObject({ grund: 'kein_datensatz' });
     await expect(als((kt) => erfasseKandidat(kt, bewerbung, {
       qualifikationen: [], sprachen: [], erfahrungJahre: 61, notiz: null,
@@ -141,6 +146,60 @@ describe('(1) ein Mensch erfasst — der Datensatz gilt erst mit Bestätigung', 
     await expect(als((kt) => erfasseKandidat(kt, bewerbung, {
       qualifikationen: ['x'], sprachen: [], erfahrungJahre: null, notiz: null,
     }), fremd, f.security)).rejects.toMatchObject({ grund: 'unbekannt' });
+  });
+});
+
+describe('(1b) bestätigt wird der Stand, den die Seite zeigte (V-267)', () => {
+  it('ein Vorschlag des Agenten dazwischen: abgewiesen, er bleibt agent und unbestätigt', async () => {
+    await erfasse();
+    const gezeigt = await als((kt) => ladeKandidat(kt, bewerbung));
+    expect(gezeigt!.abdruck).toMatch(/^[0-9a-f]{64}$/u);
+
+    await als((kt) => legeVorschlagAb(kt, bewerbung, {
+      qualifikationen: ['Glasreinigung'], sprachen: ['Polnisch'], erfahrungJahre: 3, notiz: null,
+    }, '00000000-0000-4000-8000-00000000abcd'));
+
+    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung, gezeigt!.abdruck)))
+      .rejects.toMatchObject({ grund: 'veraendert', status: 409 });
+    const jetzt = await als((kt) => ladeKandidat(kt, bewerbung));
+    expect(jetzt).toMatchObject({
+      quelleArt: 'agent', qualifikationen: ['Glasreinigung'], bestaetigtAm: null,
+      bestaetigtVon: null,
+    });
+    expect(jetzt!.abdruck).not.toBe(gezeigt!.abdruck);
+    expect(await bestaetigungen(jetzt!.id)).toBe(0);
+
+    // Wer den Vorschlag nun sieht, bestätigt ihn — mit dem Abdruck, der jetzt dasteht.
+    await als((kt) => bestaetigeKandidat(kt, bewerbung, jetzt!.abdruck));
+    const bestaetigt = await als((kt) => ladeKandidat(kt, bewerbung));
+    expect(bestaetigt).toMatchObject({ quelleArt: 'agent', bestaetigtVon: 'Leitung Kandidat' });
+    expect(await bestaetigungen(jetzt!.id)).toBe(1);
+  });
+
+  it('eine Berichtigung dazwischen: abgewiesen; dieselben Angaben noch einmal gespeichert: bestätigt', async () => {
+    await erfasse();
+    const gezeigt = await als((kt) => ladeKandidat(kt, bewerbung));
+    await als((kt) => erfasseKandidat(kt, bewerbung, {
+      qualifikationen: ['Unterhaltsreinigung'], sprachen: ['Deutsch', 'Polnisch'],
+      erfahrungJahre: 8, notiz: 'Aus der Nachricht übernommen.',
+    }));
+    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung, gezeigt!.abdruck)))
+      .rejects.toMatchObject({ grund: 'veraendert' });
+    expect((await als((kt) => ladeKandidat(kt, bewerbung)))!.bestaetigtAm).toBeNull();
+
+    // Zurück auf genau das Gezeigte: bestätigt wird, was der Mensch gesehen hat.
+    await erfasse();
+    await als((kt) => bestaetigeKandidat(kt, bewerbung, gezeigt!.abdruck));
+    expect((await als((kt) => ladeKandidat(kt, bewerbung)))!.bestaetigtAm).toBeInstanceOf(Date);
+  });
+
+  it('ein leerer oder erfundener Abdruck bestätigt nichts', async () => {
+    await erfasse();
+    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung, '')))
+      .rejects.toMatchObject({ grund: 'veraendert' });
+    await expect(als((kt) => bestaetigeKandidat(kt, bewerbung, 'f'.repeat(64))))
+      .rejects.toMatchObject({ grund: 'veraendert' });
+    expect((await als((kt) => ladeKandidat(kt, bewerbung)))!.bestaetigtAm).toBeNull();
   });
 });
 
@@ -160,7 +219,7 @@ describe('(2) der Agent liest aus — unbestätigt, und ohne brauchbares Modell 
 
   it('einen bestätigten Datensatz überschreibt kein Vorschlag', async () => {
     await erfasse();
-    await als((kt) => bestaetigeKandidat(kt, bewerbung));
+    await bestaetigeGezeigt();
     await expect(als((kt) => legeVorschlagAb(kt, bewerbung, {
       qualifikationen: ['anders'], sprachen: [], erfahrungJahre: null, notiz: null,
     }, '00000000-0000-4000-8000-00000000abcd')))
@@ -215,6 +274,19 @@ describe('(3) der Seed zeigt beide Stände — über die Dienste', () => {
     expect(await seedKandidat(sql, ids, true)).toEqual({ erfasst: 0, bestaetigt: 0 });
   });
 });
+
+/** Wie die Seite: den Datensatz zeigen, dann genau diesen Stand bestätigen. */
+async function bestaetigeGezeigt(): Promise<void> {
+  const gezeigt = await als((kt) => ladeKandidat(kt, bewerbung));
+  await als((kt) => bestaetigeKandidat(kt, bewerbung, gezeigt!.abdruck));
+}
+
+async function bestaetigungen(kandidatId: string): Promise<number> {
+  const [n] = await sql.unsafe<{ n: number }[]>(
+    `select count(*)::int as n from audit_log where objekt_typ = 'kandidat'
+        and objekt_id = $1 and aktion = 'recruiting.kandidat_bestaetigt'`, [kandidatId]);
+  return n!.n;
+}
 
 async function erfasse(): Promise<void> {
   await als((kt) => erfasseKandidat(kt, bewerbung, {

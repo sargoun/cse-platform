@@ -124,6 +124,9 @@ export const RECRUITING_KANDIDAT_TEXTE: Readonly<Record<InternSprache, Recruitin
       unbrauchbare_jahre: 'Erfahrungsjahre als ganze Zahl zwischen 0 und 60 — oder leer.',
       kein_datensatz: 'Es gibt noch keinen Datensatz, der bestätigt werden könnte.',
       schon_bestaetigt: 'Der Datensatz ist bereits bestätigt.',
+      veraendert:
+        'Der Datensatz hat sich geändert, seit die Seite ihn zeigte — bestätigt ist nichts. '
+        + 'Bitte die Angaben, wie sie jetzt dastehen, prüfen und erneut bestätigen.',
       ohne_quelle: 'Die Bewerbung trägt keinen Text, aus dem sich etwas auslesen liesse.',
       kein_schreibrecht: 'Der Datensatz wurde nicht geschrieben.',
       ki_nicht_verfuegbar:
@@ -227,6 +230,9 @@ export const RECRUITING_KANDIDAT_TEXTE: Readonly<Record<InternSprache, Recruitin
       unbrauchbare_jahre: 'Years of experience as a whole number between 0 and 60 — or empty.',
       kein_datensatz: 'There is no record yet that could be confirmed.',
       schon_bestaetigt: 'The record is already confirmed.',
+      veraendert:
+        'The record has changed since the page showed it — nothing was confirmed. Please '
+        + 'check the details as they stand now and confirm again.',
       ohne_quelle: 'The application has no text to read anything from.',
       kein_schreibrecht: 'The record was not written.',
       ki_nicht_verfuegbar:

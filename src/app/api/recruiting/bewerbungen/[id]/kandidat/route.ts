@@ -18,8 +18,10 @@ import { UUID } from '../../../../rumpf';
  *
  * **Die Aktion steht im Feld `aktion`**: `erfassen` speichert UNBESTÄTIGT
  * (und nimmt eine frühere Bestätigung zurück), `bestaetigen` setzt Zeitpunkt
- * und Person. Den Vorschlag des Agenten nimmt `…/kandidat/vorschlag` an —
- * mit dem Recht, einen Agenten zu starten.
+ * und Person — für den Stand im Feld `stand`, den die Seite zeigte (V-267);
+ * hat er sich seither geändert, ist die Antwort `veraendert`, und bestätigt
+ * ist nichts. Den Vorschlag des Agenten nimmt `…/kandidat/vorschlag` an — mit
+ * dem Recht, einen Agenten zu starten.
  */
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +61,8 @@ export async function POST(
         return 'erfasst';
       }
       if (aktion === 'bestaetigen') {
-        await bestaetigeKandidat(kontext, id);
+        /* V-267: bestätigt wird nur der Stand, den die Seite zeigte (`stand`). */
+        await bestaetigeKandidat(kontext, id, rumpf.felder['stand'] ?? '');
         return 'bestaetigt';
       }
       throw new RecruitingFehler('Erfassen oder bestätigen — etwas Drittes gibt es hier nicht.',

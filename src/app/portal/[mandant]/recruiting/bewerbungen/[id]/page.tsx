@@ -297,6 +297,8 @@ export default async function Bewerbungsblatt(
                       className="mb-s4 flex flex-col gap-s3">
                   <input type="hidden" name="aktion" value="bestaetigen" />
                   <input type="hidden" name="zurueck" value={kZurueck} />
+                  {/* V-267: bestätigt wird genau der Stand, der hier steht. */}
+                  <input type="hidden" name="stand" value={k.abdruck} />
                   <p className="m-0 text-xs text-text-muted">{kt.kBestaetigenHinweis}</p>
                   <div>
                     <Button type="submit" variante="primary" data-cse="kandidat-bestaetigen-knopf">

@@ -19916,6 +19916,9 @@ record" als erledigt.
    Bestätigung setzt `bestaetigt_am` mit der Uhr der DATENBANK und
    `bestaetigt_von` aus der Sitzung (CHECK
    `kandidat_bestaetigung_vollstaendig`). Je Bewerbung genau ein Datensatz.
+   *Berichtigt (D-760 Nr. 8):* bestätigt wird nur der Stand, den die Seite
+   zeigte — das Formular trägt seinen Abdruck; hat sich der Datensatz
+   seither geändert, bestätigt der Klick nichts (`veraendert`).
 2. **Der Agent liest aus, über die vorhandene Laufzeit** (`fuehreLaufAus`,
    Fähigkeit `extraktion_dokument`, `vorlegen: false`): das Register
    entscheidet, ob ein Modell dafür freigegeben ist — eine Freigabe zum
@@ -20257,8 +20260,19 @@ Person zurück.
    Demobetrieb sagt sie, dass der Entwurf aus einer festen Vorlage kommt.
    Budget und abgeschalteter Agent zeigen sich weiter erst im Lauf (D-716
    Nr. 1) — sie lassen sich vorher nicht verlässlich sagen.
+8. **Bestätigt wird der Kandidatendatensatz, den die Seite zeigte**
+   (V-267 f). „Angaben bestätigen" bestätigte, was beim KLICK unbestätigt
+   dastand; `legeVorschlagAb` und `erfasseKandidat` überschreiben einen
+   unbestätigten Datensatz jederzeit. Las derweil der Agent aus oder
+   berichtigte jemand, trug der Datensatz danach die Bestätigung eines
+   Menschen, der ihn nie gesehen hatte — gegen D-717 Nr. 1 und 2. Jetzt trägt
+   das Formular den Abdruck des gezeigten Stands (Quelle und Felder, von der
+   Datenbank gerechnet — dieselbe Überlegung wie D-716 Nr. 5), und
+   `bestaetigeKandidat` bestätigt nur, wenn er noch stimmt; sonst ist die
+   Antwort `veraendert` (409, de/en), und bestätigt ist nichts. Das Protokoll
+   `recruiting.kandidat_bestaetigt` nennt den Abdruck.
 
-| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts` |
+| Betrifft | CAL-01, CAL-02, REC-03, O-938, D-715, D-718, V-221, V-224, V-267, `drizzle/0160` (`t_kalender_schreiben`, `t_kalender_eigene`), `src/server/services/kalender/termin.ts`, `src/app/portal/[mandant]/kalender/{TerminFormular.tsx,[id]/page.tsx,neu/page.tsx}`, `src/lib/i18n/verwaltung/kalender-termin.ts`, `src/server/db/seed/postfach.ts`, `src/server/services/recruiting/gespraech.ts`, `src/server/services/datenschutz/auskunft.ts`, O-954, `src/lib/formular/maske.ts`, `src/app/api/uebergang.ts`, `src/app/api/kalender/eintraege/{route,termin-rumpf}.ts`, `src/app/api/kalender/eintraege/[id]/route.ts`, `tests/kern/crm-kette.test.ts`, `src/app/portal/[mandant]/recruiting/stellen/neu/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `tests/kern/stellenentwurf.test.ts`, `tests/kern/kalender-termin.test.ts`, `tests/isolation/{kalender-termin,recruiting-postfach,recruiting-gespraech,datenschutz-dienste}.test.ts`, `tests/e2e/bewerbung-antwort.spec.ts`, D-717, `src/server/services/recruiting/kandidat.ts`, `src/app/api/recruiting/bewerbungen/[id]/kandidat/route.ts`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-kandidat.ts`, `src/server/db/seed/kandidat.ts`, `tests/kern/kandidat-extraktion.test.ts`, `tests/isolation/recruiting-kandidat.test.ts` |
 |---|---|
 
 ### D-761 · Beitragsbilder: die Pflege von `medien` bleibt in der eigenen Gesellschaft, ein hochgeladenes Bild bleibt, wie es angenommen wurde, und es gehört nicht in den Bildbestand der Website (V-268)

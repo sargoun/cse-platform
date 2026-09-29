@@ -16,7 +16,9 @@
  * Kennzeichen in der Notiz.
  */
 import type postgres from 'postgres';
-import { bestaetigeKandidat, erfasseKandidat } from '../../services/recruiting/kandidat.js';
+import {
+  bestaetigeKandidat, erfasseKandidat, ladeKandidat,
+} from '../../services/recruiting/kandidat.js';
 import { alsPortalSitzung } from './sitzung.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
@@ -68,7 +70,9 @@ export async function seedKandidat(
       erfahrungJahre: 6,
       notiz: `Aus dem Telefonat mit der Bewerberin übernommen ${KANDIDAT_KENNZEICHEN}.`,
     });
-    await bestaetigeKandidat(k, erste.id);
+    /* Bestätigt wird, was dasteht — wie ein Mensch es sieht (V-267). */
+    const gesehen = await ladeKandidat(k, erste.id);
+    await bestaetigeKandidat(k, erste.id, gesehen?.abdruck ?? '');
     if (zweite === undefined) return { erfasst: 1, bestaetigt: 1 };
     await erfasseKandidat(k, zweite.id, {
       qualifikationen: ['Objektbetreuung'],
