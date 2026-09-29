@@ -25,6 +25,7 @@ import { eingebetteteERechnung } from '@/server/services/finanz/eingang/pdf-anha
 import { legeERechnungAb } from '@/server/services/finanz/eingang/ablage';
 import { VorschlagFehler }
   from '@/server/services/finanz/eingang/vorschlag';
+import type { ErfassenFehlerGrund } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
 
 /**
  * `POST /api/finanzen/eingangsrechnungen` — erfassen und weiterschieben
@@ -38,12 +39,20 @@ import { VorschlagFehler }
  *
  * **Es gibt kein „trotzdem erfassen".** Eine Dublette ist genau der Weg zur
  * doppelten Zahlung; der eindeutige Index würde sie ohnehin abweisen. Die
- * Route sagt, welcher Beleg schon da ist, statt es den Menschen im
+ * Route sagt, dass die Rechnung schon da ist, statt es den Menschen im
  * Datenbankfehler suchen zu lassen.
+ *
+ * **Zurück auf `/neu` reist nur ein Grund** (`?fehler=<grund>`, D-769,
+ * D-774). Bis dahin reiste an neun Stellen ein Satz als `?meldung=` mit —
+ * feste Sätze, der Satz von `ERechnungFehler` (mit der Wurzel der
+ * hochgeladenen Datei darin) und von `VorschlagFehler`, und die Warnung der
+ * Dublettenprüfung mit der Rechnungsnummer, wie sie getippt war —, und die
+ * Seite zeigte ihn roh, auch in einer englischen Sitzung deutsch. Den Satz hat
+ * die Seite, in der Sprache der Sitzung.
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, pfad: string, such?: Readonly<Record<string, string>>):
+function zurueck(anfrage: NextRequest, pfad: string, such?: { readonly fehler: ErfassenFehlerGrund }):
 NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(
@@ -105,8 +114,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const steuergruppe = text('steuergruppe');
     if (lieferantId === null || rechnungsnummer === null || rechnungsdatum === null
         || nettoRoh === null || steuerRoh === null || steuergruppe === null) {
-      return zurueck(anfrage, '/neu',
-        { fehler: 'unvollstaendig', meldung: 'Lieferant, Nummer, Datum und Beträge sind Pflicht.' });
+      return zurueck(anfrage, '/neu', { fehler: 'unvollstaendig' });
     }
     const netto = parseGeld(nettoRoh);
     const steuer = parseGeld(steuerRoh);
@@ -115,9 +123,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const vorhandenerBeleg = text('belegId');
     const hatDatei = datei instanceof File && datei.size > 0;
     if (!hatDatei && vorhandenerBeleg === null) {
-      return zurueck(anfrage, '/neu',
-        { fehler: 'ohne_beleg',
-          meldung: 'Ohne Dokument entsteht keine Eingangsrechnung (ACC-03).' });
+      return zurueck(anfrage, '/neu', { fehler: 'ohne_beleg' });
     }
 
     return await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -133,10 +139,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         const dublette = await pruefeDublette(kontext, {
           lieferantId, rechnungsnummerLieferant: rechnungsnummer, rechnungsdatum,
         });
-        if (dublette.istDublette) {
-          return zurueck(anfrage, '/neu',
-            { fehler: 'dublette', meldung: dublette.warnung ?? 'Diese Rechnung liegt bereits vor.' });
-        }
+        /* Ohne die Warnung des Dienstes: sie wiederholte die getippte Rechnungsnummer (D-774). */
+        if (dublette.istDublette) return zurueck(anfrage, '/neu', { fehler: 'dublette' });
 
         let belegId = vorhandenerBeleg;
         if (belegId === null && datei instanceof File) {
@@ -236,8 +240,7 @@ async function liesERechnung(
 ): Promise<NextResponse> {
   const datei = daten.get('datei');
   if (!(datei instanceof File) || datei.size === 0) {
-    return zurueck(anfrage, '/neu',
-      { fehler: 'ohne_beleg', meldung: 'Bitte eine E-Rechnung (XML oder ZUGFeRD-PDF) wählen.' });
+    return zurueck(anfrage, '/neu', { fehler: 'erechnung_fehlt' });
   }
   const bytes = new Uint8Array(await datei.arrayBuffer());
   const istPdf = bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
@@ -247,12 +250,7 @@ async function liesERechnung(
   if (istPdf) {
     const anhang = await eingebetteteERechnung(bytes);
     if (anhang === null) {
-      return zurueck(anfrage, '/neu', {
-        fehler: 'keine_erechnung',
-        meldung: 'Das PDF trägt keine eingebettete E-Rechnung (factur-x.xml). Die '
-          + 'Belegerkennung für gescannte Rechnungen hat noch keinen Anbieter (O-135) — '
-          + 'bitte unten von Hand erfassen; das PDF lässt sich dort als Beleg hochladen.',
-      });
+      return zurueck(anfrage, '/neu', { fehler: 'keine_erechnung' });
     }
     xml = anhang.xml;
     dateiname = `${datei.name} › ${anhang.dateiname}`;
@@ -266,7 +264,7 @@ async function liesERechnung(
     extrakt = extrahiereERechnung(xml);
   } catch (fehler: unknown) {
     if (fehler instanceof ERechnungFehler) {
-      return zurueck(anfrage, '/neu', { fehler: 'keine_erechnung', meldung: fehler.message });
+      return zurueck(anfrage, '/neu', { fehler: `erechnung_${fehler.grund}` });
     }
     throw fehler;
   }
@@ -386,21 +384,14 @@ function uebersetze(fehler: unknown, anfrage: NextRequest): NextResponse {
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   }
   if (fehler instanceof NichtVerbundenFehler) {
-    return zurueck(anfrage, '/neu', {
-      fehler: 'speicher_nicht_verbunden',
-      meldung: 'Der Belegspeicher ist nicht verbunden. Es wurde NICHTS gespeichert. '
-        + 'Ein bereits abgelegter Beleg lässt sich stattdessen auswählen.',
-    });
+    return zurueck(anfrage, '/neu', { fehler: 'speicher_nicht_verbunden' });
   }
-  if (fehler instanceof GeldFehler) {
-    return zurueck(anfrage, '/neu',
-      { fehler: 'betrag', meldung: 'Betrag im deutschen Format erwarten: 1.000,00' });
-  }
+  if (fehler instanceof GeldFehler) return zurueck(anfrage, '/neu', { fehler: 'betrag' });
   if (fehler instanceof FreigabeFehler) {
     return NextResponse.json({ fehler: 'freigabe', meldung: fehler.message }, { status: 409 });
   }
   if (fehler instanceof VorschlagFehler) {
-    return zurueck(anfrage, '/neu', { fehler: 'vorschlag', meldung: fehler.message });
+    return zurueck(anfrage, '/neu', { fehler: `vorschlag_${fehler.grund}` });
   }
   if (fehler instanceof EingangsrechnungFehler) {
     return NextResponse.json({ fehler: fehler.grund, meldung: fehler.message },

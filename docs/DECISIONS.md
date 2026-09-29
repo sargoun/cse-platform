@@ -23407,6 +23407,29 @@ daraus konkret gemacht hat.
      Die Wörter im Kasten („vorläufig geschlossen", „wieder geöffnet",
      „geschlossen", „ohne Konto") bleiben und sind im Kern-Test festgehalten.
      Nicht lokal gelaufen.
+6. **Eingangsrechnung erfassen** (`POST /api/finanzen/eingangsrechnungen`,
+   `…/finanzen/eingangsrechnungen/neu`). Neun Stellen schickten neben dem
+   Schlüssel einen Satz als `?meldung=`; `/neu` zeigte `meldung ?? fehler` —
+   den deutschen Satz auch einer englischen Sitzung, ohne ihn den rohen
+   Schlüssel. Jetzt reist nur der Grund, und `/neu` schlägt ihn zweisprachig
+   nach (`erfassenFehler`, `ERFASSEN_FEHLER_GRUENDE`).
+   - `ERechnungFehler` reist als `erechnung_<grund>`, `VorschlagFehler` als
+     `vorschlag_<grund>` (vorher beide mit ihrem Satz, der eine mit der
+     Wurzel der hochgeladenen Datei darin). Das Präfix trennt sie von den
+     gleichnamigen Gründen der Route (`unvollstaendig`).
+   - Eine fehlende Datei im E-Rechnungs-Formular heisst jetzt
+     `erechnung_fehlt` (vorher `ohne_beleg` wie im Erfassungsformular, mit
+     einem anderen Satz — ein Schlüssel, zwei Bedeutungen).
+   - Die Dublette reist ohne die Warnung des Dienstes: sie wiederholte die
+     getippte Rechnungsnummer. Der Satz sagt, dass die Rechnung für dieses
+     Jahr schon vorliegt und wo sie steht (D-769 Nr. 5).
+   - Der Warnkasten ist `Hinweis` mit `rolle="alert"` statt eines nachgebauten
+     `<p>` (DESIGN §5 „Notices"), `data-cse="eingang-hinweis"` bleibt; die
+     Wörter, die die Browserprüfungen suchen („Ohne Dokument", „nicht
+     verbunden", „NICHTS gespeichert"), bleiben und sind im Kern-Test
+     festgehalten.
+   - JSON bleibt JSON: `EingangsrechnungFehler` und `FreigabeFehler` der
+     Zustandswechsel antworten weiter `{ fehler, meldung }` mit Status.
 
-| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `tests/kern/{konto-sitzung,verwaltungskonto,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `src/app/api/finanzen/eingangsrechnungen/route.ts`, `src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/neu/page.tsx`, `tests/kern/{konto-sitzung,verwaltungskonto,eingangsrechnung,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|
