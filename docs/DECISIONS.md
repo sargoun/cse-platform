@@ -3365,6 +3365,7 @@ Beantworten helfen:
 | O-937 | **Welche Dokumentkategorien sollen Fassungen führen — DOC-05 sagt „versioning where the document type warrants it" und nennt die Typen nicht?** Seit V-219 lässt sich zu einem abgelegten Dokument eine zweite Fassung ablegen (`legeFassungAn`, `POST /api/dokumente/[id]/version`): neue Zeile in `dokument_version`, neues Objekt im Speicher, die alte Fassung bleibt Zeile und Datei. Fest steht eine Seite: Rechnung, Beleg und Buchhaltungsunterlage bekommen KEINE (GoBD, § 147 AO; berichtigt wird durch Gegenbuchung bzw. Storno) — das prüfen Dienst und Datenbank (0470). Offen sind die übrigen sechs: Kundenunterlage, Vertrag, Angebot, Personalunterlage, Projektunterlage, Unternehmensunterlage. Denkbar sind (a) alle sechs, (b) nur Vertrag, Angebot und Projektunterlage (die Unterlagen, die typischerweise überarbeitet werden), (c) je Kategorie einstellbar. Bei der Personalunterlage kommt hinzu, dass eine ältere Fassung personenbezogene Angaben weiter vorhält, die die neue berichtigt hat (Art. 16 DSGVO). **Ausgeliefert ist (a) als Platzhalter** (`FASSUNG_ERLAUBT_PLATZHALTER`): gesperrt wird nur, was GoBD sperrt. Die Antwort ändert diese eine Liste (und, falls enger, den Auslöser in 0470), nicht die Aufrufer. | DOC-05, DOC-07, Art. 16 DSGVO, V-219, D-713, `src/server/services/dokument/kategorie.ts` (`FASSUNG_ERLAUBT_PLATZHALTER`, `fassungMoeglich`), `drizzle/0470` |
 | O-938 | **Welches Postfach nimmt Bewerbungen an — und ab wann läuft ihre Löschfrist?** REC-03 verlangt Bewerbungen über das Karriereformular UND über ein überwachtes Postfach. Seit V-224 gibt es den Anschluss als Vertrag (`BewerbungsPostfach`) mit genau einem Adapter, `NichtVerbundenesPostfach`, der nichts holt und das sagt; unter Einstellungen › Integrationen steht „Bewerbungspostfach: nicht verbunden". Eine Bewerbung, die per E-Mail kam, überträgt bis dahin ein Mensch (`/recruiting/bewerbungen/neu`, Quelle `mail`). Zu entscheiden: (1) welche Adresse und welcher Anbieter (IMAP bei welchem Hoster, Microsoft 365 per Graph, ein Weiterleitungsdienst) — in welcher Region und unter welchem Auftragsverarbeitungsvertrag, denn das Postfach enthält Lebensläufe; (2) beginnt die Löschfrist (REC-07, `recruiting.aufbewahrung_tage`) mit dem Eingang im Postfach oder mit der Übernahme in die Plattform — **ausgeliefert ist die Übernahme als Platzhalter**, weil beim Formular beides zusammenfällt; (3) ob nach der Übernahme die Nachricht im Postfach gelöscht wird (berührt O-117). Die Antwort ändert `bewerbungsPostfach()` und, falls (2) anders entschieden wird, die eine Zeile in `erfasseBewerbungAusPostfach`. | REC-03, REC-07, LEG-11, O-117, O-375, V-224, D-718, `src/server/integrationen/bewerbungspostfach.ts`, `src/server/services/recruiting/postfach.ts` |
 | O-939 | **Welchen Nachweis verlangt die Plattform, bevor ein Bild an einem Beitrag hinausgeht — Nutzungsrecht und, bei erkennbaren Personen, Einwilligung?** Seit V-225 lässt sich einem Beitrag ein Bild anhängen (privat abgelegt, mit in der Freigabe). Wer es veröffentlicht, braucht das Nutzungsrecht (UrhG) und bei erkennbaren Personen deren Einwilligung (§ 22 KUG, Art. 6/7 DSGVO) — bei Beschäftigten auf einem Objektfoto zusätzlich die Freiwilligkeit im Arbeitsverhältnis (§ 26 BDSG). Denkbar sind (a) ein Pflichthäkchen „Rechte liegen vor" mit Person und Zeitpunkt, (b) ein hochgeladener Beleg (Lizenz, Einwilligungserklärung) als Dokument am Bild, (c) nichts in der Plattform — die Freigabe durch einen Menschen gilt als Prüfung. **Ausgeliefert ist (c) mit einem Hinweis am Formular**; kein Häkchen wird erfunden, das eine Rechtslage behauptete. Die Antwort ändert `legeBeitragsbildAn` (Pflichtangabe) und das Formular am Beitrag. | SOC-02, SOC-08, LEG-*, § 22 KUG, V-225, D-719, `src/server/services/inhalt/medien.ts`, `src/app/portal/[mandant]/social/posts/[id]/page.tsx` |
+| O-955 | **Läuft nach einer neuen Fassung jede Fassung für sich ab — oder gilt die längere Frist für das ganze Dokument mit allen Fassungen?** Seit V-266 trägt jede Fassung jenseits der ersten ihre eigene Aufbewahrungsfrist: die Datenbank rechnet mit dem Ablegen die Frist, die an diesem Berliner Kalendertag für die Kategorie gilt (`app.aufbewahrung_regel` je Gesellschaft, `app.aufbewahrung_ende`), und das Dokument behält die LÄNGERE; eine Löschsperre der Regel kommt dazu, eine offene Frist bleibt offen (0474). Ein überarbeitetes und neu abgesandtes Angebot ist ein eigener Handelsbrief mit eigenem Fristbeginn (§ 257 Abs. 5 HGB) — das hält die Regel. Offen ist die andere Seite: die ÄLTERE Fassung hätte ihre eigene, frühere Frist, und Art. 5 Abs. 1 lit. e DSGVO verlangt, personenbezogene Angaben nicht länger als nötig zu halten (bei einer Kundenunterlage etwa ein Ansprechpartner, den die neue Fassung nicht mehr nennt). Denkbar sind (a) die längere Frist gilt für das ganze Dokument, alle Fassungen bleiben bis dahin; (b) jede Fassung läuft für sich ab, eine ältere wird nach ihrer Frist einzeln gelöscht (Datei entfernt, Zeile der Kette bleibt als Nachweis, D-713 „Nicht Teil“ wäre dann zu öffnen). **Ausgeliefert ist (a) als Platzhalter** — damit wird nichts zu früh gelöscht, und der Nachtlauf (0382) nimmt ein Dokument erst nach der längsten Frist mit, dann aber mit allen Fassungen (D-758). Die Antwort ändert `kern.dokument_fassung_pruefen` (0474) und, bei (b), den Löschweg um die einzelne Fassung. | DOC-05, DOC-07, § 257 Abs. 5 HGB, § 147 AO, Art. 5 Abs. 1 lit. e DSGVO, O-937, V-266, D-713, D-758, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/ablage.ts` (`legeFassungAn`), `src/server/jobs/dokumentAufbewahrung.ts` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -19710,7 +19711,8 @@ Vertrag liess sich nur als neues, unverbundenes Dokument ablegen.
    vorbei. Kein Definer: wer eine Fassung anlegt, muss das Dokument sehen. Die
    erste Fassung läuft unverändert durch; alle bisherigen Schreiber bleiben.
    `tests/kern/dokument-fassung.test.ts` hält die Kategorienliste des Dienstes
-   und des Auslösers gleich.
+   und des Auslösers gleich. Seit 0474 trägt die Fassung dort auch ihre eigene
+   Aufbewahrungsfrist, und das Dokument behält die längere (D-758).
 6. **Das Dokumentblatt zeigt die Kette** (Nummer, Tag in der Sprache der
    Sitzung und Berliner Uhrzeit, Person, Größe, Typ, SHA-256) und jede ältere
    Fassung ist abrufbar: `GET /api/dokumente/[id]/datei?fassung=<n>` — über
@@ -19722,7 +19724,9 @@ Vertrag liess sich nur als neues, unverbundenes Dokument ablegen.
 
 **Nicht Teil:** welche Fassung ein Abruf im Zugriffsprotokoll betraf
 (`dokument_zugriff` kennt keine Fassung) und eine Löschung einzelner
-Fassungen (Invariante 8: es gibt keine).
+Fassungen (Invariante 8: es gibt keine; ob eine ältere Fassung nach ihrer
+eigenen Frist einzeln gehen soll, ist O-955). Gelöscht wird das ganze
+Dokument — seit D-758 mit den Dateien aller Fassungen.
 
 | Betrifft | DOC-05, DOC-06, ACC-03, O-937, O-364, Invariante 4, Invariante 8, V-131, V-219, `drizzle/0470_dokument_fassungskette.sql`, `src/server/services/dokument/{ablage,upload,kategorie}.ts`, `src/app/api/dokumente/[id]/{version,datei}/route.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `src/server/db/seed/dokument-pflege.ts`, `tests/isolation/dokument-fassung.test.ts`, `tests/kern/dokument-fassung.test.ts` |
 |---|---|
@@ -20041,7 +20045,7 @@ Beitragsseite zeigte nur Text.
 | Betrifft | SOC-02, SOC-05, SOC-06, SOC-08, DOC-03, PUB-09, O-10, O-13, O-939, Invariante 7, V-225, `drizzle/0473_beitragsbild.sql`, `src/server/services/social/beitragsbild.ts`, `src/server/services/social/{dienst,port}.ts`, `src/app/api/beitragsbild/[id]/route.ts`, `src/app/api/social/beitraege/[id]/bild/route.ts`, `src/app/portal/[mandant]/social/posts/{[id],neu}/page.tsx`, `src/app/(public)/unternehmen/[bereich]/_profil/Inhalte.tsx`, `src/lib/i18n/verwaltung/social-bild.ts`, `src/server/db/seed/{social,beitragsbild}.ts`, `tests/isolation/social-beitragsbild.test.ts` |
 |---|---|
 
-### D-758 · Ein gelöschtes Dokument nimmt die Dateien aller Fassungen mit (V-266)
+### D-758 · Ein gelöschtes Dokument nimmt die Dateien aller Fassungen mit — und eine neue Fassung trägt ihre eigene Aufbewahrungsfrist, die längere gilt (V-266)
 
 **Der Befund** (V-266 a; Prüfung der Gruppe kalender-dokumente): V-219 legt
 je Fassung ein eigenes Objekt an (`<mandant>/<kategorie>/<dokument>.v<n>`),
@@ -20053,6 +20057,14 @@ nach Fristablauf (DOC-07, Art. 5 Abs. 1 lit. e und Art. 17 DSGVO); kein Weg
 kam je wieder an sie heran. Gerade der Fall aus O-937 (eine ältere
 Personalunterlage mit inzwischen berichtigten Angaben, Art. 16 DSGVO) blieb
 damit als Datei liegen, während das Blatt versprach, die Datei sei „fort".
+
+Und umgekehrt (V-266 b): `aufbewahrung_bis` wird nur beim Anlegen der Zeile
+aus `entstanden_am` gerechnet (`kern.setze_aufbewahrung`, 0141). Eine neue
+Fassung änderte die Frist nicht — ein Angebot von 2019 mit heute abgelegter
+Überarbeitung stand mit „31.12.2025" da und damit im Kreis des Nachtlaufs
+(0382). Er hätte das Dokument in der nächsten Nacht samt der NEUEN Fassung
+gelöscht, und zusammen mit dem ersten Befund ausgerechnet deren Datei
+entfernt und die alte liegen lassen.
 
 **Die Entscheidung.**
 
@@ -20069,6 +20081,26 @@ damit als Datei liegen, während das Blatt versprach, die Datei sei „fort".
    in der nächsten Nacht wieder.
 3. **Das Blatt sagt es:** „Gelöscht werden die Zeile und die Dateien aller
    Fassungen".
+4. **Eine neue Fassung trägt ihre eigene Frist, das Dokument die längere**
+   (`0474`, `kern.dokument_fassung_pruefen`): mit jeder Fassung jenseits der
+   ersten rechnet die Datenbank die Frist, die an diesem Berliner
+   Kalendertag für die Kategorie gilt — dieselbe Regel wie beim Anlegen
+   (`app.aufbewahrung_regel` je Gesellschaft, `app.aufbewahrung_ende`, Uhr
+   der Datenbank) — und setzt `aufbewahrung_bis` auf die spätere der beiden.
+   Eine Löschsperre der Regel kommt dazu, gelöst wird keine (D-49); eine
+   offene Frist bleibt offen (K-17). Kürzer wird nichts, das hält 0141 ohnehin.
+   Ein überarbeitetes, neu abgesandtes Angebot ist ein eigener Handelsbrief mit
+   eigenem Fristbeginn (§ 257 Abs. 5 HGB).
+5. **In der Datenbank, nicht nur im Dienst:** der Auslöser der Kette gilt für
+   jeden Schreiber, auch an der Route vorbei — und der Nachtlauf löscht nach
+   der Zeile. Kein Definer: das UPDATE läuft als der Aufrufer unter
+   `t_mandant`.
+6. **Offen bleibt, ob eine ältere Fassung nach IHRER Frist einzeln gehen
+   soll** (Art. 5 Abs. 1 lit. e DSGVO) — **O-955**. Ausgeliefert ist der
+   Platzhalter „die längere Frist gilt für das ganze Dokument": nichts wird zu
+   früh gelöscht, und wenn der Nachtlauf es nimmt, dann mit allen Fassungen
+   (Nr. 1). Das Blatt sagt am Formular, dass die neue Fassung ihre eigene Frist
+   beginnt.
 
-| Betrifft | DOC-05, DOC-07, LEG-01, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, D-713, V-219, V-266, `src/server/services/dokument/loeschung.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf}.test.ts` |
+| Betrifft | DOC-05, DOC-07, LEG-01, § 257 Abs. 5 HGB, Art. 5 Abs. 1 lit. e DSGVO, Art. 17 DSGVO, O-937, O-955, D-49, D-713, V-219, V-266, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/{loeschung,ablage}.ts`, `src/server/jobs/dokumentAufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/[id]/page.tsx`, `src/lib/i18n/verwaltung/dokument-blatt.ts`, `tests/isolation/{dokument-loeschen,aufbewahrung-lauf,dokument-fassung}.test.ts` |
 |---|---|

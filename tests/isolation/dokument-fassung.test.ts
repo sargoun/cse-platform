@@ -15,7 +15,7 @@
  *    Datenbank (`kern.dokument_fassung_pruefen`, 0470);
  *  - die Kette ist lückenlos, auch an der Route vorbei.
  */
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -268,5 +268,101 @@ describe('(2) was keine neue Fassung bekommt', () => {
     const [n] = await sql.unsafe<{ n: string }[]>(
       `select count(*)::text as n from dokument_version where dokument_id = $1`, [id]);
     expect(n!.n).toBe('1');
+  });
+});
+
+/**
+ * **Die Fassung trägt ihre eigene Aufbewahrungsfrist** (V-266, D-758, 0474,
+ * O-955). Bis dahin blieb die Frist die der ERSTEN Fassung: ein Angebot von
+ * 2019 mit heute abgelegter Überarbeitung stand mit 31.12.2025 da und damit im
+ * Kreis des Nachtlaufs (0382) — er hätte es samt der neuen Fassung gelöscht.
+ */
+describe('(3) die Aufbewahrung einer Fassung — die längere gilt', () => {
+  /** Ein Dokument von damals, mit erster Fassung in der Kette — an der Route vorbei angelegt. */
+  async function vonDamals(kategorie: string, entstanden: string): Promise<string> {
+    const id = randomUUID();
+    const schluessel = `${f.reinigung}/${kategorie}/${id}`;
+    await sql.unsafe(
+      `insert into dokument (id, mandant_id, kategorie, titel, bucket, objekt_schluessel, mime_typ,
+                             mime_verifiziert, groesse_bytes, exif_entfernt, entstanden_am)
+       values ($1, $2, $3::dokument_kategorie, 'Von damals', 'dokumente', $4,
+               'application/pdf', true, 72, true, $5::date)`,
+      [id, f.reinigung, kategorie, schluessel, entstanden]);
+    await sql.unsafe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel, sha256,
+                                     groesse_bytes, mime_typ)
+       values ($1, $2, 1, $3, $4, 72, 'application/pdf')`,
+      [f.reinigung, id, schluessel, 'a'.repeat(64)]);
+    return id;
+  }
+
+  async function frist(id: string): Promise<{
+    bis: string | null; sperre: boolean; faellig: boolean; jahr: number;
+  }> {
+    const [z] = await sql.unsafe<{ bis: string | null; sperre: boolean; faellig: boolean; jahr: number }[]>(
+      `select aufbewahrung_bis::text as bis, loeschsperre as sperre,
+              coalesce(not loeschsperre and aufbewahrung_bis <= app.berlin_heute(), false)
+                as faellig,
+              extract(year from app.berlin_heute())::int as jahr
+         from dokument where id = $1`, [id]);
+    return z!;
+  }
+
+  it('ein Angebot von 2019 mit heute abgelegter Fassung: die Frist der neuen gilt, nichts ist fällig', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await vonDamals('angebot', '2019-05-01');
+    const vorher = await frist(id);
+    expect(vorher).toMatchObject({ bis: '2025-12-31', sperre: false, faellig: true });
+
+    await neueFassung(speicher, id, PDF('überarbeitet und neu abgesandt'));
+
+    const nachher = await frist(id);
+    expect(nachher.bis, 'sechs Jahre ab dem Jahr der neuen Fassung (§ 257 Abs. 5 HGB)')
+      .toBe(`${String(nachher.jahr + 6)}-12-31`);
+    expect(nachher.faellig, 'der Nachtlauf sieht es nicht mehr').toBe(false);
+    expect(nachher.sperre).toBe(false);
+  });
+
+  it('die Regel der Gesellschaft gilt — und eine längere Frist wird nicht gekürzt', async () => {
+    const speicher = new LokalerSpeicher();
+    await sql.unsafe(
+      `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage,
+                                          ist_platzhalter)
+       values ($1, 'angebot', 8, false, 'Test: acht Jahre in dieser Gesellschaft', false)`,
+      [f.reinigung]);
+    const id = await vonDamals('angebot', '2019-05-01');
+    expect((await frist(id)).bis, 'beim Anlegen schon die Regel der Gesellschaft').toBe('2027-12-31');
+
+    await neueFassung(speicher, id, PDF('fassung-2'));
+    const zwei = await frist(id);
+    expect(zwei.bis).toBe(`${String(zwei.jahr + 8)}-12-31`);
+
+    /* Die Gesellschaft kehrt zu sechs Jahren zurück — die längere Frist bleibt. */
+    await sql.unsafe(
+      `update dokument_aufbewahrung set jahre = 6
+        where mandant_id = $1 and kategorie = 'angebot'`, [f.reinigung]);
+    await neueFassung(speicher, id, PDF('fassung-3'));
+    expect((await frist(id)).bis).toBe(zwei.bis);
+  });
+
+  it('eine offene Frist bleibt offen, und die Löschsperre bleibt', async () => {
+    const speicher = new LokalerSpeicher();
+    const id = await vertrag(speicher, 'projekt');
+    expect(await frist(id)).toMatchObject({ bis: null, sperre: true });
+    await neueFassung(speicher, id, PDF('projekt-2'));
+    expect(await frist(id)).toMatchObject({ bis: null, sperre: true, faellig: false });
+  });
+
+  it('an der Route vorbei gilt dieselbe Regel — sie steht in der Datenbank', async () => {
+    const id = await vonDamals('kunde', '2018-03-01');
+    expect((await frist(id)).faellig).toBe(true);
+    await als(ablage, (tx) => tx.unsafe(
+      `insert into dokument_version (mandant_id, dokument_id, version, objekt_schluessel,
+                                     sha256, groesse_bytes, mime_typ)
+       values ($1, $2, 2, $3, $4, 72, 'application/pdf')`,
+      [f.reinigung, id, `${f.reinigung}/kunde/${id}.v2`, 'b'.repeat(64)]));
+    const nachher = await frist(id);
+    expect(nachher.bis).toBe(`${String(nachher.jahr + 6)}-12-31`);
+    expect(nachher.faellig).toBe(false);
   });
 });

@@ -104,7 +104,8 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     faDatei: 'Datei',
     faNeuErklaerung:
       'Die Datei wird geprüft wie beim Ablegen: Typ aus dem Inhalt, Metadaten entfernt, '
-      + 'Größe begrenzt. Die bisherige Fassung bleibt in der Kette und abrufbar.',
+      + 'Größe begrenzt. Die bisherige Fassung bleibt in der Kette und abrufbar. Mit der '
+      + 'neuen Fassung beginnt ihre eigene Aufbewahrungsfrist; das Dokument behält die längere.',
     faAbschicken: 'Als Fassung {n} ablegen',
     faOhneRecht: 'Neue Fassungen legt ab, wer',
     faGesperrtKategorie:
@@ -204,7 +205,8 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     faDatei: 'File',
     faNeuErklaerung:
       'The file is checked as on filing: type from its content, metadata removed, size '
-      + 'limited. The previous version stays in the chain and can still be downloaded.',
+      + 'limited. The previous version stays in the chain and can still be downloaded. The '
+      + 'new version starts its own retention period; the document keeps the longer one.',
     faAbschicken: 'File as version {n}',
     faOhneRecht: 'New versions are filed by a session holding',
     faGesperrtKategorie:

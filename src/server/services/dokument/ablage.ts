@@ -388,6 +388,14 @@ export function fassungSchluessel(
  * GoBD; und ein Dokument, auf das sich eine Buchungszeile beruft (ACC-03). Die
  * zweite Prüfung sieht nur, wer die Buchhaltung lesen darf; die Kategorie
  * prüft zusätzlich die Datenbank (`kern.dokument_fassung_pruefen`, 0470).
+ *
+ * **Die Fassung trägt ihre eigene Aufbewahrungsfrist** (V-266, D-758): mit
+ * dem Einfügen der Fassung rechnet die Datenbank die Frist, die heute für die
+ * Kategorie gilt, und das Dokument behält die längere (0474). Ohne das stand
+ * ein altes Angebot mit heute abgelegter Fassung im Kreis des Nachtlaufs und
+ * wäre samt der neuen Fassung gelöscht worden.
+ *
+ * // TODO(client, O-955): Läuft nach einer neuen Fassung jede Fassung für sich ab, oder gilt die längere Frist für das ganze Dokument mit allen Fassungen? Ausgeliefert ist das Zweite als Platzhalter.
  */
 export async function legeFassungAn(
   kontext: SchreibKontext, speicher: Speicher, dokumentId: string, roh: FassungEingabe,
