@@ -14,7 +14,8 @@ import { describe, expect, it } from 'vitest';
 import {
   FASSUNG_ERLAUBT_PLATZHALTER, FASSUNG_GESPERRT, KATEGORIEN, fassungMoeglich,
 } from '../../src/server/services/dokument/kategorie.js';
-import { fassungSchluessel } from '../../src/server/services/dokument/ablage.js';
+import { AblageFehler, fassungSchluessel, type AblageGrund }
+  from '../../src/server/services/dokument/ablage.js';
 import { ladeHoch } from '../../src/server/services/dokument/upload.js';
 import { OrdnerSpeicher } from '../../src/server/storage/ordner.js';
 import type { Speicher } from '../../src/server/storage/adapter.js';
@@ -120,5 +121,29 @@ describe('die Prüfkette einer Fassung und die Sätze des Blatts', () => {
 
   it('ein fremder Fehler bleibt ein Fehler — kein Grund, keine erfundene Abweisung', () => {
     expect(fassungGrund(new TypeError('x'))).toBeNull();
+  });
+
+  /*
+   * D-774 Nachrunde: jeder `AblageFehler` wurde `datei_zu_gross` — auch einer,
+   * zu dem das Blatt einen eigenen Satz hat. Jetzt reist sein Grund, wo der
+   * Satz existiert; sonst bleibt der bisherige Rückfall.
+   */
+  it('`AblageFehler` reist mit seinem Grund, wo das Blatt einen Satz hat — sonst wie bisher', () => {
+    const mitSatz: readonly AblageGrund[] = ['datei_leer', 'datei_zu_gross'];
+    const ohneSatz: readonly AblageGrund[] = [
+      'titel_fehlt', 'titel_zu_lang', 'kategorie_unbekannt', 'beschreibung_zu_lang',
+      'kunde_unbekannt', 'objekt_unbekannt', 'auftrag_unbekannt',
+    ];
+    for (const g of mitSatz) {
+      expect(fassungGrund(new AblageFehler('x', g)), g).toBe(g);
+      for (const sprache of ['de', 'en'] as const) {
+        expect((DOKUMENT_BLATT_TEXTE[sprache].faFehler as Readonly<Record<string, string>>)[g],
+          `${sprache}: ${g}`).toBeTruthy();
+      }
+    }
+    for (const g of ohneSatz) {
+      expect(Object.hasOwn(DOKUMENT_BLATT_TEXTE.de.faFehler, g), g).toBe(false);
+      expect(fassungGrund(new AblageFehler('x', g)), g).toBe('datei_zu_gross');
+    }
   });
 });
