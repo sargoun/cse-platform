@@ -13981,6 +13981,17 @@ Vorgangsnummer — das einzige, womit ein Anfragender bei einem Rückruf auf sei
 Anfrage zeigen kann — und trägt `robots: noindex`, weil eine Adresse mit einer
 Vorgangsnummer darin nicht in einen Suchindex gehört.
 
+**Nachsatz (D-769, D-770, V-272).** „Der Text reist mit und nicht ein
+Schlüssel" gilt nicht mehr — D-769 ersetzt ihn. Ein Text in der Adresse hiess:
+jeder präparierte Link schrieb seinen eigenen Satz in den Warnkasten und unter
+die Felder des Formulars. Und der Einwand gegen einen Schlüssel — eine zweite
+Liste in der Oberfläche liefe auseinander — trägt nicht: die Seite lädt
+dieselbe veröffentlichte Definition, gegen die die Annahme prüft. Eine
+Abweisung kommt jetzt als `?fehler=<grund>&felder=<k1,k2,…>` zurück; die Seite
+zeigt den Sammelsatz aus `API_TEXTE` und unter jedem genannten Feld dessen
+`fehlermeldung` aus der Definition (englisch über dieselbe Auflage wie die
+Beschriftungen). Programme bekommen weiter JSON mit Satz und Feldmeldungen.
+
 ### D-598 · Eine Absage nennt keinen Grund — und die Datenbank passt darauf auf
 
 **Der Auftrag.** Der Agent soll auf Bewerbungen antworten und senden. Gebaut
@@ -24115,4 +24126,156 @@ N6. **Nachgebaute Hinweise werden der Baustein** (DESIGN §5 „Notices"). `frei
 N7. **`AblageFehler` reist auf dem Fassungsblatt mit seinem Grund, wo das Blatt einen Satz dafür hat.** `fassungGrund` bildete JEDEN `AblageFehler` auf `datei_zu_gross` ab — richtig für den einen, den `legeFassungAn` heute wirft (grösser als die Grenze), falsch für jeden anderen: `datei_leer` hätte „Die Datei ist zu groß." gezeigt. Jetzt reist `fehler.grund`, wenn das Fassungsblatt einen eigenen Satz dafür hat (nachgeschlagen als eigener Eintrag in `DOKUMENT_BLATT_TEXTE.de.faFehler`: `datei_leer`, `datei_zu_gross`); die Gründe der Ablagefelder (Titel, Kategorie, Beschreibung, Bezug) haben dort keinen und bleiben beim bisherigen Rückfall. `fassungGrund` gibt jetzt den Typ der Satztabelle zurück (`FassungAbweisungText`) statt `string`: ein Grund ohne Satz bricht die Übersetzung. Prüfung: `tests/kern/dokument-fassung.test.ts` (grün wie bisher; dazu: beide Gründe mit Satz reisen als sie selbst, mit einem Satz in de und en; die sieben ohne Satz werden `datei_zu_gross`).
 
 | Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, O-980, O-981, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `src/app/api/finanzen/eingangsrechnungen/route.ts`, `src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/neu/page.tsx`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/api/freigaben/[id]/entscheidung/route.ts`, `src/server/services/freigabe/ausfuehrung.ts`, `src/lib/i18n/verwaltung/freigabe-ausfuehrung.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/app/portal/[mandant]/agenten/richtlinien/{hinweis.ts,page.tsx,[id]/page.tsx}`, `src/app/portal/[mandant]/einstellungen/agent-richtlinien/page.tsx`, `src/app/api/einstellungen/agent-richtlinien/route.ts`, `tests/kern/richtlinien-hinweis.test.ts`, `tests/kern/eingangsrechnung-datei.test.ts`, `src/app/api/dokumente/[id]/version/grund.ts`, `tests/kern/dokument-fassung.test.ts`, `tests/kern/{konto-sitzung,verwaltungskonto,freigabe-entscheidung,zahlungsausgang,eingangsrechnung,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
+### D-770 · Die Website schickt eine Abweisung als Schlüssel zurück — Angebotsformular, Datenschutzanfrage und Barriere-Meldung schlagen ihren Satz selbst nach (V-272, Teil „öffentlich" von D-769)
+
+**Der Befund** (D-769, am Code gegengeprüft). Drei öffentliche Routen
+schrieben einen Satz in die Adresse, und sechs Seiten — je deutsch und
+englisch — zeigten ihn im `role="alert"`-Kasten:
+
+- `POST /api/anfrage` schickte `/angebot/<bereich>?meldung=<Sammelsatz>&felder=<JSON>`;
+  das JSON trug die Feldmeldungen, und die Seite setzte jede unter „ihr" Feld
+  (geprüft wurde nur die Form: ein Objekt aus Zeichenketten bis 300 Zeichen).
+  Ein präparierter Link schrieb also einen Warnkasten UND Text unter jedes
+  Feld des Formulars, an dem Umsatz ankommt. Die Meldung eines Dateifelds
+  (`dateiZuGross`, `dateityp`) war der deutsche Text der Definition, auch unter
+  `/en`. Ein unbekannter Bereich führte auf `/angebot`, das die Adresse nicht
+  las — der Satz ging verloren; ein Bereich ohne veröffentlichtes oder mit
+  kaputtem Formular führte auf sein Formular und dort ins 404 bzw. auf die
+  Fehlerseite.
+- `POST /api/datenschutz/anfrage` und `POST /api/barrierefreiheit/meldung`
+  schickten `?meldung=<Satz>` (deutsch der Satz des Dienstes, englisch der aus
+  `PFLICHTWEG_FEHLER_EN`). Der Fall „diese Gesellschaft / diesen Bereich gibt
+  es nicht" stand als Satz in der Route, ohne Schlüssel. `AnfrageFehler` und
+  `BarriereFehler` trugen ihren Grund als freies `string`.
+
+**Die Entscheidung** (D-769 Nr. 1–9 für die Website):
+
+1. **Angebot: `?fehler=<grund>&felder=<k1,k2,…>`.** Der Grund ist der NAME des
+   Sammelsatzes in `API_TEXTE` (`ANGEBOT_FEHLER_GRUENDE`: `pruefen`,
+   `datenschutzBestaetigen`, `zuVieleAnfragen`, `keinFormular`,
+   `nichtVerfuegbar`, `dateiZuGross`, `dateityp`, `uploadNichtVerbunden`,
+   `nichtGespeichert`). Nicht dabei sind `dank` — `?fehler=dank` ergäbe sonst
+   „Vielen Dank" in einem Warnkasten — und `unlesbar` (ein Rumpf, der sich nicht
+   lesen lässt, sagt nicht, dass er ein Formular war; er bleibt JSON). Ein
+   `FormularFehler` reist mit dem Grund, den `formularSammelgrund` aus
+   `FormularFehler.grund` macht: `pruefen` → `pruefen`, `datenschutz` →
+   `datenschutzBestaetigen`, `zu_viele` → `zuVieleAnfragen`, alles andere →
+   `nichtGespeichert` — dieselbe Abbildung, mit der die englische Seite ihren
+   Satz seit V-160 fand. Ein zweiter Satz von Namen neben `API_TEXTE` wäre eine
+   Abbildung mehr, die auseinanderläuft.
+2. **`felder` sind nur Schlüssel** in der Form eines Feldschlüssels
+   (`FELDSCHLUESSEL`, jetzt eine Konstante in `lib/formular/schema.ts`, gegen
+   die auch die Definition geprüft wird; der leere Schlüssel eines
+   Zod-Befunds „unbekanntes Feld" fällt so weg). Die Seite übernimmt nur
+   Schlüssel der Definition, die sie ohnehin lädt, und setzt unter jedes
+   genannte Feld dessen `fehlermeldung` — englisch über `uebersetzeFelder`,
+   dieselbe Auflage wie die Beschriftung. Damit sind auch die Dateifelder
+   englisch. D-599s Einwand gegen einen Schlüssel („eine zweite Liste liefe
+   auseinander") trägt nicht mehr: es gibt keine zweite Liste (Nachsatz dort).
+   Die Seite prüft nicht nach, ob das Feld beim Absenden wirklich falsch war —
+   ein präparierter Link kann ein Feld mit seiner EIGENEN Meldung markieren,
+   aber keinen Text mehr hineinschreiben.
+3. **Der Sammelsatz steht in `ANGEBOT_FEHLER_TEXTE`** (de/en), Satz für Satz
+   aus `API_TEXTE` gelesen; ein fremder Grund bekommt `nichtGespeichert`
+   („Die Anfrage konnte nicht gespeichert werden."). Nachgeschlagen wird nur
+   als eigener Eintrag (D-728), auch am Feld (`AnfrageFormular`: ein Feld
+   `constructor` fände sonst die Funktion). Ohne `?fehler=` zeigt die Seite
+   keine Abweisung, auch nicht mit `?felder=`.
+4. **Ohne zeigbares Formular geht es auf die Auswahl.** `keinFormular` und
+   `nichtVerfuegbar` führen immer auf `/angebot` (`/en/angebot`); die Auswahl
+   zeigt den Satz jetzt im selben Kasten wie das Formular (`role="alert"`).
+   Vorher nur ein unbekannter Bereich — und der ohne Satz.
+5. **Datenschutzanfrage und Barriere-Meldung: `?fehler=<grund>`.** Die Seite
+   schlägt ihn in `PFLICHTWEG_FEHLER_TEXTE[sprache].anfrage` bzw. `.barriere`
+   nach, Form `{ sonst, fehler }`: die deutsche Tabelle ist neu, die englische
+   ist `PFLICHTWEG_FEHLER_EN` in dieser Form. Die zwei Fälle der Route haben
+   Schlüssel: `gesellschaft_fehlt`, `bereich_fehlt`. Die deutschen Sätze sind
+   die des Dienstes, Wort für Wort — ein Programm bekommt sie weiter als
+   `meldung`, und die Prüfung hält beide zusammen. Ein fremder Grund bekommt
+   `sonst` („Ihre Anfrage/Meldung konnte nicht angenommen werden. Bitte prüfen
+   Sie Ihre Angaben."). Der Erfolg der Barriere-Meldung bleibt der Schlüssel
+   `ok=1` (schon vorhanden, streng verglichen); sein Satz steht jetzt in der
+   Tabelle der Seite statt im Ausdruck.
+6. **`AnfrageFehler` und `BarriereFehler` tragen einen getypten Grund**
+   (`AnfrageFehlerGrund`, `BarriereFehlerGrund` — jeder Grund, den der Dienst
+   wirft); `PFLICHTWEG_FEHLER_GRUENDE` ist gegen diese Typen geprüft
+   (`satisfies`). Laufzeit und Sätze ändern sich dadurch nicht.
+7. **Programme bekommen dasselbe JSON wie vorher**: beim Angebot
+   `{ ok: false, meldung, felder }` mit den Feldmeldungen der Definition
+   (englisch übersetzt, die eines Dateifelds wie bisher der Text der
+   Definition), bei den Pflichtformularen `{ ok: false, meldung }`, mit
+   denselben Status. Ein Fehler, der keine Abweisung des Dienstes ist, bleibt
+   bei den Pflichtformularen ein Wurf; das Angebot antwortet wie bisher mit
+   `nichtGespeichert` (500), jetzt als Grund — der Text der Datenbank
+   erschien dort nie und erscheint nicht.
+8. **Anmeldung und Rechte sind hier nicht berührt** (D-769 Nr. 7): die drei
+   Routen sind bewusst offen (Eingangsprinzipal, `route-manifest`); es gibt
+   weder eine Sitzung noch einen `status`/`code`-Zweig vor einem Recht.
+9. **Die Kästen sind Hinweise** (Nachrunde (a), DESIGN §5 „Notices",
+   V-217). Die Website baute ihre Kästen aus Klassen nach, eine Abweisung in
+   `border-danger bg-danger-soft` — einen danger-Hinweis kennt DESIGN nicht.
+   Jetzt nehmen alle sieben Kästen der Website `components/ui/Hinweis.tsx`:
+   Angebotsformular, Angebotsauswahl, Datenschutzanfrage, Barriere-Meldung
+   und — damit die Website einheitlich ist — Karriere (Seite und Formular)
+   und Werbewiderspruch. Eine Abweisung ist `warnung` mit `role="alert"`, eine
+   Bestätigung (der Dank der Barriere-Meldung, der angenommene
+   Werbewiderspruch) `erfolg` mit `role="status"`; der Werbewiderspruch trug
+   vorher auch bei der Bestätigung `role="alert"`, ein Screenreader kündigte
+   sie wie einen Fehler an. Die `data-cse`-Anker bleiben; `data-stand` am
+   Kasten des Werbewiderspruchs entfällt (kein Leser; Erfolg oder Warnung sagt
+   jetzt `data-art`). Schrift `sm` wie jeder Hinweis. Die Sätze bleiben, wie
+   sie sind: jeder sagt den Ausgang oder was zu tun ist selbst, und neben der
+   Farbe tragen Rolle und Text die Bedeutung (§9). Eine fett gesetzte
+   Einleitung („Nicht gesendet.") kommt nicht dazu — das wäre neuer Text auf
+   Pflicht- und Karriereseiten und bei der Karriere eine Doppelung („Ihre
+   Bewerbung ist nicht angekommen: …"); die Kästen, die V-217 umgestellt hat,
+   tragen auch keine. Die Meldung am einzelnen Feld bleibt am Feld (§5 Forms:
+   Rand und Text in `--danger`).
+
+**Nachrunde** (nach der Prüfung des Teils, dieselbe Nummer): (a) die Kästen
+der Website sind Hinweise — Nr. 9.
+
+(b) **Ein Name des Prototyps ist kein Bereich.** `formularSchluessel`
+(`lib/formular/bereiche.ts`) schlug `FORMULAR_SCHLUESSEL[bereich]` nach —
+mit einem `bereich` aus der Adresse (`/angebot/[bereich]`, `…/danke`) oder aus
+dem Formular (`POST /api/anfrage`). `toString`, `constructor` und `__proto__`
+fanden eine Funktion bzw. `Object.prototype` und galten als bekannter Bereich:
+Seite und Route fragten die Datenbank nach einem Formular, dessen Schlüssel der
+Treiber aus dem Wert machte („[object Object]", „function Object() { [native
+code] }"), und kamen erst am leeren Ergebnis zu 404 bzw. `keinFormular`;
+`/angebot/__proto__/danke?nr=…` bestätigte dagegen eine Anfrage, die es nie
+geben konnte. Jetzt nur als eigener Eintrag (`eigenerEintrag`, D-728): die
+Seite antwortet 404 ohne Frage an die Datenbank, die Dankseite ebenso, und die
+Route weist mit dem vorhandenen Grund `keinFormular` ab (Seite: `/angebot`,
+Programm: 404). Die Auswahl fragt dieselbe Funktion statt der Tabelle daneben.
+
+(c) **Ein Recht steht als Satz im Satz des Dienstes** (D-741). Die Zuordnung
+einer Betroffenenanfrage (`ordneZu`, Grund `kontakt_unbekannt`) sagte
+„Möglich ist auch, dass Ihnen crm.lesen fehlt." — Quelltext für den Menschen,
+der die Anfrage bearbeitet. Jetzt „… dass Ihnen das Recht „Kundendaten lesen"
+fehlt.", mit dem Namen der Rechtematrix (`rechtName('crm.lesen')`). Kein Test
+erwartete den alten Satz; der Grund bleibt.
+
+**Geprüft:** `tests/kern/angebot-rueckweg.test.ts` und
+`tests/kern/pflichtweg-rueckweg.test.ts` — die echten Routen (ersetzt nur
+Datenbank, Kontexte, Speicher, Bestätigungsmail; `nimmAn` und die
+Datenschutzdienste laufen echt): jeder Grund → 303 auf die Seite mit genau
+`fehler` (und `felder`), ohne `meldung`, ohne Kennung, ohne Eingabe; die
+Menge der Gründe, mit denen die Routen zurückkamen, ist genau die Liste;
+JSON wie vorher, de und en; ein Fehler ohne Grund bleibt ein Wurf; die
+Tabellen in beiden Sprachen ohne Kennung und ohne Prototyp-Treffer; die
+gerenderten Seiten zeigen den nachgeschlagenen Satz, für einen fremden Grund
+den allgemeinen, für den alten Parameter nichts; die Dateimeldung englisch;
+keine Seite liest `meldung`. Isolation (die Dateien, die die geänderten
+Dienste und die Annahme laden): `anfrage-aufnehmen`, `datenschutz-dienste`,
+`datenschutz-identitaet`, `lead` — unverändert grün. Angepasst:
+`tests/kern/anfrage-honigtopf.test.ts`
+(die Quelltextprobe nennt den neuen Aufruf `antworteFehler(429,
+'zuVieleAnfragen')`), `tests/e2e/sprachen.spec.ts` (5) (die Adresse der
+englischen Abweisung trägt `fehler=pruefen` und `felder`, kein `meldung`, der
+Satz ist englisch) und neu (8), `tests/e2e/angebot.spec.ts` (6).
+
+**Nachsatz (Review): die Vorgangsnummer der Dankseite.** `?nr=` stand ungeprüft als „Ihre Vorgangsnummer“ groß auf der Dankseite — ein präparierter Link setzte damit eigenen Text auf die Website. Die Seite zeigt die Nummer nur noch in der Form, die `leadnummerAus` baut (`L-` und zehn Hexziffern, `src/lib/formular/leadnummer.ts`); sonst bleibt der Kasten weg, der Dank selbst bleibt. Geprüft in `tests/kern/angebot-rueckweg.test.ts` (Form gegen den Dienst, gerenderte Seite) und `tests/e2e/angebot.spec.ts` (präparierter Link).
+
+| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `src/app/(public)/karriere/{page,Formular}.tsx`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx` (Nachrunde (a)), `src/lib/formular/bereiche.ts` (`formularSchluessel`, Nachrunde (b)), `src/server/services/datenschutz/anfrage.ts` (`ordneZu`, Nachrunde (c)), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf,website-hinweise,einteilung-bewerbung-rueckweg}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
 |---|---|

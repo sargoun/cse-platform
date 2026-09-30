@@ -22,7 +22,6 @@ export default async function EnglishBarrierReport(
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
-  const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return FeedbackSeiteFuer('en', meldung, suche['ok'] === '1');
+  /* Dieselbe Weiche wie auf der deutschen Seite: nur Schlüssel reisen (D-769). */
+  return FeedbackSeiteFuer('en', await searchParams);
 }

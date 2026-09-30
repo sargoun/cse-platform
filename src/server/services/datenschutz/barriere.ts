@@ -16,8 +16,20 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 
 export type BerichtStatus = 'neu' | 'in_bearbeitung' | 'behoben' | 'kein_mangel';
 
+/**
+ * Warum eine Meldung abgewiesen wurde — der SCHLÜSSEL, über den eine Seite
+ * ihren Satz findet (D-769, V-272). `/barrierefreiheit/feedback` schlägt die
+ * Gründe des Meldewegs nach (`PFLICHTWEG_FEHLER_TEXTE`); der deutsche Satz der
+ * Klasse ist, was ein Programm als `meldung` bekommt (D-599).
+ */
+export type BarriereFehlerGrund =
+  /* der öffentliche Meldeweg (`melde`) */
+  | 'ohne_beschreibung' | 'email_ungueltig' | 'nicht_gespeichert'
+  /* das Erledigen im Portal (`erledige`) */
+  | 'ohne_antwort' | 'nicht_gefunden';
+
 export class BarriereFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: BarriereFehlerGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'BarriereFehler';
   }

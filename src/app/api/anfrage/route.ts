@@ -5,7 +5,7 @@ import { db } from '@/server/db/pool';
 import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { formularSchluessel } from '@/lib/formular/bereiche';
-import { Felder, FormularFehler } from '@/lib/formular/schema';
+import { FELDSCHLUESSEL, Felder, FormularFehler } from '@/lib/formular/schema';
 import { istUebermittlung } from '@/lib/formular/uebermittlung';
 import {
   eigenerPfad, fremdeAdresse, utmAus, UTM_SCHLUESSEL,
@@ -17,7 +17,10 @@ import { pruefeUpload } from '@/server/storage/mime';
 import { ladeHoch } from '@/server/services/dokument/upload';
 import { NichtVerbundenFehler } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
-import { API_TEXTE, formularSammelmeldung } from '@/lib/i18n/texte';
+import {
+  ANGEBOT_FEHLER_TEXTE, API_TEXTE, formularSammelgrund, formularSammelmeldung,
+  type AngebotFehlerGrund,
+} from '@/lib/i18n/texte';
 import { uebersetzeFeldmeldungen } from '@/lib/i18n/formular-en';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
@@ -48,6 +51,15 @@ function fehlerAntwort(status: number, meldung: string,
                        felder: Readonly<Record<string, string>> = {}): NextResponse {
   return NextResponse.json({ ok: false, meldung, felder }, { status });
 }
+
+/**
+ * Die Gründe, zu denen es kein Formular zu zeigen gibt: keines veröffentlicht,
+ * oder die Definition ist kaputt. Ein Rücksprung auf `/angebot/<bereich>`
+ * endete dort im 404 bzw. in der Fehlerseite, und der Satz ginge verloren —
+ * sie führen auf die Auswahl, die ihn zeigt (D-769, V-272).
+ */
+const OHNE_FORMULAR: ReadonlySet<AngebotFehlerGrund> =
+  new Set<AngebotFehlerGrund>(['keinFormular', 'nichtVerfuegbar']);
 
 /**
  * Die Sprache, in der geantwortet wird — aus dem Formular, nicht geraten.
@@ -86,8 +98,8 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
    * Das Formular hat kein JavaScript und traegt deshalb `antwort=seite`. Ohne
    * diese Weiche sah ein Besucher, dessen Eingabe die Pruefung nicht bestand,
    * `{"ok":false,…}` auf weissem Grund — und zwar an genau der Stelle, an der
-   * er etwas kaufen wollte. Der Grund reist als TEXT in der Adresse zurueck
-   * zum Formular, wo `AnfrageFormular` ihn als `role="alert"` ausgibt.
+   * er etwas kaufen wollte. Der GRUND reist in der Adresse zurueck zum
+   * Formular, das den Satz dazu nachschlaegt und als `role="alert"` ausgibt.
    *
    * **Warum ein Feld und nicht der `Accept`-Header.** Der Header eines
    * Formular-POST sieht je nach Browser verschieden aus; eine Weiche, die auf
@@ -99,42 +111,51 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
    * Neuladen darf die Anfrage nicht ein zweites Mal senden.
    */
   const alsSeite = String(formData.get('antwort') ?? '') === 'seite';
-  const antworteFehler = (status: number, meldung: string,
-                          felder: Readonly<Record<string, string>> = {}): NextResponse => {
+  /**
+   * Eine Abweisung — für ein Programm JSON mit Satz und Feldmeldungen wie
+   * bisher (D-599), für den Browser das Formular mit SCHLÜSSELN (D-769, V-272):
+   * `?fehler=<grund>&felder=<k1,k2,…>`.
+   *
+   * **Kein Satz in der Adresse.** Hier reisten der Sammelsatz im Parameter
+   * `meldung` und die Feldmeldungen als JSON, und die Seite zeigte, was dort
+   * stand — jeder präparierte Link schrieb seinen eigenen Text in den
+   * Warnkasten und unter jedes Feld des Formulars, an dem Umsatz ankommt. Die
+   * Seite liest dieselbe veröffentlichte Definition wie diese Route; sie
+   * schlägt den Sammelsatz in `API_TEXTE` nach und setzt unter jedes genannte
+   * Feld dessen `fehlermeldung` — englisch über dieselbe Auflage wie die
+   * Beschriftung. Eine zweite Liste entsteht dabei nicht (D-599s Einwand).
+   * Auch die Dateifelder reisen so: vorher stand ihr deutscher
+   * Definitionstext auch unter `/en`.
+   *
+   * **Die FELDER reisen mit, nicht nur der Grund** — sonst läse der Besucher
+   * „Bitte prüfen Sie die markierten Felder" und nicht, WELCHE. Nur Schlüssel
+   * in der Form eines Feldschlüssels; nie ein Wert, den jemand eingegeben hat.
+   */
+  const antworteFehler = (
+    status: number, abweisung: AngebotFehlerGrund,
+    felder: Readonly<Record<string, string>> = {},
+    meldung: string = ANGEBOT_FEHLER_TEXTE[sprache].fehler[abweisung],
+  ): NextResponse => {
     if (!alsSeite) return fehlerAntwort(status, meldung, felder);
     /*
      * Kennt die Plattform den Bereich nicht, fuehrt ein Ruecksprung auf
-     * `/angebot/<unbekannt>` selbst in ein 404. Dann lieber die Auswahlseite:
-     * sie zeigt die vier Bereiche, und der Besucher findet von dort zurueck.
+     * `/angebot/<unbekannt>` selbst in ein 404 — ebenso ein Bereich ohne
+     * veroeffentlichtes oder mit kaputtem Formular. Dann lieber die
+     * Auswahlseite: sie zeigt den Satz und die Bereiche, und der Besucher
+     * findet von dort zurueck. Vorher ging der Satz dort verloren.
      */
-    const ziel = formularSchluessel(bereich) === undefined
+    const ziel = OHNE_FORMULAR.has(abweisung) || formularSchluessel(bereich) === undefined
       ? '/angebot' : `/angebot/${bereich}`;
-    /*
-     * **Die FELDmeldungen reisen mit, nicht nur der Sammelsatz.**
-     *
-     * Der erste Entwurf dieser Weiche haengte nur `meldung` an die Adresse.
-     * Damit las ein Besucher „Bitte pruefen Sie Ihre Eingaben" und nicht, WELCHE
-     * — die JSON-Antwort davor hatte die Feldmeldungen einzeln getragen. Ein
-     * Formular ohne JavaScript ist kein Grund, weniger zu sagen als vorher;
-     * `AnfrageFormular` hat fuer genau das eine `fehler`-Eigenschaft, die jedes
-     * Feld mit `aria-invalid` markiert und die Meldung darunter setzt.
-     *
-     * JSON in der Adresse und nicht ein eigener Parameter je Feld: die
-     * Feldnamen kommen aus `formular_definition` und sind nicht im Voraus
-     * bekannt.
-     */
-    const parameter = new URLSearchParams({ meldung });
-    if (Object.keys(felder).length > 0) {
-      parameter.set('felder', JSON.stringify(felder));
-    }
-    return NextResponse.redirect(new URL(
-      `${mitSprache(ziel, sprache)}?${parameter.toString()}`, anfrage.url,
-    ), 303);
+    const adresse = new URL(mitSprache(ziel, sprache), anfrage.url);
+    adresse.searchParams.set('fehler', abweisung);
+    const feldschluessel = Object.keys(felder).filter((k) => FELDSCHLUESSEL.test(k));
+    if (feldschluessel.length > 0) adresse.searchParams.set('felder', feldschluessel.join(','));
+    return NextResponse.redirect(adresse, 303);
   };
 
   const schluessel = formularSchluessel(bereich);
   if (schluessel === undefined) {
-    return antworteFehler(404, t.keinFormular);
+    return antworteFehler(404, 'keinFormular');
   }
 
   /*
@@ -176,13 +197,13 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
 
   const [formular] = await withOeffentlichLesen(schluessel);
   if (formular === undefined) {
-    return antworteFehler(404, t.keinFormular);
+    return antworteFehler(404, 'keinFormular');
   }
 
   const felderGeprueft = Felder.safeParse(formular.felder);
   if (!felderGeprueft.success) {
     // Eine kaputte Definition ist ein Fehler DES BETREIBERS, kein Eingabefehler.
-    return antworteFehler(500, t.nichtVerfuegbar);
+    return antworteFehler(500, 'nichtVerfuegbar');
   }
   const felder = felderGeprueft.data;
 
@@ -239,19 +260,17 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
     const roh = formData.get(f.schluessel);
     if (!(roh instanceof File) || roh.size === 0) continue;
     if (roh.size > f.maxBytes) {
-      return antworteFehler(413, t.dateiZuGross, { [f.schluessel]: f.fehlermeldung });
+      return antworteFehler(413, 'dateiZuGross', { [f.schluessel]: f.fehlermeldung });
     }
     const bytes = new Uint8Array(await roh.arrayBuffer());
     try {
       const { mime } = pruefeUpload(bytes, roh.type);
       if (!f.mime.includes(mime)) {
-        return antworteFehler(415, t.dateityp,
-          { [f.schluessel]: f.fehlermeldung });
+        return antworteFehler(415, 'dateityp', { [f.schluessel]: f.fehlermeldung });
       }
       datei = { bytes, name: roh.name, mime };
     } catch {
-      return antworteFehler(415, t.dateityp,
-        { [f.schluessel]: f.fehlermeldung });
+      return antworteFehler(415, 'dateityp', { [f.schluessel]: f.fehlermeldung });
     }
   }
 
@@ -443,11 +462,11 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
   } catch (fehler) {
     // Der Satz kommt aus `API_TEXTE` und nicht aus dem Dienst: der Dienst
     // spricht deutsch, auch zu `/en/angebot/<bereich>` (V-157).
-    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, t.zuVieleAnfragen);
+    if (fehler instanceof RatenlimitFehler) return antworteFehler(429, 'zuVieleAnfragen');
     // Kein simulierter Erfolg: der Speicher ist nicht verbunden, und das steht
     // in der Antwort statt in einem Logfile.
     if (fehler instanceof NichtVerbundenFehler) {
-      return antworteFehler(503, t.uploadNichtVerbunden);
+      return antworteFehler(503, 'uploadNichtVerbunden');
     }
     if (fehler instanceof FormularFehler) {
       /**
@@ -465,11 +484,12 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
        * Und der Sammelsatz darüber ebenso (V-157). Die Feldmeldungen wurden
        * seit D-83 übersetzt, der Satz im `role="alert"` nicht — auf der
        * englischen Seite stand „Bitte prüfen Sie die markierten Felder." über
-       * englischen Feldern.
+       * englischen Feldern. Die Seite bekommt nur den Grund dazu (D-769).
        */
-      return antworteFehler(400, formularSammelmeldung(sprache, fehler), felder);
+      return antworteFehler(400, formularSammelgrund(fehler), felder,
+        formularSammelmeldung(sprache, fehler));
     }
-    return antworteFehler(500, t.nichtGespeichert);
+    return antworteFehler(500, 'nichtGespeichert');
   }
 }
 

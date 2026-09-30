@@ -184,10 +184,11 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
    * füllt sich mit Doppeln (SEITENKARTE §2.3 nennt genau diesen Fall).
    */
   test('nennt die Vorgangsnummer und verspricht keine Frist', async ({ page }) => {
-    await page.goto('/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    /* Eine Nummer in der Form, die `leadnummerAus` baut (V-272 Review). */
+    await page.goto('/angebot/reinigung/danke?nr=L-A1B2C3D4E5');
     const kasten = page.locator('[data-cse="angebot-vorgangsnummer"]');
     await expect(kasten).toBeVisible();
-    await expect(kasten).toContainText('L-TESTNUMMER');
+    await expect(kasten).toContainText('L-A1B2C3D4E5');
     /*
      * KEINE Fristzusage. Wie schnell geantwortet wird, ist O-14 — eine Zusage
      * des Mandanten, keine des Entwicklers, und auf einer Website ist sie eine
@@ -197,8 +198,15 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
     expect(text).not.toMatch(/24 Stunden|48 Stunden|within \d+ hours|Werktag/u);
   });
 
+  test('ein präparierter Link setzt keine eigene „Vorgangsnummer“ auf die Website (D-769)', async ({ page }) => {
+    await page.goto(`/angebot/reinigung/danke?nr=${encodeURIComponent('Bitte rufen Sie 0800 123 an')}`);
+    await expect(page.locator('[data-cse="angebot-danke"]')).toBeVisible();
+    await expect(page.locator('[data-cse="angebot-vorgangsnummer"]')).toHaveCount(0);
+    expect(await page.locator('body').innerText()).not.toContain('0800 123');
+  });
+
   test('gibt es auch auf Englisch, unter demselben Pfad mit /en', async ({ page }) => {
-    const antwort = await page.goto('/en/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    const antwort = await page.goto('/en/angebot/reinigung/danke?nr=L-A1B2C3D4E5');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('[data-cse="angebot-danke"]'))
       .toContainText('Your enquiry has arrived');
@@ -219,8 +227,65 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
   });
 
   test('sie steht nicht im Suchmaschinenindex — sie trägt eine Vorgangsnummer', async ({ page }) => {
-    await page.goto('/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    await page.goto('/angebot/reinigung/danke?nr=L-A1B2C3D4E5');
     await expect(page.locator('meta[name="robots"]'))
       .toHaveAttribute('content', /noindex/u);
+  });
+});
+
+/**
+ * **Eine Abweisung kommt als Schlüssel zurück, die Seite schlägt nach**
+ * (D-769, D-770, V-272).
+ *
+ * Die Route schickte den Sammelsatz im Parameter `meldung` und die
+ * Feldmeldungen als JSON in der Adresse, und das Formular zeigte beides: jeder
+ * präparierte Link schrieb seinen eigenen Text in den Warnkasten und unter
+ * jedes Feld. Jetzt reisen `?fehler=<grund>&felder=<schlüssel>`; der Satz über
+ * dem Formular kommt aus `API_TEXTE`, der am Feld aus der Definition.
+ */
+test.describe('(6) die Adresse trägt nur Schlüssel (D-769)', () => {
+  test('eine Abweisung: Grund und Feld in der Adresse, die Sätze von der Seite', async ({ page }) => {
+    await page.goto(FORMULAR);
+    await fuelleAus(page, `Testfirma ${String(Date.now())}`);
+    await page.fill('#f_anzahl_objekte', '');
+    const [antwort] = await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith('/api/anfrage') && r.request().method() === 'POST'),
+      page.click('button[type="submit"]'),
+    ]);
+    expect(antwort.status()).toBe(303);
+    await page.waitForURL(/\/angebot\/reinigung\?/u);
+
+    const adresse = new URL(page.url());
+    expect(adresse.searchParams.get('fehler')).toBe('pruefen');
+    expect(adresse.searchParams.get('felder')).toBe('anzahl_objekte');
+    expect(adresse.searchParams.has('meldung')).toBe(false);
+    await expect(page.locator('[data-cse="formular-meldung"]'))
+      .toHaveText('Bitte prüfen Sie die markierten Felder.');
+    await expect(page.locator('#f_anzahl_objekte')).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.locator('#f_anzahl_objekte_fehler'))
+      .toHaveText('Bitte geben Sie an, um wie viele Objekte es geht.');
+  });
+
+  test('ein präparierter Link schreibt keinen eigenen Text ins Formular', async ({ page }) => {
+    const falsch = 'Ihr Konto ist gesperrt, Rueckruf unter 0900 555';
+    const antwort = await page.goto(`${FORMULAR}?fehler=${encodeURIComponent(falsch)}`
+      + `&felder=firma,gibtsnicht&meldung=${encodeURIComponent(falsch)}`);
+    expect(antwort?.status()).toBe(200);
+    /* Ein fremder Grund wird der allgemeine Satz; das genannte Feld seine eigene Meldung. */
+    await expect(page.locator('[data-cse="formular-meldung"]'))
+      .toHaveText('Die Anfrage konnte nicht gespeichert werden.');
+    await expect(page.locator('#f_firma_fehler'))
+      .toHaveText('Bitte geben Sie den Namen Ihrer Firma an.');
+    await expect(page.locator('body')).not.toContainText('0900 555');
+  });
+
+  test('ein Bereich ohne Formular kommt auf der Auswahl mit seinem Satz an', async ({ page }) => {
+    /* Vorher las die Auswahl die Adresse nicht, und der Satz ging verloren. */
+    await page.goto('/angebot?fehler=keinFormular');
+    await expect(page.locator('[data-cse="angebot-auswahl-meldung"]'))
+      .toHaveText('Für diesen Bereich gibt es kein Anfrageformular.');
+    await page.goto('/en/angebot?fehler=keinFormular');
+    await expect(page.locator('[data-cse="angebot-auswahl-meldung"]'))
+      .toHaveText('There is no enquiry form for this division.');
   });
 });

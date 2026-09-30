@@ -1,7 +1,9 @@
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import type { FormularFeld } from '@/lib/formular/schema';
 import { UTM_SCHLUESSEL, type Herkunft } from '@/lib/formular/herkunft';
 import { ANFRAGE_TEXTE } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
@@ -26,7 +28,13 @@ export interface AnfrageFormularProps {
   readonly bereich: string;
   readonly titel: string;
   readonly felder: readonly FormularFeld[];
+  /**
+   * Feldschlüssel → Meldung am Feld. Die Seite nimmt sie aus der Definition
+   * (`fehlermeldung`), nie aus der Adresse — dort stehen nur die Schlüssel
+   * (D-769).
+   */
   readonly fehler?: Readonly<Record<string, string>> | undefined;
+  /** Der Sammelsatz einer Abweisung — nachgeschlagen von der Seite, nie aus der Adresse (D-769). */
   readonly meldung?: string | undefined;
   /** Woher der Besuch kam (REQ-07) — gelesen von der Seite, nicht vom POST. */
   readonly herkunft?: Herkunft | undefined;
@@ -163,13 +171,14 @@ export function AnfrageFormular(
         */}
       <h1 className="text-h1 text-text [hyphens:auto] break-words">{titel}</h1>
 
-      {/* `role="alert"` und nicht nur roter Text: ein Screenreader-Nutzer
-          bekommt sonst keine Rückmeldung, dass die Absendung fehlschlug. */}
+      {/* Der Kasten der Abweisung ist ein `Hinweis` (DESIGN §5 „Notices",
+          V-217): `warnung` mit `role="alert"` — ein Screenreader-Nutzer
+          bekäme sonst keine Rückmeldung, dass die Absendung fehlschlug. Die
+          Meldung am einzelnen Feld bleibt am Feld, in `--danger` (§5 Forms). */}
       {meldung !== undefined && (
-        <p role="alert" data-cse="formular-meldung"
-           className="rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
+        <Hinweis art="warnung" rolle="alert" cse="formular-meldung">
           {meldung}
-        </p>
+        </Hinweis>
       )}
 
       <form
@@ -260,8 +269,10 @@ export function AnfrageFormular(
           />
         </div>
 
+        {/* Nur ein EIGENER Eintrag (D-728): ein Feld `constructor` fände sonst die Funktion. */}
         {sortiert.map((f) => (
-          <Feld key={f.schluessel} f={f} fehler={fehler?.[f.schluessel]} t={t} />
+          <Feld key={f.schluessel} f={f} t={t}
+                fehler={fehler === undefined ? undefined : eigenerEintrag(fehler, f.schluessel)} />
         ))}
 
         {/* Der eine Primaerknopf der Seite — aus der Komponente, nicht nachgebaut. */}

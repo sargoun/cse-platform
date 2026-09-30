@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import type postgres from 'postgres';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
 import { ANFRAGE_ARTEN, ART_TEXT, ART_TEXT_EN } from '@/server/services/datenschutz/anfrage';
+import { PFLICHTWEG_FEHLER_TEXTE } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
@@ -112,12 +115,26 @@ export async function anfrageMetadaten(
 
 const FELD = 'w-full rounded-md border border-line bg-surface px-s4 py-s3 text-base text-text';
 
+/**
+ * Die Seite in einer Sprache — mit dem Satz zu einer Abweisung, falls die
+ * Route mit einem Grund hierher zurückgeschickt hat.
+ *
+ * **Aus der Adresse kommt nur der GRUND** (`?fehler=<grund>`, D-769, V-272).
+ * Hier stand der Parameter `meldung`, und der Kasten zeigte, was dort stand:
+ * jeder präparierte Link schrieb seine eigene Systemmeldung auf den Weg, den
+ * Art. 12 Abs. 2 DSGVO „erleichtert" sehen will. Jetzt schlägt die Seite den
+ * Grund in ihrer Sprache nach, nur als eigenen Eintrag (D-728); ein Grund, den
+ * sie nicht kennt, bekommt den allgemeinen Satz — nie sich selbst.
+ */
 export async function AnfrageSeiteFuer(
-  sprache: Sprache = VORGABE_SPRACHE, meldung?: string | undefined,
+  sprache: Sprache = VORGABE_SPRACHE,
+  suche: Readonly<Record<string, string | string[] | undefined>> = {},
 ) {
   const liste = await bereiche();
   const t = TEXTE[sprache];
   const arten = sprache === 'en' ? ART_TEXT_EN : ART_TEXT;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerTexte = PFLICHTWEG_FEHLER_TEXTE[sprache].anfrage;
 
   return (
     <section data-cse="datenschutz-anfrage"
@@ -125,11 +142,10 @@ export async function AnfrageSeiteFuer(
       <h1 className="text-h1 text-text [hyphens:auto] break-words">{t.titel}</h1>
       <p className="max-w-[72ch] text-base text-text-muted">{t.einleitung}</p>
 
-      {meldung !== undefined && (
-        <p role="alert" data-cse="anfrage-meldung"
-           className="max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
-          {meldung}
-        </p>
+      {fehler !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="anfrage-meldung" className="max-w-[72ch]">
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
+        </Hinweis>
       )}
 
       <form

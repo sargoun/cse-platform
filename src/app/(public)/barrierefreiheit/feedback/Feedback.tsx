@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import type postgres from 'postgres';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
+import { PFLICHTWEG_FEHLER_TEXTE } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
@@ -58,6 +61,7 @@ const TEXTE = {
       + 'trotzdem auf — Sie müssen sich nicht zu erkennen geben, um eine Barriere '
       + 'zu melden.',
     absenden: 'Meldung absenden',
+    danke: 'Vielen Dank. Ihre Meldung ist angekommen.',
     andererWeg:
       'Sie können uns auch anrufen oder schreiben. Die Wege stehen in der '
       + 'Barrierefreiheitserklärung.',
@@ -82,6 +86,7 @@ const TEXTE = {
       'Only if you would like a reply. Without an address we still record the report — '
       + 'you do not have to identify yourself to report a barrier.',
     absenden: 'Send report',
+    danke: 'Thank you. Your report has arrived.',
     andererWeg:
       'You can also call or write to us. The details are in the accessibility statement.',
     zurErklaerung: 'To the accessibility statement',
@@ -102,11 +107,33 @@ export async function feedbackMetadaten(
 
 const FELD = 'w-full rounded-md border border-line bg-surface px-s4 py-s3 text-base text-text';
 
+/**
+ * Die Seite in einer Sprache — mit der Bestätigung (`?ok=1`) oder dem Satz zu
+ * einer Abweisung, wenn die Route hierher zurückgeschickt hat.
+ *
+ * **Aus der Adresse kommen nur Schlüssel** (D-769, V-272): `ok=1` für die
+ * angekommene Meldung, `fehler=<grund>` für eine abgewiesene. Hier stand
+ * der Parameter `meldung`, und der Warnkasten zeigte, was dort stand — auf dem
+ * Meldeweg, den das BFSG vorschreibt, schrieb jeder präparierte Link seine
+ * eigene Systemmeldung. Jetzt schlägt die Seite den Grund in ihrer Sprache
+ * nach, nur als eigenen Eintrag (D-728); ein Grund, den sie nicht kennt,
+ * bekommt den allgemeinen Satz — nie sich selbst.
+ */
 export async function FeedbackSeiteFuer(
-  sprache: Sprache = VORGABE_SPRACHE, meldung?: string | undefined, erledigt = false,
+  sprache: Sprache = VORGABE_SPRACHE,
+  suche: Readonly<Record<string, string | string[] | undefined>> = {},
 ) {
   const liste = await bereiche();
   const t = TEXTE[sprache];
+  /*
+   * Die Bestaetigung steht auf DERSELBEN Seite und nicht auf einer eigenen:
+   * ein Screenreader liest `role="status"` vor, ohne dass der Nutzer die
+   * Orientierung verliert, und ein Seitenwechsel nach einem Formular ist fuer
+   * jemanden mit Bildschirmlupe ein Suchen von vorn.
+   */
+  const erledigt = suche['ok'] === '1';
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerTexte = PFLICHTWEG_FEHLER_TEXTE[sprache].barriere;
 
   return (
     <section data-cse="barriere-feedback"
@@ -115,19 +142,15 @@ export async function FeedbackSeiteFuer(
       <p className="max-w-[72ch] text-base text-text-muted">{t.einleitung}</p>
 
       {erledigt && (
-        <p role="status" data-cse="barriere-danke"
-           className="max-w-[72ch] rounded-md border border-success bg-success-soft p-s4 text-base text-text">
-          {sprache === 'en'
-            ? 'Thank you. Your report has arrived.'
-            : 'Vielen Dank. Ihre Meldung ist angekommen.'}
-        </p>
+        <Hinweis art="erfolg" rolle="status" cse="barriere-danke" className="max-w-[72ch]">
+          {t.danke}
+        </Hinweis>
       )}
 
-      {meldung !== undefined && (
-        <p role="alert" data-cse="barriere-meldung"
-           className="max-w-[72ch] rounded-md border border-danger bg-danger-soft p-s4 text-base text-text">
-          {meldung}
-        </p>
+      {fehler !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="barriere-meldung" className="max-w-[72ch]">
+          {eigenerEintrag(fehlerTexte.fehler, fehler) ?? fehlerTexte.sonst}
+        </Hinweis>
       )}
 
       <form
