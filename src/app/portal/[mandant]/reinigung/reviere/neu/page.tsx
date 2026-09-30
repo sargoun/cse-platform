@@ -7,7 +7,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
-import { REVIER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { REVIER_FEHLER_TEXTE, REVIER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { RevierFormular, type ObjektAuswahl } from '../../RevierFormular';
 import { Recht } from '@/components/ui/Recht';
 
@@ -67,7 +68,15 @@ export default async function RevierNeu(
   const darf = await haeltRechte(
     zugang.sitzung, 'reinigung.schreiben', 'reinigung.lesen', 'objekt.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /*
+   * Eine Abweisung aus `POST /api/reinigung/reviere` kommt als GRUND
+   * (`?fehler=`, V-275, D-769) und wird hier ein Satz in der Sprache der
+   * Sitzung — nur als eigener Eintrag nachgeschlagen (D-728). Ein Wort, das
+   * die Tabelle nicht kennt, wird der allgemeine Satz, nie das Wort selbst.
+   */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const tF = nachSprache(REVIER_FEHLER_TEXTE, zugang.sprache);
+  const fehlerText = fehler === null ? null : (eigenerEintrag(tF.fehler, fehler) ?? tF.sonst);
 
   const objekte = darf['objekt.lesen'] !== true ? [] : await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -95,9 +104,9 @@ export default async function RevierNeu(
     >
       <h1 className="mb-s5 mt-0 text-h1 text-text">{t.neuTitel}</h1>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="revier-meldung" className="mb-s5 max-w-prose">
-          {meldung}
+      {fehlerText !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="revier-fehler" className="mb-s5 max-w-prose">
+          <strong>{tF.titel}</strong> {fehlerText}
         </Hinweis>
       )}
 

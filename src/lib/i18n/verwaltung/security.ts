@@ -18,6 +18,10 @@
  * eine Stunde daneben läge.
  */
 import type { InternSprache } from '../intern.js';
+import type { VeranstaltungGrund } from '../../../server/services/security/veranstaltung-anlegen.js';
+import type {
+  BewacherErfolg, BewacherGrund,
+} from '../../../server/services/security/bewacherregister.js';
 
 export interface VeranstaltungTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
@@ -195,5 +199,152 @@ export const VERANSTALTUNG_TEXTE: Readonly<Record<InternSprache, VeranstaltungTe
     veranstaltungAnlegen: 'Create event',
     aenderungenSpeichern: 'Save changes',
     keinSchreibrechtAnlegen: 'Creating one requires',
+  },
+};
+
+/**
+ * Warum eine Veranstaltung nicht gespeichert wurde — als SATZ, nachgeschlagen
+ * nach dem GRUND, den `POST /api/security/veranstaltungen` als `?fehler=`
+ * zurückschickt (V-275, D-773, D-769).
+ *
+ * Bis dahin reiste der deutsche Satz des Dienstes als `?meldung=` mit und
+ * stand roh über dem Formular — deutsch auch in einer englischen Sitzung, und
+ * jeder präparierte Link schrieb seine eigene Warnung. Die Seite schlägt nur
+ * als eigenen Eintrag nach (D-728); ein Grund, den die Tabelle nicht kennt,
+ * bekommt `sonst`, nie den Schlüssel und nie Text aus der Adresse.
+ *
+ * **Ohne die Werte, die der Dienst einsetzt:** welches der beiden Zeitfelder
+ * die Form verfehlt, wie viele Schichten noch offen sind — die Seite sagt
+ * den Satz ohne sie (D-769 Nr. 5).
+ */
+export interface VeranstaltungFehlerTexte {
+  /** Die fett gesetzten ersten Worte des Kastens (DESIGN §5 „Notices"). */
+  readonly titel: string;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<VeranstaltungGrund, string>>;
+}
+
+export const VERANSTALTUNG_FEHLER_TEXTE:
+Readonly<Record<InternSprache, VeranstaltungFehlerTexte>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Die Veranstaltung wurde nicht gespeichert. Prüfen Sie die Angaben und versuchen '
+      + 'Sie es noch einmal.',
+    fehler: {
+      id_fehlt:
+        'Welche Veranstaltung gemeint ist, fehlt — öffnen Sie sie aus der Liste heraus.',
+      bezeichnung_fehlt: 'Eine Veranstaltung braucht eine Bezeichnung.',
+      kunde_fehlt:
+        'Eine Veranstaltung wird für einen Kunden bewacht — bitte den Kunden wählen.',
+      ort_fehlt:
+        'Eine Veranstaltung braucht einen Ort: entweder ein Objekt dieser Gesellschaft oder '
+        + 'eine Anschrift als Text. Ohne beides weiss die Wache nicht, wohin sie fährt.',
+      zeitpunkt_ungueltig:
+        'Beginn und Ende brauchen je ein Datum und eine Uhrzeit, beides Berliner Zeit.',
+      fenster_ungueltig:
+        'Das Ende liegt vor dem Beginn oder auf ihm. Eine Veranstaltung über Mitternacht '
+        + 'endet am Folgetag — dann gehört der nächste Tag ins Feld.',
+      zahl_ungueltig:
+        'Die Sollbesetzung ist eine ganze Zahl von 1 bis 999, die erwartete Besucherzahl '
+        + 'eine ganze Zahl ab 0.',
+      nicht_angelegt:
+        'Die Veranstaltung wurde nicht angelegt. Prüfen Sie, ob Ihr Konto in dieser '
+        + 'Gesellschaft die Security bearbeiten darf.',
+      veranstaltung_unbekannt:
+        'Diese Veranstaltung gibt es in dieser Gesellschaft nicht mehr, oder sie ist '
+        + 'archiviert — die Liste zeigt den aktuellen Stand.',
+      einsaetze_offen:
+        'Für diese Veranstaltung stehen noch Schichten in der Zukunft. Erst die Einteilung '
+        + 'auflösen, dann archivieren — sonst fährt jemand zu einem Termin, den es nicht '
+        + 'mehr gibt.',
+    },
+  },
+  en: {
+    titel: 'Not saved.',
+    sonst: 'The event was not saved. Check the details and try again.',
+    fehler: {
+      id_fehlt: 'Which event is meant is missing — open it from the list.',
+      bezeichnung_fehlt: 'An event needs a name.',
+      kunde_fehlt: 'An event is guarded for a Kunde (customer) — please choose one.',
+      ort_fehlt:
+        'An event needs a location: either an Objekt (site) of this Gesellschaft or an '
+        + 'address as free text. Without either, the guard does not know where to go.',
+      zeitpunkt_ungueltig:
+        'Start and end each need a date and a time, both in Berlin time.',
+      fenster_ungueltig:
+        'The end is before the start or equal to it. An event running past midnight ends on '
+        + 'the following day — then the next date belongs in the field.',
+      zahl_ungueltig:
+        'The required headcount is a whole number from 1 to 999, the expected visitors a '
+        + 'whole number from 0.',
+      nicht_angelegt:
+        'The event was not created. Check whether your account may edit security in this '
+        + 'Gesellschaft (legal entity).',
+      veranstaltung_unbekannt:
+        'This event no longer exists in this Gesellschaft, or it has been archived — the '
+        + 'list shows the current state.',
+      einsaetze_offen:
+        'Shifts in the future are still scheduled for this event. Remove the staffing first, '
+        + 'then archive — otherwise someone drives to an appointment that no longer exists.',
+    },
+  },
+};
+
+/**
+ * Was nach einem Schreibversuch im Bewacherregister oben auf der Liste steht —
+ * nachgeschlagen nach dem SCHLÜSSEL aus `?erfolg=` bzw. dem GRUND aus
+ * `?fehler=` (V-275, D-773, D-769).
+ *
+ * Bis dahin schickte `POST /api/security/bewacherregister` die Sätze selbst in
+ * `?ok=` und `?fehler=`, und die Seite zeigte sie roh — bei einem unbekannten
+ * Eintrag mit dessen voller Kennung. **Nur deutsch, in derselben Form wie die
+ * zweisprachigen Tabellen:** die Seite steht noch auf der Ausnahmeliste der
+ * Übersetzungswache; stellt jemand sie um, kommt hier nur `en` dazu.
+ *
+ * Ein unbekannter Erfolgsschlüssel zeigt keinen Kasten (wie auf der
+ * Eingangsrechnung, V-216); ein unbekannter Grund bekommt `sonst`.
+ */
+export interface BewacherregisterTexte {
+  /** Die ersten Worte des Erfolgskastens. */
+  readonly gespeichert: string;
+  readonly erfolg: Readonly<Record<BewacherErfolg, string>>;
+  /** Die ersten Worte des Warnkastens. */
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<BewacherGrund, string>>;
+}
+
+export const BEWACHERREGISTER_TEXTE: Readonly<Record<'de', BewacherregisterTexte>> = {
+  de: {
+    gespeichert: 'Gespeichert.',
+    erfolg: {
+      erfasst: 'Der Registereintrag ist erfasst — handerfasst, ohne Abgleich.',
+      fortgeschrieben:
+        'Der Registereintrag ist fortgeschrieben; die Änderung steht im Protokoll.',
+    },
+    titel: 'Nicht gespeichert.',
+    sonst: 'Der Registereintrag wurde nicht gespeichert. Prüfen Sie die Angaben und '
+      + 'versuchen Sie es noch einmal.',
+    fehler: {
+      pflichtangaben_fehlen: 'Person, Bewacher-ID und Status sind Pflicht.',
+      eintrag_fehlt:
+        'Welcher Registereintrag fortgeschrieben werden soll, fehlt — öffnen Sie ihn aus '
+        + 'der Liste heraus.',
+      bewacher_id_ungueltig:
+        'Die Bewacher-ID hat 1 bis 32 Zeichen. Ein Format wird nicht geprüft — welches gilt, '
+        + 'ist offen (O-40).',
+      status_unbekannt:
+        'Diesen Status kennt das Register nicht — bitte einen aus der Auswahl nehmen.',
+      datum_ungueltig:
+        '„Registriert seit", „Gültig bis" und die beiden Prüfdaten sind Kalendertage.',
+      zeitraum_ungueltig: '„Gültig bis" liegt vor „Registriert seit".',
+      nicht_angelegt:
+        'Der Eintrag wurde nicht angelegt — die Person ist in dieser Gesellschaft nicht '
+        + 'sichtbar, oder Ihr Konto darf hier nicht schreiben.',
+      eintrag_unbekannt:
+        'Diesen Registereintrag gibt es in dieser Gesellschaft nicht mehr, oder er ist '
+        + 'erloschen — die Liste zeigt den aktuellen Stand.',
+    },
   },
 };

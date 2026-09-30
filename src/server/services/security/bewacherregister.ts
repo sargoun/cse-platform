@@ -90,9 +90,32 @@ export const REGISTERVERBINDUNG = 'nicht_verbunden' as const;
 // TODO(client, O-707): In welchem Vorlauf ist eine ablaufende Bewacher-Erlaubnis zu melden, und gehoert die Schwelle in den Eintrag (wie qualifikation.warnung_tage) oder gilt eine feste Frist fuer alle?
 export const BEWACHER_VORWARNUNG_TAGE = 60;
 
+/**
+ * Warum ein Registereintrag NICHT erfasst oder fortgeschrieben wurde — als
+ * Schlüssel (V-275, D-773, D-769). `POST /api/security/bewacherregister`
+ * schickt ihn als `?fehler=<grund>` zurück auf die Liste, und die Seite
+ * schlägt ihn nach (`BEWACHERREGISTER_TEXTE`). Bis dahin stand der Satz
+ * dieses Dienstes roh in `?fehler=` — bei einem unbekannten Eintrag mit
+ * dessen voller Kennung.
+ *
+ * Die ersten beiden stellt die Route selbst fest (das Formular kam
+ * unvollständig), die übrigen dieser Dienst.
+ */
+export const BEWACHER_GRUENDE = [
+  'pflichtangaben_fehlen', 'eintrag_fehlt',
+  'bewacher_id_ungueltig', 'status_unbekannt', 'datum_ungueltig', 'zeitraum_ungueltig',
+  'nicht_angelegt', 'eintrag_unbekannt',
+] as const;
+export type BewacherGrund = (typeof BEWACHER_GRUENDE)[number];
+
+/** Was nach einem gespeicherten Eintrag als `?erfolg=` zurückkommt (V-275) — nie ein Satz. */
+export const BEWACHER_ERFOLGE = ['erfasst', 'fortgeschrieben'] as const;
+export type BewacherErfolg = (typeof BEWACHER_ERFOLGE)[number];
+
 export class EintragNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  readonly grund = 'eintrag_unbekannt' as const satisfies BewacherGrund;
   constructor(was: string) {
     super(`Für ${was} gibt es in dieser Gesellschaft keinen Registereintrag.`);
     this.name = 'EintragNichtGefunden';
@@ -102,7 +125,10 @@ export class EintragNichtGefunden extends Error {
 export class BewacherEingabeFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(
+    nachricht: string,
+    readonly grund: Exclude<BewacherGrund, 'pflichtangaben_fehlen' | 'eintrag_fehlt' | 'eintrag_unbekannt'>,
+  ) {
     super(nachricht);
     this.name = 'BewacherEingabeFehlt';
   }
@@ -401,11 +427,11 @@ function pruefeFelder(e: EintragEingabe): {
   if (bewacherId === '' || bewacherId.length > 32) {
     throw new BewacherEingabeFehlt(
       'Die Bewacher-ID hat 1 bis 32 Zeichen. Ein Format wird nicht geprüft — '
-      + 'welches gilt, ist offen (O-40).');
+      + 'welches gilt, ist offen (O-40).', 'bewacher_id_ungueltig');
   }
   if (!BEWACHER_STATUS.includes(e.status)) {
     throw new BewacherEingabeFehlt(
-      `Der Status ist einer von: ${BEWACHER_STATUS.join(', ')}.`);
+      `Der Status ist einer von: ${BEWACHER_STATUS.join(', ')}.`, 'status_unbekannt');
   }
   const felder: [string | null | undefined, string][] = [
     [e.registriertSeit, 'Registriert seit'],
@@ -417,14 +443,14 @@ function pruefeFelder(e: EintragEingabe): {
   for (const [wert, name] of felder) {
     const w = wert === undefined || wert === null || wert === '' ? null : wert;
     if (w !== null && !DATUM.test(w)) {
-      throw new BewacherEingabeFehlt(`„${name}" ist ein Kalendertag.`);
+      throw new BewacherEingabeFehlt(`„${name}" ist ein Kalendertag.`, 'datum_ungueltig');
     }
     werte.push(w);
   }
   const [registriertSeit, gueltigBis, letzte, naechste] = werte;
   if (registriertSeit != null && gueltigBis != null && gueltigBis < registriertSeit) {
     throw new BewacherEingabeFehlt(
-      '„Gültig bis" liegt vor „Registriert seit" (bewacher_zeitraum).');
+      '„Gültig bis" liegt vor „Registriert seit" (bewacher_zeitraum).', 'zeitraum_ungueltig');
   }
   return {
     bewacherId,
@@ -466,7 +492,7 @@ export async function erfasseEintrag(
   if (zeile === undefined) {
     throw new BewacherEingabeFehlt(
       'Der Eintrag wurde nicht angelegt — die Person ist in dieser Gesellschaft '
-      + 'nicht sichtbar, oder die Sitzung darf hier nicht schreiben.');
+      + 'nicht sichtbar, oder die Sitzung darf hier nicht schreiben.', 'nicht_angelegt');
   }
   return { id: zeile.id };
 }

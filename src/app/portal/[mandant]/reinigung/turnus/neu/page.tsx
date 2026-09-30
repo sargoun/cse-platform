@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { berlinHeute } from '@/server/db/heute';
-import { tagePlus } from '@/lib/datum/kalendertag';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
 import { Hinweis } from '@/components/ui/Hinweis';
@@ -33,6 +32,8 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { FEIERTAG_TEXTE } from '@/lib/i18n/verwaltung/feiertage';
+import { TURNUS_ANLAGE_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { vorschauFehlerSatz, vorschauFenster } from '../rueckmeldung';
 
 /**
  * `/portal/[mandant]/reinigung/turnus/neu` — eine Regel bauen und VORHER
@@ -121,14 +122,17 @@ export default async function TurnusNeu(
   const fehlerAusApi = einer(suche['fehler']);
   /*
    * Ein abgewiesener Anker kommt als SCHLÜSSEL (V-192) und wird hier ein Satz
-   * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen noch
-   * als Satz (D-599-Altlast, D-686 Nr. 7) — die Seite zeigt ihn nicht: was in
-   * der Adresse steht, kann jeder hineinschreiben, und ein Wort, das die Seite
-   * nicht kennt, wird ein allgemeiner Satz (V-250). Was die Eingabe verfehlt,
-   * sagt die Vorschau, die dieselbe Regel liest.
+   * in der Sprache der Sitzung. Die übrigen Abweisungen der Route kommen seit
+   * V-275 ebenfalls als Grund (D-769) und werden ein Satz aus
+   * `TURNUS_ANLAGE_TEXTE` — nur als eigener Eintrag nachgeschlagen (D-728).
+   * Was in der Adresse steht, kann jeder hineinschreiben: ein Wort, das die
+   * Seite nicht kennt, wird der allgemeine Satz (V-250), nie das Wort selbst.
    */
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const ankerFehler = fehlerAusApi === null ? undefined : eigenerEintrag(tL.fehler, fehlerAusApi);
+  const tA = TURNUS_ANLAGE_TEXTE.de;
+  const anlageFehler = fehlerAusApi === null
+    ? null : (eigenerEintrag(tA.fehler, fehlerAusApi) ?? tA.sonst);
 
   /* ---- die Eingabe, wie sie aus der Vorschaurunde zurückkommt ----------- */
   const istVorschau = einer(suche['vorschau']) !== null;
@@ -162,12 +166,16 @@ export default async function TurnusNeu(
       });
     } catch (fehler) {
       if (!(fehler instanceof SerieEingabeFehlt)) throw fehler;
-      regelFehlerText = fehler.message;
+      /*
+       * Der SATZ zum Grund, nie die Meldung (V-275): die wiederholte den
+       * Wochentag aus der Adresse — „„<Text>" ist kein Wochentag".
+       */
+      regelFehlerText = vorschauFehlerSatz(fehler);
     }
   }
 
-  const fenster = { vonDatum: gueltigAb > heute ? gueltigAb : heute, bisDatum: '' };
-  fenster.bisDatum = tagePlus(fenster.vonDatum, VORSCHAU_TAGE);
+  /* Nie aus einem `?gueltig_ab=`, das kein Kalendertag ist — daran warf die Seite (V-275). */
+  const fenster = vorschauFenster(gueltigAb, heute, VORSCHAU_TAGE);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -248,7 +256,12 @@ export default async function TurnusNeu(
         [], daten.feiertagsKarte, fenster,
       );
     } catch (fehler) {
-      vorschauFehler = fehler instanceof Error ? fehler.message : String(fehler);
+      /*
+       * Die Meldung der Vorschau nannte Feldnamen des Quelltexts und
+       * wiederholte die Angabe aus der Adresse („… ist kein Kalendertag:
+       * <Text>"). Jetzt ein Satz der Seite (V-275).
+       */
+      vorschauFehler = vorschauFehlerSatz(fehler);
     }
   }
 
@@ -284,14 +297,11 @@ export default async function TurnusNeu(
       </p>
 
       {fehlerAusApi !== null && (
-        <Hinweis art="warnung" cse="turnus-api-fehler" className="mb-s5 max-w-prose">
+        <Hinweis art="warnung" rolle="alert" cse="turnus-api-fehler" className="mb-s5 max-w-prose">
           {ankerFehler !== undefined ? (
             <><strong>{tL.nichtAngelegt}</strong>{' '}{ankerFehler}</>
           ) : (
-            <>
-              <strong>Nicht angelegt.</strong> Prüfen Sie die Angaben in der Vorschau und legen
-              Sie die Serie von dort noch einmal an.
-            </>
+            <><strong>{tA.titel}</strong> {anlageFehler}</>
           )}
         </Hinweis>
       )}
@@ -658,7 +668,6 @@ export default async function TurnusNeu(
                 data-cse="turnus-anlegen-formular"
                 className="mt-s5 rounded-lg border border-line bg-surface p-s5"
               >
-                <input type="hidden" name="mandant" value={mandant} />
                 <input type="hidden" name="art" value="turnus" />
                 <input type="hidden" name="revier" value={gewaehltesRevier ?? ''} />
                 <input type="hidden" name="leistung" value={gewaehlteLeistung ?? ''} />

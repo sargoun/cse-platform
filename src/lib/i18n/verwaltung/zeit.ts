@@ -15,6 +15,8 @@
  * gelesen haben — deshalb steht es am Feld und nicht in einer Fussnote.
  */
 import type { InternSprache } from '../intern.js';
+import type { LaufendGrund } from '../../../server/services/zeit/laufender-eintrag.js';
+import type { NacherfassungGrund } from '../../../server/services/zeit/nacherfassung.js';
 
 export interface LaufendTexte {
   readonly aufklappen: string;
@@ -80,6 +82,132 @@ export const LAUFEND_TEXTE: Readonly<Record<InternSprache, LaufendTexte>> = {
       'Closing or cancelling a running entry requires a right you do not hold. '
       + 'A forgotten end of shift otherwise stays open — and while it does, the '
       + 'same person cannot clock in again.',
+  },
+};
+
+/**
+ * Warum ein laufender Eintrag nicht geschlossen oder storniert wurde — als
+ * SATZ, nachgeschlagen nach dem GRUND, den `POST /api/zeit/laufend` als
+ * `?fehler=` zurückschickt (V-275, D-773, D-769).
+ *
+ * Bis dahin reiste der deutsche Satz des Dienstes als `?meldung=` mit und
+ * stand roh auf dem Live-Brett — bei `nicht_gefunden` mit der vollen Kennung
+ * des Eintrags, und jeder präparierte Link schrieb seine eigene Warnung. Die
+ * Seite schlägt jetzt nur als eigenen Eintrag nach (D-728); ein Grund, den
+ * die Tabelle nicht kennt, bekommt `sonst`, nie den Schlüssel und nie Text
+ * aus der Adresse. Die Sprache ist die der Sitzung wie beim Formular darüber
+ * (`LAUFEND_TEXTE`), auch wenn die Seite selbst noch auf der Ausnahmeliste
+ * steht (wie D-753).
+ *
+ * **`nicht_gefunden` nennt den häufigen Fall:** der Eintrag läuft nicht mehr,
+ * weil jemand anders ihn inzwischen geschlossen oder storniert hat — der
+ * Dienst ändert nur Einträge, die noch laufen.
+ */
+export interface LaufendFehlerTexte {
+  /** Die fett gesetzten ersten Worte des Kastens (DESIGN §5 „Notices"). */
+  readonly titel: string;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<LaufendGrund, string>>;
+}
+
+export const LAUFEND_FEHLER_TEXTE: Readonly<Record<InternSprache, LaufendFehlerTexte>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Der Eintrag wurde nicht geändert. Prüfen Sie die Angaben und versuchen Sie es '
+      + 'noch einmal.',
+    fehler: {
+      nicht_gefunden:
+        'Dieser Eintrag läuft nicht mehr — jemand hat ihn inzwischen geschlossen oder '
+        + 'storniert, oder es gibt ihn in dieser Gesellschaft nicht. Die Seite zeigt den '
+        + 'aktuellen Stand.',
+      ende_fehlt: 'Ohne Feierabendzeit lässt sich der Eintrag nicht schliessen.',
+      pause_ungueltig: 'Die Pause ist eine ganze Zahl von Minuten, mindestens null.',
+      begruendung_zu_kurz:
+        'Eine gesetzte Arbeitszeit braucht eine Begründung. Im Streitfall steht sonst da, '
+        + 'dass jemand eine Zahl eingetragen hat.',
+      fenster_ungueltig:
+        'Das Ende liegt vor dem Beginn oder auf ihm. Eine Nachtschicht endet am Folgetag — '
+        + 'dann gehört der nächste Tag in das Feld.',
+      ende_in_zukunft:
+        'Das Ende liegt in der Zukunft. Ein Feierabend, der noch nicht war, lässt sich '
+        + 'nicht nacherfassen.',
+      grund_zu_kurz:
+        'Eine Stornierung braucht einen Grund — sie ist der Vorgang, mit dem erfasste '
+        + 'Arbeitszeit verschwindet.',
+    },
+  },
+  en: {
+    titel: 'Not saved.',
+    sonst: 'The entry was not changed. Check the details and try again.',
+    fehler: {
+      nicht_gefunden:
+        'This entry is no longer running — someone has closed or cancelled it in the '
+        + 'meantime, or it does not exist in this Gesellschaft (legal entity). The page '
+        + 'shows the current state.',
+      ende_fehlt: 'Without an end time the entry cannot be closed.',
+      pause_ungueltig: 'The break is a whole number of minutes, zero or more.',
+      begruendung_zu_kurz:
+        'A working time set by the office needs a reason. Otherwise, in a dispute, all the '
+        + 'record shows is that someone typed in a number.',
+      fenster_ungueltig:
+        'The end is before the start or equal to it. A night shift ends on the following '
+        + 'day — then the next date belongs in the field.',
+      ende_in_zukunft:
+        'The end lies in the future. An end of shift that has not happened yet cannot be '
+        + 'recorded afterwards.',
+      grund_zu_kurz:
+        'Cancelling needs a reason — it is the step by which recorded working time '
+        + 'disappears.',
+    },
+  },
+};
+
+/**
+ * Warum eine Arbeitszeit nicht nacherfasst wurde — der Satz zum GRUND, den
+ * `POST /api/zeit/nacherfassung` als `?fehler=` zurückschickt (V-275, D-773,
+ * D-769).
+ *
+ * **Nur deutsch, in derselben Form wie die zweisprachigen Tabellen:**
+ * `/zeiten/nacherfassung` steht noch auf der Ausnahmeliste der
+ * Übersetzungswache und ist fest deutsch; stellt jemand sie um, kommt hier
+ * nur `en` dazu. Die Seite schlägt nur als eigenen Eintrag nach (D-728), ein
+ * unbekannter Grund bekommt `sonst`.
+ *
+ * Die Sätze nennen kein Recht als Schlüssel (D-741) und keine Kennung; die
+ * Beschäftigung, um die es ging, steht im Formular darüber.
+ */
+export interface NacherfassungFehlerTexte {
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<NacherfassungGrund, string>>;
+}
+
+export const NACHERFASSUNG_FEHLER_TEXTE: Readonly<Record<'de', NacherfassungFehlerTexte>> = {
+  de: {
+    titel: 'Nicht nacherfasst.',
+    sonst: 'Es wurde keine Zeit eingetragen. Prüfen Sie die Angaben und versuchen Sie es '
+      + 'noch einmal.',
+    fehler: {
+      begruendung_zu_kurz:
+        'Eine nacherfasste Arbeitszeit braucht eine Begründung. Im Lohnstreit steht sonst '
+        + 'da, dass jemand eine Zahl eingetragen hat.',
+      fenster_ungueltig:
+        'Das Ende liegt vor dem Beginn oder auf ihm. Eine Nachtschicht endet am Folgetag — '
+        + 'dann gehört der nächste Tag in das Feld.',
+      pause_ungueltig: 'Die Pause ist eine ganze Zahl von Minuten, mindestens null.',
+      kein_nacherfassungsrecht:
+        'Eine Arbeitszeit nachträglich einzutragen ist eine Entscheidung über die Zeit eines '
+        + 'anderen Menschen. Dafür fehlt Ihrem Konto das Recht, Nacherfassungen zu prüfen.',
+      beginn_in_zukunft:
+        'Der Beginn liegt in der Zukunft. Nacherfasst wird, was gearbeitet wurde.',
+      nicht_selbst:
+        'Das ist Ihre eigene Arbeitszeit. Niemand erfasst die eigene Aufzeichnung nach: Sie '
+        + 'melden eine Abweichung, eine andere Person entscheidet darüber.',
+      nicht_angelegt:
+        'Diese Beschäftigung gibt es in dieser Gesellschaft nicht, oder Ihrem Konto fehlt das '
+        + 'Recht, Zeiten zu erfassen. Es wurde nichts eingetragen.',
+    },
   },
 };
 

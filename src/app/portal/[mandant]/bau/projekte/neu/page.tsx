@@ -7,7 +7,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
-import { PROJEKT_TEXTE } from '@/lib/i18n/verwaltung/bau';
+import { PROJEKT_FEHLER_TEXTE, PROJEKT_TEXTE } from '@/lib/i18n/verwaltung/bau';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { auftraegeOhneProjekt } from '@/server/services/bau/projekt';
 import {
   ProjektFormular, type AuftragAuswahl, type BauleitungAuswahl,
@@ -61,7 +62,15 @@ export default async function ProjektNeu(
    */
   const darf = await haeltRechte(zugang.sitzung, 'bau.schreiben', 'bau.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  /*
+   * Eine Abweisung aus `POST /api/bau/projekte` kommt als GRUND (`?fehler=`,
+   * V-275, D-769) und wird hier ein Satz in der Sprache der Sitzung — nur als
+   * eigener Eintrag nachgeschlagen (D-728). Ein Wort, das die Tabelle nicht
+   * kennt, wird der allgemeine Satz, nie das Wort selbst.
+   */
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const tF = nachSprache(PROJEKT_FEHLER_TEXTE, zugang.sprache);
+  const fehlerText = fehler === null ? null : (eigenerEintrag(tF.fehler, fehler) ?? tF.sonst);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -100,9 +109,9 @@ export default async function ProjektNeu(
     >
       <h1 className="mb-s5 mt-0 text-h1 text-text">{t.neuTitel}</h1>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="projekt-meldung" className="mb-s5 max-w-prose">
-          {meldung}
+      {fehlerText !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="projekt-fehler" className="mb-s5 max-w-prose">
+          <strong>{tF.titel}</strong> {fehlerText}
         </Hinweis>
       )}
 
