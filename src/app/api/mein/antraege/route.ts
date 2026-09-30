@@ -4,6 +4,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
 import {
@@ -51,7 +52,13 @@ import { datenbankGrund, datenbankStatus, ohneSitzungBeschaeftigte } from '../fo
  */
 export const dynamic = 'force-dynamic';
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * Ein Tag ist ein Kalendertag, den es gibt — `istGueltigerKalendertag`, nicht
+ * nur das Muster `JJJJ-MM-TT` (D-771 Nachtrag). Das Muster allein liess
+ * `2025-02-31` bis an ein `::date` durch, und die Datenbank antwortete mit
+ * 22008. Hier fing `datenbankGrund` das als `kein_datum` auf — jetzt fällt
+ * der Tag vor der Datenbank, mit demselben Grund.
+ */
 /** Die Maske, auf die jede Abweisung zurueckfuehrt — das einzige Formular dieses Wegs. */
 const MASKE = '/portal/mein/antraege/neu';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -109,7 +116,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (antragsartId === null) {
     return grundAufsFormularweg(anfrage, daten, 'keine_antragsart', 400, rueckweg);
   }
-  if ((von !== null && !DATUM.test(von)) || (bis !== null && !DATUM.test(bis))) {
+  if ((von !== null && !istGueltigerKalendertag(von))
+      || (bis !== null && !istGueltigerKalendertag(bis))) {
     return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400, rueckweg);
   }
 

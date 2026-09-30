@@ -26,7 +26,7 @@
  * Formeln gesucht.
  */
 import { istFeiertag } from '@/lib/datum/feiertage-berlin';
-import { tagePlus } from '@/lib/datum/kalendertag';
+import { istGueltigerKalendertag, tagePlus } from '@/lib/datum/kalendertag';
 import { milliMenge, type MilliMenge } from '../finanz/menge.js';
 
 /** Wochentage als ISO-Zahlen: 1 = Montag … 7 = Sonntag. */
@@ -81,7 +81,14 @@ function wochentag(datum: string): Wochentag {
  * halbieren.
  */
 export function rechneTage(eingabe: TageEingabe): MilliMenge {
-  if (!/^\d{4}-\d{2}-\d{2}$/u.test(eingabe.von) || !/^\d{4}-\d{2}-\d{2}$/u.test(eingabe.bis)) {
+  /*
+   * **Ein Tag, den es gibt — nicht nur die Form `JJJJ-MM-TT`** (D-771
+   * Nachtrag). Das Muster allein liess `2025-02-31` durch: Node rollte ihn
+   * lautlos auf den 3. März und zählte einen Tag, den es nicht gibt, bevor
+   * die Datenbank am `::date` mit 22008 abwies; `2025-13-01` warf in
+   * `tagePlus` einen RangeError. Beides endete als 500.
+   */
+  if (!istGueltigerKalendertag(eingabe.von) || !istGueltigerKalendertag(eingabe.bis)) {
     throw new ZeitraumFehler('Zeitraum erwartet zwei Kalendertage als JJJJ-MM-TT.', 'kein_datum');
   }
   if (eingabe.bis < eingabe.von) {

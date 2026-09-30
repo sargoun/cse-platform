@@ -22,6 +22,7 @@
  * Ausweisregister.
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
 
 export interface Stammdaten {
   /** `JJJJ-MM-TT` — ein Kalendertag, kein Zeitpunkt (Invariante 2). */
@@ -41,6 +42,11 @@ export interface Stammdaten {
 export class KeinStammdatenRecht extends Error {
   readonly code = 'kein_recht';
   readonly status = 404;
+  /**
+   * Der Grund wie bei jeder Klasse dieser Datei (D-771). Kein Rückweg schickt
+   * ihn: die Stammdatenseite fängt die Klasse selbst und sagt „Gesperrt.".
+   */
+  readonly grund = 'kein_recht';
   constructor() {
     super(
       'Kein Recht auf Stammdaten in dieser Gesellschaft '
@@ -50,10 +56,18 @@ export class KeinStammdatenRecht extends Error {
   }
 }
 
+/**
+ * Warum `schreibeStammdaten` eine Eingabe abweist — der GRUND, der als
+ * `?fehler=` auf die Stammdatenseite zurückreist (D-771, D-769, V-273). Der
+ * Satz der Klasse bleibt deutsch und geht nur an eine Schnittstelle (D-599).
+ */
+export const STAMMDATEN_GRUENDE = ['geburtsdatum_ungueltig', 'staat_ungueltig'] as const;
+export type StammdatenGrund = (typeof STAMMDATEN_GRUENDE)[number];
+
 export class StammdatenEingabeFehler extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(readonly grund: StammdatenGrund, nachricht: string) {
     super(nachricht);
     this.name = 'StammdatenEingabeFehler';
   }
@@ -62,13 +76,20 @@ export class StammdatenEingabeFehler extends Error {
 export class PersonNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  /** Der Grund für `?fehler=` (D-771) — der Satz unten trägt die Kennung, die Seite nicht. */
+  readonly grund = 'nicht_gefunden';
   constructor(id: string) {
     super(`Diesen Menschen gibt es in dieser Gesellschaft nicht (${id}).`);
     this.name = 'PersonNichtGefunden';
   }
 }
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * **Jeder Kalendertag dieser Datei wird mit `istGueltigerKalendertag`
+ * geprüft** — einen Tag, den es gibt, nicht nur die Form `JJJJ-MM-TT`. Das
+ * Muster allein liess den 31. Februar durch, und die Datenbank antwortete am
+ * `::date` mit 22008: eine 500 statt eines Satzes (D-771 Nachtrag).
+ */
 const ISO2 = /^[A-Za-z]{2}$/u;
 
 /**
@@ -151,8 +172,8 @@ export async function schreibeStammdaten(
 
   if (eingabe.geburtsdatum !== undefined) {
     const geburtsdatum = eingabe.geburtsdatum?.trim() ?? '';
-    if (geburtsdatum !== '' && !DATUM.test(geburtsdatum)) {
-      throw new StammdatenEingabeFehler(
+    if (geburtsdatum !== '' && !istGueltigerKalendertag(geburtsdatum)) {
+      throw new StammdatenEingabeFehler('geburtsdatum_ungueltig',
         'Das Geburtsdatum erwartet einen Kalendertag als JJJJ-MM-TT.');
     }
     nimm('geburtsdatum', geburtsdatum === '' ? null : geburtsdatum, '::date');
@@ -166,7 +187,7 @@ export async function schreibeStammdaten(
   if (eingabe.staatsangehoerigkeit !== undefined) {
     const staat = eingabe.staatsangehoerigkeit?.trim() ?? '';
     if (staat !== '' && !ISO2.test(staat)) {
-      throw new StammdatenEingabeFehler(
+      throw new StammdatenEingabeFehler('staat_ungueltig',
         'Die Staatsangehörigkeit erwartet den zweibuchstabigen Ländercode nach '
         + 'ISO 3166-1 alpha-2 — „DE", „TR", „SY". Das ist die Form, in der das '
         + 'Bewacherregister sie verlangt (SEC-03).');

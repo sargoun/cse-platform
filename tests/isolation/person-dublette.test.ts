@@ -20,6 +20,10 @@
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
+import {
+  ZusammenfuehrenFehler, fuehreZusammen,
+} from '../../src/server/services/personal/dublette.js';
 
 let f: Fixtur;
 let darfMergen = '';
@@ -59,6 +63,17 @@ function als<T>(
 ): Promise<T> {
   return alsApp(
     { scope: 'mandant', mandantId, benutzerId, portal: 'intern', readonly: false }, fn);
+}
+
+/** Ein Kontext auf DERSELBEN Transaktion — der Dienst wird geprueft, keine Kopie. */
+function kontextAus(tx: postgres.TransactionSql, benutzerId: string): SchreibKontext {
+  const fuehre = async <T>(q: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+    tx.unsafe(q, (w ?? []) as never[]) as unknown as readonly T[];
+  return {
+    scope: 'mandant', portal: 'intern', benutzerId,
+    aktiverMandantId: f.reinigung, mandantIds: [f.reinigung],
+    abfrage: fuehre, schreibe: fuehre,
+  } satisfies LeseKontext & SchreibKontext;
 }
 
 beforeEach(async () => {
@@ -179,6 +194,83 @@ describe('(2) app.person_zusammenfuehren', () => {
         },
         (tx) => tx`select app.person_zusammenfuehren(${dublette}, ${f.fatima}, 'Dublette')`),
     ).rejects.toThrow(/aktive Gesellschaft|Gruppenansicht/u);
+  });
+});
+
+describe('(2b) `fuehreZusammen` macht aus den Abweisungen der Funktion Gruende (D-771 Nachtrag)', () => {
+  /*
+   * **Der Befund.** Der Dienst reichte jede Abweisung von
+   * `app.person_zusammenfuehren` roh weiter, und die Route machte daraus eine
+   * 500 — beim zweiten Klick auf „Zusammenfuehren", bei einer Dublette aus
+   * der Schwestergesellschaft, bei einer Kette. Geprueft wird hier am ECHTEN
+   * Satz der Funktion, nicht an einer Abschrift: aendert 0194 einen davon,
+   * faellt dieser Fall und nicht erst ein Mensch am Formular.
+   */
+  const auditZeilen = async (): Promise<number> => Number((await sql.unsafe<{ n: string }[]>(
+    `select count(*) n from audit_log where aktion = 'personal.person_zusammengefuehrt'`))[0]!.n);
+
+  /** Der Wurf des Dienstes — oder `null`, wenn er zusammengefuehrt hat. */
+  async function zusammen(
+    dublettePersonId: string, fuehrendPersonId: string, benutzer = darfMergen,
+  ): Promise<unknown> {
+    const [z] = await sql.unsafe<{ nachname: string }[]>(
+      `select nachname from person where id = $1`, [fuehrendPersonId.toLowerCase()]);
+    return als(benutzer, (tx) => fuehreZusammen(kontextAus(tx, benutzer), {
+      dublettePersonId, fuehrendPersonId, grund: 'Doppelt angelegt', bestaetigung: z!.nachname,
+    })).then(() => null, (fehler: unknown) => fehler);
+  }
+
+  function grundVon(fehler: unknown): string {
+    expect(fehler).toBeInstanceOf(ZusammenfuehrenFehler);
+    return (fehler as ZusammenfuehrenFehler).grund;
+  }
+
+  it('der Normalfall bleibt einer: kein Wurf, der Zeiger steht', async () => {
+    expect(await zusammen(dublette, f.fatima)).toBeNull();
+    const [z] = await sql.unsafe<{ ziel: string | null }[]>(
+      `select zusammengefuehrt_in_person_id as ziel from person where id = $1`, [dublette]);
+    expect(z?.ziel).toBe(f.fatima);
+  });
+
+  it('ein zweites Zusammenfuehren derselben Zeile ist `bereits_zusammengefuehrt` — der erste Zeiger bleibt', async () => {
+    expect(await zusammen(dublette, f.fatima)).toBeNull();
+    const vorher = await auditZeilen();
+    expect(grundVon(await zusammen(dublette, f.jonas))).toBe('bereits_zusammengefuehrt');
+    const [z] = await sql.unsafe<{ ziel: string | null }[]>(
+      `select zusammengefuehrt_in_person_id as ziel from person where id = $1`, [dublette]);
+    expect(z?.ziel).toBe(f.fatima);
+    expect(await auditZeilen(), 'eine Abweisung protokolliert keine Zusammenfuehrung').toBe(vorher);
+  });
+
+  it('eine Dublette, die nur die Schwestergesellschaft beschaeftigt, ist `nicht_beide_hier` (O-611)', async () => {
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into person (vorname, nachname) values ('Fatma', 'Yilidz') returning id`);
+    await sql.unsafe(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt)
+       values ($1, $2, 'S-9099', '2024-03-01')`, [f.security, fremd!.id]);
+    expect(grundVon(await zusammen(fremd!.id, f.fatima))).toBe('nicht_beide_hier');
+  });
+
+  it('eine fuehrende Zeile, die selbst schon zusammengefuehrt ist, ist `fuehrend_zusammengefuehrt`', async () => {
+    expect(await zusammen(dublette, f.fatima)).toBeNull();
+    expect(grundVon(await zusammen(f.jonas, dublette))).toBe('fuehrend_zusammengefuehrt');
+  });
+
+  it('eine Zeile, auf die schon eine Dublette zeigt, ist `dublette_ist_fuehrend`', async () => {
+    expect(await zusammen(dublette, f.fatima)).toBeNull();
+    expect(grundVon(await zusammen(f.fatima, f.jonas))).toBe('dublette_ist_fuehrend');
+  });
+
+  it('dieselbe Zeile in anderer Schreibweise der Kennung — erst die Datenbank sieht es: `dieselbe_zeile`', async () => {
+    /* Der Dienst vergleicht Zeichenketten, die Funktion Kennungen. */
+    expect(grundVon(await zusammen(dublette.toUpperCase(), dublette))).toBe('dieselbe_zeile');
+  });
+
+  it('was nicht in der Liste steht, bleibt ein Wurf — hier das fehlende Recht (42501)', async () => {
+    /* Die Route fragt das Recht vorher (`authorize`); der Dienst erfindet keine Abweisung. */
+    const fehler = await zusammen(dublette, f.fatima, darfNicht);
+    expect(fehler).not.toBeInstanceOf(ZusammenfuehrenFehler);
+    expect((fehler as { code?: unknown }).code).toBe('42501');
   });
 });
 

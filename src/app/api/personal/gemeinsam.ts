@@ -2,13 +2,12 @@ import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
-import {
-  anmeldungsAntwort, autorisierungsAntwort, ohneSitzungAntwort,
-} from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { internesZiel, istGleicherUrsprung } from '@/server/auth/ursprung';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { db } from '@/server/db/pool';
 import { type SchreibKontext, withTenant } from '@/server/kontext/index';
+import { grundAufsFormular } from '../formular-antwort';
 import { liesRumpf, type Rumpf } from '../rumpf';
 
 /**
@@ -21,13 +20,15 @@ import { liesRumpf, type Rumpf } from '../rumpf';
  * **Ein Formular darf nicht auf einer weissen Seite mit JSON enden.** Die
  * Portalformulare haben kein JavaScript; ein `{"fehler":"…"}` nach dem
  * Absenden hat den Menschen verloren — sein Entwurf ist weg, der Rueckweg ist
- * der Zurueck-Knopf. Ein Dienstfehler geht deshalb als `?meldung=` auf die
- * Seite zurueck, die ihn ausloeste, und die Seite sagt den Satz. Ein
+ * der Zurueck-Knopf. Ein Dienstfehler geht deshalb als `?fehler=<grund>` auf
+ * die Seite zurueck, die ihn ausloeste, und die Seite schlaegt ihren Satz
+ * nach (D-771; bis V-273 reiste der Satz des Dienstes als `?meldung=`). Ein
  * JSON-Aufrufer bekommt seinen Status.
  *
- * **Was `authorize` wirft, uebersetzt `server/auth/antwort.ts`.** Wer das
- * nicht faengt, beantwortet ein FEHLENDES RECHT mit 500 — und 500 sagt „hier
- * ist etwas", wo AUT-06 nichts sagen will.
+ * **Was `authorize` wirft, uebersetzt `server/auth/antwort.ts` — und zwar
+ * zuerst.** Wer das nicht faengt, beantwortet ein FEHLENDES RECHT mit 500 —
+ * und 500 sagt „hier ist etwas", wo AUT-06 nichts sagen will. Wer es nach der
+ * allgemeinen Weiche faengt, schickt es als Abweisung aufs Formular.
  */
 
 /** Der Wegweiser, wenn `zurueck` nicht in diese Anwendung zeigt (D-560). */
@@ -86,37 +87,61 @@ export async function fuehrePersonalAus(
       }))) as string;
   } catch (fehler: unknown) {
     /*
-     * Die Anmeldung ZUERST (D-766): `NichtAngemeldetFehler` und
-     * `ZweiterFaktorFehler` tragen `status` und `code` wie ein Dienstfehler
-     * und liefen unten als `?meldung=` zurück aufs Formular — ein Formular,
-     * das ohne Sitzung oder Faktor nicht abgeschickt werden kann.
+     * **Die Anmeldung und das Recht ZUERST** (D-766, D-769 Nr. 7, D-771).
+     * `NichtGefundenFehler` (ein fehlendes Recht, ein fremder Mandant),
+     * `NichtAngemeldetFehler` und `ZweiterFaktorFehler` tragen `status` und
+     * `code` wie ein Dienstfehler. Stand die allgemeine Weiche unten davor,
+     * wurde ein fehlendes Recht `?meldung=Nicht gefunden` auf dem Formular
+     * statt der byte-gleichen 404 aller Schreibwege (AUT-06, D-656 Nr. 2) —
+     * eine Antwort, an der sich „gibt es nicht" von „darf nicht" unterschied.
      */
-    const anmeldung = anmeldungsAntwort(fehler, anfrage, { felder: rumpf });
-    if (anmeldung !== null) return anmeldung;
-    const status = (fehler as { status?: number }).status;
-    const code = (fehler as { code?: string }).code;
-    const meldung = (fehler as { message?: string }).message ?? '';
-    if (typeof status === 'number' && typeof code === 'string') {
-      if (rumpf.json) {
-        return NextResponse.json({ fehler: code, meldung }, { status });
-      }
-      const zurueck = rumpf.felder['zurueck'];
-      if (zurueck !== undefined && zurueck !== '') {
-        const trenner = zurueck.includes('?') ? '&' : '?';
-        return NextResponse.redirect(
-          internesZiel(
-            `${zurueck}${trenner}meldung=${encodeURIComponent(meldung)}`,
-            HEIMWEG, anfrage),
-          303);
-      }
-      return NextResponse.json({ fehler: code, meldung }, { status });
-    }
     const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: rumpf });
     if (autorisierung !== null) return autorisierung;
+    const status = (fehler as { status?: unknown }).status;
+    const code = (fehler as { code?: unknown }).code;
+    if (typeof status === 'number' && typeof code === 'string') {
+      /*
+       * **Zurück aufs Formular reist nur der GRUND** (D-769, D-771): nie der
+       * Satz des Dienstes. Der ist deutsch, trägt eine Kennung
+       * (`AnstellungNichtGefunden`, `PersonNichtGefunden`), die Eingabe
+       * (`PersonalnummerVergeben`) oder einen Namen aus der Datenbank
+       * (`DubletteImHaus`) — und eine Seite, die `?meldung=` zeigte, zeigte
+       * auch jeden Satz aus einem präparierten Link. Die Seite schlägt den
+       * Grund in ihrer Tabelle nach; eine Schnittstelle bekommt `{ fehler,
+       * meldung }` mit Status wie bisher (D-599).
+       */
+      const meldung = (fehler as { message?: unknown }).message;
+      const aufsFormular = grundAufsFormular(anfrage, {
+        json: rumpf.json, zurueck: rumpf.felder['zurueck'], grund: grundDes(fehler, code),
+      });
+      if (aufsFormular !== null) return aufsFormular;
+      return NextResponse.json(
+        { fehler: code, meldung: typeof meldung === 'string' ? meldung : '' }, { status });
+    }
     throw fehler;
   }
 
   if (rumpf.json) return NextResponse.json({ ergebnis: 'ok' }, { status: 200 });
   return NextResponse.redirect(
     internesZiel(lauf.ziel(slug), HEIMWEG, anfrage), 303);
+}
+
+/** Ein Schlüssel und nichts sonst — kein Leerzeichen, kein Satz, keine Kennung. */
+const SCHLUESSEL = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u;
+
+/**
+ * Der Grund, mit dem eine Abweisung aufs Formular zurückreist: der `grund`
+ * der Fehlerklasse (jede Klasse der Personaldienste trägt einen, D-771),
+ * sonst ihr `code` — wie in D-753.
+ *
+ * **Nur, was ein Schlüssel ist, reist.** Ein `grund`, der doch ein Satz ist
+ * (so heissen Felder anderer Dienste, die den Text einer SQL-Funktion
+ * weiterreichen), fällt auf den `code` zurück — nie in die Adresse. Und ist
+ * auch der keiner, reist `abgewiesen`: die Seite kennt ihn nicht und sagt
+ * ihren allgemeinen Satz.
+ */
+function grundDes(fehler: unknown, code: string): string {
+  const eigener = (fehler as { grund?: unknown }).grund;
+  if (typeof eigener === 'string' && SCHLUESSEL.test(eigener)) return eigener;
+  return SCHLUESSEL.test(code) ? code : 'abgewiesen';
 }

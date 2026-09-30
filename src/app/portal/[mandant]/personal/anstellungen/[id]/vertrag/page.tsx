@@ -5,12 +5,12 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
-import { Hinweis } from '@/components/ui/Hinweis';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { Recht } from '@/components/ui/Recht';
+import { VERTRAG_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
 import {
   findeAnstellung, leseKonditionen,
@@ -18,6 +18,7 @@ import {
 } from '@/server/services/personal/anstellung';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { PersonalAbweisung } from '../../../abweisung';
 
 /**
  * `/portal/[mandant]/personal/anstellungen/[id]/vertrag` — Personalnummer und
@@ -72,7 +73,6 @@ export default async function Vertragsblatt({
     'personal.anstellung_beenden');
 
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -129,11 +129,8 @@ export default async function Vertragsblatt({
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="vertrag-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {meldung}
-        </Hinweis>
-      )}
+      <PersonalAbweisung saetze={VERTRAG_RUECKWEG.de} grund={suche['fehler']}
+                         cse="vertrag-meldung" />
 
       <form
         method="post"

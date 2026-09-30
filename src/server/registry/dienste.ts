@@ -2257,6 +2257,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'personal', pfad: 'personal/einstellung',
     schreibend: true, schreibRecht: 'personal.schreiben',
   },
+  /*
+   * Die vergebene Personalnummer als EINE Klasse für Einstellen und Vertrag
+   * (V-273, D-771 Nachtrag) — liest nichts, schreibt nichts; geschrieben wird
+   * in `personal/einstellung` und `personal/anstellung`.
+   */
+  { modul: 'personal', pfad: 'personal/personalnummer', schreibend: false },
 
   /**
    * **Die Stapelmappe (APR-02, APR-04).** Rein LESEND: sie legt zu jedem

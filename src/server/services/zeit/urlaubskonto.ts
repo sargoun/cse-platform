@@ -58,6 +58,19 @@ export interface UrlaubsanspruchRegel {
   anspruchTage(eingabe: AnspruchEingabe): MilliMenge | null;
 }
 
+/**
+ * Die Jahre, für die es ein Urlaubskonto geben kann — abgelesen aus
+ * `uk_jahr_bereich` (0061: `check (jahr between 2000 and 2100)`), nicht
+ * gewählt (V-273, D-771 Nachtrag).
+ *
+ * Die Route `personal/urlaubsanspruch` beantwortet ein Jahr ausserhalb damit
+ * VOR der Datenbank mit einem Grund; vorher wurde der 23514 der Prüfung eine
+ * 500. Die Wahrheit bleibt die Prüfung der Datenbank, und
+ * `tests/kern/personal-kalendertag.test.ts` liest sie in der Migration nach:
+ * ändert sich eine Grenze dort, fällt die Prüfung hier.
+ */
+export const URLAUBSJAHR_GRENZEN = { von: 2000, bis: 2100 } as const;
+
 export class UrlaubsanspruchOffenFehler extends Error {
   readonly code = 'nicht_konfiguriert';
   readonly status = 409;

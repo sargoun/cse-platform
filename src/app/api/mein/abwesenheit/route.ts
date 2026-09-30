@@ -8,6 +8,7 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { nichtGefundenAntwort } from '@/server/auth/antwort';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/index';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
 import {
@@ -59,7 +60,13 @@ import { datenbankGrund, datenbankStatus, ohneSitzungBeschaeftigte } from '../fo
  */
 export const dynamic = 'force-dynamic';
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * Ein Tag ist ein Kalendertag, den es gibt — `istGueltigerKalendertag`, nicht
+ * nur das Muster `JJJJ-MM-TT` (D-771 Nachtrag). Das Muster allein liess
+ * `2025-02-31` bis an ein `::date` durch, und die Datenbank antwortete mit
+ * 22008 (hier von `datenbankGrund` aufgefangen) — `2025-13-01` warf schon
+ * vorher in `rechneTage` einen RangeError, und der war eine 500.
+ */
 /** Die Maske, auf die jede Abweisung zurueckfuehrt — das einzige Formular dieses Wegs. */
 const MASKE = '/portal/mein/abwesenheit/neu';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -114,8 +121,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (abwesenheitsartId === null) {
     return grundAufsFormularweg(anfrage, daten, 'keine_art', 400, rueckweg);
   }
-  if (von === null || bis === null || !DATUM.test(von) || !DATUM.test(bis)
-      || (auBis !== null && !DATUM.test(auBis))) {
+  if (von === null || bis === null
+      || !istGueltigerKalendertag(von) || !istGueltigerKalendertag(bis)
+      || (auBis !== null && !istGueltigerKalendertag(auBis))) {
     return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400, rueckweg);
   }
 

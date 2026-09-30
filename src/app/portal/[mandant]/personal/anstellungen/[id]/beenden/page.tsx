@@ -3,7 +3,7 @@ import type postgres from 'postgres';
 import type { ReactNode } from 'react';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
-import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { istGueltigerKalendertag, tagDeutsch } from '@/lib/datum/kalendertag';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Button } from '@/components/ui/Button';
@@ -13,12 +13,14 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { berlinHeute } from '@/server/db/heute';
+import { BEENDEN_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import {
   beendigungsfolgen, findeAnstellung,
   type AnstellungZeile, type Beendigungsfolgen,
 } from '@/server/services/personal/anstellung';
 import { mandantTor, MandantAntwort } from '../../../../../unterseite';
 import { kennungOder404 } from '../../../../../kennung';
+import { PersonalAbweisung } from '../../../abweisung';
 
 /**
  * `/portal/[mandant]/personal/anstellungen/[id]/beenden` — Austritt und Grund
@@ -126,11 +128,14 @@ export default async function Beendenblatt({
     zugang.sitzung, 'personal.lesen', 'personal.schreiben', 'personal.entgelt_lesen');
 
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const heute = await berlinHeute();
   const rohAustritt = typeof suche['austritt'] === 'string' ? suche['austritt'] : null;
+  /* Ein Tag, den es gibt — `?austritt=2025-02-31` fällt auf heute zurück, statt
+     die Folgenabfrage mit einem Tag zu fragen, den die Datenbank ablehnt (D-771).
+     Das Muster steht davor, damit auch die Wache über die Adresse
+     (`tests/kern/hilfen/adressparameter.ts`) den Wert als geprüft liest. */
   const vorschau = rohAustritt !== null && /^\d{4}-\d{2}-\d{2}$/u.test(rohAustritt)
-    ? rohAustritt : heute;
+    && istGueltigerKalendertag(rohAustritt) ? rohAustritt : heute;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -192,11 +197,8 @@ export default async function Beendenblatt({
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="beenden-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {meldung}
-        </Hinweis>
-      )}
+      <PersonalAbweisung saetze={BEENDEN_RUECKWEG.de} grund={suche['fehler']}
+                         cse="beenden-meldung" />
 
       {beendet && (
         <Hinweis art="hinweis" cse="beenden-bereits" className="mb-s5 max-w-prose">

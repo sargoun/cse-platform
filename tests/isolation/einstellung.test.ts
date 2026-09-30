@@ -25,7 +25,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  DubletteImHaus, dublettenProbe, stelleEin,
+  DubletteImHaus, PersonalnummerVergeben, dublettenProbe, stelleEin,
 } from '../../src/server/services/personal/einstellung.js';
 
 let f: Fixtur;
@@ -271,5 +271,54 @@ describe('(4) `geplant` hat einen Ausgang (0368)', () => {
     const [nach] = await sql.unsafe<{ status: string }[]>(
       `select status from anstellung where id = $1`, [a!.id]);
     expect(nach?.status).toBe('geplant');
+  });
+});
+
+describe('(5) zwei gleichzeitige Anlagen mit derselben Nummer: die zweite bekommt einen Grund, keine 500 (D-771 Nachtrag)', () => {
+  /*
+   * Die Vorabfrage auf die Personalnummer ist die Hoeflichkeit, der
+   * Constraint `anstellung_personalnummer_uk` die Wahrheit. Eine Anlage, die
+   * zwischen Frage und INSERT einer anderen festgeschrieben wird, sieht die
+   * Frage nicht. Nachgestellt, indem der Kontext genau DIESE Abfrage leer
+   * beantwortet — alles andere geht an die echte Transaktion, und das INSERT
+   * trifft den echten Constraint.
+   */
+  function ohneVorabfrage(k: SchreibKontext): SchreibKontext {
+    const blind = async <T>(q: string, w?: readonly unknown[]): Promise<readonly T[]> =>
+      (/from anstellung\s+where mandant_id = \$1::uuid and personalnummer = \$2/u.test(q)
+        ? [] : k.abfrage<T>(q, w));
+    return { ...k, abfrage: blind };
+  }
+
+  it('mit einem bestehenden Menschen: `PersonalnummerVergeben`, und die Nummer steht einmal', async () => {
+    const fehler = await als(personal, (tx) =>
+      stelleEin(ohneVorabfrage(kontextAus(tx, personal, f.reinigung)), {
+        mensch: { art: 'bestehend', personId: f.jonas },
+        personalnummer: 'R-1001',   // Fatimas Nummer in der Reinigung (Fixtur)
+        eintritt: '2025-06-01',
+      })).then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(PersonalnummerVergeben);
+    expect((fehler as PersonalnummerVergeben).grund).toBe('personalnummer_vergeben');
+    expect((fehler as PersonalnummerVergeben).code).toBe('ungueltiger_zustand');
+
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*) n from anstellung where mandant_id = $1 and personalnummer = 'R-1001'`,
+      [f.reinigung]);
+    expect(Number(n!.n)).toBe(1);
+  });
+
+  it('mit einem neuen Menschen: auch die `person`-Zeile davor bleibt nicht zurueck', async () => {
+    const nachname = `Kollision-${zufall()}`;
+    const fehler = await als(personal, (tx) =>
+      stelleEin(ohneVorabfrage(kontextAus(tx, personal, f.reinigung)), {
+        mensch: { art: 'neu', vorname: 'Aylin', nachname, telefon: null, sprache: 'tr' },
+        personalnummer: 'R-1002',   // die Nummer von Jonas (Fixtur)
+        eintritt: '2025-06-01',
+      })).then(() => null, (e: unknown) => e);
+    expect(fehler).toBeInstanceOf(PersonalnummerVergeben);
+
+    const [n] = await sql.unsafe<{ n: string }[]>(
+      `select count(*) n from person where nachname = $1`, [nachname]);
+    expect(Number(n!.n), 'EINE Transaktion: der Mensch ohne Beschaeftigung ist mit ihr zurueckgerollt').toBe(0);
   });
 });

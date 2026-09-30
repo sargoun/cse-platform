@@ -1,4 +1,5 @@
 import 'server-only';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 
 /**
  * **Einen Qualifikationsnachweis aufnehmen, bestätigen, widerrufen**
@@ -36,7 +37,7 @@ export class NachweisFehler extends Error {
   constructor(
     nachricht: string,
     readonly grund: 'unvollstaendig' | 'nicht_gefunden' | 'abgewiesen'
-      | 'dokument_fehlt' | 'schon_vorhanden' | 'grund_fehlt' | 'zeitraum',
+      | 'dokument_fehlt' | 'schon_vorhanden' | 'grund_fehlt' | 'zeitraum' | 'kein_datum',
     readonly status = 400,
   ) {
     super(nachricht);
@@ -97,6 +98,21 @@ export async function nimmNachweisAuf(
   if (e.gueltigAb.trim() === '') {
     throw new NachweisFehler(
       'Ohne Beginn der Gültigkeit entsteht kein Nachweis.', 'unvollstaendig');
+  }
+
+  /*
+   * **Jeder Tag, der in die Zeile geht, ist einer, den es gibt** (D-771
+   * Nachtrag). Beginn, Ende und Ausstellungstag gingen ungeprüft an
+   * `::date`; `2026-02-30` beantwortete die Datenbank mit 22008 und die Route
+   * mit einer 500. Geprüft wird VOR der ersten Abfrage — mit der Form, die
+   * das Formular (`type="date"`) schickt; leer heisst weiter „nicht genannt".
+   */
+  for (const tag of [e.gueltigAb, e.gueltigBis, e.ausgestelltAm]) {
+    if (tag !== null && tag !== undefined && tag.trim() !== ''
+        && !istGueltigerKalendertag(tag.trim())) {
+      throw new NachweisFehler(
+        'Ein Datum ist kein Kalendertag als JJJJ-MM-TT.', 'kein_datum');
+    }
   }
 
   const [q] = await db.abfrage<QualiRoh>(

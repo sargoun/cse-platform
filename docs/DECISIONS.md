@@ -23272,3 +23272,279 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 
 | Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
 |---|---|
+
+### D-771 · Die sechs Personalformulare kommen mit einem Grund zurück — das Recht vor der Abweisung, kein Satz, keine Kennung und keine Eingabe in der Adresse (V-273, Teil „personal" von D-769)
+
+**Der Befund** (Schlussdurchgang, Gruppe rueckweg-schluessel). `fuehrePersonalAus`
+(`api/personal/gemeinsam.ts`), das Gerüst von sechs Schreibwegen, schickte die
+`message` JEDES Fehlers mit numerischem `status` und einem `code` als
+`?meldung=` auf die Seite des Formulars zurück. Einstellen, Vertrag, Entgelt,
+Beenden, Stammdaten und Zusammenführen zeigten den Text roh im Warnkasten:
+zwei Sätze mit voller Kennung („Beschäftigung 5b0d6c1e-… gibt es in dieser
+Gesellschaft nicht.", „Diesen Menschen gibt es in dieser Gesellschaft nicht
+(…)."), vier mit der Eingabe (die Personalnummer auf zwei Wegen, der getippte
+Betrag, der Tag „gilt ab"), zwei mit einem Namen aus der Datenbank (Dublette,
+zusammengeführte Zeile), sechs mit einem Datum der Zeile (Ein- und Austritt,
+Perioden der Konditionen), einer mit einem Namen aus dem Quelltext („`person`
+trägt keinen Mandanten") — und jeder präparierte Link schrieb seine eigene
+Systemmeldung in den Kasten. Keine der 14 Fehlerklassen der vier Dienste trug
+einen Grund. Und weil diese allgemeine Weiche VOR `autorisierungsAntwort`
+stand, wurde ein fehlendes Recht (`NichtGefundenFehler` trägt `status` 404 und
+einen `code`) zu `?meldung=Nicht gefunden` auf dem Formular statt der
+byte-gleichen 404 aller Schreibwege (AUT-06, D-656 Nr. 2).
+
+**Die Entscheidung** (setzt D-769 für diesen Teil um):
+
+1. **Das Recht zuerst.** Der Fangzweig von `fuehrePersonalAus` fragt
+   `autorisierungsAntwort` vor der allgemeinen `status`/`code`-Weiche: ein
+   fehlendes Recht ist die 404 aller Schreibwege, auch hinter einem Formular;
+   ohne Sitzung oder zweiten Faktor geht es auf die Anmeldung bzw. den
+   Faktor-Schritt mit `weiter=` (D-766), nie auf den Rückweg des Formulars.
+2. **Jede Fehlerklasse trägt einen getypten Grund.** In
+   `services/personal/{einstellung,anstellung,dublette,stammdaten}.ts` hat
+   jede der 14 Klassen einen `grund`. Eine Klasse mit mehreren Anlässen nimmt
+   ihn im Konstruktor, als Vereinigungstyp aus einer Liste
+   (`EINSTELLUNG_GRUENDE`, `VERTRAG_AENDERN_GRUENDE`,
+   `BEENDEN_EINGABE_GRUENDE`, `KONDITION_GRUENDE`, `STICHTAG_GRUENDE`,
+   `BEENDIGUNG_GRUENDE`, `ZUSAMMENFUEHREN_GRUENDE`, `STAMMDATEN_GRUENDE`);
+   eine Klasse mit einem Anlass trägt ihn fest (`nicht_gefunden`,
+   `personalnummer_vergeben`, `dublette_im_haus`, `person_nicht_sichtbar`,
+   `bestaetigung_falsch`, `kein_recht`). `VertragEingabeFehler` hat vier
+   Listen, eine je Weg, der ihn wirft — damit jede Seite genau die Sätze
+   führt, die ihre Route schicken kann, und keinen der Nachbarseite. Die zwei
+   `kein_recht`-Klassen schickt keine Route (Entgelt- und Stammdatenseite
+   fragen das Recht vorher bzw. fangen die Klasse selbst); sie tragen den
+   Grund, damit keine Klasse dieser Dateien ohne einen ist. Der deutsche Satz
+   jeder Klasse bleibt unverändert — er geht nur noch an eine Schnittstelle.
+3. **Die Route schickt den Grund**, über `grundAufsFormular` als
+   `?fehler=<grund>` an `zurueck`: den `grund` der Klasse, sonst ihren `code`
+   (wie D-753). Es reist nur, was ein Schlüssel ist: ein `grund`, der ein Satz
+   ist (anderswo heissen so Texte einer SQL-Funktion), fällt auf den `code`
+   zurück, und ist auch der keiner, reist `abgewiesen`, den keine Seite kennt.
+   Ein Fehler ohne `status` bleibt ein Wurf und damit ein Serverfehler — keine
+   erfundene Abweisung. Der Erfolg reist wie bisher als Schlüssel
+   (`eingestellt=1`, `gespeichert=1`, `zusammengefuehrt=1`) oder ohne
+   Parameter.
+4. **Die Seite schlägt nach.** Je Seite eine Tabelle in
+   `lib/i18n/verwaltung/personal-rueckweg.ts` (`titel`, `sonst`, `fehler`),
+   gezeigt von EINEM Kasten, `PersonalAbweisung`
+   (`portal/[mandant]/personal/abweisung.tsx`): nur `eigenerEintrag`, ein
+   unbekannter Grund (auch `__proto__`, `constructor`) wird `sonst`, der Wert
+   aus der Adresse steht nie auf dem Schirm; `Hinweis` `warnung` mit
+   `role="alert"`. Keine der sechs Seiten liest `?meldung=` noch. Die drei
+   Erfolgskästen (Entgelt, Stammdaten, Zusammenführen) sagen sich mit
+   `role="status"` an. Die `data-cse`-Anker bleiben, wie sie waren.
+5. **Deutsch.** Die sechs Seiten stehen auf der Ausnahmeliste der
+   Übersetzungswache und folgen nicht der Sitzungssprache; ihre Tabellen sind
+   deutsch, aber nach Sprache geschlüsselt wie `ENTSCHEIDUNG_FEHLER_TEXTE`
+   (`NurDeutsch<…>`) — wer eine Seite umstellt, ergänzt `en` und wählt mit
+   `nachSprache`.
+6. **Werte aus den Daten der Seite, nicht aus der Adresse** (D-769 Nr. 5). Die
+   Sätze nennen keinen Wert; was der Satz des Dienstes trug, zeigt die Seite
+   selbst: den Eintritt der Kopf von „Beenden" (schon bisher) und von
+   „Entgelt" (neu: eine Angabe im Kopf, aus der Zeile, die die Seite ohnehin
+   liest), den Austritt die Vertragsseite unter „Nicht hier zu ändern", die
+   Perioden die Tabelle „Konditionen", den gleichnamigen Menschen die
+   Trefferliste der Einstellung. Personalnummer, Betrag, Tag und Name reisen
+   nicht mehr mit.
+7. **Programme bekommen weiter JSON**: `{ fehler: code, meldung }` mit Status
+   (D-599).
+8. **Nicht Teil dieses Schritts:** `fehlerAufsFormular` bleibt stehen, und die
+   Wache `adressparameter` bleibt, wie sie ist — beides macht der Schritt, der
+   die fünf Teile zusammenführt (D-769).
+
+**Geprüft:** `tests/kern/personal-rueckweg.test.ts` — die sechs ECHTEN Routen
+(ersetzt sind Sitzung, Datenbank, Tor und Dienst): jeder Grund jeder
+Fehlerklasse → 303 auf `zurueck` mit genau `fehler=<grund>`, ohne `meldung=`
+und ohne Kennung; ein Fehler ohne eigenen Grund reist mit seinem `code`, ein
+Satz als Grund nie; Erfolg → Ziel mit Schlüssel oder ohne Parameter; JSON wie
+bisher; fehlendes Recht → die byte-gleiche 404; ohne Sitzung bzw. Faktor →
+Anmeldung bzw. Faktor-Schritt, nie der Rückweg; `zurueck` nie nach draussen;
+die zwei Abweisungen der Routen selbst (`betrag_ungueltig` ohne die Eingabe,
+`keine_auswahl` vor dem Dienst); ein Fehler ohne `status` bleibt ein Wurf.
+Dazu die Tabellen (jeder Grund der Route hat einen Satz, keiner ohne Route;
+ohne Kennung, Platzhalter, Datum, Backtick; kein Prototyp-Treffer), der Kasten
+(gerendert: bekannter Grund, unbekannte und präparierte Werte, kein Kasten
+ohne Grund) und der Quelltext der sechs Seiten samt `rohAusDerAdresse` (keine
+Meldung, kein Erfolg, kein Rückfall mehr aus der Adresse; es bleiben die
+Suchwörter). `tests/kern/personal-gruende.test.ts` — die echten Dienste an
+jeder der 41 Wurfstellen (ein Kontext liefert die Zeilen, die dorthin führen)
+mit dem richtigen Grund, und eine Sperrklinke: jede Fehlerklasse der vier
+Dateien trägt einen.
+
+**Nachtrag — die Nebenbefunde dieses Teils** (gemeldet mit V-273, behoben auf
+demselben Zweig):
+
+9. **Der Erfolg kommt auf dem Blatt der Beschäftigung an** (Nebenbefund 1). Einstellen schickte
+   `?eingestellt=1`, und keine Seite las es; Vertrag und Beenden führten ganz
+   ohne Parameter auf dasselbe Blatt — nach dem Absenden stand dort kein Wort.
+   Jetzt schicken Vertrag und Beenden einen Schlüssel
+   (`?erfolg=vertrag_gespeichert`, `?erfolg=beendigung_eingetragen`), und das
+   Blatt (`anstellungen/[id]/page.tsx`) schlägt ihn zusammen mit
+   `?eingestellt=1` in `ANSTELLUNG_ERFOLG` nach — nur als eigener Eintrag —
+   und zeigt ihn mit `PersonalErfolg` (`personal/bestaetigung.tsx`, `Hinweis`
+   `erfolg`, `role="status"`). **Ein unbekannter Schlüssel zeigt nichts**:
+   anders als eine Abweisung hat eine Bestätigung keinen allgemeinen Satz —
+   „gespeichert" zu sagen, ohne zu wissen, was geschah, wäre eine Bestätigung,
+   die ein Link erfinden kann. Die Sätze nennen keinen Wert; Personalnummer,
+   Eintritt und Austritt zeigt das Blatt darunter aus seinen Daten.
+10. **Wochenstunden und Arbeitstage werden gelesen, bevor sie die Datenbank
+    sehen** (Nebenbefund 2). Die beiden Felder der Entgeltseite sind frei, und die Route
+    reichte den rohen Text an `$5::numeric` — „38,5", wie ein deutsches
+    Tastenfeld es schreibt, war ein 22P02 und eine 500. Jetzt liest die Route
+    beide mit `mengeAusEingabe` (`finanz/menge.ts`, der vorhandene Leser für
+    getippte Mengen: Komma und Punkt, höchstens drei Nachkommastellen, nie eine
+    Gleitkommazahl); was keine Zahl ist, wird `wochenstunden_ungueltig` bzw.
+    `arbeitstage_ungueltig`. Der Dienst nimmt nur noch `MilliMenge` — eine rohe
+    Zeichenkette kommt bei ihm nicht mehr an — und fragt VOR jeder Abfrage die
+    Grenzen, die die Datenbank setzt: `ak_stunden_plausibel` (0 bis 168) und
+    `ak_arbeitstage_plausibel` (0 bis 7) aus 0192, als `KONDITION_GRENZEN`
+    abgelesen und von einer Prüfung gegen die Migration festgehalten. Keine
+    Grenze ist erfunden; die Wahrheit bleibt die Prüfung der Datenbank, der
+    Dienst macht aus ihrem 23514 nur vorher einen Satz. „38.5" gilt wie
+    „38,5" (so liest `mengeAusEingabe` jede Menge), leer heisst weiter „nicht
+    hinterlegt".
+11. **Eine vergebene Personalnummer ist EIN Befund mit EINEM Code**
+    (Nebenbefund 4). `PersonalnummerVergeben` gab es zweimal — in
+    `einstellung.ts` mit `ungueltiger_zustand`, in `anstellung.ts` mit
+    `ungueltige_eingabe`, beide mit 409: eine Schnittstelle bekam für dieselbe
+    Kollision zwei Codes, und ein `instanceof` der einen Klasse fing die
+    andere nicht. Jetzt steht die Klasse einmal in
+    `services/personal/personalnummer.ts`, mit `ungueltiger_zustand` — die
+    Kollision liegt am Bestand, nicht an der Form der Eingabe, wie bei
+    `DubletteImHaus` —, und beide Dienste reichen sie unter ihrem Namen durch
+    (kein Aufrufer ändert seinen Import). Kein Test und kein Aufrufer erwartete
+    einen der beiden Codes. Die vier Dienste haben damit 13 Fehlerklassen
+    statt 14; die Sperrklinke zählt `personalnummer.ts` mit. Das
+    Dienstregister (`registry/dienste.ts`) führt das Modul als nicht
+    schreibend — der Gegentest in `tests/kern/portal-shell.test.ts` verlangt
+    jeden Dienst unter `services/` dort.
+12. **Was die Datenbank abweist, wird ein Grund — was sie nicht kennt,
+    bleibt ein Wurf** (Nebenbefund 3). Drei Wege endeten als 500:
+    - **Ein Kalendertag, den es nicht gibt.** Die drei Dienste prüften nur
+      das Muster `JJJJ-MM-TT`; `2025-02-31` kam durch, und die Datenbank
+      antwortete am `::date` mit 22008. Jetzt prüfen `einstellung.ts`,
+      `anstellung.ts` und `stammdaten.ts` jeden Tag mit dem vorhandenen
+      `istGueltigerKalendertag` (`lib/datum/kalendertag.ts`, seit V-217) —
+      vor jeder Abfrage und mit den Gründen, die es schon gab
+      (`eintritt_ungueltig`, `austritt_ungueltig`, `gilt_ab_ungueltig`,
+      `stichtag_ungueltig`, `geburtsdatum_ungueltig`). Die Seiten Beenden und
+      Entgelt lassen einen solchen `?austritt=`/`?stichtag=` auf heute
+      zurückfallen, statt ihre Vorschau damit zu fragen.
+    - **Die gleichzeitige Personalnummer.** Die Vorabfrage beider Dienste
+      sieht eine zweite Anlage nicht, die zwischen Frage und Schreiben
+      festgeschrieben wird; sie lief als 23505 in
+      `anstellung_personalnummer_uk`. `istPersonalnummerKollision`
+      (`personalnummer.ts`) erkennt genau diesen Constraint an Code UND Name
+      (wie `bau/gewerk.ts`) und macht daraus `PersonalnummerVergeben` (Nr. 11),
+      also `personalnummer_vergeben` — denselben Grund wie die Vorabfrage.
+      Ein anderer 23505 bleibt, was er ist.
+    - **Die Abweisungen von `app.person_zusammenfuehren`** (0194): ein zweites
+      Zusammenführen derselben Zeile (Doppelklick, eine Kollegin war
+      schneller), eine Dublette, die nur die Schwestergesellschaft
+      beschäftigt, eine Kette in beide Richtungen. Vier neue Gründe —
+      `bereits_zusammengefuehrt`, `nicht_beide_hier`,
+      `fuehrend_zusammengefuehrt`, `dublette_ist_fuehrend` —, dazu
+      `dieselbe_zeile` und `grund_fehlt`, wenn die Datenbank sie vor dem Dienst
+      sieht (eine Kennung in Grossbuchstaben ist für den Dienst eine andere
+      Zeichenkette, für die Funktion dieselbe Zeile). Erkannt an SQLSTATE UND
+      am Satz der Funktion (`FUNKTION_ABWEISUNGEN` in `dublette.ts`, wie
+      `freigabe/entscheiden.ts`) — einen anderen Schlüssel trägt sie nicht;
+      eine Prüfung liest jeden Satz samt `errcode` in 0194 nach. Die Sätze der
+      Seite wiederholen, was die Funktion selbst begründet (O-611,
+      Invariante 8, der eine Sprung) — keine Regel ist neu. **Was die Route
+      vorher fragt, bleibt ein Wurf**: genau eine aktive Gesellschaft, die
+      Gruppenansicht, das Recht (42501) sieht `authorize` zuerst, und ein
+      unbekannter Datenbankfehler wird keine erfundene Abweisung.
+13. **Kein Tag, den es nicht gibt, erreicht aus einem Personal- oder
+    Beschäftigtenformular ein `::date`** (Nebenbefund zu Nr. 12, auf
+    Nachfrage). Geprüft wurden alle Routen unter `api/personal/**` und die
+    Abwesenheits-, Antrags- und Urlaubswege unter `api/mein/**`:
+    - `personal/urlaubsanspruch` („Verfällt am") und `personal/abwesenheit`
+      (Von, Bis, „Bescheinigung gültig bis") prüften nur das Muster;
+      `2026-02-30` lief bis `::date`, die Datenbank antwortete mit 22008, und
+      keine der beiden Routen kannte den Fehler — eine 500. Jetzt steht an
+      derselben Stelle `istGueltigerKalendertag`, mit dem Grund, den die Route
+      für ein unlesbares Datum schon hat (`kein_datum`, 400, wie bisher).
+    - `mein/abwesenheit`: den 31.02. fing `datenbankGrund` als `kein_datum`
+      auf, ein Tag im 13. Monat warf aber schon vorher in `rechneTage`
+      (`tagePlus`) einen RangeError — eine 500. `mein/antraege` fing beides
+      über `datenbankGrund` auf. Beide prüfen jetzt vor der Datenbank, mit
+      demselben Grund und derselben Maske.
+    - `rechneTage` (`services/abwesenheit/tage.ts`) prüft selbst mit
+      `istGueltigerKalendertag`: es rollte den 31.02. lautlos in den März und
+      zählte einen Tag, den es nicht gibt. Jetzt `ZeitraumFehler`
+      `kein_datum` für jeden Aufrufer.
+    - `personal/nachweise` prüfte Beginn, Ende und Ausstellungstag gar
+      nicht; `nimmNachweisAuf` reichte sie an drei `::date` — 22008 und eine
+      500, und „01.03.2026" las die Datenbank mit `DateStyle = ISO, MDY` (so
+      die Testdatenbank) lautlos als 3. Januar. Jetzt prüft der Dienst vor der
+      ersten Abfrage die Form, die das Formular (`type="date"`) schickt. Kein
+      vorhandener Grund passte, deshalb ein neuer, `kein_datum`, mit Satz auf
+      beiden Nachweisseiten (de/en, der Wortlaut der Aufnahmeseite der
+      Abwesenheiten). Leer heisst weiter „nicht genannt".
+    - Ohne Befund: die übrigen Routen unter `api/personal/**` tragen keinen
+      Tag (Zugang, Zugangscode, Zusammenführen) oder prüfen seit Nr. 12 mit
+      `istGueltigerKalendertag` (Einstellen, Vertrag, Entgelt, Beenden,
+      Stammdaten).
+14. **Das Urlaubsjahr hat die Grenzen der Datenbank, und ein früher
+    Eingabefehler führt ein Formular zurück** (die beiden Nebenbefunde zu
+    Nr. 13, auf Nachfrage).
+    - `personal/urlaubsanspruch` prüfte das Jahr nur auf vier Ziffern; ein
+      Jahr ausserhalb von `uk_jahr_bereich` (0061: 2000 bis 2100) lief in die
+      Prüfung der Datenbank, 23514, und wurde eine 500. Jetzt prüft die Route
+      VOR der Datenbank gegen `URLAUBSJAHR_GRENZEN`
+      (`services/zeit/urlaubskonto.ts`) — abgelesen aus der Migration, und
+      eine Prüfung liest die Grenzen dort nach. Ein Jahr ausserhalb wird der
+      neue Grund `jahr_ausserhalb` mit einem Satz, der die Grenzen nennt (de/en,
+      ebenfalls gegen die Konstante geprüft); `kein_jahr` („Bitte geben Sie ein
+      Jahr an.") passte auf ein genanntes Jahr nicht.
+    - `personal/abwesenheit` und `personal/urlaubsanspruch` beantworteten ihre
+      frühen Eingabefehler (`keine_anstellung`, `keine_art`, `kein_jahr`,
+      `jahr_ausserhalb`, `kein_anspruch`, `kein_datum`) mit JSON — auch einem
+      Formular mit `fehlerweg`/`zurueck`, auf einer Seite ohne JavaScript eine
+      weisse Seite. Jetzt geht jeder über `grundAufsFormularweg` (D-599,
+      D-766): ein Formular kommt mit dem Grund auf seine Seite zurück, ein
+      Programm ohne beide Felder bekommt weiter `{ fehler }` mit 400. Es reist
+      nur der Grund, keine Eingabe. Die Urlaubskontenseite hatte die Sätze
+      schon; der Aufnahmeseite der Abwesenheiten fehlten `keine_anstellung` und
+      `keine_art` — sie zeigte dafür den allgemeinen Satz — und hat sie jetzt
+      (de/en). Die späteren Abweisungen bleiben, wie sie sind: der
+      Urlaubsanspruch führte sie schon zurück; bei der Abwesenheit führen
+      Zeitraum, Bescheinigung, 23514 und 23P01 zurück, während
+      `AbwesenheitNichtGefunden` und `ArtUngeklaertFehler` weiter in die
+      allgemeine Weiche laufen (JSON mit `meldung`) — nicht Teil dieses
+      Schritts.
+15. **Kein Personalformular bekommt mehr JSON** (der Nebenbefund zu Nr. 14,
+    auf Nachfrage, und die Durchsicht aller Routen unter `api/personal/**`).
+    - `personal/abwesenheit`: `AbwesenheitNichtGefunden` und
+      `ArtUngeklaertFehler` aus `pruefeArt` liefen in die allgemeine Weiche —
+      ein Formular bekam `{ fehler, meldung }`, und die Meldung nannte die Art.
+      Jetzt wie `mein/abwesenheit`: `art_nicht_waehlbar` und `art_ungeklaert`
+      als Grund auf die Aufnahmeseite; ein Programm bekommt dasselbe JSON wie
+      bisher. Eine Anstellung, die es in dieser Gesellschaft nicht gibt, war
+      ein 23503 auf `ab_anstellung_fk` (0073) und eine 500 — jetzt
+      `nicht_gefunden`, für ein Programm die byte-gleiche 404 (AUT-06); ein
+      anderer 23503 bleibt ein Wurf. Die allgemeine Weiche führt ein Formular
+      mit dem Code als Grund zurück (ein Programm bekommt Code und Satz), und
+      „Formular" heisst in der ganzen Route `fehlerweg`, sonst `zurueck` —
+      vorher galt für die Abweisungen des Dienstes nur `fehlerweg`. Ein
+      fehlendes Recht bleibt die byte-gleiche 404: `autorisierungsAntwort`
+      steht vor jeder Weiche. Die Aufnahmeseite hat die drei Sätze neu
+      (de/en), ohne den Namen der Art.
+    - `personal/nachweise` und `personal/zugang` antworteten auf eine
+      unbekannte Handlung und eine fehlende Kennung mit JSON, auch ihrem
+      Formular. Jetzt `grundAufsFormularweg`, mit Sätzen auf beiden Seiten
+      (de/en).
+    - **Bewusst JSON bleiben:** `fremder_ursprung` (403, die
+      Ursprungsprüfung vor allem anderen — kein Formular dieser Anwendung);
+      die `nicht_gefunden`-404 für eine Kennung im Pfad, die keine ist
+      (byte-gleich mit `nichtGefundenAntwort`, AUT-06); `unlesbarer_rumpf` in
+      `gemeinsam.ts` (ein Rumpf, der weder Formular noch JSON ist); und
+      `unvollstaendig` in `zugang-code` — dieses Formular schickt kein
+      `zurueck`, seine Zielseite entsteht erst aus den Werten, die dort
+      fehlen. `urlaubsanspruch` führt die Abweisungen des Dienstes nur über
+      `fehlerweg` zurück; sein Formular schickt ihn.
+
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts`, `src/app/api/personal/{abwesenheit,urlaubsanspruch}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/server/services/abwesenheit/tage.ts`, `src/server/services/nachweis/aufnahme.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/{personal-kalendertag,meldung-rueckweg,antrag-rueckweg}.test.ts`, `tests/isolation/{abwesenheit-aufnehmen,nachweis-aufnehmen}.test.ts`, `src/server/services/zeit/urlaubskonto.ts`, `src/lib/i18n/verwaltung/{urlaubskonten,personal}.ts`, `drizzle/0061_urlaubskonto.sql`, `src/app/api/personal/{nachweise,zugang}/route.ts`, `src/lib/i18n/verwaltung/personal-zugang.ts`, `tests/kern/personal-formularweg.test.ts` |
+|---|---|

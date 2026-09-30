@@ -10,8 +10,10 @@ import { MONATSNAMEN, tagDeutsch } from '@/lib/datum/kalendertag';
 import { stundenMinutenText } from '@/lib/datum/stunden';
 import { formatiereMenge, mengeAusPostgres, tageAusPostgres } from '@/server/services/finanz/menge';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { ANSTELLUNG_ERFOLG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
+import { PersonalErfolg } from '../../bestaetigung';
 
 /**
  * `/portal/[mandant]/personal/anstellungen/[id]` — eine Beschaeftigung in
@@ -84,15 +86,26 @@ function Feld({ label, wert }: { readonly label: string; readonly wert: React.Re
   );
 }
 
-export default async function Anstellungsblatt(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
-) {
+export default async function Anstellungsblatt({
+  params, searchParams,
+}: {
+  params: Promise<{ mandant: string; id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { mandant, id } = await params;
   kennungOder404(id);
   if (!UUID.test(id)) notFound();
   const tor = await mandantTor(`/portal/${mandant}/personal/anstellungen/${id}`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang, mandantId } = tor;
+  /*
+   * Der Erfolg der drei Wege, die hierher zurückführen (D-771 Nachtrag):
+   * Einstellen schickt `?eingestellt=1`, Vertrag und Beenden `?erfolg=`. Nur
+   * ein Schlüssel, den die Tabelle kennt, wird ein Satz — ein anderer zeigt
+   * nichts.
+   */
+  const suche = await searchParams;
+  const erfolg = suche['eingestellt'] === '1' ? 'eingestellt' : suche['erfolg'];
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -236,6 +249,8 @@ export default async function Anstellungsblatt(
           </Link>
         )}
       </nav>
+
+      <PersonalErfolg saetze={ANSTELLUNG_ERFOLG.de} schluessel={erfolg} cse="anstellung-erfolg" />
 
       <section className="mb-s6 rounded-lg border border-line bg-surface p-s5">
         <h2 className="mb-s4 text-h3 text-text">Beschäftigung</h2>

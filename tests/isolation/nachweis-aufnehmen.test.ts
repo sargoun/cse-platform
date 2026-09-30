@@ -212,6 +212,24 @@ describe('§2 was die Datenbank abweist, sagt ein Satz', () => {
       gueltigBis: '2026-05-01',
     }))).rejects.toBeInstanceOf(NachweisFehler);
   });
+
+  it('ein Tag, den es nicht gibt, ist „kein_datum" — vorher eine 22008 der Datenbank (D-771 Nachtrag)', async () => {
+    const [vorher] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from nachweis where person_id = $1`, [personId]);
+    for (const anders of [
+      { gueltigAb: '2026-02-30' }, { gueltigAb: '2026-07-01', gueltigBis: '2026-09-31' },
+      { gueltigAb: '2026-07-02', ausgestelltAm: '2026-13-01' },
+    ]) {
+      const fehler = await imKontext((k) => nimmNachweisAuf(k, {
+        personId, qualifikationId: qUnbefristet, ...anders,
+      })).catch((x: unknown) => x);
+      expect(fehler, JSON.stringify(anders)).toBeInstanceOf(NachweisFehler);
+      expect((fehler as NachweisFehler).grund).toBe('kein_datum');
+    }
+    const [nachher] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from nachweis where person_id = $1`, [personId]);
+    expect(nachher?.n).toBe(vorher?.n);
+  });
 });
 
 describe('§3 die Bestätigung kommt aus der Sitzung', () => {
