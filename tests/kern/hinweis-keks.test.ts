@@ -16,7 +16,7 @@ import { NextResponse } from 'next/server';
 import { RequestCookies } from 'next/dist/compiled/@edge-runtime/cookies/index.js';
 import {
   HINWEIS_HOECHSTENS_BYTES, HINWEIS_KEKS, HINWEIS_KEKS_SEKUNDEN, gekuerzterHinweis,
-  hinweisAusKeks, mitHinweis,
+  hinweisAusKeks, hinweisAusKopf, mitHinweis,
 } from '../../src/server/rueckmeldung/hinweis-keks.js';
 
 const WURZEL = resolve(import.meta.dirname, '../..');
@@ -57,6 +57,33 @@ describe('der Keks', () => {
     expect(hinweisAusKeks(wert, '/portal/security/finanzen/mahnungen')).toBeNull();
     // Ein Wert ohne Zielseite zeigt nichts.
     expect(hinweisAusKeks('3 Mahnungen erstellt.', liste.pathname)).toBeNull();
+  });
+
+  it('zwei Kekse gleichen Namens (Liste, dann Blatt): jede Seite findet ihren', () => {
+    /*
+     * Der Fall aus `tests/e2e/mahnung.spec.ts`: „Entwürfe anlegen" setzt den
+     * Keks der Liste, „Freigeben" Sekunden später den des Blatts. Der Browser
+     * schickt beide, den längeren Pfad zuerst (RFC 6265, 5.4). Nexts
+     * `cookies()` behält nur den LETZTEN — das Blatt sah den Satz der Liste,
+     * verwarf ihn und zeigte nichts.
+     */
+    const liste = new URL('http://localhost:3001/portal/reinigung/finanzen/mahnungen');
+    const blatt = new URL(`${liste.href}/0b6f3c52-2f6d-4c55-9f0e-6c1b1d9a1e01`);
+    const paar = (r: NextResponse): string => (r.headers.get('set-cookie') ?? '').split(';')[0] ?? '';
+    const kopf = [
+      paar(mitHinweis(NextResponse.redirect(blatt, 303), blatt, 'Freigegeben — Nummer MA-2026-0001.')),
+      paar(mitHinweis(NextResponse.redirect(liste, 303), liste, '1 Entwurf angelegt, noch keine Nummer.')),
+    ].join('; ');
+    // Gegenprobe: so hätte die Seite gelesen.
+    expect(hinweisAusKeks(new RequestCookies(new Headers({ cookie: kopf })).get(HINWEIS_KEKS)?.value,
+      blatt.pathname)).toBeNull();
+    expect(hinweisAusKopf(kopf, blatt.pathname)).toBe('Freigegeben — Nummer MA-2026-0001.');
+    expect(hinweisAusKopf(kopf, liste.pathname)).toBe('1 Entwurf angelegt, noch keine Nummer.');
+    expect(hinweisAusKopf(kopf, '/portal/reinigung/finanzen/zahlungen')).toBeNull();
+    expect(hinweisAusKopf(null, liste.pathname)).toBeNull();
+    // Ein kaputter Wert fällt still heraus, der gültige daneben bleibt lesbar.
+    expect(hinweisAusKopf(`${HINWEIS_KEKS}=%E0%A4%A; ${kopf}`, blatt.pathname))
+      .toBe('Freigegeben — Nummer MA-2026-0001.');
   });
 
   it('ohne Satz kein Keks', () => {

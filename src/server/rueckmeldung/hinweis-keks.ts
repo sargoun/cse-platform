@@ -1,5 +1,5 @@
 import type { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { keksSicher } from '@/server/auth/sitzung';
 
 /**
@@ -15,7 +15,10 @@ import { keksSicher } from '@/server/auth/sitzung';
  *
  *  - `path` ist die Zielseite, und der Wert nennt sie noch einmal: `path`
  *    schliesst Unterseiten ein (die Mahnungsliste deckt jedes Mahnungsblatt),
- *    die Seite zeigt den Satz deshalb nur, wenn der Keks IHR gilt.
+ *    die Seite zeigt den Satz deshalb nur, wenn der Keks IHR gilt. Liegen
+ *    zwei Kekse dieses Namens vor (Liste und Blatt), schickt der Browser
+ *    beide; Nexts `cookies()` behielte nur den letzten, also den der Liste.
+ *    Die Seite liest darum den rohen `Cookie`-Kopf (`hinweisAusKopf`).
  *  - `maxAge` 15 Sekunden: er gilt für die Rückkehr nach dem Absenden (der
  *    Browser folgt der Umleitung sofort), nicht für später. Wer die Seite in
  *    diesen Sekunden neu lädt oder wieder aufruft, sieht ihn noch einmal — das
@@ -79,7 +82,28 @@ export function hinweisAusKeks(wert: string | undefined, pfad: string): string |
   return text === '' ? null : text;
 }
 
+/**
+ * Die Rückmeldung für `pfad` aus dem rohen `Cookie`-Kopf — aus JEDEM Keks
+ * dieses Namens, nicht nur dem letzten.
+ */
+export function hinweisAusKopf(kopf: string | null, pfad: string): string | null {
+  if (kopf === null) return null;
+  for (const paar of kopf.split(/; */u)) {
+    const gleich = paar.indexOf('=');
+    if (gleich < 0 || paar.slice(0, gleich).trim() !== HINWEIS_KEKS) continue;
+    let wert: string;
+    try {
+      wert = decodeURIComponent(paar.slice(gleich + 1));
+    } catch {
+      continue;
+    }
+    const hinweis = hinweisAusKeks(wert, pfad);
+    if (hinweis !== null) return hinweis;
+  }
+  return null;
+}
+
 /** Liest die Rückmeldung der Seite `pfad` — oder `null`, wenn es keine gibt. */
 export async function gelesenerHinweis(pfad: string): Promise<string | null> {
-  return hinweisAusKeks((await cookies()).get(HINWEIS_KEKS)?.value, pfad);
+  return hinweisAusKopf((await headers()).get('cookie'), pfad);
 }
