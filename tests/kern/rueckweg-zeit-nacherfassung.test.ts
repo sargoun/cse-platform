@@ -138,9 +138,13 @@ describe('die Sätze der Nacherfassung', () => {
       'eigenerEintrag(ANSPRUCH_FEHLER, anspruchFehler)',
     ]);
     const quelle = readFileSync(resolve(WURZEL, pfad), 'utf8');
-    /* Der Kasten der Ansprüche meldet sich jetzt auch an (DESIGN §9). */
-    expect(quelle).toMatch(/data-cse="anspruch-fehler"\s+role="alert"/u);
-    expect(quelle).toMatch(/data-cse="anspruch-erledigt"\s+role="status"/u);
+    /*
+     * Der Kasten der Ansprüche meldet sich an (DESIGN §9) — und ist der
+     * Hinweis-Baustein, kein Nachbau aus Klassen (DESIGN „Notices“, Review V-275).
+     */
+    expect(quelle).toMatch(/<Hinweis art="warnung" rolle="alert" cse="anspruch-fehler"/u);
+    expect(quelle).toMatch(/<Hinweis art="erfolg" rolle="status" cse="anspruch-erledigt"/u);
+    expect(quelle).not.toMatch(/bg-danger-soft|bg-success-soft/u);
   });
 });
 

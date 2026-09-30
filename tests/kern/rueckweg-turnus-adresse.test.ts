@@ -143,6 +143,10 @@ describe('die Vorschau auf /turnus/neu: der Satz zum Grund, nie die Meldung', ()
     expect(vorschauFenster('Hallo', '2026-09-29', 28))
       .toEqual({ vonDatum: '2026-09-29', bisDatum: '2026-10-27' });
     expect(vorschauFenster('2026-02-31', '2026-01-10', 28).vonDatum).toBe('2026-01-10');
+    // Review V-275: ein Beginn, dessen Fenster über 9999-12-31 hinausliefe, gilt wie ein ungültiger.
+    expect(vorschauFenster('9999-12-04', '2026-09-29', 28)).toEqual({ vonDatum: '2026-09-29', bisDatum: '2026-10-27' });
+    expect(vorschauFenster('9999-12-31', '2026-09-29', 28).vonDatum).toBe('2026-09-29');
+    expect(vorschauFenster('9999-12-03', '2026-09-29', 28)).toEqual({ vonDatum: '9999-12-03', bisDatum: '9999-12-31' });
     expect(vorschauFenster('2026-10-05', '2026-09-29', 28))
       .toEqual({ vonDatum: '2026-10-05', bisDatum: '2026-11-02' });
     expect(vorschauFenster('2026-09-01', '2026-09-29', 28).vonDatum).toBe('2026-09-29');

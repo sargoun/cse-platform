@@ -75,6 +75,14 @@ export function vorschauFehlerSatz(fehler: unknown): string {
 export function vorschauFenster(
   gueltigAb: string, heute: string, tage: number,
 ): { readonly vonDatum: string; readonly bisDatum: string } {
-  const von = istGueltigerKalendertag(gueltigAb) && gueltigAb > heute ? gueltigAb : heute;
+  /*
+   * Das Fenster muss selbst noch aus Kalendertagen bestehen: ab dem
+   * 9999-12-04 (bei 28 Tagen) läge sein Ende jenseits von 9999-12-31, und
+   * `tagePlus` lieferte „+010000-…“ — die Vorschau warf (Review V-275). Ein
+   * solcher Beginn gilt wie ein ungültiger: das Fenster beginnt heute.
+   */
+  const spaetesterBeginn = tagePlus('9999-12-31', -tage);
+  const von = istGueltigerKalendertag(gueltigAb) && gueltigAb > heute && gueltigAb <= spaetesterBeginn
+    ? gueltigAb : heute;
   return { vonDatum: von, bisDatum: tagePlus(von, tage) };
 }

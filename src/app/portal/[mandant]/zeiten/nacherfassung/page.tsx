@@ -320,27 +320,19 @@ export default async function Nacherfassung({
       </details>
 
       {erledigt !== null && (
-        <p
-          data-cse="anspruch-erledigt"
-          role="status"
-          className="mb-s5 rounded-lg border border-success bg-success-soft p-s4 text-sm text-success"
-        >
+        <Hinweis art="erfolg" rolle="status" cse="anspruch-erledigt" className="mb-s5">
           {erledigt === 'abgelehnt'
             ? 'Der Anspruch ist abgelehnt. Er bleibt mit seinem Grund stehen und ist im Lohnstreit vorlegbar (Invariante 8).'
             : 'Der Zeiteintrag ist angelegt — mit Korrekturspur: wer entschieden hat, wann und warum (TIM-11).'}
-        </p>
+        </Hinweis>
       )}
 
       {anspruchFehler !== null && (
-        <p
-          data-cse="anspruch-fehler"
-          role="alert"
-          className="mb-s5 rounded-lg border border-danger bg-danger-soft p-s4 text-sm text-danger"
-        >
+        <Hinweis art="warnung" rolle="alert" cse="anspruch-fehler" className="mb-s5">
           {eigenerEintrag(ANSPRUCH_FEHLER, anspruchFehler)
             ?? 'Der Anspruch wurde nicht übernommen. Prüfen Sie die Angaben und entscheiden Sie '
               + 'noch einmal.'}
-        </p>
+        </Hinweis>
       )}
 
       <p className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
