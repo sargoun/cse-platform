@@ -18,6 +18,7 @@ import {
   verwirf,
   type Versandart,
 } from '@/server/services/finanz/mahnung/index';
+import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `POST /api/finanzen/mahnungen` — die vier Schritte des Mahnwesens
@@ -41,8 +42,7 @@ export const dynamic = 'force-dynamic';
 function zurueck(anfrage: NextRequest, ziel: string, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(`/portal/${slug}/finanzen/mahnungen${ziel}`, erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
-  return NextResponse.redirect(url, 303);
+  return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
 function fehlerAntwort(code: string, meldung: string, status: number): NextResponse {

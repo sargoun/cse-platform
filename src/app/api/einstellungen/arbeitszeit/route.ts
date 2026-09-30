@@ -12,6 +12,7 @@ import {
   ArbeitszeitFehler, GEWERKE, UEBERTRAG_ARTEN, alsMengeText, istUebertragArt,
   setzeArbeitszeitmodell, setzeTarifvereinbarung, type Gewerk,
 } from '@/server/services/zeit/arbeitszeitmodell';
+import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `POST /api/einstellungen/arbeitszeit?was=modell|tarif` — ein
@@ -32,8 +33,7 @@ function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(
     `/portal/${slug}/einstellungen/arbeitszeit`, erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
-  return NextResponse.redirect(url, 303);
+  return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {

@@ -17,6 +17,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { tagInSprache } from '@/lib/datum/kalendertag';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/finanzen/mahnungen` — was überfällig ist, und was
@@ -47,13 +48,12 @@ const PILLE: Readonly<Record<MahnungStatus, PillZustand>> = {
 };
 
 export default async function Mahnungen(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/finanzen/mahnungen`);
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/mahnungen`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);

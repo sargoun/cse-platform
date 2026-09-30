@@ -15,6 +15,7 @@ import { waehleRechnungsLogo } from '@/server/services/finanz/rechnungslogo';
 import { haeltRechte } from '@/app/portal/rechte';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/einstellungen/identitaet` — das Erscheinungsbild dieser
@@ -94,13 +95,12 @@ function altVon(i: Identitaet, art: MarkenbildArt): string | null {
 }
 
 export default async function IdentitaetSeite(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/einstellungen/identitaet`);
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/identitaet`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;

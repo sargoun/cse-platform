@@ -12,6 +12,7 @@ import { waehleSpeicher } from '@/server/storage/waehle';
 import {
   MarkenbildFehler, entferneMarkenbild, istMarkenbildArt, setzeMarkenbild,
 } from '@/server/services/mandant/markenbild';
+import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `POST /api/einstellungen/identitaet/bild` — Logo, Avatar oder Titelbild
@@ -28,9 +29,8 @@ function zurueck(anfrage: NextRequest, hinweis: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(
     `/portal/${slug}/einstellungen/identitaet`, erwarteterUrsprung(anfrage));
-  url.searchParams.set('hinweis', hinweis);
   url.hash = 'bilder';
-  return NextResponse.redirect(url, 303);
+  return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {

@@ -11,6 +11,7 @@ import {
 } from '@/server/services/zeit/arbeitszeitmodell';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/einstellungen/arbeitszeit` — Arbeitszeitmodelle und die
@@ -47,13 +48,12 @@ function minuten(wert: number | null): string {
 }
 
 export default async function Arbeitszeit(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/einstellungen/arbeitszeit`);
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/arbeitszeit`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;

@@ -16,6 +16,7 @@ import { SPRACHEN, SPRACHE_TEXT, pflegbar, sperrgrund }
   from '@/server/services/stammdaten/katalog';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/stammdaten/qualifikationen` — der Katalog, auf den sich
@@ -48,13 +49,12 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 export const dynamic = 'force-dynamic';
 
 export default async function Qualifikationen(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/stammdaten/qualifikationen`);
   const pfad = `/portal/${mandant}/stammdaten/qualifikationen`;
   const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

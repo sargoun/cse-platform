@@ -19,6 +19,7 @@ import { vorbelegt } from '@/lib/formular/maske';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { MAHNTEXT_HOECHSTENS } from '@/server/services/finanz/mahnung/stufen';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/einstellungen/mahnwesen` — der Ort, an dem O-19
@@ -70,7 +71,7 @@ export default async function Mahnwesen(
 ) {
   const { mandant } = await params;
   const suche = await searchParams;
-  const { hinweis } = suche;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/einstellungen/mahnwesen`);
   /*
    * Eine Abweisung bringt die Eingaben zurück (V-214, D-599): erkannt an
    * `?fehler=`, und nur dann belegt die Maske ihre Felder aus der Adresse vor.
