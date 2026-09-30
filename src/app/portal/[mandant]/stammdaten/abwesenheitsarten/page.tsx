@@ -15,6 +15,7 @@ import { SPRACHEN, SPRACHE_TEXT, pflegbar, sperrgrund }
   from '@/server/services/stammdaten/katalog';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/stammdaten/abwesenheitsarten` — der Katalog, auf den sich
@@ -51,13 +52,12 @@ const FARBE_TEXT: Readonly<Record<string, string>> = {
 };
 
 export default async function Abwesenheitsarten(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/stammdaten/abwesenheitsarten`);
   const pfad = `/portal/${mandant}/stammdaten/abwesenheitsarten`;
   const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

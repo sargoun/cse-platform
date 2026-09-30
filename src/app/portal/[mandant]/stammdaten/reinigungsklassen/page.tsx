@@ -14,6 +14,7 @@ import {
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { Recht } from '@/components/ui/Recht';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/stammdaten/reinigungsklassen` — die Einstufung, die im
@@ -46,13 +47,12 @@ import { Recht } from '@/components/ui/Recht';
 export const dynamic = 'force-dynamic';
 
 export default async function Reinigungsklassen(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/stammdaten/reinigungsklassen`);
   const pfad = `/portal/${mandant}/stammdaten/reinigungsklassen`;
   const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

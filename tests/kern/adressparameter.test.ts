@@ -58,38 +58,14 @@ describe('Gründe aus der Adresse', () => {
    * ausnahm. Suchwörter, vorbelegte Eingaben und Anzahlen bleiben `direkt`
    * erlaubt; sie heißen anders.
    */
-  /**
-   * **Bestand, offen (V-277): elf Pflegeseiten zeigen `?hinweis=` roh.** Ihre
-   * Routen (Stammdaten- und Einstellungspflege, Mahnwesen) schicken den
-   * Erfolgssatz bzw. den Satz des Dienstes als `?hinweis=`. Das ist derselbe
-   * Mangel wie vor D-769, außerhalb der fünf Teile gefunden; die Liste wird
-   * abgebaut und nie erweitert — ein Eintrag, den es nicht mehr gibt, fällt
-   * auf.
-   */
-  const HINWEIS_BESTAND: ReadonlySet<string> = new Set([
-    'src/app/portal/[mandant]/einstellungen/arbeitszeit/page.tsx',
-    'src/app/portal/[mandant]/einstellungen/identitaet/page.tsx',
-    'src/app/portal/[mandant]/einstellungen/mahnwesen/page.tsx',
-    'src/app/portal/[mandant]/einstellungen/vorlagen/page.tsx',
-    'src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx',
-    'src/app/portal/[mandant]/finanzen/mahnungen/page.tsx',
-    'src/app/portal/[mandant]/stammdaten/abwesenheitsarten/page.tsx',
-    'src/app/portal/[mandant]/stammdaten/antragsarten/page.tsx',
-    'src/app/portal/[mandant]/stammdaten/belagsarten/page.tsx',
-    'src/app/portal/[mandant]/stammdaten/qualifikationen/page.tsx',
-    'src/app/portal/[mandant]/stammdaten/reinigungsklassen/page.tsx',
-  ]);
-
   it('keine Rückmeldung (`meldung`, `erfolg`, `ok`, `hinweis`) steht roh auf dem Schirm', () => {
+    /* V-277 (D-775): Die elf Pflegeseiten, die `?hinweis=` zeigten, lesen ihre
+       Rückmeldung aus einem kurzlebigen Keks ihrer Route — es gibt keinen
+       Bestand mehr. */
     const RUECKMELDUNG = new Set(['meldung', 'erfolg', 'ok', 'hinweis']);
     const direkt = heute.filter((b) => b.art === 'direkt' && RUECKMELDUNG.has(b.parameter));
-    const imBestand = (b: AdressBefund): boolean =>
-      b.parameter === 'hinweis' && HINWEIS_BESTAND.has(relative(WURZEL, b.datei));
-    expect(direkt.filter((b) => !imBestand(b)).map(zeile),
+    expect(direkt.map(zeile),
       'den Schlüssel nachschlagen (eigenerEintrag), nie den Wert zeigen').toEqual([]);
-    const nochDa = new Set(direkt.filter(imBestand).map((b) => relative(WURZEL, b.datei)));
-    expect([...HINWEIS_BESTAND].filter((d) => !nochDa.has(d)),
-      'behoben — aus HINWEIS_BESTAND streichen').toEqual([]);
   });
 
   it('die Gegenprobe: jede Form des Rückfalls wird gefunden, ein Satz nicht', () => {

@@ -24281,3 +24281,55 @@ Satz ist englisch) und neu (8), `tests/e2e/angebot.spec.ts` (6).
 
 | Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `src/app/(public)/karriere/{page,Formular}.tsx`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx` (Nachrunde (a)), `src/lib/formular/bereiche.ts` (`formularSchluessel`, Nachrunde (b)), `src/server/services/datenschutz/anfrage.ts` (`ordneZu`, Nachrunde (c)), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf,website-hinweise,einteilung-bewerbung-rueckweg}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
 |---|---|
+
+### D-775 · Die Rückmeldung der elf Pflegeseiten reist als kurzlebiger Keks, nicht in der Adresse (V-277, Nachtrag zu D-769)
+
+**Der Befund** (Zusammenführung der Gruppe „rueckweg-schluessel“). Elf
+Pflegeseiten — Abwesenheits-, Antrags-, Belagsarten, Qualifikationen,
+Reinigungsklassen; Arbeitszeit, Identität (auch das Bild), Mahnwesen,
+Vorlagen; die Mahnungen (Liste und Blatt) — zeigten `?hinweis=<Satz>` roh.
+Ein präparierter Link schrieb dort eigenen Text, derselbe Mangel wie vor
+D-769.
+
+**Warum nicht Schlüssel wie D-769.** Die Sätze dieser Routen tragen Werte und
+Bedingungen: die Bezeichnung des Eintrags, das Datum der neuen Fassung, die
+Anzahl übernommener Posten, die Mahnnummer, den Satz des Dienstes mit dem
+Grund einer Abweisung. D-769 Nr. 5 lässt dafür einen geprüften Wertparameter
+zu — hier wären es je Route mehrere, und jede Seite müsste ihre Sätze neu
+zusammensetzen. Das kostet genau die Auskunft, derentwegen die Sätze
+geschrieben wurden. Ein signierter Parameter bräuchte ein Geheimnis, das es in
+der Anwendung bisher nicht gibt.
+
+**Die Entscheidung.**
+
+1. **Die Route legt den Satz in einen Keks, nicht in die Adresse**
+   (`mitHinweis` in `src/server/rueckmeldung/hinweis-keks.ts`): Name
+   `cse_hinweis`, `httpOnly`, `SameSite=Lax`, `Secure` wie jeder Keks
+   (`keksSicher`), `Max-Age` 15 Sekunden, `Path` = die Zielseite. Er gilt
+   für die Rückkehr nach dem Absenden, nicht für später. Weil `Path` auch
+   Unterseiten einschliesst (die Mahnungsliste deckt jedes Mahnungsblatt),
+   nennt der Wert die Zielseite noch einmal, und nur sie zeigt den Satz.
+2. **Die Seite liest ihn mit `gelesenerHinweis(<ihr Pfad>)`**, nie aus
+   `searchParams`. Sie löscht ihn beim Lesen nicht — eine Seite schreibt
+   beim Rendern keine Kekse. Wer die Seite in diesen Sekunden neu lädt oder
+   wieder aufruft, sieht den Satz deshalb noch einmal; das ist der bewusste
+   Preis.
+3. **Ein fremder Link kann den Keks nicht setzen.** Nur die elf Routen setzen
+   ihn, nur nach einer Handlung, und jede nimmt nur Anfragen desselben
+   Ursprungs an (`istGleicherUrsprung`). Die Sitzung reist `SameSite=Lax`,
+   ein fremdes Formular kommt also gar nicht bis zur Handlung.
+4. **Der Satz passt immer in den Keks.** Browser verwerfen einen Keks über
+   4096 Byte still; `gekuerzterHinweis` kürzt den verschlüsselten Satz auf
+   3000 Byte, zeichenweise, damit kein halbes Ersatzpaar entsteht.
+5. **Die Wache wird hart.** `HINWEIS_BESTAND` in
+   `tests/kern/adressparameter.test.ts` ist aufgelöst: `hinweis` steht wie
+   `meldung`, `erfolg` und `ok` nirgends mehr roh auf dem Schirm.
+6. **Programme bekommen weiter JSON** (D-769 Nr. 6); nur der Weg zurück auf
+   eine Seite ändert sich.
+
+**Ausgegliedert.** Die Routen nehmen den Slug der Umleitung aus `?mandant=`
+statt aus der Sitzung — das betrifft 24 Routen, nicht nur diese elf, und
+steht als V-278 offen.
+
+| Betrifft | D-769, D-741, V-277, V-278, `src/server/rueckmeldung/hinweis-keks.ts`, die elf Routen unter `src/app/api/{stammdaten,einstellungen,finanzen/mahnungen}`, die elf Seiten unter `src/app/portal/[mandant]/{stammdaten,einstellungen,finanzen/mahnungen}`, `tests/kern/{hinweis-keks,adressparameter}.test.ts` |
+|---|---|

@@ -21,6 +21,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../kennung';
 import { nachSprache, verwaltungTexte } from '@/lib/i18n/verwaltung/basis';
 import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/finanzen/mahnungen/[id]` — eine Mahnung, ihre Positionen
@@ -47,14 +48,13 @@ const PILLE: Readonly<Record<MahnungStatus, PillZustand>> = {
 };
 
 export default async function MahnungDetail(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/finanzen/mahnungen/${id}`);
   const zugang = await portalZugang(`/portal/${mandant}/finanzen/mahnungen`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);

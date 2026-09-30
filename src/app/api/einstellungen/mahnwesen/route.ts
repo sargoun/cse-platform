@@ -13,6 +13,7 @@ import { istGueltigerKalendertag, tagDeutsch } from '@/lib/datum/kalendertag';
 import {
   StufenFehler, bestaetigeStufe, type Folgeaktion, type Zinsberechnung,
 } from '@/server/services/finanz/mahnung/stufen';
+import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `POST /api/einstellungen/mahnwesen` — eine Mahnstufe bestätigen (FIN-15,
@@ -34,8 +35,7 @@ const ZINSARTEN: ReadonlySet<string> = new Set(
 function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(`/portal/${slug}/einstellungen/mahnwesen`, erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
-  return NextResponse.redirect(url, 303);
+  return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
 /** Die Felder der Maske, die bei einer Abweisung zurückreisen (D-599, V-214). */
@@ -55,13 +55,14 @@ function zurueckMitEingaben(
   anfrage: NextRequest, grund: string, hinweis: string, daten: FormData,
 ): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const werte: Record<string, string | null> = { hinweis };
+  const werte: Record<string, string | null> = {};
   for (const name of MASKE_FELDER) {
     const w = daten.get(name);
     werte[name] = typeof w === 'string' ? w : null;
   }
   const pfad = maskeMitEingaben(`/portal/${slug}/einstellungen/mahnwesen`, grund, werte);
-  return NextResponse.redirect(new URL(pfad, erwarteterUrsprung(anfrage)), 303);
+  const ziel = new URL(pfad, erwarteterUrsprung(anfrage));
+  return mitHinweis(NextResponse.redirect(ziel, 303), ziel, hinweis);
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {

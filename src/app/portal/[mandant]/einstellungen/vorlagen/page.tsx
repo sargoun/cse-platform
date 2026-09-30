@@ -14,6 +14,7 @@ import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/einstellungen/vorlagen` — jede Vorlage dieser
@@ -40,13 +41,12 @@ import { Recht } from '@/components/ui/Recht';
 export const dynamic = 'force-dynamic';
 
 export default async function Vorlagen(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/einstellungen/vorlagen`);
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/vorlagen`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;

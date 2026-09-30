@@ -14,6 +14,7 @@ import {
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { Recht } from '@/components/ui/Recht';
+import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `/portal/[mandant]/stammdaten/belagsarten` — die Leistungswerte, aus denen
@@ -52,13 +53,12 @@ import { Recht } from '@/components/ui/Recht';
 export const dynamic = 'force-dynamic';
 
 export default async function Belagsarten(
-  { params, searchParams }: {
+  { params }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
   const { mandant } = await params;
-  const { hinweis } = await searchParams;
+  const hinweis = await gelesenerHinweis(`/portal/${mandant}/stammdaten/belagsarten`);
   const pfad = `/portal/${mandant}/stammdaten/belagsarten`;
   const tor = await mandantTor(pfad, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

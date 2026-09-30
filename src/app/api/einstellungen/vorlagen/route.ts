@@ -10,6 +10,7 @@ import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { VorlagenFehler, setzeBehinderungsvorlage }
   from '@/server/services/einstellung/vorlagen';
+import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
 
 /**
  * `POST /api/einstellungen/vorlagen` — eine Behinderungsvorlage bestaetigen
@@ -33,8 +34,7 @@ function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const url = new URL(
     `/portal/${slug}/einstellungen/vorlagen`, erwarteterUrsprung(anfrage));
-  if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
-  return NextResponse.redirect(url, 303);
+  return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
