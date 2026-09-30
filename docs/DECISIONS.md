@@ -3371,6 +3371,8 @@ Beantworten helfen:
 | O-939 | **Welchen Nachweis verlangt die Plattform, bevor ein Bild an einem Beitrag hinausgeht — Nutzungsrecht und, bei erkennbaren Personen, Einwilligung?** Seit V-225 lässt sich einem Beitrag ein Bild anhängen (privat abgelegt, mit in der Freigabe). Wer es veröffentlicht, braucht das Nutzungsrecht (UrhG) und bei erkennbaren Personen deren Einwilligung (§ 22 KUG, Art. 6/7 DSGVO) — bei Beschäftigten auf einem Objektfoto zusätzlich die Freiwilligkeit im Arbeitsverhältnis (§ 26 BDSG). Denkbar sind (a) ein Pflichthäkchen „Rechte liegen vor" mit Person und Zeitpunkt, (b) ein hochgeladener Beleg (Lizenz, Einwilligungserklärung) als Dokument am Bild, (c) nichts in der Plattform — die Freigabe durch einen Menschen gilt als Prüfung. **Ausgeliefert ist (c) mit einem Hinweis am Formular**; kein Häkchen wird erfunden, das eine Rechtslage behauptete. Die Antwort ändert `legeBeitragsbildAn` (Pflichtangabe) und das Formular am Beitrag. | SOC-02, SOC-08, LEG-*, § 22 KUG, V-225, D-719, `src/server/services/social/beitragsbild.ts` (`legeBeitragsbildAn`, dort steht das TODO), `src/app/portal/[mandant]/social/posts/[id]/page.tsx` |
 | O-954 | **Darf der Absagegrund eines Bewerbungsgesprächs wörtlich im unveränderlichen Prüfprotokoll stehen — und was gilt für ihn, wenn die Bewerbung nach Ablauf ihrer Frist gelöscht wird (REC-07)?** Seit V-220 wird ein Gespräch mit Pflichtgrund abgesagt (`gespraech.abgesagt_grund`); der Grund ist ein Satz eines Menschen über die Bewerberin (Seed: „hat eine andere Stelle angenommen“). Bis V-267 schrieb `sageGespraechAb` ihn zusätzlich wörtlich ins Prüfprotokoll. Das Protokoll ist unveränderlich; der Löschlauf (`bewerberLoeschung.ts`) löscht die Gesprächszeile — der Satz stünde danach allein im Protokoll weiter, unter der Kennung eines Gesprächs, das es nicht mehr gibt, und erschiene in keiner Löschentscheidung der Bewerbung. Gegeneinander stehen die Nachvollziehbarkeit (wer hat wann warum abgesagt, § 22 AGG im Streitfall) und Art. 5 Abs. 1 lit. c/e und Art. 17 DSGVO; das allgemeine Löschkonzept des Protokolls ist O-92. Denkbar sind (a) der Wortlaut im Protokoll, dauerhaft; (b) der Wortlaut im Protokoll, mit der Bewerbung geschwärzt (verlangt eine Schwärzung im sonst unveränderlichen Protokoll, wie bei der Agenten-Nutzlast 0128); (c) im Protokoll nur, DASS ein Grund erfasst ist — der Wortlaut steht in der Zeile und geht mit ihr. **Ausgeliefert ist (c) als Platzhalter** (`{ status: 'abgesagt', grund_erfasst: true }`); der Grund steht in der Art.-15-Auskunft der Bewerbung. Die Antwort ändert `sageGespraechAb` und, bei (b), den Löschlauf. | REC-06, REC-07, LEG-11, § 22 AGG, Art. 5 Abs. 1 lit. c/e DSGVO, Art. 15 DSGVO, Art. 17 DSGVO, O-92, V-220, V-267, D-714, D-760, `src/server/services/recruiting/gespraech.ts` (`sageGespraechAb`), `src/server/jobs/bewerberLoeschung.ts`, `src/server/services/datenschutz/auskunft.ts` |
 | O-955 | **Läuft nach einer neuen Fassung jede Fassung für sich ab — oder gilt die längere Frist für das ganze Dokument mit allen Fassungen?** Seit V-266 trägt jede Fassung jenseits der ersten ihre eigene Aufbewahrungsfrist: die Datenbank rechnet mit dem Ablegen die Frist, die an diesem Berliner Kalendertag für die Kategorie gilt (`app.aufbewahrung_regel` je Gesellschaft, `app.aufbewahrung_ende`), und das Dokument behält die LÄNGERE; eine Löschsperre der Regel kommt dazu, eine offene Frist bleibt offen (0474). Ein überarbeitetes und neu abgesandtes Angebot ist ein eigener Handelsbrief mit eigenem Fristbeginn (§ 257 Abs. 5 HGB) — das hält die Regel. Offen ist die andere Seite: die ÄLTERE Fassung hätte ihre eigene, frühere Frist, und Art. 5 Abs. 1 lit. e DSGVO verlangt, personenbezogene Angaben nicht länger als nötig zu halten (bei einer Kundenunterlage etwa ein Ansprechpartner, den die neue Fassung nicht mehr nennt). Denkbar sind (a) die längere Frist gilt für das ganze Dokument, alle Fassungen bleiben bis dahin; (b) jede Fassung läuft für sich ab, eine ältere wird nach ihrer Frist einzeln gelöscht (Datei entfernt, Zeile der Kette bleibt als Nachweis, D-713 „Nicht Teil“ wäre dann zu öffnen). **Ausgeliefert ist (a) als Platzhalter** — damit wird nichts zu früh gelöscht, und der Nachtlauf (0382) nimmt ein Dokument erst nach der längsten Frist mit, dann aber mit allen Fassungen (D-758). Die Antwort ändert `kern.dokument_fassung_pruefen` (0474) und, bei (b), den Löschweg um die einzelne Fassung. | DOC-05, DOC-07, § 257 Abs. 5 HGB, § 147 AO, Art. 5 Abs. 1 lit. e DSGVO, O-937, V-266, D-713, D-758, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/ablage.ts` (`legeFassungAn`), `src/server/jobs/dokumentAufbewahrung.ts` |
+| O-980 | **Wie wird ein verlorener oder abgelaufener Einladungslink eines Verwaltungskontos ersetzt — und von wem?** Seit 0372 legt `app.verwaltungskonto_einladen` Konto, Mitgliedschaft (admin oder leitung) und Einladungstoken in einem Vorgang an; der Link steht genau einmal auf der Seite, gespeichert ist nur seine Prüfsumme, und es ist kein Mailversand verbunden (O-501). Einen Weg, für eine OFFENE Einladung einen neuen Link auszustellen, gibt es nicht: eine zweite Einladung derselben Adresse in derselben Gesellschaft findet die Mitgliedschaft und weist ab („schon eingetragen"); „Kennwort vergessen" legt zwar einen Link an, schickt ihn aber nur über den Versand, der nicht verbunden ist; „Zugang entziehen" (0379) nimmt das ganze Konto zurück und stellt ebenfalls keinen Link aus. Den Weg hat nur der Kundenzugang (`app.kundenzugang_neu_einladen`, 0249: der alte Link verfällt, ein neuer entsteht). Bis D-774 versprach der Satz am Link trotzdem „stellen Sie einen neuen aus — der alte verfällt dabei". Zu entscheiden: (1) ob es den Weg geben soll — etwa „Link neu ausstellen" an einer offenen Einladung, der den alten entwertet (wie 0155 und 0249); (2) wer ihn benutzen darf — nur die Super-Administration wie beim Einladen (D-610) oder auch die Administration der Gesellschaft; (3) ob er auch nach Ablauf der Frist (`auth.einladung_stunden`) gilt. **Ausgeliefert ist der Satz, dass es den Weg noch nicht gibt** (`linkEinmal`, `fehler.schon_eingetragen`); die Antwort bringt Dienst, Route und Knopf und ändert die zwei Sätze. | AUT-04, D-610, O-501, O-981, V-276, D-774, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts` (`linkEinmal`, dort steht das TODO), `src/server/services/system/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `drizzle/0372_verwaltungskonto_einladung.sql`, `drizzle/0249_kundenzugang.sql` |
+| O-981 | **Soll sich die Rolle eines Verwaltungskontos in einer Gesellschaft ändern lassen — und von wem?** Der Satz der Datenbank zu einer zweiten Einladung (0372) rät „Ändern Sie seine Rolle, statt es erneut einzuladen", und die Seite zeigte ihn bis D-774 so. Einen Weg dafür gibt es nicht: keine Funktion, keine Route und kein Knopf ändert die Rolle einer Mitgliedschaft (`benutzer_mandant.rolle_id`); das Benutzerblatt zeigt sie nur an. Zu entscheiden: (1) ob eine Mitgliedschaft ihre Rolle wechseln darf (admin ↔ leitung) oder ob ein Wechsel ein Entzug und eine neue Mitgliedschaft ist; (2) wer wechseln darf — ein Wechsel zu admin erweitert die Rechte wie ein neues Verwaltungskonto, das nur die Super-Administration anlegt (D-610). **Ausgeliefert ist der Satz, dass es den Weg noch nicht gibt** (`fehler.schon_eingetragen`); die Antwort bringt Dienst, Route und Knopf am Benutzerblatt und ändert den Satz. | AUT-04, D-610, O-980, V-276, D-774, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts` (`fehler.schon_eingetragen`, dort steht das TODO), `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `drizzle/0372_verwaltungskonto_einladung.sql` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -23889,4 +23891,228 @@ und damit zu diesem Teil gehören:
 **Nachsatz (Review).** (a) Die Vorschau auf `/turnus/neu` warf weiter bei einem gültigen „Gültig ab“ ab 9999-12-04: das Fenster endete jenseits von 9999-12-31. `vorschauFenster` nimmt einen solchen Beginn wie einen ungültigen (das Fenster beginnt heute). (b) Die zwei Kästen der Ansprüche auf der Nacherfassung sind jetzt der Hinweis-Baustein (erfolg/status, warnung/alert) statt eines Nachbaus aus Klassen (DESIGN „Notices“). Geprüft in `tests/kern/rueckweg-turnus-adresse.test.ts` und `tests/kern/rueckweg-zeit-nacherfassung.test.ts`.
 
 | Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/[mandant]/zeiten/nacherfassung/vorgaben.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
+### D-774 · Die Verwaltung schickt Schlüssel zurück: Konto, Einladung, Ablage, Aufbewahrung, Periodenschloss, Eingangsrechnung, Freigabe (V-276, Teil „verwaltung" von D-769)
+
+**Der Befund** (Teil C2 der Gruppe „rueckweg-schluessel"). Sieben Routen der
+Verwaltung schickten den Satz eines Dienstes, einer Datenbankfunktion oder
+eine eigene feste Zeile per `?meldung=` zurück auf ihre Seite, und die Seite
+zeigte ihn roh. Die Entscheidung ist D-769; hier steht, was dieser Teil
+daraus konkret gemacht hat.
+
+1. **Konto → Sicherheit** (`POST /api/konto/sitzung`,
+   `/portal/konto/sicherheit`). `SitzungFehler` trägt einen getypten Grund
+   (`diese_sitzung`, `nicht_gefunden`); die Route schickt ihn über
+   `grundAufsFormular` als `?fehler=`. Die Seite folgt der Sprache des KONTOS
+   in allen vier Portalsprachen (de, en, ar, tr — eine Reinigungskraft mit
+   arabischer Portalsprache beendet hier ihre Anmeldungen), deshalb stehen
+   die Sätze in `SICHERHEIT_TEXTE` (`nichtBeendet`, `fehler`,
+   `fehlerSonst`) und nicht zweisprachig unter `lib/i18n/verwaltung`. Ein
+   leeres `zurueck` führt auf die Sicherheitsseite statt in einen 500.
+   Warnkasten `rolle="alert"`, Bestätigung `rolle="status"`.
+2. **Verwaltungskonto einladen** (`POST /api/system/verwaltungskonto`,
+   `…/einstellungen/benutzer/einladen`). Der ERFOLG reist getrennt als
+   `?erfolg=eingeladen` (vorher `?meldung=eingeladen`, derselbe Parameter wie
+   jeder Fehler — ohne den Keks stand „eingeladen" im Warnkasten), eine
+   Abweisung als `?fehler=<grund>`.
+   - **Die Sätze der Datenbank werden Schlüssel.** `app.verwaltungskonto_einladen`
+     (0372) gibt bei einer Abweisung einen deutschen Satz zurück; der Dienst
+     bildet die sechs bekannten Sätze Wort für Wort ab (`einladungsGrund`:
+     `gesellschaft_fehlt`, `email_ungueltig`, `name_fehlt`, `rolle_unzulaessig`,
+     `kundenkonto`, `schon_eingetragen`), jeder andere Satz und eine fehlende
+     Zeile werden `nicht_ausgestellt` — nie der Text. Die Migration bleibt,
+     wie sie ist: ein Umbau der Funktion auf Schlüssel wäre eine neue
+     Migration in fünf parallel arbeitenden Zweigen; die Abbildung an EINER
+     Stelle, gegen die echte Funktion geprüft, leistet dasselbe.
+   - **`42501` wird `nicht_erlaubt`** (`EinladungFehler`, 403), wie bei den
+     Kontohandlungen (`konto/verwaltung.ts`): die Definer-Funktion nennt im
+     Satz, WELCHE Bedingung fehlte; nach der Rechteprüfung der Route bekommt
+     der Schirm einen Satz ohne diese Auskunft (AUT-06). Der Satz der
+     Datenbank bleibt als `cause` am Fehler. Jeder andere Fehler bleibt ein
+     Fehler — vorher wurde der rohe Text JEDES einzeiligen Fehlers eine
+     Abweisung, auch ein Verbindungsabbruch.
+   - **Anmeldung und Recht zuerst.** Dieselbe Weiche fing den Wurf von
+     `authorize` ab: ein fehlendes Recht wurde `?meldung=Nicht gefunden` statt
+     der byte-gleichen 404 (AUT-06), ein fehlender zweiter Faktor ein Satz
+     statt des Faktor-Schritts (D-766). `autorisierungsAntwort` läuft jetzt
+     vor jeder anderen Weiche.
+   - `EinladungFehler.grund` und `EinladungErgebnis.grund` sind getypt; die
+     Route weist sie dem Typ der Satztabelle zu — ein neuer Grund ohne Satz
+     bricht die Übersetzung. Die eigene Rollenprüfung der Route schickt
+     `rolle_unzulaessig` (vorher ein Satz mit Backticks).
+   - Eine Abweisung löscht den Keks eines früheren Versuchs: sonst stünde
+     dessen Link neben dem Satz, dass diesmal nichts ausgestellt wurde. Der
+     Warnkasten steht deshalb auch nicht mehr nur „ohne Link-Keks". Gelöscht
+     wird mit dem Pfad, unter dem der Keks gesetzt ist: `delete(name)` allein
+     schrieb einen Löschkeks ohne `Path`, den der Browser unter den Pfad der
+     Route legte — der Keks unter dem Pfad der Seite blieb stehen, auch beim
+     bisherigen Löschen nach einer Abweisung der Datenbank.
+   - Ist der Keks abgelaufen und `?erfolg=eingeladen` noch da, sagt ein
+     Erfolgskasten, dass der Link nur unmittelbar danach erscheint. Ein
+     UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten: ein allgemeiner
+     Erfolgssatz behauptete einen Erfolg, den es nicht gab.
+   - `tests/isolation/verwaltungskonto-einladung.test.ts` BEWUSST angepasst:
+     wo er den Satz der Datenbank prüfte (`/schon/`, `/admin.*leitung/`, der
+     Wurf mit `privilege`), prüft er jetzt den Schlüssel — und den Satz der
+     Absage weiter, am `cause`. Dazu: jeder Grund der Abweisungen, die er
+     schon auslöste, und neu `gesellschaft_fehlt` und `kundenkonto` — damit
+     ist jeder der sechs Sätze gegen die echte Funktion geprüft.
+3. **Ablegen** (`POST /api/dokumente/upload`, `…/dokumente/upload`).
+   - **Anmeldung und Recht gehen durch.** Der Fangzweig ersetzte, was
+     `alsAntwort` lieferte, für ein Formular durch
+     `?fehler=eingabe&meldung=<message>` — auch die Umleitung auf die
+     Anmeldung oder den Faktor-Schritt (D-766) und die byte-gleiche 404 eines
+     fehlenden Rechts (AUT-06): „Nichts abgelegt. Nicht gefunden".
+     `autorisierungsAntwort` läuft jetzt zuerst, mit den gelesenen Feldern.
+   - **Jede Fehlerklasse der Ablage trägt ihren Grund.** `AblageFehler`
+     bekommt einen getypten (`titel_fehlt`, `titel_zu_lang`,
+     `kategorie_unbekannt`, `beschreibung_zu_lang`, `kunde_unbekannt`,
+     `objekt_unbekannt`, `auftrag_unbekannt`, `datei_leer`,
+     `datei_zu_gross`); `BezugUnbekannt` trägt `<bezug>_unbekannt` — eine
+     Kennung, die schon an der Form scheitert, und eine, die die Sitzung nicht
+     sieht, sind für den Menschen, der aus der Liste gewählt hat, derselbe
+     Fall. `MimeFehler` reist als `datei_<grund>` (wie beim Blatt der Fassung,
+     `fassungGrund`), `ExifFehler` als `datei_metadaten`, der fehlende
+     Speicher als `speicher`. Ein Dienstfehler ohne eigenen Grund reist mit
+     seinem `code`; die Seite hat dafür ihren allgemeinen Satz.
+   - **Ein Programm ohne `zurueck`** bekommt, was es bekam: ein Dienstfehler
+     ist JSON mit Status (D-599), Speicher und Datei führen ins Portal — jetzt
+     mit dem Grund und ohne Satz.
+   - Die Seite steht auf der Ausnahmeliste der Übersetzungswache: ihre Tabelle
+     ist deutsch, in der Form der zweisprachigen (`UPLOAD_RUECKWEG_TEXTE` in
+     `lib/i18n/verwaltung/dokument-rueckweg.ts`, `{ de: … }`); die Sätze der
+     Prüfkette nimmt sie vom Blatt der Fassung (eine Quelle, D-759). Sie
+     ersetzt `FEHLER_TEXT` im Seitenrumpf; `datei` und `eingabe` schickt keine
+     Route mehr. Warnkasten `rolle="alert"`.
+   - `tests/kern/dokument-ablage-rueckweg.test.ts` BEWUSST angepasst: er las
+     die Tabelle am Quelltext der Seite; sie steht jetzt unter `lib/i18n`, und
+     geprüft wird dort — dazu, dass der Satz derselbe Wert wie auf dem Blatt
+     ist und die Seite ihn nachschlägt.
+4. **Aufbewahrungsregeln** (`POST /api/dokumente/aufbewahrung`,
+   `…/dokumente/aufbewahrung`). `AufbewahrungFehler` trug seinen Grund
+   schon; die Route schickt jetzt NUR ihn (`?fehler=<grund>`), auch für ihre
+   eigene Prüfung der Frist (`jahre`). Der Satz des Dienstes reiste mit —
+   samt der Kategorie, wie das Formular sie schickte, und der Mindestfrist.
+   Die Sätze der Seite kommen ohne diese Werte aus: die Mindestfrist steht in
+   der Zeile jeder Kategorie („Gesetzliche Untergrenze"), der Satz zeigt
+   dorthin (D-769 Nr. 5). `autorisierungsAntwort` läuft vor der Weiche der
+   Fachklasse (vorher `anmeldungsAntwort` und eine eigene 404 danach —
+   byte-gleich, jetzt an einer Stelle). Tabelle deutsch
+   (`AUFBEWAHRUNG_RUECKWEG_TEXTE`, Ausnahmeliste), Warnkasten
+   `rolle="alert"`, der Erfolgskasten (`?gesetzt=`, schon ein Schlüssel)
+   `rolle="status"`.
+5. **Periodenschloss** (`POST /api/buchhaltung/perioden`,
+   `…/buchhaltung/perioden`).
+   - **Der Erfolg ist ein Schlüssel**: `?erfolg=<zustand>`
+     (`vorlaeufig_geschlossen`, `geschlossen`, `geoeffnet` — der Zustand, in
+     dem der Monat nach der Handlung steht). Vorher reiste der Satz „Monat
+     MM/JJJJ … ." als `?meldung=` und `?geschlossen=MM/JJJJ` als Auslöser.
+   - **Der Monat reist als geprüfter Wert** (`?monat=JJJJ-MM`, gebildet aus
+     den schon geprüften Feldern, nur für 1–12). Die Seite nennt ihn nur, wenn
+     er einer IHRER Monate ist — mit dessen eigenem Namen („März 2026");
+     sonst steht „Monat" bzw. gar nichts. Ein Wert aus der Adresse erscheint
+     so nie als solcher.
+   - Eine Abweisung reist als `?fehler=<grund>` — die sechs Gründe von
+     `PeriodenschlussFehler` und `datenbank` für die Abweisung der Datenbank
+     (23001), deren Meldung Monat und Anzahl nannte. Der Satz zu `recht`
+     nennt das Recht in Worten („wer Buchungen festschreiben darf"), nicht
+     als Schlüssel (D-741).
+   - Ein UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten (wie Nr. 2).
+   - `autorisierungsAntwort` läuft vor den Weichen der Fachklasse und der
+     Datenbank. Tabelle deutsch (`PERIODEN_RUECKWEG_TEXTE`, Ausnahmeliste),
+     `rolle="alert"`/`rolle="status"`.
+   - `tests/e2e/buchhaltung.spec.ts` BEWUSST angepasst: er erwartete
+     `?geschlossen=` in der Adresse; jetzt `?erfolg=vorlaeufig_geschlossen`.
+     Die Wörter im Kasten („vorläufig geschlossen", „wieder geöffnet",
+     „geschlossen", „ohne Konto") bleiben und sind im Kern-Test festgehalten.
+     Nicht lokal gelaufen.
+6. **Eingangsrechnung erfassen** (`POST /api/finanzen/eingangsrechnungen`,
+   `…/finanzen/eingangsrechnungen/neu`). Neun Stellen schickten neben dem
+   Schlüssel einen Satz als `?meldung=`; `/neu` zeigte `meldung ?? fehler` —
+   den deutschen Satz auch einer englischen Sitzung, ohne ihn den rohen
+   Schlüssel. Jetzt reist nur der Grund, und `/neu` schlägt ihn zweisprachig
+   nach (`erfassenFehler`, `ERFASSEN_FEHLER_GRUENDE`).
+   - `ERechnungFehler` reist als `erechnung_<grund>`, `VorschlagFehler` als
+     `vorschlag_<grund>` (vorher beide mit ihrem Satz, der eine mit der
+     Wurzel der hochgeladenen Datei darin). Das Präfix trennt sie von den
+     gleichnamigen Gründen der Route (`unvollstaendig`).
+   - Eine fehlende Datei im E-Rechnungs-Formular heisst jetzt
+     `erechnung_fehlt` (vorher `ohne_beleg` wie im Erfassungsformular, mit
+     einem anderen Satz — ein Schlüssel, zwei Bedeutungen).
+   - Die Dublette reist ohne die Warnung des Dienstes: sie wiederholte die
+     getippte Rechnungsnummer. Der Satz sagt, dass die Rechnung für dieses
+     Jahr schon vorliegt und wo sie steht (D-769 Nr. 5).
+   - Der Warnkasten ist `Hinweis` mit `rolle="alert"` statt eines nachgebauten
+     `<p>` (DESIGN §5 „Notices"), `data-cse="eingang-hinweis"` bleibt; die
+     Wörter, die die Browserprüfungen suchen („Ohne Dokument", „nicht
+     verbunden", „NICHTS gespeichert"), bleiben und sind im Kern-Test
+     festgehalten.
+   - JSON bleibt JSON: `EingangsrechnungFehler` und `FreigabeFehler` der
+     Zustandswechsel antworten weiter `{ fehler, meldung }` mit Status.
+   - **Der Zahlungsausgang** (`POST /api/finanzen/zahlungen`, aktion
+     `ausgang`, → `…/eingangsrechnungen/[id]`; nachgetragen auf Bitte der
+     Koordination). Sein Erfolg war schon ein Schlüssel (`ausgang_erfasst`,
+     `ausgang_guthaben`), reiste aber als `?meldung=`, und das Blatt las den
+     Suchparameter `meldung`. Jetzt `?erfolg=<schluessel>`, das Blatt liest
+     `erfolg` — so braucht die Wache über den Baum keine Ausnahme für einen
+     `meldung`-Parameter, der ausnahmsweise ein Schlüssel ist. Kein Kern- oder
+     Browsertest erwartete `meldung=ausgang_…`.
+7. **Freigabe entscheiden** (`POST /api/freigaben/[id]/entscheidung`,
+   `…/freigaben/[id]`). `AusfuehrungAbgewiesen` trug einen Grund, geschickt
+   wurde aber `?fehler=ausfuehrung&meldung=<Satz>`, und das Blatt zeigte den
+   Satz roh. Jetzt `?fehler=ausfuehrung_<grund>`; der Grund ist getypt
+   (`AusfuehrungGrund` = der Grund von `VorschlagFehler`, des einzigen
+   Ausführers), die Sätze stehen deutsch in `AUSFUEHRUNG_RUECKWEG_TEXTE`
+   (Ausnahmeliste) und sagen, dass die Entscheidung mit zurückgerollt ist.
+   Das Blatt schlägt zuerst die Gründe der Entscheidung (`FEHLER_TEXT`), dann
+   die der Ausführung nach; ein unbekannter Grund wird „Die Entscheidung
+   wurde abgewiesen.". Sein Kasten ist der eigene `Kasten` des Blatts; er
+   bekommt `rolle` wie `Hinweis`, die Abweisung `rolle="alert"`. JSON bleibt
+   `{ fehler: 'ausfuehrung', grund, meldung }` mit 409.
+
+**Was alle sieben Teile gemeinsam haben.** Jede Route schickt nur noch
+Schlüssel; jede Seite schlägt sie mit `eigenerEintrag` in einer Tabelle unter
+`lib/i18n` nach (de/en, wo die Seite der Sitzung folgt; de/en/ar/tr auf der
+Sicherheitsseite, die dem Konto folgt; sonst deutsch in derselben Form); ein
+unbekannter Grund ergibt den allgemeinen Satz der Seite, ein unbekannter
+Erfolgsschlüssel keinen Kasten. Wo die Route ein Recht prüft, läuft
+`autorisierungsAntwort` vor jeder anderen Weiche. Programme bekommen JSON wie
+bisher. Kein Satz nennt eine Kennung oder eine Eingabe des Menschen; wo eine
+Meldung einen Wert trug, nennt die Seite ihn aus eigenen Daten (Monat) oder
+kommt ohne ihn aus (Kategorie, Frist, Rechnungsnummer, Belegnummer).
+`fehlerAufsFormular` und die Wache `adressparameter` bleiben, wie sie sind —
+beides gehört zum Schritt, der die fünf Teile zusammenführt (D-769).
+
+**Geprüft.** Je Route ein Kern-Test der echten Route
+(`tests/kern/{konto-sitzung,verwaltungskonto,dokument-upload,dokument-aufbewahrung,perioden,eingangsrechnung,zahlungsausgang,freigabe-entscheidung}-rueckweg.test.ts`):
+jeder Grund jeder Fehlerklasse → 303 auf die Seite mit `?fehler=<grund>`,
+ohne `meldung=` und ohne Kennung; der Erfolg als Schlüssel; JSON wie bisher;
+fehlendes Recht → byte-gleiche 404; die Tabelle in jeder Sprache der Seite,
+ohne Prototyp-Treffer; am Quelltext, dass die Seite `meldung` nicht liest und
+auf den allgemeinen Satz zurückfällt. Isolation (je Datei, die einen
+geänderten Dienst importiert): `eigene-sitzungen`,
+`verwaltungskonto-einladung`, `dokument-ablage`, `auftrag-akte`,
+`dokument-fassung`, `dokument-loeschen`, `eingang-vorschlag`. Bewusst
+angepasst: `tests/isolation/verwaltungskonto-einladung.test.ts`,
+`tests/kern/dokument-ablage-rueckweg.test.ts`, `tests/e2e/buchhaltung.spec.ts`
+(nicht lokal gelaufen). Keine offene Frage an den Mandanten: keine
+Geschäftsregel war zu entscheiden. (Die Nachrunde öffnet zwei — O-980 und
+O-981, N5.)
+
+**Nachrunde** (die Nebenbefunde aus V-276, auf Bitte der Koordination).
+
+N1. **Ein Hinweis aus der Adresse nur als eigener Eintrag** (drei Bildschirme des Ausgangs-Gates: `agenten/richtlinien`, `agenten/richtlinien/[id]`, `einstellungen/agent-richtlinien`). Sie schlugen `HINWEIS_TEXT[suche['hinweis']]` nach; `?hinweis=__proto__` fand `Object.prototype`, `?hinweis=constructor` eine Funktion, der Rückfall griff nicht, und React warf beim Zeigen — ein getippter Link brachte die Seite zum Absturz (D-728; die Wache `nachschlagen.test.ts` sucht nur `[fehler]` und `[grund]`). Alle drei nehmen jetzt `richtlinienHinweis()` (`agenten/richtlinien/hinweis.ts`, `eigenerEintrag`); ein unbekannter Name zeigt nichts, wie bisher. Die Koordination nannte zwei Seiten; die dritte (Einstellungen) hatte denselben Ausdruck. Dazu die Route `POST /api/einstellungen/agent-richtlinien`: das Formularfeld `ziel` ging roh in `ZIELE` — `ziel=__proto__` wurde „bauer is not a function", ein 500; jetzt `eigenerEintrag(ZIELE, ziel)` mit dem bisherigen Rückfall auf die Einstellungen.
+
+N2. **Die Prüfkette der Datei beim Erfassen einer Eingangsrechnung.** `ladeHoch` wirft `MimeFehler` und `ExifFehler` ohne Status; `POST /api/finanzen/eingangsrechnungen` kannte beide nicht, sie fielen durch die Übersetzung und endeten als 500 — beim verschlüsselten PDF eines Lieferanten ebenso wie bei einer Datei, deren Inhalt nicht zum angegebenen Typ passt, und auf beiden Wegen der Seite (Beleg der Erfassung, E-Rechnung über `legeERechnungAb`). Jetzt wie bei der Ablage: `datei_<grund>` bzw. `datei_metadaten` zurück auf `/neu`; die Sätze in de und en sind dieselben wie auf dem Fassungsblatt und bei der Ablage (eine Quelle, `DOKUMENT_BLATT_TEXTE.*.faFehler`). Geschrieben wird in keinem Fall etwas: die Kette prüft, bevor der Speicher etwas bekommt. `datei_leer` steht in der Liste, weil der Typ es verlangt; erreichbar ist es nicht — eine leere Datei ohne gewählten Beleg ist schon `ohne_beleg`, auf dem E-Rechnungs-Weg `erechnung_fehlt`. Prüfung: `tests/kern/eingangsrechnung-datei.test.ts` (echte Route, echtes `ladeHoch`, echte Prüfkette: verschlüsseltes PDF → `datei_metadaten`, nichts abgelegt, nichts erfasst; Programm → `datei_unbekannt`; ZIP → `datei_nicht_erlaubt`; PDF, das sich als PNG ausgibt → `datei_widerspruch`; E-Rechnungs-Weg mit echtem `legeERechnungAb`, XML als PDF → `datei_widerspruch`; Gegenprobe: ein unverschlüsseltes PDF läuft durch und wird abgelegt; Sätze de/en aus der einen Quelle).
+
+N3. **Die Abweisung des Dienstes beim Erfassen kommt als Grund zurück, nicht als JSON.** `EingangsrechnungFehler` endete auch für die zwei Formulare auf `/neu` als `{"fehler":…,"meldung":…}` mit Status 409 — eine weisse Seite, die Eingabe weg. Beim Erfassen wirft der Dienst genau zwei Gründe: `abgewiesen` (`legeBelegAn`, auch unter `legeERechnungAb`, und `erfasseEingangsrechnung`) und `unvollstaendig` (`setzeSteuerzeile`: eine Steuersatzgruppe, die es nicht gibt). Ein Browserformular von `/neu` (`istBrowserFormular`: Formularrumpf und `Accept: text/html` — dasselbe Kriterium wie auf den Fehlerwegen, D-766) bekommt jetzt `rechnung_abgewiesen` bzw. `rechnung_unvollstaendig`, mit einem Satz in de und en; ein Programm bekommt weiter JSON mit Status und dem Satz des Dienstes (D-599). Die übrigen drei Gründe (`nicht_gefunden`, `dublette`, `vier_augen`) wirft nur ein Zustandswechsel des Blatts; die Tabelle der Route führt sie ausdrücklich als „bleibt JSON", und ein neuer Grund des Dienstes bricht die Übersetzung, bis jemand entschieden hat. Die Datei, die vor der Abweisung schon im Speicher lag, wird wie bisher wieder entfernt. Nicht Teil dieses Punkts und unverändert: die Zustandswechsel des Blatts `/[id]` antworten auch einem Browser mit JSON. Prüfung: `tests/kern/eingangsrechnung-rueckweg.test.ts` (echte Route, echte Dienste: Beleg abgewiesen → `rechnung_abgewiesen` und die Datei entfernt; unbekannte Steuersatzgruppe → `rechnung_unvollstaendig`, ohne den Schlüssel in der Adresse; E-Rechnungs-Weg → `rechnung_abgewiesen`; ein Programm → JSON 409 mit Satz, die Datei ebenso entfernt; beide Gründe in der Liste — die Sätze de/en prüft der bestehende Tabellentest mit).
+
+N4. **Das Periodenschloss kehrt auf das Wirtschaftsjahr zurück, aus dem das Formular kam.** Das Formular schickte nur das Kalenderjahr des Monats (`jahr` — das braucht der Dienst), und die Route kehrte auf `?jahr=<Kalenderjahr>` zurück. Die Seite zählt aber nach Wirtschaftsjahren (`?jahr=` ist das Jahr, in dem eines beginnt): beginnt es im Juli, liegt März 2026 im Wirtschaftsjahr 2025/2026, und nach dem Schliessen stand die Seite in 2026/2027 — ohne den Monat, den sie hätte nennen sollen. Jetzt schickt das Formular `wirtschaftsjahr`, das Jahr der Seite (`z.jahr`); die Route prüft es wie den Monat: die Form am Eingang (vier Ziffern, sonst 400 wie ein falscher Monat), den Inhalt beim Mitreisen — ein Wirtschaftsjahr aus zwölf Monaten, das einen Monat des Kalenderjahrs J enthält, beginnt in J oder in J − 1 (so rechnet `wirtschaftsjahrZeitraum`); ein anderes Jahr reist nicht mit. Ohne das Feld kehrt die Route wie bisher auf das Kalenderjahr zurück. Die Tabelle lässt jeden Beginn zu (`datev_konfiguration.wj_beginn_monat` 1 bis 12, 0126); der Seed setzt keinen abweichenden, der Browserlauf (`tests/e2e/buchhaltung.spec.ts`) sieht deshalb dieselben Adressen wie vorher. Prüfung: `tests/kern/perioden-rueckweg.test.ts` (echte Route, ein Wirtschaftsjahr mit Beginn im Juli und das echte Monatsraster der Seite, `monateDesWirtschaftsjahrs`: März 2026 → `?jahr=2025`, und dort steht der Monat — unter dem alten `?jahr=2026` nicht; der Dienst bekommt weiter den Kalendermonat; eine Abweisung ebenso; ein Kalenderjahr-Wirtschaftsjahr kehrt auf sich zurück; eine falsche Form → 400, nichts geschlossen; ein Jahr, das den Monat nicht enthalten kann, reist nicht mit; ohne das Feld wie bisher; die Seite schickt `z.jahr`).
+
+N5. **Der Satz zum Einladungslink sagt, was wirklich geht.** `linkEinmal` versprach „wenn Sie ihn verlieren, stellen Sie einen neuen aus — der alte verfällt dabei"; eine zweite Einladung derselben Adresse ergibt aber `schon_eingetragen` (0372: die Mitgliedschaft entsteht mit der Einladung, und eine bestehende weist die Datenbank ab). Geprüft, ob es einen echten Weg gibt — Dienst (`verwaltungskonto.ts` kennt nur `ladeVerwaltungskontoEin`), Route (nur das Einladen), Knopf (das Benutzerblatt hat Entsperren, Entziehen, Wiedergeben, Sitzungen widerrufen): keiner stellt für eine offene Einladung einen neuen Link aus; „Kennwort vergessen" legt einen Link an, schickt ihn aber nur über den Versand, der nicht verbunden ist (O-501); den Weg hat nur der Kundenzugang (`app.kundenzugang_neu_einladen`, 0249). Ob und für wen es ihn beim Verwaltungskonto geben soll (wer darf — D-610; gilt er nach Ablauf der Frist), ist eine Entscheidung: **O-980**, mit Platzhaltersatz und `TODO(client, O-980)`. Der Satz sagt jetzt: gespeichert ist nur die Prüfsumme, einen neuen Link für eine offene Einladung stellt das Portal noch nicht aus, eine zweite Einladung wird abgewiesen, wie ein verlorener Link ersetzt wird, ist offen (O-980). `schon_eingetragen` riet dazu „Ändern Sie seine Rolle, statt es erneut einzuladen" — auch dafür gibt es keinen Weg (nichts ändert `benutzer_mandant.rolle_id`); der Satz sagt jetzt, dass eine zweite Einladung nichts anlegt und keinen Link ausstellt, und nennt beide offenen Fragen — **O-981** für die Rolle, mit `TODO(client, O-981)`. Kein neuer Ablauf, keine Regel. Nebenbefund, nicht angefasst (nicht Teil der Verwaltung): `/auth/passwort-vergessen` sagt bei nicht verbundenem Versand „Ihre Verwaltung kann das Kennwort im Portal zurücksetzen (Einstellungen → Benutzer)" — das Benutzerblatt hat keinen solchen Knopf. Prüfung: `tests/kern/verwaltungskonto-rueckweg.test.ts` (de/en: kein Versprechen eines neuen Links und keiner Rollenänderung, beide Fragen genannt; der Satz bleibt wahr — 0372 weist eine zweite Einladung ab, kein Dienst und keine Route stellt neu aus; O-980 und O-981 stehen im Abschnitt „Open", ihr TODO an dem Satz, den die Antwort ändert).
+
+N6. **Nachgebaute Hinweise werden der Baustein** (DESIGN §5 „Notices"). `freigaben/[id]` trug einen eigenen `Kasten` aus den Klassen von `components/ui/Hinweis.tsx` (neun Stellen), `eingangsrechnungen/neu` zwei `<p>` mit denselben Klassen („kein Lieferant" und die Vorbelegung aus einem Vorschlag). Jetzt überall `Hinweis`: die Art wie bisher (hinweis, warnung, erfolg; kein danger), dieselben `data-cse`-Anker, derselbe Abstand (`mb-s6` bzw. `mb-s5 max-w-prose`), `rolle` beim Ausgang eines abgeschickten Formulars — `status` für „Vorschlag angelegt" (nach dem E-Rechnungs-Formular), „Freigegeben"/„Abgelehnt" und „Einspruch vermerkt"/„Zurückgenommen", `alert` für die abgewiesene Entscheidung (wie bisher); die Hinweise auf einen Stand (E-Rechnungs-Wege, übernommen, Bild fehlt, kein Rückgängig, Freigeben gesperrt, kein Lieferant, Vorbelegung) tragen keine. „Kein Lieferant" setzt die ersten Worte fett, wie §5 verlangt: der Satz steht jetzt in zwei Stücken (`keinLieferantAngelegt`, `keinLieferantFolge`), der Wortlaut ist derselbe; der Hinweis bekommt den Anker `kein-lieferant`. Die Vorbelegung wechselt dabei von `p-s4` und gedämpfter Schrift auf die Maße des Bausteins. Grep über die Prüfungen: `tests/kern/freigabe-entscheidung-rueckweg.test.ts` erwartete `<Kasten … cse="entscheidung-abgewiesen"` — bewusst auf `<Hinweis …` umgestellt; die Browserprüfungen (`freigaben.spec.ts`, `erechnung.spec.ts`, `eingangsrechnung.spec.ts`) suchen nur die `data-cse`-Anker und Text, beides unverändert (nicht lokal gelaufen); keine erwartet eine ARIA-Rolle. `freigabe-bild-fehlt` bleibt ohne fetten Anfang: sein Satz kommt in einem Stück aus `SOCIAL_BILD_TEXTE` (Social, nicht Teil dieses Punkts). Prüfung: `tests/kern/freigabe-entscheidung-rueckweg.test.ts` (alle neun Hinweise des Blatts mit Art und Rolle; kein `Kasten`, keine Klassen des Bausteins, kein danger), `tests/kern/eingangsrechnung-rueckweg.test.ts` (`/neu` baut keinen Hinweis mehr nach; beide als `Hinweis`; der fette Anfang).
+
+N7. **`AblageFehler` reist auf dem Fassungsblatt mit seinem Grund, wo das Blatt einen Satz dafür hat.** `fassungGrund` bildete JEDEN `AblageFehler` auf `datei_zu_gross` ab — richtig für den einen, den `legeFassungAn` heute wirft (grösser als die Grenze), falsch für jeden anderen: `datei_leer` hätte „Die Datei ist zu groß." gezeigt. Jetzt reist `fehler.grund`, wenn das Fassungsblatt einen eigenen Satz dafür hat (nachgeschlagen als eigener Eintrag in `DOKUMENT_BLATT_TEXTE.de.faFehler`: `datei_leer`, `datei_zu_gross`); die Gründe der Ablagefelder (Titel, Kategorie, Beschreibung, Bezug) haben dort keinen und bleiben beim bisherigen Rückfall. `fassungGrund` gibt jetzt den Typ der Satztabelle zurück (`FassungAbweisungText`) statt `string`: ein Grund ohne Satz bricht die Übersetzung. Prüfung: `tests/kern/dokument-fassung.test.ts` (grün wie bisher; dazu: beide Gründe mit Satz reisen als sie selbst, mit einem Satz in de und en; die sieben ohne Satz werden `datei_zu_gross`).
+
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, O-980, O-981, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `src/app/api/finanzen/eingangsrechnungen/route.ts`, `src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/neu/page.tsx`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/api/freigaben/[id]/entscheidung/route.ts`, `src/server/services/freigabe/ausfuehrung.ts`, `src/lib/i18n/verwaltung/freigabe-ausfuehrung.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/app/portal/[mandant]/agenten/richtlinien/{hinweis.ts,page.tsx,[id]/page.tsx}`, `src/app/portal/[mandant]/einstellungen/agent-richtlinien/page.tsx`, `src/app/api/einstellungen/agent-richtlinien/route.ts`, `tests/kern/richtlinien-hinweis.test.ts`, `tests/kern/eingangsrechnung-datei.test.ts`, `src/app/api/dokumente/[id]/version/grund.ts`, `tests/kern/dokument-fassung.test.ts`, `tests/kern/{konto-sitzung,verwaltungskonto,freigabe-entscheidung,zahlungsausgang,eingangsrechnung,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
 |---|---|

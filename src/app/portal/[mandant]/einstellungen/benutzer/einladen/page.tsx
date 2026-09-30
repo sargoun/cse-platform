@@ -5,6 +5,7 @@ import { FormField } from '@/components/ui/FormField';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { anbieter } from '@/server/auth/kennwort-anmeldung';
 import { EINLADUNG_COOKIE } from '@/server/services/system/verwaltungskonto';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VERWALTUNGSKONTO_TEXTE }
   from '@/lib/i18n/verwaltung/einstellungen/verwaltungskonto';
@@ -33,6 +34,13 @@ import { haeltRechte } from '@/app/portal/rechte';
  * schlimmer als keiner (CLAUDE.md „no fake integrations"). Er kommt ueber
  * einen fuenf Minuten lebenden `httpOnly`-Keks von der Route, nie ueber die
  * Adresse — ein Token in der URL steht in jedem Zugriffsprotokoll.
+ *
+ * **Zurück kommen nur Schlüssel** (D-769, D-774): `?erfolg=eingeladen` und
+ * `?fehler=<grund>`, beide in der Sprache der Sitzung nachgeschlagen, nur als
+ * eigener Eintrag. Bis dahin kam beides als `?meldung=` — der Erfolg im
+ * selben Parameter wie ein Fehler, sodass ohne den Keks „eingeladen" im
+ * Warnkasten stand —, und die Seite zeigte jeden Satz der Datenbank und jeden
+ * Text eines präparierten Links roh.
  */
 export const dynamic = 'force-dynamic';
 
@@ -62,8 +70,11 @@ export default async function VerwaltungskontoEinladen(
    */
   const darf = await haeltRechte(zugang.sitzung, 'system.benutzer_lesen');
   const link = (await cookies()).get(EINLADUNG_COOKIE)?.value ?? null;
-  const meldungRoh = (await searchParams)['meldung'];
-  const meldung = typeof meldungRoh === 'string' ? meldungRoh : null;
+  const suche = await searchParams;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const erfolg = typeof suche['erfolg'] === 'string' ? suche['erfolg'] : null;
+  /* Ein unbekannter Erfolgsschlüssel zeigt nichts: ein allgemeiner Erfolgssatz behauptete einen Erfolg. */
+  const erfolgSatz = erfolg === null ? undefined : eigenerEintrag(t.erfolg, erfolg);
   const hausintern = anbieter() === 'demo';
 
   return (
@@ -97,7 +108,7 @@ export default async function VerwaltungskontoEinladen(
       </Hinweis>
 
       {link !== null && (
-        <Hinweis art="erfolg" cse="vk-link" className="mb-s5 max-w-prose">
+        <Hinweis art="erfolg" rolle="status" cse="vk-link" className="mb-s5 max-w-prose">
           <strong>{t.linkTitel}</strong> {t.linkErklaerung}
           <br /><br />
           <span className="text-sm text-text-muted">{t.linkKopieren}:</span>
@@ -110,9 +121,17 @@ export default async function VerwaltungskontoEinladen(
         </Hinweis>
       )}
 
-      {meldung !== null && link === null && (
-        <Hinweis art="warnung" cse="vk-meldung" className="mb-s5 max-w-prose">
-          <strong>{t.fehlerTitel}</strong> {meldung}
+      {/* Der Keks trägt den Link; ist er abgelaufen, sagt der Satz, wo er geblieben ist. */}
+      {link === null && erfolgSatz !== undefined && (
+        <Hinweis art="erfolg" rolle="status" cse="vk-eingeladen" className="mb-s5 max-w-prose">
+          <strong>{t.linkTitel}</strong> {erfolgSatz}
+        </Hinweis>
+      )}
+
+      {fehler !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="vk-meldung" className="mb-s5 max-w-prose">
+          <strong>{t.fehlerTitel}</strong>{' '}
+          {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
         </Hinweis>
       )}
 

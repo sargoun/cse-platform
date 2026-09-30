@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
 import { slugTor } from '../../../../unterseite';
@@ -31,6 +33,12 @@ import { EINGANGSRECHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/eingang
  * statt eine zweite Zahlung entstehen zu lassen. Es gibt kein „trotzdem":
  * dieselbe Rechnung zweimal zu bezahlen ist genau der Schaden, den der Riegel
  * verhindert.
+ *
+ * **Eine Abweisung kommt als Grund zurück** (`?fehler=`, D-769, D-774) und
+ * steht hier als Satz in der Sprache der Sitzung, nachgeschlagen als eigener
+ * Eintrag; ein unbekannter Grund wird der allgemeine Satz. Bis dahin stand
+ * hier `?meldung=` roh — der deutsche Satz der Route, des Dienstes oder jedes
+ * präparierten Links — und ohne ihn der rohe Schlüssel.
  */
 export const dynamic = 'force-dynamic';
 
@@ -145,8 +153,7 @@ export default async function NeueEingangsrechnung(
     }>);
   const v = daten.vorbelegung;
 
-  const hinweis = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
@@ -202,26 +209,22 @@ export default async function NeueEingangsrechnung(
       </form>
 
       {v !== null ? (
-        <p data-cse="vorbelegung-hinweis"
-           className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s4 text-sm text-text-muted">
-          {t.vorbelegtVor} <strong className="text-text">{v.titel}</strong>{t.vorbelegtNach}
-        </p>
+        <Hinweis art="hinweis" cse="vorbelegung-hinweis" className="mb-s5 max-w-prose">
+          {t.vorbelegtVor} <strong>{v.titel}</strong>{t.vorbelegtNach}
+        </Hinweis>
       ) : null}
 
-      {hinweis === null ? null : (
-        <p
-          role="alert"
-          data-cse="eingang-hinweis"
-          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning"
-        >
-          {meldung ?? hinweis}
-        </p>
+      {fehler === null ? null : (
+        <Hinweis art="warnung" rolle="alert" cse="eingang-hinweis" className="mb-s5 max-w-prose">
+          <strong>{t.erfassenNicht}</strong>{' '}
+          {eigenerEintrag(t.erfassenFehler, fehler) ?? t.erfassenFehlerSonst}
+        </Hinweis>
       )}
 
       {daten.lieferanten.length === 0 ? (
-        <p className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-          {t.keinLieferantAngelegt}
-        </p>
+        <Hinweis art="warnung" cse="kein-lieferant" className="mb-s5 max-w-prose">
+          <strong>{t.keinLieferantAngelegt}</strong> {t.keinLieferantFolge}
+        </Hinweis>
       ) : null}
 
       <form

@@ -9,6 +9,8 @@ import { formatiereGeld } from '@/server/services/finanz/geld';
 import { monatszahlen, type Monatszahlen } from '@/server/services/buchhaltung/monatszahlen';
 import { liesWirtschaftsjahr, wirtschaftsjahrVon } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { PERIODEN_RUECKWEG_TEXTE } from '@/lib/i18n/verwaltung/buchhaltung-perioden';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
 /**
@@ -19,6 +21,18 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  * als Naechstes geht. Offen → vorlaeufig → geschlossen; vorlaeufig laesst
  * sich wieder oeffnen, geschlossen nicht. Was die Datenbank abweist (Zeilen
  * ohne Konto, Buchungen ohne Ausgleich), steht danach als Satz oben.
+ *
+ * **Erfolg und Abweisung kommen als Schlüssel zurück** (`?erfolg=`,
+ * `?fehler=`, D-769, D-774) und stehen als Satz aus
+ * `PERIODEN_RUECKWEG_TEXTE` da, nachgeschlagen als eigener Eintrag. Den Monat
+ * (`?monat=`) nennt die Seite nur, wenn er einer IHRER Monate ist, mit dessen
+ * Namen. Bis dahin stand ein fertiger Satz aus `?meldung=` im Kasten — der
+ * Route, des Dienstes oder der Datenbank, und jeder eines präparierten Links.
+ *
+ * **Zurück geht es auf das Wirtschaftsjahr, aus dem das Formular kam** (D-774
+ * Nachrunde): das Formular schickt `z.jahr` mit. Ohne das kehrte die Route auf
+ * das Kalenderjahr des Monats zurück — in einem Wirtschaftsjahr, das nicht im
+ * Januar beginnt, ein anderes Jahr, in dem der Monat nicht steht.
  */
 export const dynamic = 'force-dynamic';
 
@@ -42,9 +56,13 @@ export default async function Perioden(
   const suche = await searchParams;
   const jahrRoh = typeof suche['jahr'] === 'string' ? suche['jahr'] : null;
   const gewaehlt = jahrRoh !== null && /^\d{4}$/u.test(jahrRoh) ? Number(jahrRoh) : null;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const geschlossen = typeof suche['geschlossen'] === 'string' ? suche['geschlossen'] : null;
+  const erfolg = typeof suche['erfolg'] === 'string' ? suche['erfolg'] : null;
+  const monatRoh = typeof suche['monat'] === 'string' ? suche['monat'] : null;
+  /* Fest deutsch: die Seite steht auf der Ausnahmeliste der Übersetzungswache. */
+  const t = PERIODEN_RUECKWEG_TEXTE.de;
+  /* Ein unbekannter Erfolgsschlüssel zeigt nichts: ein allgemeiner Erfolgssatz behauptete einen Erfolg. */
+  const erfolgSatz = erfolg === null ? undefined : eigenerEintrag(t.erfolg, erfolg);
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -60,6 +78,8 @@ export default async function Perioden(
         ohneKonto: new Map(ohne.map((o) => [o.monat, o.n])) as ReadonlyMap<string, number> };
     })) as Promise<{ z: Monatszahlen; heute: string; ohneKonto: ReadonlyMap<string, number> }>);
   const z = daten.z;
+  /* Der Monat aus der Adresse zählt nur, wenn er einer der Monate dieser Seite ist. */
+  const betroffen = monatRoh === null ? undefined : z.monate.find((m) => m.monat === monatRoh);
 
   const basis = `/portal/${mandant}/buchhaltung/perioden`;
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line px-s4 py-s3 text-sm text-text hover:bg-surface-2';
@@ -90,14 +110,15 @@ export default async function Perioden(
         die Monatszahlen eingefroren.
       </p>
 
-      {geschlossen !== null ? (
-        <Hinweis art="erfolg" cse="periode-vermerkt" className="mb-s5 max-w-prose">
-          <strong>Vermerkt:</strong> {meldung ?? geschlossen}
+      {erfolgSatz !== undefined ? (
+        <Hinweis art="erfolg" rolle="status" cse="periode-vermerkt" className="mb-s5 max-w-prose">
+          <strong>{t.vermerkt}</strong> {betroffen?.label ?? t.monat} {erfolgSatz}
         </Hinweis>
       ) : null}
       {fehler !== null ? (
-        <Hinweis art="warnung" cse="periode-abgewiesen" className="mb-s5 max-w-prose">
-          <strong>Nicht geändert.</strong> {meldung ?? 'Die Handlung wurde abgewiesen.'}
+        <Hinweis art="warnung" rolle="alert" cse="periode-abgewiesen" className="mb-s5 max-w-prose">
+          <strong>{t.nichtGeaendert}</strong>{' '}
+          {betroffen === undefined ? null : <>{betroffen.label}: </>}{eigenerEintrag(t.fehler, fehler) ?? t.sonst}
         </Hinweis>
       ) : null}
 
@@ -130,6 +151,8 @@ export default async function Perioden(
                 <input type="hidden" name="mandant" value={mandant} />
                 <input type="hidden" name="jahr" value={m.monat.slice(0, 4)} />
                 <input type="hidden" name="monat" value={String(Number(m.monat.slice(5, 7)))} />
+                {/* Zurück auf DIESES Wirtschaftsjahr, nicht auf das Kalenderjahr des Monats (D-774). */}
+                <input type="hidden" name="wirtschaftsjahr" value={String(z.jahr)} />
                 {status === 'geschlossen' ? (
                   <span className="text-xs text-text-subtle">{STATUS_TEXT[status]} — endgültig</span>
                 ) : status === 'vorlaeufig_geschlossen' ? (

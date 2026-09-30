@@ -7,6 +7,7 @@ import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import { oeffneFreigabe, type FreigabeAnsicht } from '@/server/services/freigabe/laden';
 import { RUECKNAHME_OFFENE_FRAGE } from '@/server/services/freigabe/fenster.platzhalter';
@@ -32,6 +33,7 @@ import {
   beitragDerFreigabe, bildDerFreigabe, type FreigabeBild,
 } from '@/server/services/social/beitragsbild';
 import { SOCIAL_BILD_TEXTE } from '@/lib/i18n/verwaltung/social-bild';
+import { AUSFUEHRUNG_RUECKWEG_TEXTE } from '@/lib/i18n/verwaltung/freigabe-ausfuehrung';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 
 /**
@@ -73,21 +75,6 @@ const FELD_LABEL: Readonly<Record<string, string>> = {
   menge: 'Menge', einzelpreis: 'Einzelpreis', betrag: 'Betrag',
   bezeichnung: 'Bezeichnung', herkunft: 'Herkunft', meta: 'Merkmal',
 };
-
-function Kasten(
-  { art, kinder, cse }: { art: 'hinweis' | 'warnung' | 'erfolg'; kinder: React.ReactNode; cse: string },
-) {
-  const klasse = art === 'warnung'
-    ? 'border-warning bg-warning-soft text-warning'
-    : art === 'erfolg'
-      ? 'border-success bg-success-soft text-success'
-      : 'border-line bg-surface text-text';
-  return (
-    <section data-cse={cse} className={`mb-s6 rounded-lg border p-s5 text-sm ${klasse}`}>
-      {kinder}
-    </section>
-  );
-}
 
 export default async function Freigabe(
   { params, searchParams }: {
@@ -147,7 +134,6 @@ export default async function Freigabe(
   const offen = f.status === 'offen';
   const gesperrt = f.unsichereFelder > 0;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const fehlerMeldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const entschieden = typeof suche['entschieden'] === 'string' ? suche['entschieden'] : null;
   const vorschlag = typeof suche['vorschlag'] === 'string' ? suche['vorschlag'] : null;
   /** Was das Fensterformular vermerkt hat (APR-05, APR-06). */
@@ -229,33 +215,27 @@ export default async function Freigabe(
       </div>
 
       {vorschlag !== null ? (
-        <Kasten art="hinweis" cse="vorschlag-angelegt" kinder={(
-          <>
-            <strong>{vorschlag === 'neu' ? 'Vorschlag angelegt.' : 'Diese Datei hatte schon einen Vorschlag.'}</strong>{' '}
-            Die E-Rechnung ist gelesen; jedes Feld steht unten mit seiner Quelle und seiner
-            Prüfung. Erst die Freigabe erzeugt die Eingangsrechnung.
-          </>
-        )}
-        />
+        <Hinweis art="hinweis" rolle="status" cse="vorschlag-angelegt" className="mb-s6">
+          <strong>{vorschlag === 'neu' ? 'Vorschlag angelegt.' : 'Diese Datei hatte schon einen Vorschlag.'}</strong>{' '}
+          Die E-Rechnung ist gelesen; jedes Feld steht unten mit seiner Quelle und seiner
+          Prüfung. Erst die Freigabe erzeugt die Eingangsrechnung.
+        </Hinweis>
       ) : null}
       {entschieden !== null && ansicht.schnappschuss !== null ? (
-        <Kasten art="erfolg" cse="entscheidung-vermerkt" kinder={(
-          <>
-            <strong>{entschieden === 'genehmigt' ? 'Freigegeben.' : 'Abgelehnt.'}</strong>
-            {' '}Kettenglied Nr. {ansicht.schnappschuss.ketteNr.toString()} ist geschrieben und
-            unveränderlich.
-            {uebernommen !== null ? (
-              <>
-                {' '}Die Eingangsrechnung ist angelegt:{' '}
-                <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/${uebernommen}`}
-                      data-cse="zur-eingangsrechnung" className="underline underline-offset-2">
-                  zur Eingangsrechnung
-                </Link>.
-              </>
-            ) : null}
-          </>
-        )}
-        />
+        <Hinweis art="erfolg" rolle="status" cse="entscheidung-vermerkt" className="mb-s6">
+          <strong>{entschieden === 'genehmigt' ? 'Freigegeben.' : 'Abgelehnt.'}</strong>
+          {' '}Kettenglied Nr. {ansicht.schnappschuss.ketteNr.toString()} ist geschrieben und
+          unveränderlich.
+          {uebernommen !== null ? (
+            <>
+              {' '}Die Eingangsrechnung ist angelegt:{' '}
+              <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/${uebernommen}`}
+                    data-cse="zur-eingangsrechnung" className="underline underline-offset-2">
+                zur Eingangsrechnung
+              </Link>.
+            </>
+          ) : null}
+        </Hinweis>
       ) : null}
       {/*
         * **Ein Einspruch und eine Rücknahme sind Ereignisse, keine
@@ -264,64 +244,58 @@ export default async function Freigabe(
         * jetzt gilt, nicht, was vorher galt.
         */}
       {vermerkt !== null ? (
-        <Kasten art="erfolg" cse="fenster-vermerkt" kinder={(
-          <>
-            <strong>
-              {vermerkt === 'einspruch' ? 'Einspruch vermerkt.' : 'Zurückgenommen.'}
-            </strong>{' '}
-            {vermerkt === 'einspruch'
-              ? 'Die Genehmigung ist widerrufen; ausgelöst wurde nichts (APR-05). '
-                + 'Eine erneute Entscheidung ist eine NEUE Freigabe (§4.5).'
-              : 'Die Ausführung ist zurückgenommen — die Entscheidung und ihr '
-                + 'Schnappschuss bleiben, was sie waren (APR-06, APR-07).'}
-          </>
-        )}
-        />
+        <Hinweis art="erfolg" rolle="status" cse="fenster-vermerkt" className="mb-s6">
+          <strong>
+            {vermerkt === 'einspruch' ? 'Einspruch vermerkt.' : 'Zurückgenommen.'}
+          </strong>{' '}
+          {vermerkt === 'einspruch'
+            ? 'Die Genehmigung ist widerrufen; ausgelöst wurde nichts (APR-05). '
+              + 'Eine erneute Entscheidung ist eine NEUE Freigabe (§4.5).'
+            : 'Die Ausführung ist zurückgenommen — die Entscheidung und ihr '
+              + 'Schnappschuss bleiben, was sie waren (APR-06, APR-07).'}
+        </Hinweis>
       ) : null}
+      {/*
+        * Der Grund einer Abweisung — der Entscheidung (`FEHLER_TEXT`) oder
+        * ihrer Ausführung (`ausfuehrung_<grund>`, D-774) —, nachgeschlagen als
+        * eigener Eintrag; ein unbekannter wird der allgemeine Satz. Hier stand
+        * bei `ausfuehrung` der Satz aus `?meldung=` roh.
+        */}
       {fehler !== null ? (
-        <Kasten art="warnung" cse="entscheidung-abgewiesen" kinder={(
-          <>
-            <strong>Nicht entschieden.</strong>{' '}
-            {fehler === 'ausfuehrung' && fehlerMeldung !== null
-              ? fehlerMeldung
-              : (eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Entscheidung wurde abgewiesen.')}
-          </>
-        )}
-        />
+        <Hinweis art="warnung" rolle="alert" cse="entscheidung-abgewiesen" className="mb-s6">
+          <strong>Nicht entschieden.</strong>{' '}
+          {eigenerEintrag(FEHLER_TEXT, fehler)
+            ?? eigenerEintrag(AUSFUEHRUNG_RUECKWEG_TEXTE.de.fehler, fehler)
+            ?? 'Die Entscheidung wurde abgewiesen.'}
+        </Hinweis>
       ) : null}
       {istERechnung && offen ? (
-        <Kasten art="hinweis" cse="erechnung-wege" kinder={(
-          <>
-            <strong>Aus einer E-Rechnung gelesen.</strong>{' '}
-            Freigeben übernimmt genau diese Werte als Eingangsrechnung.
-            {gesperrt
-              ? ' Da Felder unsicher sind, ist die Freigabe gesperrt — die Werte lassen sich '
-                + 'von Hand prüfen und erfassen.'
-              : ' Wer lieber selbst erfasst, findet die Werte vorbelegt.'}
-            {darfErfassen && (
-              <>
-                {' '}
-                <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu?von=${id}`}
-                      data-cse="manuell-erfassen" className="underline underline-offset-2">
-                  Manuell erfassen
-                </Link>.
-              </>
-            )}
-          </>
-        )}
-        />
+        <Hinweis art="hinweis" cse="erechnung-wege" className="mb-s6">
+          <strong>Aus einer E-Rechnung gelesen.</strong>{' '}
+          Freigeben übernimmt genau diese Werte als Eingangsrechnung.
+          {gesperrt
+            ? ' Da Felder unsicher sind, ist die Freigabe gesperrt — die Werte lassen sich '
+              + 'von Hand prüfen und erfassen.'
+            : ' Wer lieber selbst erfasst, findet die Werte vorbelegt.'}
+          {darfErfassen && (
+            <>
+              {' '}
+              <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/neu?von=${id}`}
+                    data-cse="manuell-erfassen" className="underline underline-offset-2">
+                Manuell erfassen
+              </Link>.
+            </>
+          )}
+        </Hinweis>
       ) : null}
       {istERechnung && uebernommen !== null && entschieden === null ? (
-        <Kasten art="hinweis" cse="erechnung-uebernommen" kinder={(
-          <>
-            <strong>Übernommen.</strong>{' '}
-            <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/${uebernommen}`}
-                  data-cse="zur-eingangsrechnung" className="underline underline-offset-2">
-              Zur Eingangsrechnung
-            </Link>.
-          </>
-        )}
-        />
+        <Hinweis art="hinweis" cse="erechnung-uebernommen" className="mb-s6">
+          <strong>Übernommen.</strong>{' '}
+          <Link href={`/portal/${mandant}/finanzen/eingangsrechnungen/${uebernommen}`}
+                data-cse="zur-eingangsrechnung" className="underline underline-offset-2">
+            Zur Eingangsrechnung
+          </Link>.
+        </Hinweis>
       ) : null}
 
       <dl className="mb-s7 grid grid-cols-2 gap-s4 sm:grid-cols-4">
@@ -555,7 +529,9 @@ export default async function Freigabe(
             {tBild.freigabeTitel}
           </h2>
           {bild === 'fehlt' ? (
-            <Kasten art="warnung" cse="freigabe-bild-fehlt" kinder={tBild.freigabeFehlt} />
+            <Hinweis art="warnung" cse="freigabe-bild-fehlt" className="mb-s6">
+              {tBild.freigabeFehlt}
+            </Hinweis>
           ) : bild === null ? (
             <p className="mb-s3 text-sm text-text-muted" data-cse="freigabe-ohne-bild">
               {tBild.keines}
@@ -677,16 +653,13 @@ export default async function Freigabe(
         * Stand umsetzt, wäre ein vorgetäuschter Erfolg.
         */}
       {f.status === 'genehmigt' && f.ausfuehrungStatus === 'ausgefuehrt' && f.undoBis === null ? (
-        <Kasten art="hinweis" cse="keine-ruecknahme" kinder={(
-          <>
-            <strong>Kein Rückgängig für diese Handlung.</strong>{' '}
-            Der Weg dafür steht — Fenster, Frist, eigenes Recht, Protokoll —, aber er ist
-            für nichts armiert: zurückzunehmen wäre die HANDLUNG, nicht der Stand, und
-            dafür gibt es hier keinen gebauten Rückweg. Eine Korrektur ist eine NEUE
-            Freigabe (§4.5). Offene Frage: {RUECKNAHME_OFFENE_FRAGE}.
-          </>
-        )}
-        />
+        <Hinweis art="hinweis" cse="keine-ruecknahme" className="mb-s6">
+          <strong>Kein Rückgängig für diese Handlung.</strong>{' '}
+          Der Weg dafür steht — Fenster, Frist, eigenes Recht, Protokoll —, aber er ist
+          für nichts armiert: zurückzunehmen wäre die HANDLUNG, nicht der Stand, und
+          dafür gibt es hier keinen gebauten Rückweg. Eine Korrektur ist eine NEUE
+          Freigabe (§4.5). Offene Frage: {RUECKNAHME_OFFENE_FRAGE}.
+        </Hinweis>
       ) : null}
       {darfRuecknahme && f.undoBis !== null && f.undoBis > new Date() ? (
         <section className="mb-s6 max-w-prose rounded-lg border border-line bg-surface p-s5"
@@ -719,14 +692,11 @@ export default async function Freigabe(
         <section aria-labelledby="entscheidung-titel" className="mb-s7">
           <h2 id="entscheidung-titel" className="mb-s3 text-h2 text-text">Entscheidung</h2>
           {gesperrt ? (
-            <Kasten art="warnung" cse="freigeben-gesperrt" kinder={(
-              <>
-                <strong>Freigeben ist gesperrt:</strong>{' '}
-                {String(f.unsichereFelder)} Feld(er) sind unsicher (APR-03). Eine Korrektur ist
-                eine neue Freigabe; diese lässt sich nur ablehnen.
-              </>
-            )}
-            />
+            <Hinweis art="warnung" cse="freigeben-gesperrt" className="mb-s6">
+              <strong>Freigeben ist gesperrt:</strong>{' '}
+              {String(f.unsichereFelder)} Feld(er) sind unsicher (APR-03). Eine Korrektur ist
+              eine neue Freigabe; diese lässt sich nur ablehnen.
+            </Hinweis>
           ) : null}
           <form method="post" action={`/api/freigaben/${id}/entscheidung`} className="flex flex-col gap-s4">
             <label className="flex flex-col gap-s2 text-sm text-text" htmlFor="begruendung">

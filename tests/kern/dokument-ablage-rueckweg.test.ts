@@ -21,6 +21,7 @@ import { join, resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { DOKUMENT_BLATT_TEXTE } from '../../src/lib/i18n/verwaltung/dokument-blatt.js';
+import { UPLOAD_RUECKWEG_TEXTE } from '../../src/lib/i18n/verwaltung/dokument-rueckweg.js';
 
 const zustand = vi.hoisted(() => ({
   sitzung: null as null | Record<string, unknown>,
@@ -121,11 +122,23 @@ describe('POST /api/dokumente/upload — Metadaten, die sich nicht entfernen las
 });
 
 describe('die Seite hat den Satz dazu', () => {
+  /*
+   * D-774: die Tabelle des Formulars stand im Seitenrumpf und steht jetzt
+   * unter `lib/i18n/verwaltung/dokument-rueckweg.ts` (D-769: Tabellen unter
+   * `lib/i18n`, auch für fest deutsche Seiten). Geprüft wird weiter, dass es
+   * derselbe Satz aus derselben Quelle ist — und dazu, dass die Seite ihn
+   * nachschlägt.
+   */
   it('„datei_metadaten“ steht in der Tabelle des Formulars, aus derselben Quelle wie das Blatt', () => {
+    const tabelle = readFileSync(
+      join(WURZEL, 'src/lib/i18n/verwaltung/dokument-rueckweg.ts'), 'utf8');
+    expect(tabelle).toMatch(/const FASSUNG = DOKUMENT_BLATT_TEXTE\.de\.faFehler;/u);
+    expect(tabelle).toMatch(/datei_metadaten:\s*FASSUNG\.datei_metadaten/u);
+    expect(UPLOAD_RUECKWEG_TEXTE.de.fehler.datei_metadaten)
+      .toBe(DOKUMENT_BLATT_TEXTE.de.faFehler.datei_metadaten);
+    expect(DOKUMENT_BLATT_TEXTE.de.faFehler.datei_metadaten).toMatch(/JPEG|PNG/u);
     const seite = readFileSync(
       join(WURZEL, 'src/app/portal/[mandant]/dokumente/upload/page.tsx'), 'utf8');
-    expect(seite).toMatch(
-      /datei_metadaten:\s*DOKUMENT_BLATT_TEXTE\.de\.faFehler\.datei_metadaten/u);
-    expect(DOKUMENT_BLATT_TEXTE.de.faFehler.datei_metadaten).toMatch(/JPEG|PNG/u);
+    expect(seite).toContain('eigenerEintrag(t.fehler, fehler)');
   });
 });

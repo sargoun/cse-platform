@@ -56,16 +56,21 @@ const AUSGANG_FELDER = ['betrag', 'zahlungsdatum', 'zahlungsmittel', 'bankkontoI
  * Zurück auf die Eingangsrechnung (V-216, D-599): ein Browser bekommt eine
  * Seite, mit dem Grund als Schlüssel und — bei einer Abweisung — seinen
  * Eingaben.
+ *
+ * **Der Erfolg reist als `?erfolg=<schluessel>`** (D-769, D-774). Er war
+ * schon ein Schlüssel, reiste aber als `?meldung=` — unter dem Namen, den
+ * sonst nur ein Satz trug und den keine Seite mehr lesen soll.
  */
 function zurEingangsrechnung(
   anfrage: NextRequest, eingangsrechnungId: string,
-  ergebnis: { readonly meldung: string } | { readonly fehler: string; readonly daten: FormData },
+  ergebnis: { readonly erfolg: 'ausgang_erfasst' | 'ausgang_guthaben' }
+    | { readonly fehler: string; readonly daten: FormData },
 ): NextResponse {
   const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const pfad = `/portal/${slug}/finanzen/eingangsrechnungen/${eingangsrechnungId}`;
-  if ('meldung' in ergebnis) {
+  if ('erfolg' in ergebnis) {
     const url = new URL(pfad, erwarteterUrsprung(anfrage));
-    url.searchParams.set('meldung', ergebnis.meldung);
+    url.searchParams.set('erfolg', ergebnis.erfolg);
     return NextResponse.redirect(url, 303);
   }
   const werte: Record<string, string | null> = {};
@@ -215,7 +220,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           });
           /* Die Überzahlung wird BENANNT: ein Guthaben beim Lieferanten. */
           return zurEingangsrechnung(anfrage, eingangsrechnungId, {
-            meldung: ergebnis.ueberzahlungCent > 0n ? 'ausgang_guthaben' : 'ausgang_erfasst',
+            erfolg: ergebnis.ueberzahlungCent > 0n ? 'ausgang_guthaben' : 'ausgang_erfasst',
           });
         }
 

@@ -25,8 +25,16 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
  * Aktivität.
  */
 
+/**
+ * Warum eine Anmeldung nicht beendet wurde — der Schlüssel, der zurück auf
+ * die Sicherheitsseite reist (D-769, D-774). Den Satz dazu hat die Seite, in
+ * der Sprache des Kontos (`SICHERHEIT_TEXTE`); der Satz hier ist der des
+ * Protokolls und der Prüfungen.
+ */
+export type SitzungGrund = 'diese_sitzung' | 'nicht_gefunden';
+
 export class SitzungFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: SitzungGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'SitzungFehler';
   }

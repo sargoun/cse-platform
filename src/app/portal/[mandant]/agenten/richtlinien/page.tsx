@@ -9,9 +9,10 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Button } from '@/components/ui/Button';
 import { formatiereGeld } from '@/server/services/finanz/geld';
 import {
-  HINWEIS_TEXT, ladeRichtlinien, WIRKUNG_TEXT, type RichtlinienZeile, type Wirkung,
+  ladeRichtlinien, WIRKUNG_TEXT, type RichtlinienZeile, type Wirkung,
 } from '@/server/services/agent/richtlinie';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { richtlinienHinweis } from './hinweis';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '../../../rechte';
 
@@ -65,8 +66,7 @@ export default async function AgentenRichtlinien(
    * den Namen; den Satz kennt `HINWEIS_TEXT`, und ein unbekannter Name zeigt
    * gar nichts.
    */
-  const hinweis = typeof suche['hinweis'] === 'string'
-    ? HINWEIS_TEXT[suche['hinweis']] ?? null : null;
+  const hinweis = richtlinienHinweis(suche);
 
   const tor = await mandantTor(`/portal/${mandant}/agenten/richtlinien`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;

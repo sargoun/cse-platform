@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { ohneSitzungAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
@@ -11,8 +11,10 @@ import { NichtVerbundenFehler } from '@/server/storage/adapter';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import { MimeFehler } from '@/server/storage/mime';
 import { ExifFehler } from '@/server/storage/exif';
-import { legeAb } from '@/server/services/dokument/ablage';
+import { AblageFehler, BezugUnbekannt, legeAb } from '@/server/services/dokument/ablage';
+import type { UploadFehlerGrund } from '@/lib/i18n/verwaltung/dokument-rueckweg';
 import { alsAntwort } from '../../sicherheit/antwort';
+import { grundAufsFormular } from '../../formular-antwort';
 
 /**
  * `POST /api/dokumente/upload` — eine mitgebrachte Datei ablegen (DOC-01,
@@ -33,12 +35,48 @@ import { alsAntwort } from '../../sicherheit/antwort';
  *
  * **Ohne Speicher passiert NICHTS, und die Antwort sagt es** — keine halbe
  * Zeile, keine erfundene Bestätigung (CLAUDE.md, „No fake integrations").
+ *
+ * **Eine Abweisung reist als GRUND, nie als Satz** (D-769, D-774). Hier stand
+ * zu jedem Schlüssel ein Satz als `?meldung=` — und für jeden Fehler, den
+ * `alsAntwort` annahm, ersetzte der Rückweg dessen Antwort durch
+ * `?fehler=eingabe&meldung=…`: auch die Umleitung auf die Anmeldung oder den
+ * Faktor-Schritt (D-766) und die byte-gleiche 404 eines fehlenden Rechts
+ * (AUT-06). Jetzt kommen Anmeldung und Recht zuerst, und jede Fehlerklasse
+ * der Ablage trägt ihren Grund.
  */
 export const dynamic = 'force-dynamic';
+
+/** Der Wegweiser, wenn kein `zurueck` mitkam. */
+const HEIM = '/portal';
 
 function feld(daten: FormData, name: string): string {
   const wert = daten.get(name);
   return typeof wert === 'string' ? wert : '';
+}
+
+/**
+ * Der Grund einer abgewiesenen Ablage — ein Schlüssel der Seite, oder `null`:
+ * dann ist der Fehler keiner der Ablage. Der Typ hält Route und Satztabelle
+ * beieinander: ein neuer Grund ohne Satz bricht die Übersetzung.
+ */
+function ablageGrund(fehler: unknown): UploadFehlerGrund | null {
+  if (fehler instanceof NichtVerbundenFehler) return 'speicher';
+  if (fehler instanceof MimeFehler) return `datei_${fehler.grund}`;
+  /*
+   * Metadaten, die sich nicht sicher entfernen lassen: TIFF, GIF, WebP, ein
+   * verschlüsseltes PDF, ein Video ohne lesbaren Kopf. Kein Dienstfehler mit
+   * `status`, also fiel er einst durch `alsAntwort` und endete als 500 —
+   * dieselbe Lücke, die D-759 für die zweite Fassung geschlossen hat.
+   */
+  if (fehler instanceof ExifFehler) return 'datei_metadaten';
+  if (fehler instanceof AblageFehler || fehler instanceof BezugUnbekannt) return fehler.grund;
+  return null;
+}
+
+/** Der `code` eines Dienstfehlers ohne eigenen Grund (`status` und `code`), sonst `null`. */
+function dienstCode(fehler: unknown): string | null {
+  const { status, code } = fehler as { status?: unknown; code?: unknown };
+  return typeof status === 'number' && typeof code === 'string' ? code : null;
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -90,41 +128,42 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     slug = ergebnis.slug;
     dokumentId = ergebnis.dokumentId;
   } catch (fehler) {
-    const heim = '/portal';
-    const zurueck = feld(daten, 'zurueck');
-    const seite = zurueck === '' ? heim : zurueck;
-    const mit = (schluessel: string, text?: string): NextResponse => NextResponse.redirect(
-      internesZiel(
-        `${seite}${seite.includes('?') ? '&' : '?'}fehler=${schluessel}`
-        + (text === undefined ? '' : `&meldung=${encodeURIComponent(text)}`),
-        heim, anfrage),
-      303);
-
-    if (fehler instanceof NichtVerbundenFehler) {
-      return mit('speicher',
-        'Der Dateispeicher ist nicht verbunden. Es wurde nichts abgelegt und nichts '
-        + 'angelegt — eine Zeile ohne ihre Datei wäre kein Dokument, sondern eine '
-        + 'Behauptung.');
-    }
-    if (fehler instanceof MimeFehler) return mit('datei', fehler.message);
     /*
-     * Metadaten, die sich nicht sicher entfernen lassen: TIFF, GIF, WebP, ein
-     * verschlüsseltes PDF, ein Video ohne lesbaren Kopf. Kein Dienstfehler
-     * mit `status`, also fiel er durch `alsAntwort` und endete als 500 —
-     * dieselbe Lücke, die D-759 für die zweite Fassung geschlossen hat. Er
-     * reist als Grund, ohne Satz: den Satz hat die Seite, derselbe wie auf
-     * dem Blatt der Fassung, und der des Dienstes nennt Anforderungsnummern.
+     * 1. Anmeldung und Recht ZUERST (D-766, AUT-06): ein fehlendes Recht ist
+     *    die byte-gleiche 404, eine abgelaufene Sitzung die Anmeldung, ein
+     *    fehlender Faktor der Faktor-Schritt — nie ein Rückweg aufs Formular.
      */
-    if (fehler instanceof ExifFehler) return mit('datei_metadaten');
-    const antwort = alsAntwort(fehler, anfrage);
-    if (antwort !== null) {
-      /* Ein Dienstfehler geht als Satz auf die Seite zurück, nicht als JSON auf
-         eine weisse Seite: das Formular hat kein JavaScript, und der Entwurf
-         wäre sonst weg. */
-      const meldung = (fehler as { message?: string }).message ?? '';
-      if (zurueck !== '' && meldung !== '') return mit('eingabe', meldung);
-      return antwort;
+    const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: daten });
+    if (autorisierung !== null) return autorisierung;
+
+    const grund = ablageGrund(fehler);
+    const zurueck = feld(daten, 'zurueck');
+    if (zurueck !== '') {
+      /*
+       * 2. Das Formular bekommt seine Seite zurück, mit dem Grund — nicht als
+       *    JSON auf einer weissen Seite: es hat kein JavaScript, und der
+       *    Entwurf wäre sonst weg. Ein Dienstfehler ohne eigenen Grund reist
+       *    mit seinem `code` (D-769 Nr. 3); die Seite hat dafür ihren
+       *    allgemeinen Satz.
+       */
+      const schluessel = grund ?? dienstCode(fehler);
+      if (schluessel !== null) {
+        const rueckweg = grundAufsFormular(anfrage, { json: false, zurueck, grund: schluessel });
+        if (rueckweg !== null) return rueckweg;
+      }
+      throw fehler;
     }
+    /*
+     * 3. Ohne `zurueck` antwortet die Route wie bisher: Speicher und Datei
+     *    führen ins Portal, jetzt mit dem Grund und ohne Satz; ein
+     *    Dienstfehler ist JSON mit Status (D-599).
+     */
+    if (grund !== null && !(fehler instanceof AblageFehler) && !(fehler instanceof BezugUnbekannt)) {
+      return NextResponse.redirect(
+        internesZiel(`${HEIM}?fehler=${encodeURIComponent(grund)}`, HEIM, anfrage), 303);
+    }
+    const antwort = alsAntwort(fehler, anfrage);
+    if (antwort !== null) return antwort;
     throw fehler;
   }
 

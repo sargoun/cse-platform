@@ -12,6 +12,7 @@ import {
 } from '@/lib/i18n/texte';
 import { SICHERHEIT_TEXTE } from '@/lib/i18n/konto';
 import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { leseKonto } from '../konto';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { meineSitzungen, type EigeneSitzung } from '@/server/services/konto/sitzungen';
@@ -45,6 +46,12 @@ import { meineSitzungen, type EigeneSitzung } from '@/server/services/konto/sitz
  * zeigen, das es nicht mehr gibt — jede weitere Seite antwortete mit einer
  * Anmeldeaufforderung, die niemand erklärt hat. Zum Abmelden gibt es
  * „Abmelden".
+ *
+ * **Eine Abweisung kommt als GRUND zurück** (`?fehler=`, D-769, D-774) und
+ * steht hier als Satz in der Sprache des Kontos — nachgeschlagen als eigener
+ * Eintrag, ein unbekannter Grund wird der allgemeine Satz. Bis dahin stand
+ * der deutsche Satz des Dienstes aus `?meldung=` im Kasten, also auch jeder
+ * Text eines präparierten Links.
  */
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +67,7 @@ export default async function Sicherheit(
 
   const suche = searchParams === undefined ? {} : await searchParams;
   const beendet = suche['beendet'] === '1';
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
   const aktuell = k.sprache ?? 'de';
   const t = SICHERHEIT_TEXTE[aktuell];
@@ -110,13 +117,14 @@ export default async function Sicherheit(
         <h1 className="mb-s5 text-h1 text-text">{t.titel}</h1>
 
         {beendet && (
-          <Hinweis art="erfolg" cse="sitzung-beendet" className="mb-s5 max-w-[72ch]">
+          <Hinweis art="erfolg" rolle="status" cse="sitzung-beendet" className="mb-s5 max-w-[72ch]">
             {t.beendet}
           </Hinweis>
         )}
-        {meldung !== null && (
-          <Hinweis art="warnung" cse="sitzung-meldung" className="mb-s5 max-w-[72ch]">
-            {meldung}
+        {fehler !== null && (
+          <Hinweis art="warnung" rolle="alert" cse="sitzung-meldung" className="mb-s5 max-w-[72ch]">
+            <strong>{t.nichtBeendet}</strong>{' '}
+            {eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst}
           </Hinweis>
         )}
 

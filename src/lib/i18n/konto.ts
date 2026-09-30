@@ -17,6 +17,17 @@
  */
 import type { PortalSprache } from './texte.js';
 
+/**
+ * Jeder Grund, mit dem `POST /api/konto/sitzung` eine Anmeldung NICHT
+ * beendet (`SitzungFehler`, D-769, D-774). Er reist als `?fehler=<grund>`;
+ * die Seite schlägt ihn hier nach — nur als eigener Eintrag (D-728), ein
+ * unbekannter bekommt `fehlerSonst`, nie den Schlüssel und nie Text aus der
+ * Adresse. Vorher reiste der deutsche Satz des Dienstes als `?meldung=` und
+ * stand so da, auch unter arabischer oder englischer Portalsprache.
+ */
+export const SITZUNG_FEHLER_GRUENDE = ['diese_sitzung', 'nicht_gefunden'] as const;
+export type SitzungFehlerGrund = (typeof SITZUNG_FEHLER_GRUENDE)[number];
+
 export interface SicherheitTexte {
   readonly titel: string;
   readonly kennwort: string;
@@ -34,6 +45,12 @@ export interface SicherheitTexte {
   readonly seit: string;
   readonly laeuftAb: string;
   readonly beendet: string;
+  /** Die fett gesetzten ersten Worte des Warnkastens (DESIGN §5 „Notices"). */
+  readonly nichtBeendet: string;
+  /** Der Satz zu `?fehler=<grund>` — nachgeschlagen mit `eigenerEintrag()`. */
+  readonly fehler: Readonly<Record<SitzungFehlerGrund, string>>;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly fehlerSonst: string;
 }
 
 export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> =
@@ -60,6 +77,14 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
     seit: 'angemeldet seit',
     laeuftAb: 'läuft ab',
     beendet: 'Die Anmeldung ist beendet.',
+    nichtBeendet: 'Nicht beendet.',
+    fehler: {
+      diese_sitzung: 'Das ist die Anmeldung, in der Sie gerade sind. Zum Abmelden nehmen Sie '
+        + '„Abmelden" — dieser Weg räumt auch die Spuren im Browser ab.',
+      nicht_gefunden: 'Diese Anmeldung gibt es nicht mehr — sie ist bereits beendet oder '
+        + 'abgelaufen. Die Liste unten zeigt den aktuellen Stand.',
+    },
+    fehlerSonst: 'Die Liste unten zeigt, welche Anmeldungen noch laufen.',
   },
   en: {
     titel: 'Security',
@@ -82,6 +107,14 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
     seit: 'signed in since',
     laeuftAb: 'expires',
     beendet: 'The session has been ended.',
+    nichtBeendet: 'Not ended.',
+    fehler: {
+      diese_sitzung: 'This is the session you are in right now. To leave it, use “Sign out” — '
+        + 'that way also clears the traces in the browser.',
+      nicht_gefunden: 'This session no longer exists — it has already been ended or has '
+        + 'expired. The list below shows the current state.',
+    },
+    fehlerSonst: 'The list below shows which sessions are still active.',
   },
   ar: {
     titel: 'الأمان',
@@ -101,6 +134,14 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
     seit: 'مسجّل منذ',
     laeuftAb: 'ينتهي',
     beendet: 'تم إنهاء الجلسة.',
+    nichtBeendet: 'لم تُنهَ الجلسة.',
+    fehler: {
+      diese_sitzung: 'هذه هي الجلسة التي تستخدمها الآن. للخروج استخدم «تسجيل الخروج» — '
+        + 'فهذا الطريق يزيل أيضًا الآثار من المتصفح.',
+      nicht_gefunden: 'هذه الجلسة لم تعد موجودة — فقد أُنهيت أو انتهت صلاحيتها. '
+        + 'القائمة أدناه تعرض الوضع الحالي.',
+    },
+    fehlerSonst: 'القائمة أدناه تعرض الجلسات التي لا تزال نشطة.',
   },
   tr: {
     titel: 'Güvenlik',
@@ -122,6 +163,14 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
     seit: 'giriş zamanı',
     laeuftAb: 'bitiş',
     beendet: 'Oturum sonlandırıldı.',
+    nichtBeendet: 'Sonlandırılmadı.',
+    fehler: {
+      diese_sitzung: 'Bu, şu anda içinde bulunduğunuz oturumdur. Çıkmak için „Çıkış yap"ı '
+        + 'kullanın — bu yol tarayıcıdaki izleri de temizler.',
+      nicht_gefunden: 'Bu oturum artık yok — zaten sonlandırılmış ya da süresi dolmuş. '
+        + 'Aşağıdaki liste güncel durumu gösteriyor.',
+    },
+    fehlerSonst: 'Aşağıdaki liste hâlâ etkin olan oturumları gösteriyor.',
   },
 } as const;
 
