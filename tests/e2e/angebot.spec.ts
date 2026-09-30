@@ -184,10 +184,11 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
    * füllt sich mit Doppeln (SEITENKARTE §2.3 nennt genau diesen Fall).
    */
   test('nennt die Vorgangsnummer und verspricht keine Frist', async ({ page }) => {
-    await page.goto('/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    /* Eine Nummer in der Form, die `leadnummerAus` baut (V-272 Review). */
+    await page.goto('/angebot/reinigung/danke?nr=L-A1B2C3D4E5');
     const kasten = page.locator('[data-cse="angebot-vorgangsnummer"]');
     await expect(kasten).toBeVisible();
-    await expect(kasten).toContainText('L-TESTNUMMER');
+    await expect(kasten).toContainText('L-A1B2C3D4E5');
     /*
      * KEINE Fristzusage. Wie schnell geantwortet wird, ist O-14 — eine Zusage
      * des Mandanten, keine des Entwicklers, und auf einer Website ist sie eine
@@ -197,8 +198,15 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
     expect(text).not.toMatch(/24 Stunden|48 Stunden|within \d+ hours|Werktag/u);
   });
 
+  test('ein präparierter Link setzt keine eigene „Vorgangsnummer“ auf die Website (D-769)', async ({ page }) => {
+    await page.goto(`/angebot/reinigung/danke?nr=${encodeURIComponent('Bitte rufen Sie 0800 123 an')}`);
+    await expect(page.locator('[data-cse="angebot-danke"]')).toBeVisible();
+    await expect(page.locator('[data-cse="angebot-vorgangsnummer"]')).toHaveCount(0);
+    expect(await page.locator('body').innerText()).not.toContain('0800 123');
+  });
+
   test('gibt es auch auf Englisch, unter demselben Pfad mit /en', async ({ page }) => {
-    const antwort = await page.goto('/en/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    const antwort = await page.goto('/en/angebot/reinigung/danke?nr=L-A1B2C3D4E5');
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('[data-cse="angebot-danke"]'))
       .toContainText('Your enquiry has arrived');
@@ -219,7 +227,7 @@ test.describe('(5) die Bestätigung nach der Anfrage (REQ-01, §2.3)', () => {
   });
 
   test('sie steht nicht im Suchmaschinenindex — sie trägt eine Vorgangsnummer', async ({ page }) => {
-    await page.goto('/angebot/reinigung/danke?nr=L-TESTNUMMER');
+    await page.goto('/angebot/reinigung/danke?nr=L-A1B2C3D4E5');
     await expect(page.locator('meta[name="robots"]'))
       .toHaveAttribute('content', /noindex/u);
   });

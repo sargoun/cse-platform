@@ -512,3 +512,31 @@ describe('Nachrunde: ein Name des Prototyps ist kein Bereich', () => {
       expect(zustand.nimmAn).not.toHaveBeenCalled();
     });
 });
+
+/**
+ * Die Dankseite zeigt nur eine Nummer in der Form, die `leadnummerAus` baut
+ * (Review V-272, D-769): sonst setzte `?nr=<Text>` eigenen Text als
+ * „Ihre Vorgangsnummer“ groß auf die Website der Firma.
+ */
+describe('die Vorgangsnummer der Dankseite', () => {
+  it('nur in der Form, die der Dienst baut', async () => {
+    const { istLeadnummer } = await import('../../src/lib/formular/leadnummer.js');
+    const { leadnummerAus } = await import('../../src/server/services/lead/annahme.js');
+    for (const kennung of ['0b7c6f3a-1d2e-4f50-8a9b-0c1d2e3f4a5b', 'ffffffff-ffff-4fff-8fff-ffffffffffff']) {
+      expect(istLeadnummer(leadnummerAus(kennung)), kennung).toBe(true);
+    }
+    for (const fremd of ['L-TESTNUMMER', 'Bitte rufen Sie 0800 123 an', 'L-7Q2K', '', 'l-a1b2c3d4e5',
+      'L-A1B2C3D4E5 ', 'L-A1B2C3D4E5\nx']) {
+      expect(istLeadnummer(fremd), fremd).toBe(false);
+    }
+  });
+
+  it('ein präparierter Link zeigt keinen Nummernkasten, eine echte Nummer schon', () => {
+    const mit = renderToStaticMarkup(DankeSeiteFuer('reinigung', 'L-A1B2C3D4E5'));
+    expect(mit).toContain('data-cse="angebot-vorgangsnummer"');
+    expect(mit).toContain('L-A1B2C3D4E5');
+    const fremd = renderToStaticMarkup(DankeSeiteFuer('reinigung', 'Bitte rufen Sie 0800 123 an'));
+    expect(fremd).not.toContain('data-cse="angebot-vorgangsnummer"');
+    expect(fremd).not.toContain('0800 123');
+  });
+});
