@@ -23,6 +23,8 @@ import { Recht } from '@/components/ui/Recht';
 import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
 import { lesbar } from '@/lib/i18n/beschriftung/basis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import { GRUNDLAGE_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /** Der Kanal als Wort — die Karte des Kommunikationsverlaufs (V-232). */
 function kanalText(kanal: string): string {
@@ -60,6 +62,11 @@ function kanalText(kanal: string): string {
  * `ansprechpartner` verlangt zusätzlich `crm.schreiben`. Wer nur das erste
  * hält, sähe „new row violates row-level security policy" — richtig gesperrt,
  * an der falschen Stelle erklärt. Diese Seite sagt es vor dem Absenden.
+ *
+ * **Der Ausgang beider Formulare kommt als Schlüssel zurück** (`?fehler=`,
+ * `?erfolg=`; D-769, D-772), die Sätze stehen in `GRUNDLAGE_RUECKWEG`. Hier
+ * standen der Satz des Dienstes, der Text der Datenbank und der Erfolgssatz
+ * roh aus der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
@@ -81,7 +88,7 @@ interface Kopf {
 export default async function Rechtsgrundlage(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
-    searchParams: Promise<{ meldung?: string; erfolg?: string }>;
+    searchParams: Promise<{ fehler?: string; erfolg?: string }>;
   },
 ) {
   const { mandant, id } = await params;
@@ -161,16 +168,10 @@ export default async function Rechtsgrundlage(
         Änderung steht im Prüfprotokoll.
       </p>
 
-      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
-        <Hinweis art="warnung" cse="grundlage-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {suche.meldung}
-        </Hinweis>
-      ) : null}
-      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
-        <Hinweis art="erfolg" cse="grundlage-erfolg" className="mb-s5 max-w-prose">
-          {suche.erfolg}
-        </Hinweis>
-      ) : null}
+      <Abweisung saetze={GRUNDLAGE_RUECKWEG.de} grund={einSchluessel(suche.fehler)}
+                 cse="grundlage-meldung" />
+      <Bestaetigung saetze={GRUNDLAGE_RUECKWEG.de.erfolg} erfolg={einSchluessel(suche.erfolg)}
+                    cse="grundlage-erfolg" />
 
       {!darfSchreiben ? (
         <Hinweis art="warnung" cse="grundlage-kein-schreibrecht" className="mb-s5 max-w-prose">

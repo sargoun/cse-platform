@@ -12,15 +12,25 @@
  * Der Schlüssel (`?grund=`) wird übersetzt. Ein Schlüssel, den diese Tabelle
  * nicht kennt, wird `abgewiesen` — nie der Schlüssel selbst und nie der Satz
  * aus der Adresse (`?meldung=`): der wäre ein Weg, beliebigen Text in einen
- * Warnkasten des Portals zu setzen (V-153).
+ * Warnkasten des Portals zu setzen (V-153). Seit D-772 schickt die Route den
+ * Satz gar nicht mehr, und das Blatt schlägt nur als eigener Eintrag nach
+ * (D-728) — mit eckigen Klammern fand `?grund=__proto__` `Object.prototype`,
+ * und die Seite antwortete mit 500.
  */
 import type { InternSprache } from '../intern.js';
+import type { CrmGrund } from '../../../server/services/crm/anlegen.js';
+
+/** Jeder Grund, mit dem `legeKontaktAn` abweist (V-148, geprüft am Quelltext). */
+export const KONTAKT_ANLEGEN_GRUENDE = [
+  'name_fehlt', 'grundlage_ohne_quelle', 'einwilligung_ohne_kanal', 'nicht_angelegt',
+] as const satisfies readonly CrmGrund[];
+export type KontaktAnlegenGrund = (typeof KONTAKT_ANLEGEN_GRUENDE)[number];
 
 export interface KundeRueckmeldungTexte {
   readonly nichtGespeichert: string;
   /** Für einen Schlüssel, den diese Tabelle nicht kennt — nie Text aus der Adresse (V-153). */
   readonly abgewiesen: string;
-  readonly kontaktFehler: Readonly<Record<string, string>>;
+  readonly kontaktFehler: Readonly<Record<KontaktAnlegenGrund, string>>;
 }
 
 export const KUNDE_RUECKMELDUNG: Readonly<Record<InternSprache, KundeRueckmeldungTexte>> = {

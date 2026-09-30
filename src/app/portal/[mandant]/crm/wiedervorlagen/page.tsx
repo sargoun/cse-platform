@@ -6,7 +6,6 @@ import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
-import { Hinweis } from '@/components/ui/Hinweis';
 import {
   FACH_TEXT, gruppiere, leseZeitanker, listeWiedervorlagen,
   type Fachgruppe, type WiedervorlageZeile, type Zeitanker,
@@ -20,6 +19,8 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { alsRoute } from '@/server/auth/kennwort-anmeldung';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { Recht } from '@/components/ui/Recht';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import { WIEDERVORLAGE_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /**
  * `/portal/[mandant]/crm/wiedervorlagen` — die Arbeitsliste des Vertriebs
@@ -49,6 +50,10 @@ import { Recht } from '@/components/ui/Recht';
  * „verschieben" (mit Pflichtnotiz). Beide fassen die gespiegelte
  * `aufgabe`-Zeile mit an, sonst stünde derselbe Vorgang an einer Stelle offen
  * und an der anderen erledigt (O-663).
+ *
+ * **Ihr Ausgang kommt als Schlüssel zurück** (`?wiedervorlage=`, `?erfolg=`;
+ * D-769, D-772), und die Sätze stehen in `WIEDERVORLAGE_RUECKWEG`. Hier
+ * standen der Satz des Dienstes und der Erfolgssatz roh aus der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +63,7 @@ const FELD = 'min-h-11 rounded-md border border-line bg-surface px-s2 py-s1 text
 export default async function Wiedervorlagen(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
-    searchParams: Promise<{ wer?: string; meldung?: string; erfolg?: string }>;
+    searchParams: Promise<{ wer?: string; wiedervorlage?: string; erfolg?: string }>;
   },
 ) {
   const { mandant } = await params;
@@ -263,16 +268,10 @@ export default async function Wiedervorlagen(
         </Link>
       </p>
 
-      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
-        <Hinweis art="warnung" cse="wv-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {suche.meldung}
-        </Hinweis>
-      ) : null}
-      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
-        <Hinweis art="erfolg" cse="wv-erfolg" className="mb-s5 max-w-prose">
-          {suche.erfolg}
-        </Hinweis>
-      ) : null}
+      <Abweisung saetze={WIEDERVORLAGE_RUECKWEG.de} grund={einSchluessel(suche.wiedervorlage)}
+                 cse="wv-meldung" />
+      <Bestaetigung saetze={WIEDERVORLAGE_RUECKWEG.de.erfolg} erfolg={einSchluessel(suche.erfolg)}
+                    cse="wv-erfolg" />
 
       {daten.zeilen.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted"

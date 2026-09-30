@@ -6,11 +6,13 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
   EINLADUNG_COOKIE, ZugangFehler, entzieheZugang, ladeNeuEin, stelleZugangAus,
+  type ZugangErgebnis,
 } from '@/server/services/crm/kundenzugang';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
 /**
  * `POST /api/crm/kunde/zugang` — ausstellen, neu einladen, entziehen
@@ -29,6 +31,17 @@ import {
  * **Beim Entziehen wird der Keks GELÖSCHT.** Sonst stünde nach einem Entzug
  * noch der Link des gerade entzogenen Zugangs auf dem Bildschirm — und er
  * wäre zu diesem Zeitpunkt schon entwertet, was aussieht wie ein Fehler.
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-772): `?fehler=<grund>`,
+ * `?erfolg=<schluessel>`. Hier reisten der Satz des `ZugangFehler`, der
+ * deutsche `grund`-Satz der Definer (0249) und — für jeden anderen
+ * einzeiligen Fehler — dessen roher Text durch die Adresse. Dieser letzte
+ * Zweig lief VOR der Übersetzung der Autorisierung: ein fehlendes Recht wurde
+ * „Nicht gefunden" im Warnkasten statt der byte-gleichen 404 (AUT-06), eine
+ * abgelaufene Sitzung ein Satz statt der Anmeldung (D-766). Jetzt übersetzt
+ * `autorisierungsAntwort` zuerst; die Abweisungen der Definer bildet der
+ * Dienst auf ihren Grund ab (`grundAusDatenbank`), und jeder andere Fehler
+ * bleibt ein Fehler.
  */
 export const dynamic = 'force-dynamic';
 
@@ -55,22 +68,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const mandantSlug = (daten.get('zurueck') as string | null)?.split('/')[2] ?? '';
   const seite = `/portal/${mandantSlug}/crm/kunden/${kundeId}/zugang`;
 
-  let ergebnis: { ok: boolean; grund: string; token: string | null };
+  let ergebnis: ZugangErgebnis;
   try {
     ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
-      withTenant(tx, sitzung, async (kontext) => {
+      withTenant(tx, sitzung, async (kontext): Promise<ZugangErgebnis> => {
         await authorize(
           sitzung, { recht: 'system.benutzer_verwalten', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
 
         if (was === 'ausstellen') {
-          const r = await stelleZugangAus(kontext, {
+          return stelleZugangAus(kontext, {
             kundeId,
             email: String(daten.get('email') ?? ''),
             name: String(daten.get('name') ?? ''),
           });
-          return { ok: r.ok, grund: r.grund, token: r.token };
         }
 
         const zugangId = String(daten.get('zugangId') ?? '');
@@ -78,41 +90,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           throw new ZugangFehler('Diesen Zugang gibt es nicht.', 'nicht_gefunden', 404);
         }
 
-        if (was === 'neu_einladen') {
-          const r = await ladeNeuEin(kontext, zugangId);
-          return { ok: r.ok, grund: r.grund, token: r.token };
-        }
-
-        const r = await entzieheZugang(
-          kontext, zugangId, String(daten.get('grund') ?? ''));
-        return {
-          ok: r.ok,
-          grund: r.ok
-            ? `Der Zugang ist entzogen${r.sitzungen === 0 ? '' : `, ${
-              r.sitzungen === 1 ? 'eine laufende Sitzung' : `${String(r.sitzungen)} laufende Sitzungen`
-            } wurden beendet`}. Die Zeile bleibt stehen.`
-            : r.grund,
-          token: null,
-        };
-      })) as Promise<{ ok: boolean; grund: string; token: string | null }>);
+        if (was === 'neu_einladen') return ladeNeuEin(kontext, zugangId);
+        return entzieheZugang(kontext, zugangId, String(daten.get('grund') ?? ''));
+      })) as Promise<ZugangErgebnis>);
   } catch (fehler) {
-    if (fehler instanceof ZugangFehler) {
-      return NextResponse.redirect(internesZiel(
-        `${seite}?meldung=${encodeURIComponent(fehler.message)}`, '/portal', anfrage), 303);
-    }
-    /*
-     * Die Definer-Funktionen werfen `insufficient_privilege` mit deutschem
-     * Text (fehlendes Recht, fehlender zweiter Faktor, Gruppenansicht). Den
-     * rohen Fehler weiterzuwerfen hiesse „Da ist etwas schiefgegangen" für
-     * eine Lage, deren Grund die Datenbank gerade genannt hat.
-     */
-    const text = (fehler as { message?: string }).message ?? '';
-    if (text !== '' && !text.includes('\n')) {
-      return NextResponse.redirect(internesZiel(
-        `${seite}?meldung=${encodeURIComponent(text)}`, '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    /* Auch die Abweisungen der Definer — als Grund, nie als ihr Text (D-769 Nr. 8). */
+    if (fehler instanceof ZugangFehler) {
+      return zurueckMitSchluessel(anfrage, seite, 'fehler', fehler.grund);
+    }
     throw fehler;
   }
 
@@ -127,19 +115,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   /*
-   * Die Definer antworten mit einem SCHLUESSEL (`ausgestellt`, `eingeladen`),
-   * nicht mit einem Satz. Der Satz gehoert hierher: er steht auf dem
-   * Bildschirm eines Menschen, und „ausgestellt" allein beantwortet die
-   * naechste Frage nicht — naemlich, was jetzt zu tun ist.
+   * Ein Schlüssel, und der Satz dazu steht auf der Seite (`ZUGANG_RUECKWEG`):
+   * „ausgestellt" allein beantwortet die nächste Frage nicht — nämlich, was
+   * jetzt zu tun ist —, und das sagt der Satz dort.
    */
-  const SATZ: Readonly<Record<string, string>> = {
-    ausgestellt: 'Der Zugang ist ausgestellt. Der Einladungslink steht oben — einmal, '
-      + 'und er wird von Hand übergeben.',
-    eingeladen: 'Ein frischer Einladungslink steht oben. Der vorherige ist damit '
-      + 'verfallen.',
-  };
-  const schluessel = ergebnis.ok ? 'erfolg' : 'meldung';
-  const satz = ergebnis.ok ? SATZ[ergebnis.grund] ?? ergebnis.grund : ergebnis.grund;
-  return NextResponse.redirect(internesZiel(
-    `${seite}?${schluessel}=${encodeURIComponent(satz)}`, '/portal', anfrage), 303);
+  return ergebnis.ok
+    ? zurueckMitSchluessel(anfrage, seite, 'erfolg', ergebnis.erfolg)
+    : zurueckMitSchluessel(anfrage, seite, 'fehler', ergebnis.grund);
 }

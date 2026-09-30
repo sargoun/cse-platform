@@ -5,13 +5,14 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
-  SteuerFehler, legeBescheinigungAn, legeZeitscheibeAn, setzeERechnung,
-  widerrufeBescheinigung,
+  STEUER_VORGAENGE, SteuerFehler, legeBescheinigungAn, legeZeitscheibeAn, setzeERechnung,
+  widerrufeBescheinigung, type SteuerVorgang,
 } from '@/server/services/finanz/kunde-steuer';
 import type { Bauleistungsart } from '@/server/services/finanz/steuer/nachweis';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
 /**
  * `POST /api/crm/kunde/steuer` — die vier Vorgänge des Steuerblatts
@@ -34,28 +35,33 @@ import type { Bauleistungsart } from '@/server/services/finanz/steuer/nachweis';
  *
  * Die Dienste prüfen ihr Recht zusätzlich selbst (`kunde-steuer.ts`);
  * `authorize` hier ist die erste Linie, nicht die einzige.
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-772): eine Abweisung als
+ * `?fehler=<grund>`, ein Erfolg als `?erfolg=<vorgang>`. Hier standen der Satz
+ * des Dienstes — mit der Eingabe des Menschen darin, wenn eine Kennung nicht
+ * passte, und mit den Daten der kollidierenden Zeitscheibe — und der
+ * Erfolgssatz in der Adresse. Die Sätze stehen jetzt auf der Seite
+ * (`STEUER_RUECKWEG`).
  */
 export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
-const RECHT: Readonly<Record<string, string>> = {
+const RECHT: Readonly<Record<SteuerVorgang, string>> = {
   erechnung: 'crm.schreiben',
   bauleistender: 'finanzen.schreiben',
   bescheinigung: 'finanzen.schreiben',
   widerruf: 'finanzen.schreiben',
 };
 
-const ERFOLG: Readonly<Record<string, string>> = {
-  erechnung: 'Die Rechnungsangaben sind gespeichert. Ob damit versendet werden kann, '
-    + 'steht oben im Versandstand.',
-  bauleistender: 'Die Zeitscheibe ist angelegt. Die Antwort zum Stichtag oben ist '
-    + 'damit neu berechnet — aus der geprüften Funktion, nicht aus dieser Seite.',
-  bescheinigung: 'Die Freistellungsbescheinigung ist erfasst. Geprüft wird sie am '
-    + 'Leistungsdatum, nicht heute.',
-  widerruf: 'Der Widerruf ist eingetragen. Die Bescheinigung bleibt lesbar — jede '
-    + 'Rechnung, die sich auf sie beruft, muss herleitbar bleiben.',
-};
+/**
+ * Ein Vorgang aus dem Formular — gegen die Liste geprüft, nicht über
+ * `RECHT[was]`: ein gewöhnliches Objekt fände für `__proto__` einen Prototyp
+ * statt `undefined` (D-728).
+ */
+function istVorgang(was: string): was is SteuerVorgang {
+  return (STEUER_VORGAENGE as readonly string[]).includes(was);
+}
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -69,10 +75,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const daten = await anfrage.formData();
   const zurueck = (daten.get('zurueck') as string | null) ?? '/portal';
   const was = String(daten.get('was') ?? '');
-  const recht = RECHT[was];
-  if (recht === undefined) {
+  if (!istVorgang(was)) {
     return NextResponse.json({ fehler: 'unbekannter_vorgang' }, { status: 400 });
   }
+  const recht = RECHT[was];
   const kundeId = String(daten.get('kundeId') ?? '');
   if (!UUID.test(kundeId)) {
     return NextResponse.json({ fehler: 'unbekannte_kennung' }, { status: 404 });
@@ -147,19 +153,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           kontext, bescheinigungId, String(daten.get('widerrufenAm') ?? ''));
       }));
   } catch (fehler) {
-    if (fehler instanceof SteuerFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof SteuerFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'fehler', fehler.grund);
+    }
     throw fehler;
   }
 
-  const trenner = zurueck.includes('?') ? '&' : '?';
-  return NextResponse.redirect(internesZiel(
-    `${zurueck}${trenner}erfolg=${encodeURIComponent(ERFOLG[was] ?? 'Gespeichert.')}`,
-    '/portal', anfrage), 303);
+  return zurueckMitSchluessel(anfrage, zurueck, 'erfolg', was);
 }

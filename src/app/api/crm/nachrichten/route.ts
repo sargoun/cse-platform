@@ -28,6 +28,13 @@ import { RechtsgrundlageFehlt, FreigabeErforderlich } from '@/server/agent/polic
  * **Formularweg, also Rücksprung mit `?fehler=`** (D-562): eine JSON-Antwort
  * wäre eine weisse Seite mit einem Fehlerobjekt darauf, und der geschriebene
  * Text wäre weg.
+ *
+ * **Anmeldung und Recht zuerst** (D-766, D-769 Nr. 7, D-772 Nr. 13): die
+ * Zweige der Fachfehler standen vor `autorisierungsAntwort`. Heute fängt
+ * keiner von ihnen einen Wurf der Anmeldung; die Reihenfolge ist trotzdem die
+ * aller Routen — sonst führte ein Fachfehler, der einmal einen trägt, ein
+ * fehlendes Recht als Grund zurück aufs Kontaktblatt statt als byte-gleiche
+ * 404 (AUT-06).
  */
 export const dynamic = 'force-dynamic';
 
@@ -81,11 +88,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       }));
   } catch (fehler: unknown) {
+    /* Anmeldung und Recht zuerst — ein fehlendes Recht ist die byte-gleiche 404. */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
     if (fehler instanceof NachrichtFehler) return zurueck(fehler.grund);
     if (fehler instanceof RechtsgrundlageFehlt) return zurueck('keine_grundlage');
     if (fehler instanceof FreigabeErforderlich) return zurueck('freigabe');
-    const autorisierung = autorisierungsAntwort(fehler, anfrage);
-    if (autorisierung !== null) return autorisierung;
     throw fehler;
   }
 

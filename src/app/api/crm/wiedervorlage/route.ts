@@ -5,11 +5,13 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { CrmFehler } from '@/server/services/crm/anlegen';
-import { erledige, legeWiedervorlageAn, verschiebe }
-  from '@/server/services/crm/wiedervorlage';
+import {
+  anlageSchluessel, erledige, legeWiedervorlageAn, verschiebe, type WiedervorlageErfolg,
+} from '@/server/services/crm/wiedervorlage';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
 /**
  * `POST /api/crm/wiedervorlage` — erledigen, verschieben, anlegen (CRM-04).
@@ -22,6 +24,13 @@ import { erledige, legeWiedervorlageAn, verschiebe }
  * `kalender_eintrag` — und nennt in der Rückmeldung, was davon NICHT entstand.
  * Eine Wiedervorlage, die in der Aufgabenliste fehlt, ohne dass jemand es
  * weiss, ist schlimmer als eine, die nur an einer Stelle steht (O-663).
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-772): eine Abweisung als
+ * `?wiedervorlage=<grund>`, ein Erfolg als `?erfolg=<schluessel>`
+ * (`anlageSchluessel` nennt dabei, was vom Spiegel fehlt). Hier standen der
+ * Satz des Dienstes und der Erfolgssatz selbst in der Adresse. Der eigene Name
+ * für die Abweisung, weil Lead- und Kontaktblatt `fehler` schon für andere
+ * Formulare lesen — derselbe Schlüssel meinte dort anderes.
  */
 export const dynamic = 'force-dynamic';
 
@@ -47,10 +56,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return t === '' ? undefined : t;
   };
 
-  let meldung = 'Gespeichert.';
+  let erfolg: WiedervorlageErfolg;
   try {
-    meldung = await (db().begin(async (tx: postgres.TransactionSql) =>
-      withTenant(tx, sitzung, async (kontext) => {
+    erfolg = await (db().begin(async (tx: postgres.TransactionSql) =>
+      withTenant(tx, sitzung, async (kontext): Promise<WiedervorlageErfolg> => {
         await authorize(
           sitzung, { recht: 'crm.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
@@ -67,10 +76,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             ansprechpartnerId: wert('ansprechpartnerId'),
             zustaendigBenutzerId: wert('zustaendigBenutzerId'),
           });
-          const nicht = spiegel.nichtGespiegelt;
-          return nicht.length === 0
-            ? 'Die Wiedervorlage steht — in der Liste, in den Aufgaben und im Kalender.'
-            : `Die Wiedervorlage steht. ${nicht.join(' ')}`;
+          return anlageSchluessel(spiegel);
         }
 
         const id = String(daten.get('id') ?? '');
@@ -80,27 +86,23 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
         if (was === 'erledigt') {
           await erledige(kontext, id);
-          return 'Erledigt — mit der Serverzeit gestempelt.';
+          return 'erledigt';
         }
 
         await verschiebe(
           kontext, id, String(daten.get('faelligAm') ?? ''),
           String(daten.get('grund') ?? ''));
-        return 'Verschoben. Der Grund steht als Notiz im Verlauf.';
-      })) as Promise<string>);
+        return 'verschoben';
+      })) as Promise<WiedervorlageErfolg>);
   } catch (fehler) {
-    if (fehler instanceof CrmFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof CrmFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'wiedervorlage', fehler.grund);
+    }
     throw fehler;
   }
 
-  const trenner = zurueck.includes('?') ? '&' : '?';
-  return NextResponse.redirect(internesZiel(
-    `${zurueck}${trenner}erfolg=${encodeURIComponent(meldung)}`, '/portal', anfrage), 303);
+  return zurueckMitSchluessel(anfrage, zurueck, 'erfolg', erfolg);
 }

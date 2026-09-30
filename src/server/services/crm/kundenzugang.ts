@@ -42,10 +42,103 @@ import { anbieter } from '../../auth/kennwort-anmeldung.js';
 /** Der kurzlebige Keks, in dem die Route den Klartext an die Seite reicht. */
 export const EINLADUNG_COOKIE = 'cse_kundeneinladung';
 
+/**
+ * Jeder Grund, mit dem ein Zugang nicht ausgestellt, erneuert oder entzogen
+ * wird — er reist als `?fehler=` auf die Zugangsseite (D-769, D-772, V-274).
+ *
+ * **Die Definer aus 0249 antworten mit einem deutschen SATZ**, nicht mit einem
+ * Schlüssel: als `grund` ihrer Antwort (`ok = false`) und als Text ihrer
+ * Würfe (`insufficient_privilege`, `no_data_found`). Die Route reichte beides
+ * roh durch die Adresse, und die Seite zeigte es — dazu jeden anderen
+ * einzeiligen Fehlertext, auch „Nicht gefunden" eines fehlenden Rechts.
+ * Jetzt bildet `grundAusDatenbank` jeden bekannten Satz auf seinen Grund ab;
+ * ein Satz, den dieser Dienst nicht kennt, wird `abgewiesen` — der
+ * allgemeine Satz der Seite, nie der Text der Datenbank.
+ */
+export const ZUGANG_GRUENDE = [
+  /* die Route und dieser Dienst */
+  'nicht_gefunden', 'anbieter_fremd',
+  /* die Antworten der Definer (`ok = false`) */
+  'kunde_unbekannt', 'email_ungueltig', 'name_fehlt', 'internes_konto', 'zugang_besteht',
+  'entzug_ohne_grund',
+  /* ihre Würfe (`insufficient_privilege`, `no_data_found`) */
+  'zweiter_faktor', 'nur_intern', 'gruppenansicht', 'ohne_gesellschaft', 'kein_recht',
+  'rolle_fehlt',
+  /* eine Abweisung, deren Satz dieser Dienst nicht kennt */
+  'abgewiesen',
+] as const;
+export type ZugangGrund = (typeof ZUGANG_GRUENDE)[number];
+
+/** Wie die Route einen Erfolg meldet (`?erfolg=`) — der Satz steht auf der Seite. */
+export const ZUGANG_ERFOLGE = [
+  'ausgestellt', 'eingeladen', 'entzogen', 'entzogen_mit_sitzungen',
+] as const;
+export type ZugangErfolg = (typeof ZUGANG_ERFOLGE)[number];
+
 export class ZugangFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: ZugangGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'ZugangFehler';
+  }
+}
+
+/**
+ * Die Sätze der Definer aus 0249 und ihr Grund — wörtlich, wie die Datenbank
+ * sie liefert (`tests/kern/crm-zugang-rueckweg.test.ts` liest sie aus der
+ * Migration, `tests/isolation/crm-rueckweg-datenbank.test.ts` löst sie an der
+ * echten Datenbank aus).
+ */
+export const ZUGANG_DATENBANK_GRUENDE: ReadonlyMap<string, ZugangGrund> = new Map([
+  ['Diesen Kunden gibt es in dieser Gesellschaft nicht.', 'kunde_unbekannt'],
+  ['Ohne gueltige E-Mail-Adresse gibt es kein Konto.', 'email_ungueltig'],
+  ['Ein Konto braucht einen Namen — er steht in jeder Freigabe und in jedem '
+    + 'Protokolleintrag.', 'name_fehlt'],
+  ['Diese Adresse gehoert einem internen Konto. Ein Kundenzugang dafuer wuerde die '
+    + 'Trennung der Portale aufheben (K-04).', 'internes_konto'],
+  ['Dieses Konto hat in dieser Gesellschaft schon einen Zugang. Entziehen Sie ihn zuerst.',
+    'zugang_besteht'],
+  ['Diesen Zugang gibt es nicht — oder er ist entzogen.', 'nicht_gefunden'],
+  ['Ein Entzug traegt einen Grund — er steht spaeter in der Frage, warum der Kunde nicht '
+    + 'mehr hineinkommt.', 'entzug_ohne_grund'],
+  ['Diesen Zugang gibt es nicht — oder er ist schon entzogen.', 'nicht_gefunden'],
+  ['Ein Kundenzugang wird nur im internen Portal ausgestellt (K-04)', 'nur_intern'],
+  ['Eine Einladung wird nur im internen Portal ausgestellt (K-04)', 'nur_intern'],
+  ['Ein Kundenzugang wird nur im internen Portal entzogen (K-04)', 'nur_intern'],
+  ['In der Gruppenansicht wird kein Zugang ausgestellt (Invariante 10)', 'gruppenansicht'],
+  ['In der Gruppenansicht wird nichts eingeladen (Invariante 10)', 'gruppenansicht'],
+  ['In der Gruppenansicht wird nichts entzogen (Invariante 10)', 'gruppenansicht'],
+  ['Ohne aktive Gesellschaft gibt es keinen Kundenzugang (K-20)', 'ohne_gesellschaft'],
+  ['system.benutzer_verwalten fehlt', 'kein_recht'],
+  ['Ein Kundenzugang wird nur mit zweitem Faktor ausgestellt (AUT-02)', 'zweiter_faktor'],
+  ['Eine neue Einladung wird nur mit zweitem Faktor ausgestellt (AUT-02)', 'zweiter_faktor'],
+  ['Die Rolle `kunde` fehlt im Rollenkatalog', 'rolle_fehlt'],
+]);
+
+/** Der Grund zu einem Satz der Datenbank — ein unbekannter Satz ist `abgewiesen`, nie er selbst. */
+export function grundAusDatenbank(satz: string): ZugangGrund {
+  return ZUGANG_DATENBANK_GRUENDE.get(satz) ?? 'abgewiesen';
+}
+
+/**
+ * Die SQLSTATE, mit denen ein Definer aus 0249 ABWEIST: ein fehlendes Recht,
+ * Portal oder Faktor (`insufficient_privilege`) und die fehlende Rolle
+ * `kunde` (`no_data_found`). Ein anderer Wurf — `check_violation` am
+ * Einladungstoken, eine abgebrochene Verbindung — ist ein Fehler und bleibt
+ * einer: keine erfundene Abweisung (D-769 Nr. 8).
+ */
+const ABWEISUNG_DER_DATENBANK: ReadonlySet<string> = new Set(['42501', 'P0002']);
+
+/** Ein Aufruf eines Definers — seine Abweisungen als `ZugangFehler` mit Grund. */
+async function definer<T>(aufruf: () => Promise<T>): Promise<T> {
+  try {
+    return await aufruf();
+  } catch (fehler) {
+    const f = fehler as { readonly code?: unknown; readonly message?: unknown };
+    if (typeof f.code === 'string' && ABWEISUNG_DER_DATENBANK.has(f.code)) {
+      const satz = typeof f.message === 'string' ? f.message : '';
+      throw new ZugangFehler(satz, grundAusDatenbank(satz), f.code === '42501' ? 403 : 500);
+    }
+    throw fehler;
   }
 }
 
@@ -83,14 +176,19 @@ export async function leseZugaenge(
   return zeilen.map((z) => ({ ...z, konto_id: z.benutzer_id }));
 }
 
-export interface ZugangErgebnis {
-  readonly ok: boolean;
-  /** Deutsch, immer gesetzt — auch bei Erfolg. */
-  readonly grund: string;
-  /** Der Klartext des Einladungslinks — nur bei Erfolg, nur einmal. */
-  readonly token: string | null;
-  readonly neuesKonto: boolean;
-}
+/**
+ * Was ein Vorgang am Zugang ergab — ein Schlüssel, nie ein Satz: bei Erfolg
+ * der Schlüssel der Bestätigung, sonst der Grund der Abweisung.
+ */
+export type ZugangErgebnis =
+  | {
+    readonly ok: true;
+    readonly erfolg: ZugangErfolg;
+    /** Der Klartext des Einladungslinks — nur beim Ausstellen und Erneuern, nur einmal. */
+    readonly token: string | null;
+    readonly neuesKonto: boolean;
+  }
+  | { readonly ok: false; readonly grund: ZugangGrund };
 
 function pruefeAnbieter(): void {
   if (anbieter() !== 'demo') {
@@ -116,24 +214,15 @@ export async function stelleZugangAus(
 ): Promise<ZugangErgebnis> {
   pruefeAnbieter();
   const token = neuerToken();
-  const [z] = await kontext.schreibe<{
+  const [z] = await definer(() => kontext.schreibe<{
     ok: boolean; grund: string; neues_konto: boolean;
   }>(
     `select ok, grund, neues_konto
        from app.kundenzugang_ausstellen($1::uuid, $2, $3, $4)`,
-    [eingabe.kundeId, eingabe.email, eingabe.name, tokenHash(token)]);
-  if (z === undefined) {
-    return {
-      ok: false, token: null, neuesKonto: false,
-      grund: 'Der Zugang wurde nicht ausgestellt.',
-    };
-  }
-  return {
-    ok: z.ok,
-    grund: z.grund,
-    token: z.ok ? token : null,
-    neuesKonto: z.neues_konto,
-  };
+    [eingabe.kundeId, eingabe.email, eingabe.name, tokenHash(token)]));
+  if (z === undefined) return { ok: false, grund: 'abgewiesen' };
+  if (!z.ok) return { ok: false, grund: grundAusDatenbank(z.grund) };
+  return { ok: true, erfolg: 'ausgestellt', token, neuesKonto: z.neues_konto };
 }
 
 /** Ein frischer Einladungslink; der alte verfällt dabei. */
@@ -142,14 +231,12 @@ export async function ladeNeuEin(
 ): Promise<ZugangErgebnis> {
   pruefeAnbieter();
   const token = neuerToken();
-  const [z] = await kontext.schreibe<{ ok: boolean; grund: string }>(
+  const [z] = await definer(() => kontext.schreibe<{ ok: boolean; grund: string }>(
     `select ok, grund from app.kundenzugang_neu_einladen($1::uuid, $2)`,
-    [zugangId, tokenHash(token)]);
-  if (z === undefined) {
-    return { ok: false, grund: 'Die Einladung wurde nicht erneuert.', token: null,
-      neuesKonto: false };
-  }
-  return { ok: z.ok, grund: z.grund, token: z.ok ? token : null, neuesKonto: false };
+    [zugangId, tokenHash(token)]));
+  if (z === undefined) return { ok: false, grund: 'abgewiesen' };
+  if (!z.ok) return { ok: false, grund: grundAusDatenbank(z.grund) };
+  return { ok: true, erfolg: 'eingeladen', token, neuesKonto: false };
 }
 
 /**
@@ -157,20 +244,25 @@ export async function ladeNeuEin(
  *
  * Der Definer beendet dabei die laufenden Sitzungen dieses Kontos. Ohne das
  * wirkte der Entzug erst, wenn die Sitzung von allein abläuft, und ein
- * Entzug, der morgen wirkt, ist kein Entzug.
+ * Entzug, der morgen wirkt, ist kein Entzug. Ob dabei Sitzungen endeten,
+ * sagt der Schlüssel des Erfolgs (`entzogen_mit_sitzungen`); die Zahl reiste
+ * bis hierher im Satz durch die Adresse und bleibt jetzt im Protokoll des
+ * Definers (`beendete_sitzungen`).
  */
 export async function entzieheZugang(
   kontext: SchreibKontext, zugangId: string, grund: string,
-): Promise<{ readonly ok: boolean; readonly grund: string; readonly sitzungen: number }> {
-  const [z] = await kontext.schreibe<{
+): Promise<ZugangErgebnis> {
+  const [z] = await definer(() => kontext.schreibe<{
     ok: boolean; grund: string; sitzungen: number;
   }>(
     `select ok, grund, sitzungen from app.kundenzugang_entziehen($1::uuid, $2)`,
-    [zugangId, grund]);
-  if (z === undefined) {
-    return { ok: false, grund: 'Der Zugang wurde nicht entzogen.', sitzungen: 0 };
-  }
-  return { ok: z.ok, grund: z.grund, sitzungen: z.sitzungen };
+    [zugangId, grund]));
+  if (z === undefined) return { ok: false, grund: 'abgewiesen' };
+  if (!z.ok) return { ok: false, grund: grundAusDatenbank(z.grund) };
+  return {
+    ok: true, erfolg: z.sitzungen > 0 ? 'entzogen_mit_sitzungen' : 'entzogen',
+    token: null, neuesKonto: false,
+  };
 }
 
 /**

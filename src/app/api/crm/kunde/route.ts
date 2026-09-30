@@ -7,6 +7,7 @@ import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 import {
   CrmFehler, legeKontaktAn, legeKundeAn, type KundeTyp, type Rechtsgrundlage,
 } from '@/server/services/crm/anlegen';
@@ -24,6 +25,15 @@ import {
  * Formulare im Portal haben kein JavaScript; eine JSON-Antwort wäre hier
  * derselbe Fehler wie auf der öffentlichen Angebotsanfrage (D-599), nur dass
  * ihn ein Kollege sieht statt eines Kunden.
+ *
+ * **Nur der Grund reist, als `?grund=`** (D-769, D-772). Hier stand dazu der
+ * Satz des Dienstes als `?meldung=` — „der Rückfall für Blätter, die nur
+ * `meldung` lesen" (V-148). Die drei Blätter, auf die diese Route
+ * zurückführt (Neuer Kunde, Kundenblatt, Kontaktblatt), schlagen den Grund
+ * jetzt selbst nach; ein Satz in der Adresse war einer, den jeder Link
+ * schreiben konnte. `grund` und nicht `fehler`: das Kontaktblatt liest
+ * `fehler` für den Sendeweg (V-101) — ein gescheiterter Hauptkontakt ist
+ * keine Nachricht, die nicht hinausging.
  */
 export const dynamic = 'force-dynamic';
 
@@ -199,22 +209,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return `/portal/${bereich}/crm/kunden/${neu.id}`;
       }));
   } catch (fehler) {
-    if (fehler instanceof CrmFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      /*
-       * Satz UND Schlüssel (V-148): das Kundenblatt übersetzt den Schlüssel,
-       * der Satz bleibt der Rückfall für Blätter, die nur `meldung` lesen.
-       * `grund` und nicht `fehler`: das Kontaktblatt liest `fehler` für den
-       * Sendeweg (V-101) — ein gescheiterter Hauptkontakt ist keine Nachricht,
-       * die nicht hinausging.
-       */
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`
-          + `&grund=${encodeURIComponent(fehler.grund)}`,
-        '/portal', anfrage), 303);
-    }
+    /*
+     * Die Anmeldung zuerst (D-766, D-769 Nr. 7): ein fehlendes Recht bleibt
+     * die byte-gleiche 404 (AUT-06), eine abgelaufene Sitzung die Anmeldung —
+     * nie ein Rückweg aufs Formular.
+     */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof CrmFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'grund', fehler.grund);
+    }
     throw fehler;
   }
 

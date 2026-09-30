@@ -27,6 +27,8 @@ import {
   LEAD_ZWECK_REGEL, leseLeadKontaktWahl, type KontaktWahlZeile,
 } from '@/server/services/crm/lead-kontakt';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import { WIEDERVORLAGE_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /**
  * `/portal/[mandant]/crm/leads/[id]` — eine Anfrage, ihr Verlauf und ihr
@@ -143,16 +145,22 @@ export default async function LeadDetail(
   const darfDokument = darf['dokument.lesen'] === true;
   const t = nachSprache(LEAD_TEXTE, zugang.sprache);
   const suche = await searchParams;
-  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   /*
-   * `?meldung=` trägt den SATZ, `?fehler=` einen Schlüssel (V-137). Die Route
-   * `/api/crm/lead` schickte immer `meldung`, die Seite las nur `fehler` —
-   * jede Abweisung beim Setzen des Stands verschwand still. Gezeigt wird der
-   * Satz zum Schlüssel; `meldung` sagt nur noch, DASS abgewiesen wurde (V-250).
+   * `?fehler=` trägt den Grund einer Abweisung von `/api/crm/lead` und
+   * `/api/lead` (V-137), und gezeigt wird der Satz zu ihm. `?meldung=` — der
+   * Satz des Dienstes — liest dieses Blatt nicht mehr, und keine Route
+   * schickt ihn (D-769, D-772).
    */
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   /* `?hinweis=` trägt einen Schlüssel für eine Auskunft, keine Abweisung (V-141). */
   const hinweis = typeof suche['hinweis'] === 'string' ? suche['hinweis'] : null;
+  /*
+   * Die Wiedervorlage kehrt unter eigenem Namen zurück (`?wiedervorlage=`,
+   * `?erfolg=`; D-772): `betreff_fehlt` hiesse hier sonst „Ein Lead braucht
+   * einen Betreff".
+   */
+  const wvGrund = einSchluessel(suche['wiedervorlage']);
+  const wvErfolg = einSchluessel(suche['erfolg']);
   const pfad = `/portal/${mandant}/crm/leads/${id}`;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
@@ -274,6 +282,7 @@ export default async function LeadDetail(
   if (daten === null) notFound();
   const { kopf, verlauf, benutzer, kontakt, eingang, lv, kette, kunden, kontaktWahl } = daten;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
+  const tw = nachSprache(WIEDERVORLAGE_RUECKWEG, zugang.sprache);
   /*
    * Eine Abweisung steht dort, wo sie entstand: am Ansprechpartner, an der
    * Kette — und nur sonst beim nächsten Schritt.
@@ -412,12 +421,12 @@ export default async function LeadDetail(
           </p>
         ) : null}
         {kontaktFehler === null ? null : (
-          <Hinweis art="warnung" cse="lead-kontakt-fehler" className="mt-s4">
+          <Hinweis art="warnung" rolle="alert" cse="lead-kontakt-fehler" className="mt-s4">
             {kontaktFehler}
           </Hinweis>
         )}
         {hinweis === 'kontakt_vorhanden' ? (
-          <Hinweis art="hinweis" cse="lead-kontakt-vorhanden" className="mt-s4">
+          <Hinweis art="hinweis" rolle="status" cse="lead-kontakt-vorhanden" className="mt-s4">
             {t.kontaktVorhanden}
           </Hinweis>
         ) : null}
@@ -513,7 +522,7 @@ export default async function LeadDetail(
           <h2 id="kette" className="text-h2 text-text">{k.ketteTitel}</h2>
           <p className="max-w-prose text-sm text-text-muted">{k.ketteErklaerung}</p>
           {ketteFehler === null ? null : (
-            <Hinweis art="warnung" cse="lead-kette-fehler" className="mt-s4 max-w-prose">
+            <Hinweis art="warnung" rolle="alert" cse="lead-kette-fehler" className="mt-s4 max-w-prose">
               {ketteFehler}
             </Hinweis>
           )}
@@ -884,9 +893,9 @@ export default async function LeadDetail(
             unbekannter Schlüssel noch der deutsche Satz der Route ist je selbst
             der Text — `unbekannte_prioritaet` sagt niemandem etwas, und was in
             der Adresse steht, kann jeder hineinschreiben (V-250). */}
-        {(fehler !== null || meldung !== null) && ketteFehler === null && kontaktFehler === null && (
-          <Hinweis art="warnung" cse="lead-fehler" className="mt-s4 max-w-prose">
-            {(fehler === null ? undefined : eigenerEintrag(t.fehler, fehler)) ?? t.nichtGespeichert}
+        {fehler !== null && ketteFehler === null && kontaktFehler === null && (
+          <Hinweis art="warnung" rolle="alert" cse="lead-fehler" className="mt-s4 max-w-prose">
+            {eigenerEintrag(t.fehler, fehler) ?? t.nichtGespeichert}
           </Hinweis>
         )}
 
@@ -994,6 +1003,15 @@ export default async function LeadDetail(
           noch das andere. Eine Wiedervorlage ohne Zustaendigen steht in der
           Liste mit „niemand zugewiesen" und wartet auf niemanden.
         */}
+        {/*
+          Der Ausgang der Wiedervorlage (D-769, D-772) — ein Schlüssel aus der
+          Adresse, der Satz aus `WIEDERVORLAGE_RUECKWEG`. Bis hierher stand
+          für eine Abweisung nur „Das ließ sich nicht speichern.", und die
+          Bestätigung — samt dem, was vom Spiegel fehlte (O-663) — gar nicht.
+        */}
+        <Abweisung saetze={tw} grund={wvGrund} cse="lead-wv-fehler" className="mt-s4 max-w-prose" />
+        <Bestaetigung saetze={tw.erfolg} erfolg={wvErfolg} cse="lead-wv-erfolg"
+                      className="mt-s4 max-w-prose" />
         {darfSchreiben && (
           <form method="post" action="/api/crm/wiedervorlage" data-cse="lead-wv-formular"
                 className="mt-s4 flex max-w-prose flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
