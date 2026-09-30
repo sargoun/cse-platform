@@ -19,7 +19,7 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
 import { istKennung } from '../../../kennung';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { VORGANG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/vorgang-akte';
-import { DOKUMENT_BLATT_TEXTE } from '@/lib/i18n/verwaltung/dokument-blatt';
+import { UPLOAD_RUECKWEG_TEXTE } from '@/lib/i18n/verwaltung/dokument-rueckweg';
 
 /**
  * `/portal/[mandant]/dokumente/upload` — eine Datei ablegen (DOC-01, DOC-03,
@@ -45,6 +45,11 @@ import { DOKUMENT_BLATT_TEXTE } from '@/lib/i18n/verwaltung/dokument-blatt';
  *
  * **Ohne verbundenen Speicher wird nichts angelegt** und die Seite sagt es,
  * statt einen Knopf zu zeigen, der eine Zeile ohne Datei erzeugt.
+ *
+ * **Eine Abweisung kommt als Grund zurück** (`?fehler=`, D-769, D-774) und
+ * steht hier als Satz aus `UPLOAD_RUECKWEG_TEXTE`, nachgeschlagen als eigener
+ * Eintrag. Bis dahin ging ein mitgeschickter Satz aus `?meldung=` der Tabelle
+ * vor — also auch jeder Text eines präparierten Links.
  */
 export const dynamic = 'force-dynamic';
 
@@ -56,15 +61,6 @@ function wort(
   const roh = p[name];
   return typeof roh === 'string' ? roh.trim().slice(0, max) : '';
 }
-
-const FEHLER_TEXT: Readonly<Record<string, string>> = {
-  speicher: 'Der Dateispeicher ist nicht verbunden.',
-  datei: 'Die Datei wurde abgelehnt.',
-  eingabe: 'Die Angaben sind unvollständig.',
-  /* Derselbe Satz wie auf dem Blatt der zweiten Fassung (D-759) — eine
-     Quelle, damit die beiden Formulare nicht Verschiedenes raten lassen. */
-  datei_metadaten: DOKUMENT_BLATT_TEXTE.de.faFehler.datei_metadaten,
-};
 
 export default async function DokumentHochladen({
   params, searchParams,
@@ -86,7 +82,8 @@ export default async function DokumentHochladen({
 
   const suche = await searchParams;
   const fehler = wort(suche, 'fehler', 30);
-  const meldung = wort(suche, 'meldung', 500);
+  /* Fest deutsch: die Seite steht auf der Ausnahmeliste der Übersetzungswache. */
+  const t = UPLOAD_RUECKWEG_TEXTE.de;
   const vorgabeKategorie = wort(suche, 'kategorie', 30);
   /*
    * V-176 (OPS-11): „Dokument ablegen" auf dem Auftrags- oder Projektblatt
@@ -169,9 +166,9 @@ export default async function DokumentHochladen({
       </div>
 
       {fehler !== '' && (
-        <Hinweis art="warnung" cse="upload-fehler" className="mb-s5 max-w-prose">
-          <strong>Nichts abgelegt.</strong>{' '}
-          {meldung !== '' ? meldung : eigenerEintrag(FEHLER_TEXT, fehler) ?? 'Die Ablage ist nicht erfolgt.'}
+        <Hinweis art="warnung" rolle="alert" cse="upload-fehler" className="mb-s5 max-w-prose">
+          <strong>{t.titel}</strong>{' '}
+          {eigenerEintrag(t.fehler, fehler) ?? t.sonst}
         </Hinweis>
       )}
 

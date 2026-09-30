@@ -7,6 +7,8 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { bindePersoenlich } from '@/server/kontext/index';
 import { beendeEigeneSitzung, SitzungFehler }
   from '@/server/services/konto/sitzungen';
+import type { SitzungFehlerGrund } from '@/lib/i18n/konto';
+import { grundAufsFormular } from '../../formular-antwort';
 
 /**
  * `POST /api/konto/sitzung` — eine EIGENE Anmeldung beenden (V-039, AUT-05).
@@ -26,8 +28,17 @@ import { beendeEigeneSitzung, SitzungFehler }
  *
  * **`bindePersoenlich` und nicht `withTenant`.** Eine Anmeldung hängt an
  * keinem Mandanten; eine Arbeitersitzung hat per Konstruktion gar keinen.
+ *
+ * **Eine Abweisung reist als GRUND** (`?fehler=<grund>`, D-769, D-774). Hier
+ * stand der deutsche Satz des Dienstes als `?meldung=`, und die Seite zeigte
+ * ihn roh — auch einem Konto mit englischer, arabischer oder türkischer
+ * Portalsprache, und jeden Text, den ein präparierter Link mitbrachte. Den
+ * Satz hat jetzt die Seite, in der Sprache des Kontos (`SICHERHEIT_TEXTE`).
  */
 export const dynamic = 'force-dynamic';
+
+/** Wohin es ohne `zurueck` geht — die Seite, deren Formular diese Route ruft. */
+const SICHERHEIT = '/portal/konto/sicherheit';
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -40,7 +51,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const daten = await anfrage.formData();
   const ziel = String(daten.get('sitzung') ?? '');
-  const zurueck = String(daten.get('zurueck') ?? '/portal/konto/sicherheit');
+  const zurueckRoh = daten.get('zurueck');
+  const zurueck = typeof zurueckRoh === 'string' && zurueckRoh !== '' ? zurueckRoh : SICHERHEIT;
   if (ziel === '') {
     return NextResponse.json({ fehler: 'keine_anmeldung' }, { status: 400 });
   }
@@ -60,10 +72,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     });
   } catch (fehler) {
     if (fehler instanceof SitzungFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
+      /* Der Typ hält Dienst und Satztabelle beieinander: ein neuer Grund ohne Satz bricht hier. */
+      const grund: SitzungFehlerGrund = fehler.grund;
+      const antwort = grundAufsFormular(anfrage, { json: false, zurueck, grund });
+      if (antwort !== null) return antwort;
     }
     throw fehler;
   }

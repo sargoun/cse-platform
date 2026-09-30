@@ -20,7 +20,7 @@ import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
-import { ladeVerwaltungskontoEin }
+import { EinladungFehler, ladeVerwaltungskontoEin }
   from '../../src/server/services/system/verwaltungskonto.js';
 
 let f: Fixtur;
@@ -92,6 +92,7 @@ describe('(1) D-610 — nur der Super-Admin laedt ein', () => {
   it('der Super-Admin kann es', async () => {
     const e = await einladen(chef);
     expect(e.ok, e.grund).toBe(true);
+    expect(e.grund).toBe('eingeladen');
     expect(e.neuesKonto).toBe(true);
     /* Der Klartext kommt GENAU EINMAL zurueck; gespeichert ist nur sein Hash. */
     expect(e.token).toMatch(/^[A-Za-z0-9_-]{20,}$/u);
@@ -104,14 +105,24 @@ describe('(1) D-610 — nur der Super-Admin laedt ein', () => {
    * eine Behauptung in einem Dokument.
    */
   it('ein Admin der Gesellschaft kann es NICHT — auch in seiner eigenen', async () => {
-    await expect(einladen(admin)).rejects.toThrow(/verwaltungskonto_erstellen|berechtigt|privilege/iu);
+    /*
+     * D-774: die Absage der Datenbank (42501) kommt als `EinladungFehler` mit
+     * dem Grund `nicht_erlaubt` — ihr Satz steht als `cause` daran und wird
+     * unverändert geprüft; nur auf den Schirm geht er nicht mehr.
+     */
+    await expect(einladen(admin)).rejects.toSatisfy((e: unknown) =>
+      e instanceof EinladungFehler && e.grund === 'nicht_erlaubt'
+      && /verwaltungskonto_erstellen|berechtigt|privilege/iu.test(
+        String((e.cause as { message?: unknown } | undefined)?.message)));
   });
 
   it('ohne zweiten Faktor gar nicht (AUT-02)', async () => {
     /* Seit V-136 (0395) gewährt super_admin ohne aal2 nichts — die Rechtefrage
        weist dann schon vor der Stufenprüfung ab. Beides ist AUT-02. */
-    await expect(einladen(chef, 'admin', 'aal1'))
-      .rejects.toThrow(/zweitem Faktor|aal2|privilege|verwaltungskonto_erstellen fehlt/iu);
+    await expect(einladen(chef, 'admin', 'aal1')).rejects.toSatisfy((e: unknown) =>
+      e instanceof EinladungFehler && e.grund === 'nicht_erlaubt'
+      && /zweitem Faktor|aal2|privilege|verwaltungskonto_erstellen fehlt/iu.test(
+        String((e.cause as { message?: unknown } | undefined)?.message)));
   });
 });
 
@@ -157,7 +168,8 @@ describe('(2) was entsteht — und in welchem Zustand', () => {
       mandantId: f.reinigung, email, name: 'Doppelt', rolle: 'admin',
     }));
     expect(zwei.ok).toBe(false);
-    expect(zwei.grund).toMatch(/schon/iu);
+    /* D-774: der Satz der Datenbank ist hier ein Schlüssel — die Seite hat den Satz. */
+    expect(zwei.grund).toBe('schon_eingetragen');
   });
 });
 
@@ -170,7 +182,8 @@ describe('(3) die Grenzen, die das Tor eng halten', () => {
       rolle: 'super_admin' as never,
     }));
     expect(e.ok).toBe(false);
-    expect(e.grund).toMatch(/O-887|admin.*leitung/iu);
+    /* D-774: vorher der Satz der Datenbank („nur `admin` und `leitung`"), jetzt sein Schlüssel. */
+    expect(e.grund).toBe('rolle_unzulaessig');
   });
 
   it('`mitarbeiter` ebenfalls nicht — dafuer gibt es den Personalweg', async () => {
@@ -179,6 +192,7 @@ describe('(3) die Grenzen, die das Tor eng halten', () => {
       rolle: 'mitarbeiter' as never,
     }));
     expect(e.ok).toBe(false);
+    expect(e.grund).toBe('rolle_unzulaessig');
   });
 
   it('eine unbrauchbare Adresse legt kein Konto an', async () => {
@@ -186,6 +200,7 @@ describe('(3) die Grenzen, die das Tor eng halten', () => {
       mandantId: f.reinigung, email: 'kein-at-zeichen', name: 'X', rolle: 'admin',
     }));
     expect(e.ok).toBe(false);
+    expect(e.grund).toBe('email_ungueltig');
     expect(e.kontoId).toBeNull();
   });
 
@@ -194,5 +209,33 @@ describe('(3) die Grenzen, die das Tor eng halten', () => {
       mandantId: f.reinigung, email: `z-${zufall()}@cse.test`, name: '   ', rolle: 'admin',
     }));
     expect(e.ok).toBe(false);
+    expect(e.grund).toBe('name_fehlt');
+  });
+
+  /*
+   * D-774: die übrigen zwei Sätze der Datenbank finden ebenfalls ihren
+   * Schlüssel. Ein Satz, den der Dienst nicht kennt, würde zum allgemeinen
+   * `nicht_ausgestellt` — dieser Fall prüft, dass 0372 und die Liste im Dienst
+   * nicht auseinanderlaufen.
+   */
+  it('eine Gesellschaft, die es nicht gibt: `gesellschaft_fehlt`', async () => {
+    const e = await als(chef, (tx) => ladeVerwaltungskontoEin(kontextAus(tx, chef), {
+      mandantId: '00000000-0000-4000-8000-00000000abcd', email: `g-${zufall()}@cse.test`,
+      name: 'Niemand', rolle: 'admin',
+    }));
+    expect(e.ok).toBe(false);
+    expect(e.grund).toBe('gesellschaft_fehlt');
+  });
+
+  it('ein Kundenkonto wird kein Verwaltungskonto: `kundenkonto` (K-04)', async () => {
+    const kunde = await konto('kunde');
+    await mitglied(kunde, f.reinigung, 'kunde');
+    const [b] = await sql.unsafe<{ email: string }[]>(
+      `select email from benutzer where id = $1`, [kunde]);
+    const e = await als(chef, (tx) => ladeVerwaltungskontoEin(kontextAus(tx, chef), {
+      mandantId: f.reinigung, email: b!.email, name: 'Kunde', rolle: 'admin',
+    }));
+    expect(e.ok).toBe(false);
+    expect(e.grund).toBe('kundenkonto');
   });
 });

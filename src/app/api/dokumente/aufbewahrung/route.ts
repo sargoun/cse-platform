@@ -1,16 +1,16 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
   AufbewahrungFehler, setzeAufbewahrung, type AufbewahrungZeile,
 } from '@/server/services/dokument/aufbewahrung';
+import type { AufbewahrungFehlerGrund } from '@/lib/i18n/verwaltung/dokument-rueckweg';
 
 /**
  * `POST /api/dokumente/aufbewahrung` — eine Aufbewahrungsregel dieser
@@ -19,10 +19,19 @@ import {
  * Duenn: Herkunft, Sitzung, Recht, Dienst, zurueck. Die Untergrenzen prueft
  * der Dienst und noch einmal die Datenbank; hier wird nur gelesen, was das
  * Formular sagt.
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-774): der Erfolg als
+ * `?gesetzt=<kategorie>`, eine Abweisung als `?fehler=<grund>`. Bis dahin
+ * reiste der Satz des Dienstes als `?meldung=` mit — samt der Kategorie, wie
+ * das Formular sie schickte, und der Frist —, und die Seite zog ihn ihrer
+ * eigenen Tabelle vor.
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, slug: string, such: Readonly<Record<string, string>>): NextResponse {
+function zurueck(
+  anfrage: NextRequest, slug: string,
+  such: { readonly gesetzt: string } | { readonly fehler: AufbewahrungFehlerGrund },
+): NextResponse {
   const url = new URL(`/portal/${slug}/dokumente/aufbewahrung`, erwarteterUrsprung(anfrage));
   for (const [k, v] of Object.entries(such)) url.searchParams.set(k, v);
   return NextResponse.redirect(url, 303);
@@ -50,7 +59,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const jahreRoh = text('jahre');
   const jahre = jahreRoh === null ? null : Number(jahreRoh);
   if (jahre !== null && !Number.isInteger(jahre)) {
-    return zurueck(anfrage, slug, { fehler: 'jahre', meldung: 'Die Frist ist eine ganze Zahl von Jahren.' });
+    return zurueck(anfrage, slug, { fehler: 'jahre' });
   }
 
   try {
@@ -67,14 +76,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       }))) as AufbewahrungZeile;
     return zurueck(anfrage, slug, { gesetzt: gesetzt.kategorie });
   } catch (fehler: unknown) {
-    if (fehler instanceof AufbewahrungFehler) {
-      return zurueck(anfrage, slug, { fehler: fehler.grund, meldung: fehler.message });
-    }
-    const anmeldung = anmeldungsAntwort(fehler, anfrage);
-    if (anmeldung !== null) return anmeldung;
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
+    /* Anmeldung und Recht zuerst (D-766, AUT-06): ein fehlendes Recht bleibt die byte-gleiche 404. */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: daten });
+    if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof AufbewahrungFehler) return zurueck(anfrage, slug, { fehler: fehler.grund });
     throw fehler;
   }
 }

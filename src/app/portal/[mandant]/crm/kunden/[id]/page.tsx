@@ -26,7 +26,7 @@ import {
 } from '@/components/portal/Kommunikationsverlauf';
 import { VERLAUF_TEXTE } from '@/lib/i18n/verwaltung/crm-verlauf';
 import { KUNDE_RUECKMELDUNG } from '@/lib/i18n/verwaltung/crm-kunde';
-import { Hinweis } from '@/components/ui/Hinweis';
+import { Abweisung, einSchluessel } from '@/components/portal/Rueckweg';
 import {
   leseKundenVerlauf, VERLAUF_GRENZE, type VerlaufEintrag,
 } from '@/server/services/crm/verlauf';
@@ -101,22 +101,18 @@ export default async function KundeDetail(
   const notiert = suche['notiert'] === '1';
   /*
    * **Die Abweisung des Kontaktformulars** (V-148, D-562). `POST
-   * /api/crm/kunde` leitet einen `CrmFehler` mit `?meldung=` (Satz) und
-   * `?grund=` (Schlüssel) hierher zurück — und dieses Blatt nahm bis hierher
-   * gar keine Suchparameter an. Wer „Bestandskunde" wählte und nicht sagte,
-   * woher sie stammt, bekam keinen Kontakt und keinen Satz.
+   * /api/crm/kunde` leitet einen `CrmFehler` mit seinem Grund (`?grund=`)
+   * hierher zurück — bis D-772 dazu mit dem Satz des Dienstes (`?meldung=`).
+   *
+   * **Gezeigt wird nur, was diese Seite selbst sagt** (V-153, D-769): ein
+   * bekannter Grund wird übersetzt, alles andere ein allgemeiner Satz — nie
+   * Text aus der Adresse, und nachgeschlagen nur als eigener Eintrag (D-728).
+   * Hier stand die Nachschlagung mit eckigen Klammern: `?grund=__proto__`
+   * fand `Object.prototype`, React warf, und das Kundenblatt antwortete mit
+   * 500.
    */
-  const meldung = typeof suche['meldung'] === 'string' && suche['meldung'] !== ''
-    ? suche['meldung'] : null;
-  const meldungGrund = typeof suche['grund'] === 'string' ? suche['grund'] : null;
-  /*
-   * **Gezeigt wird nur, was diese Seite selbst sagt** (V-153). Hier stand als
-   * Rückfall der Satz aus der Adresse (`?meldung=`) — damit liess sich mit
-   * einem Verweis beliebiger Text in einen Warnkasten des Portals setzen.
-   * Ein bekannter Schlüssel wird übersetzt; alles andere wird ein
-   * allgemeiner Satz, nie Text aus der Adresse (wie `grundAus` im Recruiting).
-   */
-  const abgewiesen = meldung !== null || meldungGrund !== null;
+  const kontaktGrund = einSchluessel(suche['grund']);
+  const abgewiesen = kontaktGrund !== null;
   const zugang = await portalZugang(`/portal/${mandant}/crm/kunden/${id}`);
   if (zugang === null) return <AnmeldungNoetig />;
   const tor = await slugTor(zugang, mandant);
@@ -266,17 +262,9 @@ export default async function KundeDetail(
         ) : null}
       </div>
 
-      {!abgewiesen ? null : (
-        <Hinweis art="warnung" cse="kunde-meldung" className="mb-s5 max-w-prose">
-          {meldungGrund !== null && tk.kontaktFehler[meldungGrund] !== undefined ? (
-            <>
-              <strong>{tk.nichtGespeichert}</strong>{' '}{tk.kontaktFehler[meldungGrund]}
-            </>
-          ) : (
-            <strong>{tk.abgewiesen}</strong>
-          )}
-        </Hinweis>
-      )}
+      <Abweisung
+        saetze={{ titel: tk.nichtGespeichert, sonst: tk.abgewiesen, fehler: tk.kontaktFehler }}
+        grund={kontaktGrund} cse="kunde-meldung" />
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>

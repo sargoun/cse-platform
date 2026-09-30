@@ -5,10 +5,11 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
-import { CrmFehler, type Rechtsgrundlage } from '@/server/services/crm/anlegen';
+import { CrmFehler } from '@/server/services/crm/anlegen';
 import { setzeGrundlage } from '@/server/services/crm/kontakt-grundlage';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
 /**
  * `POST /api/crm/ansprechpartner/[id]/rechtsgrundlage` — die Grundlage nach
@@ -26,6 +27,12 @@ import { setzeGrundlage } from '@/server/services/crm/kontakt-grundlage';
  * JavaScript eine leere Seite mit geschweiften Klammern.
  *
  * Der Handler bleibt dünn: autorisieren, Dienst rufen, 303 zurück.
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-772): `?fehler=<grund>` und
+ * `?erfolg=gespeichert`. Hier standen der Satz des `CrmFehler` — samt der
+ * Rechte in Backticks, des Namens einer Prüfbedingung und einer eingetippten
+ * Belegnummer — und der Erfolgssatz in der Adresse; die Seite schlägt jetzt
+ * nach (`GRUNDLAGE_RUECKWEG`).
  */
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +71,8 @@ export async function POST(
         );
         await setzeGrundlage(kontext, {
           ansprechpartnerId: id,
-          rechtsgrundlage: String(daten.get('rechtsgrundlage') ?? 'keine') as Rechtsgrundlage,
+          /* Das Wort, wie es kam — der Dienst prüft es gegen das Enum (D-772 Nr. 14). */
+          rechtsgrundlage: String(daten.get('rechtsgrundlage') ?? 'keine'),
           nachweisQuelle: wert('nachweisQuelle'),
           nachweisAm: wert('nachweisAm'),
           belegDokumentId: wert('belegDokumentId'),
@@ -74,21 +82,14 @@ export async function POST(
         });
       }));
   } catch (fehler) {
-    if (fehler instanceof CrmFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof CrmFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'fehler', fehler.grund);
+    }
     throw fehler;
   }
 
-  const trenner = zurueck.includes('?') ? '&' : '?';
-  return NextResponse.redirect(internesZiel(
-    `${zurueck}${trenner}erfolg=${encodeURIComponent(
-      'Die Rechtsgrundlage ist gespeichert. Was jetzt hinausgehen darf, steht unten '
-      + 'in der Antwort des Tores.')}`,
-    '/portal', anfrage), 303);
+  return zurueckMitSchluessel(anfrage, zurueck, 'erfolg', 'gespeichert');
 }

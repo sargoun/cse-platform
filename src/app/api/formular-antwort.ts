@@ -31,7 +31,7 @@ import { eingabenSetzen } from '@/lib/formular/maske';
 const HEIMWEG = '/portal';
 
 /**
- * Wie `fehlerAufsFormular`, aber mit einem GRUND statt eines Satzes (V-158).
+ * Mit einem GRUND statt eines Satzes (V-158); der fruehere `fehlerAufsFormular`, der den Satz schickte, ist entfernt (D-769).
  *
  * **Wann der Grund und nicht der Satz.** Der Satz eines Dienstes ist deutsch
  * und manchmal mit Kennung („Einteilung 3f2a… gibt es in dieser Gesellschaft
@@ -110,39 +110,4 @@ export interface FormularRueckweg {
   readonly maske?: string;
   /** Die Eingaben, mit denen die Maske vorbelegt zurückkommt — nie Freitext. */
   readonly werte?: Readonly<Record<string, string | null | undefined>>;
-}
-
-/**
- * Die Antwort auf einen FACHLICHEN Fehler — als Umleitung fuer ein Formular,
- * als JSON fuer einen JSON-Aufrufer.
- *
- * **Fuer einen neuen Aufrufer ist `grundAufsFormular` der Weg** (D-753): der
- * Satz eines Dienstes ist deutsch und traegt manchmal eine Kennung, und eine
- * Seite, die `?meldung=` roh zeigt, zeigt auch jeden Text aus einem
- * praeparierten Link. Die beiden Zeitrouten, fuer die diese Weiche gebaut
- * wurde, schicken seit V-197/D-753 einen Grund.
- *
- * `null` heisst: dafuer ist diese Weiche nicht zustaendig (kein Formular oder
- * kein `zurueck`). Der Aufrufer antwortet dann wie bisher mit JSON — das ist
- * die richtige Antwort fuer eine Schnittstelle und die einzig moegliche ohne
- * eine Seite, auf die man zurueckkehren koennte.
- */
-export function fehlerAufsFormular(
-  anfrage: NextRequest,
-  argumente: {
-    readonly json: boolean;
-    readonly zurueck: string | undefined;
-    readonly meldung: string;
-  },
-): NextResponse | null {
-  if (argumente.json) return null;
-  const zurueck = argumente.zurueck;
-  if (zurueck === undefined || zurueck === '') return null;
-  const trenner = zurueck.includes('?') ? '&' : '?';
-  return NextResponse.redirect(
-    internesZiel(
-      `${zurueck}${trenner}meldung=${encodeURIComponent(argumente.meldung)}`,
-      HEIMWEG, anfrage),
-    303,
-  );
 }

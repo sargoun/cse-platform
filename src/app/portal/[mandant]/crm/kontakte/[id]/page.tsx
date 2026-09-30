@@ -35,6 +35,10 @@ import {
 import { lesbar } from '@/lib/i18n/beschriftung/basis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { rechtName } from '@/lib/i18n/rechtname';
+import { Abweisung, Bestaetigung, einSchluessel } from '@/components/portal/Rueckweg';
+import {
+  HAUPTKONTAKT_RUECKWEG, WIEDERVORLAGE_RUECKWEG,
+} from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /** Der Kanal als Wort — die Karte des Kommunikationsverlaufs (V-232). */
 function kanalText(kanal: string): string {
@@ -96,7 +100,9 @@ const GRUNDLAGE_TEXT: Readonly<Record<string, string>> = {
  *
  * Jede nennt, was NICHT geschehen ist — bei einer Aussendung ist das die
  * Auskunft, die zählt. „Nicht gesendet" allein liesse offen, ob etwas halb
- * geschrieben liegt.
+ * geschrieben liegt. Nachgeschlagen nur als eigener Eintrag (D-728): mit
+ * eckigen Klammern fand `?fehler=__proto__` `Object.prototype`, und das
+ * Blatt antwortete mit 500 (gefunden in V-274).
  */
 const SENDE_FEHLER: Readonly<Record<string, string>> = {
   keine_grundlage: 'Für diesen Kanal und diesen Zweck ist keine Rechtsgrundlage '
@@ -133,7 +139,12 @@ export default async function Kontaktblatt(
   { params, searchParams }: {
     params: Promise<{ mandant: string; id: string }>;
     searchParams: Promise<{
-      meldung?: string; erfolg?: string; fehler?: string; gesendet?: string;
+      /* D-772: die Abweisung des Hauptkontakts (`POST /api/crm/kunde`) — ein Grund. */
+      grund?: string;
+      /* D-772: die Wiedervorlage — ein Grund, ein Erfolg; nie ein Satz. */
+      wiedervorlage?: string; erfolg?: string;
+      /* V-101: der Sendeweg. */
+      fehler?: string; gesendet?: string;
       /* V-147: die Rückmeldung von `POST /api/crm/notiz` — ein eigener Name. */
       notiz?: string; notiert?: string;
     }>;
@@ -314,16 +325,19 @@ export default async function Kontaktblatt(
         </div>
       </div>
 
-      {typeof suche.meldung === 'string' && suche.meldung !== '' ? (
-        <Hinweis art="warnung" cse="kontakt-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht gespeichert.</strong> {suche.meldung}
-        </Hinweis>
-      ) : null}
-      {typeof suche.erfolg === 'string' && suche.erfolg !== '' ? (
-        <Hinweis art="erfolg" cse="kontakt-erfolg" className="mb-s5 max-w-prose">
-          {suche.erfolg}
-        </Hinweis>
-      ) : null}
+      {/*
+        * Die Rückwege der Formulare dieses Blatts tragen Schlüssel, die Sätze
+        * stehen in ihren Tabellen (D-769, D-772): der Hauptkontakt
+        * (`?grund=`) und die Wiedervorlage (`?wiedervorlage=`, `?erfolg=`).
+        * Hier stand `?meldung=` roh im Warnkasten und `?erfolg=` roh im
+        * Erfolgskasten — jeder Link schrieb seine eigene Meldung.
+        */}
+      <Abweisung saetze={HAUPTKONTAKT_RUECKWEG.de} grund={einSchluessel(suche.grund)}
+                 cse="kontakt-meldung" />
+      <Abweisung saetze={WIEDERVORLAGE_RUECKWEG.de} grund={einSchluessel(suche.wiedervorlage)}
+                 cse="wv-meldung" />
+      <Bestaetigung saetze={WIEDERVORLAGE_RUECKWEG.de.erfolg} erfolg={einSchluessel(suche.erfolg)}
+                    cse="kontakt-erfolg" />
 
       <dl className="m-0 mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
@@ -581,12 +595,12 @@ export default async function Kontaktblatt(
         <section aria-labelledby="senden" className="mb-s7" id="senden">
           <h2 id="senden-titel" className="text-h2 text-text">Nachricht senden</h2>
           {typeof suche.fehler === 'string' && suche.fehler !== '' ? (
-            <Hinweis art="warnung" cse="senden-fehler" className="mt-s3 max-w-prose">
-              {SENDE_FEHLER[suche.fehler] ?? 'Die Nachricht wurde nicht gesendet.'}
+            <Hinweis art="warnung" rolle="alert" cse="senden-fehler" className="mt-s3 max-w-prose">
+              {eigenerEintrag(SENDE_FEHLER, suche.fehler) ?? 'Die Nachricht wurde nicht gesendet.'}
             </Hinweis>
           ) : null}
           {suche.gesendet === '1' ? (
-            <Hinweis art="erfolg" cse="senden-ok" className="mt-s3 max-w-prose">
+            <Hinweis art="erfolg" rolle="status" cse="senden-ok" className="mt-s3 max-w-prose">
               Gesendet — mit Ihrer Freigabe in der Kette.
             </Hinweis>
           ) : null}

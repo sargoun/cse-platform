@@ -37,6 +37,35 @@
  * zweite Spalte nur eine Erfindung waere.
  */
 import type { InternSprache } from '../../intern.js';
+import { DOKUMENT_BLATT_TEXTE } from '../dokument-blatt.js';
+
+/**
+ * Jeder Grund, mit dem `POST /api/finanzen/eingangsrechnungen` auf `/neu`
+ * zurückschickt (D-769, D-774): die eigenen Prüfungen der Route, der
+ * Speicher, der Betrag, `ERechnungFehler` als `erechnung_<grund>` und
+ * `VorschlagFehler` als `vorschlag_<grund>`. Bis dahin reiste daneben ein
+ * Satz als `?meldung=`, und die Seite zeigte ihn roh — deutsch auch in einer
+ * englischen Sitzung, mit der Rechnungsnummer, wie sie getippt war.
+ *
+ * Dazu die Prüfkette der Datei (D-774 Nachrunde), wie bei der Ablage:
+ * `MimeFehler` als `datei_<grund>`, `ExifFehler` als `datei_metadaten`. Bis
+ * dahin fielen beide durch die Übersetzung der Route und endeten als 500 —
+ * ausgerechnet beim verschlüsselten PDF eines Lieferanten.
+ *
+ * Und die Abweisung des Dienstes beim Erfassen (`EingangsrechnungFehler`,
+ * D-774 Nachrunde) als `rechnung_abgewiesen` bzw. `rechnung_unvollstaendig`:
+ * das Formular endete bis dahin auf einer Seite mit JSON.
+ */
+export const ERFASSEN_FEHLER_GRUENDE = [
+  'unvollstaendig', 'ohne_beleg', 'dublette', 'betrag', 'speicher_nicht_verbunden',
+  'erechnung_fehlt', 'keine_erechnung',
+  'erechnung_kein_xml', 'erechnung_kein_format', 'erechnung_unvollstaendig',
+  'vorschlag_keine_erechnung', 'vorschlag_nicht_gefunden', 'vorschlag_nicht_genehmigt',
+  'vorschlag_unvollstaendig', 'vorschlag_schon_uebernommen', 'vorschlag_kein_recht',
+  'datei_leer', 'datei_unbekannt', 'datei_nicht_erlaubt', 'datei_widerspruch', 'datei_metadaten',
+  'rechnung_abgewiesen', 'rechnung_unvollstaendig',
+] as const;
+export type ErfassenFehlerGrund = (typeof ERFASSEN_FEHLER_GRUENDE)[number];
 
 export interface EingangsrechnungenTexte {
   /* ── Was auf mehreren der fuenf Blaetter steht ─────────────────────── */
@@ -95,7 +124,10 @@ export interface EingangsrechnungenTexte {
   readonly vorschlag: string;
   readonly vorbelegtVor: string;
   readonly vorbelegtNach: string;
+  /** Die fett gesetzten ersten Worte des Warnkastens (DESIGN §5 „Notices") … */
   readonly keinLieferantAngelegt: string;
+  /** … und was daraus folgt. */
+  readonly keinLieferantFolge: string;
   readonly belegLegende: string;
   readonly pdfHochladen: string;
   readonly belegWaehlen: string;
@@ -107,6 +139,12 @@ export interface EingangsrechnungenTexte {
   readonly umsatzsteuerInEuro: string;
   readonly bruttoHinweis: string;
   readonly erfassen: string;
+  /** Die fett gesetzten ersten Worte des Warnkastens (DESIGN §5 „Notices"). */
+  readonly erfassenNicht: string;
+  /** Der Grund einer Abweisung — `?fehler=`, über `eigenerEintrag()` (D-774). */
+  readonly erfassenFehler: Readonly<Record<ErfassenFehlerGrund, string>>;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly erfassenFehlerSonst: string;
 
   /* ── Blatt 3: `/[id]` — die Akte ───────────────────────────────────── */
   readonly ohneLieferant: string;
@@ -133,7 +171,7 @@ export interface EingangsrechnungenTexte {
   readonly zahlungErfassen: string;
   /** Vor dem Tag, an dem der Kreditorposten ausgeglichen wurde (V-217). */
   readonly bezahlt: string;
-  /** Die Rückmeldung nach dem Erfassen — `?meldung=`, über `eigenerEintrag()`. */
+  /** Die Rückmeldung nach dem Erfassen — `?erfolg=` (D-774), über `eigenerEintrag()`. */
   readonly ausgangMeldungen: Readonly<Record<'ausgang_erfasst' | 'ausgang_guthaben', string>>;
   /** Der Grund einer Abweisung — `?fehler=`, über `eigenerEintrag()`. */
   readonly ausgangFehler: Readonly<Record<string, string>>;
@@ -288,6 +326,16 @@ export interface EingangsrechnungenTexte {
   readonly geprueftAm: string;
 }
 
+/**
+ * Die Sätze der Prüfkette stehen EINMAL — auf dem Blatt der zweiten Fassung
+ * (D-759); die Ablage nimmt sie von dort, und diese Maske auch. Dieselbe
+ * Prüfung, dieselbe Datei: drei Formulare sollen nicht Verschiedenes sagen.
+ */
+const DATEI = {
+  de: DOKUMENT_BLATT_TEXTE.de.faFehler,
+  en: DOKUMENT_BLATT_TEXTE.en.faFehler,
+} as const;
+
 const DE: EingangsrechnungenTexte = {
   titel: 'Eingangsrechnungen',
   eingangsrechnung: 'Eingangsrechnung',
@@ -352,9 +400,8 @@ const DE: EingangsrechnungenTexte = {
   vorbelegtVor: 'Vorbelegt aus dem Vorschlag',
   vorbelegtNach:
     '. Prüfen, anpassen, erfassen — der Beleg des Vorschlags wird übernommen.',
-  keinLieferantAngelegt:
-    'Für diese Gesellschaft ist noch kein Lieferant angelegt. Ohne '
-    + 'Lieferant lässt sich eine Rechnung weder prüfen noch zuordnen.',
+  keinLieferantAngelegt: 'Für diese Gesellschaft ist noch kein Lieferant angelegt.',
+  keinLieferantFolge: 'Ohne Lieferant lässt sich eine Rechnung weder prüfen noch zuordnen.',
   belegLegende: 'Der Beleg (ACC-03)',
   pdfHochladen: 'PDF hochladen',
   belegWaehlen: '… oder einen bereits abgelegten Beleg wählen',
@@ -371,6 +418,56 @@ const DE: EingangsrechnungenTexte = {
     + 'eingetipptes Brutto, das nicht aufgeht, ist ein Beleg, der sich nicht '
     + 'buchen lässt.',
   erfassen: 'Erfassen',
+  erfassenNicht: 'Nicht erfasst.',
+  erfassenFehler: {
+    unvollstaendig:
+      'Lieferant, Rechnungsnummer, Rechnungsdatum, Netto, Umsatzsteuer und Steuersatz sind '
+      + 'Pflicht.',
+    ohne_beleg:
+      'Ohne Dokument entsteht keine Eingangsrechnung (ACC-03) — bitte ein PDF hochladen oder '
+      + 'einen abgelegten Beleg wählen.',
+    dublette:
+      'Diese Rechnung des Lieferanten liegt für dieses Jahr bereits vor. Ein zweites Erfassen '
+      + 'gibt es nicht: dieselbe Rechnung zweimal zu bezahlen ist genau der Schaden, den die '
+      + 'Sperre verhindert. Die vorhandene steht in der Liste der Eingangsrechnungen.',
+    betrag: 'Die Beträge bitte im deutschen Format eingeben, etwa 1.000,00.',
+    speicher_nicht_verbunden:
+      'Der Belegspeicher ist nicht verbunden. Es wurde NICHTS gespeichert. Ein bereits '
+      + 'abgelegter Beleg lässt sich stattdessen auswählen.',
+    erechnung_fehlt: 'Bitte eine E-Rechnung wählen — XRechnung als XML oder ZUGFeRD als PDF.',
+    keine_erechnung:
+      'Das PDF trägt keine eingebettete E-Rechnung. Die Belegerkennung für gescannte '
+      + 'Rechnungen hat noch keinen Anbieter (O-135) — bitte unten von Hand erfassen; das PDF '
+      + 'lässt sich dort als Beleg hochladen.',
+    erechnung_kein_xml:
+      'Die Datei ist kein lesbares XML und damit keine E-Rechnung. Es wurde nichts gespeichert.',
+    erechnung_kein_format:
+      'Die Datei ist kein XRechnung-, CII- oder ZUGFeRD-Datensatz — ein anderes XML ist keine '
+      + 'E-Rechnung. Es wurde nichts gespeichert.',
+    erechnung_unvollstaendig:
+      'Die E-Rechnung ist unvollständig und lässt sich nicht lesen — bitte unten von Hand '
+      + 'erfassen.',
+    vorschlag_keine_erechnung: 'Die Datei ist keine E-Rechnung — daraus entsteht kein Vorschlag.',
+    vorschlag_nicht_gefunden: 'Der Vorschlag ist nicht erreichbar.',
+    vorschlag_nicht_genehmigt: 'Übernommen wird nur ein genehmigter Vorschlag.',
+    vorschlag_unvollstaendig:
+      'Der Vorschlag wurde nicht angelegt, und die Datei ist nicht abgelegt — bitte unten von '
+      + 'Hand erfassen.',
+    vorschlag_schon_uebernommen: 'Dieser Vorschlag ist schon übernommen.',
+    vorschlag_kein_recht: 'Einen Vorschlag übernimmt, wer Eingangsrechnungen erfassen darf.',
+    /* Die Prüfkette der Datei: dieselben Sätze wie auf dem Fassungsblatt und bei der Ablage (D-759). */
+    datei_leer: DATEI.de.datei_leer,
+    datei_unbekannt: DATEI.de.datei_unbekannt,
+    datei_nicht_erlaubt: DATEI.de.datei_nicht_erlaubt,
+    datei_widerspruch: DATEI.de.datei_widerspruch,
+    datei_metadaten: DATEI.de.datei_metadaten,
+    rechnung_abgewiesen:
+      'Der Beleg oder die Eingangsrechnung wurde nicht angelegt — es wurde nichts gespeichert.',
+    rechnung_unvollstaendig:
+      'Den gewählten Steuersatz gibt es nicht. Bitte einen aus der Liste wählen — es wurde nichts '
+      + 'gespeichert.',
+  },
+  erfassenFehlerSonst: 'Es wurde nichts gespeichert.',
 
   ohneLieferant: 'Ohne Lieferant',
   ohneNummer: 'ohne Nummer',
@@ -730,9 +827,8 @@ const EN: EingangsrechnungenTexte = {
   vorbelegtNach:
     '. Check it, adjust it, record it — the proposal’s Beleg (supporting '
     + 'document) is carried over.',
-  keinLieferantAngelegt:
-    'No supplier has been created for this company yet. Without a supplier an '
-    + 'invoice can be neither checked nor allocated.',
+  keinLieferantAngelegt: 'No supplier has been created for this company yet.',
+  keinLieferantFolge: 'Without a supplier an invoice can be neither checked nor allocated.',
   belegLegende: 'The Beleg — supporting document (ACC-03)',
   pdfHochladen: 'Upload a PDF',
   belegWaehlen: '… or choose a Beleg (supporting document) already on file',
@@ -748,6 +844,53 @@ const EN: EingangsrechnungenTexte = {
     'The gross amount is computed from net + tax, not entered — a gross amount '
     + 'typed in that does not add up is a document that cannot be booked.',
   erfassen: 'Record',
+  erfassenNicht: 'Not recorded.',
+  erfassenFehler: {
+    unvollstaendig:
+      'Supplier, invoice number, invoice date, net, Umsatzsteuer (VAT) and tax rate are '
+      + 'required.',
+    ohne_beleg:
+      'Without a document no incoming invoice comes into being (ACC-03) — please upload a PDF '
+      + 'or choose a Beleg (supporting document) already on file.',
+    dublette:
+      'This supplier invoice is already on file for this year. There is no second recording: '
+      + 'paying the same invoice twice is exactly the damage the lock prevents. The existing '
+      + 'one is in the list of incoming invoices.',
+    betrag: 'Please enter the amounts in German format, e.g. 1.000,00.',
+    speicher_nicht_verbunden:
+      'The document storage is not connected. NOTHING was saved. A Beleg (supporting '
+      + 'document) already on file can be chosen instead.',
+    erechnung_fehlt: 'Please choose an e-invoice — XRechnung as XML or ZUGFeRD as PDF.',
+    keine_erechnung:
+      'The PDF carries no embedded e-invoice. Reading scanned invoices has no provider yet '
+      + '(O-135) — please record it by hand below; the PDF can be uploaded there as the Beleg '
+      + '(supporting document).',
+    erechnung_kein_xml: 'The file is not readable XML and so not an e-invoice. Nothing was saved.',
+    erechnung_kein_format:
+      'The file is not an XRechnung, CII or ZUGFeRD record — any other XML is not an e-invoice. '
+      + 'Nothing was saved.',
+    erechnung_unvollstaendig:
+      'The e-invoice is incomplete and cannot be read — please record it by hand below.',
+    vorschlag_keine_erechnung: 'The file is not an e-invoice — no proposal comes from it.',
+    vorschlag_nicht_gefunden: 'The proposal cannot be reached.',
+    vorschlag_nicht_genehmigt: 'Only an approved proposal is taken over.',
+    vorschlag_unvollstaendig:
+      'The proposal was not created, and the file was not filed — please record it by hand '
+      + 'below.',
+    vorschlag_schon_uebernommen: 'This proposal has already been taken over.',
+    vorschlag_kein_recht: 'A proposal is taken over by whoever may record incoming invoices.',
+    datei_leer: DATEI.en.datei_leer,
+    datei_unbekannt: DATEI.en.datei_unbekannt,
+    datei_nicht_erlaubt: DATEI.en.datei_nicht_erlaubt,
+    datei_widerspruch: DATEI.en.datei_widerspruch,
+    datei_metadaten: DATEI.en.datei_metadaten,
+    rechnung_abgewiesen:
+      'The Beleg (supporting document) or the incoming invoice was not created — nothing was '
+      + 'saved.',
+    rechnung_unvollstaendig:
+      'The chosen tax rate does not exist. Please choose one from the list — nothing was saved.',
+  },
+  erfassenFehlerSonst: 'Nothing was saved.',
 
   ohneLieferant: 'No supplier',
   ohneNummer: 'no number',

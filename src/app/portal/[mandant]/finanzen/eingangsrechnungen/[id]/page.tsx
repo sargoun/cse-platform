@@ -196,9 +196,11 @@ export default async function EingangsrechnungDetail(
     + 'text-base text-text hover:bg-surface-2';
   /*
    * Rückmeldung und Abweisung aus `/api/finanzen/zahlungen` (V-216) — beide
-   * nur als eigener Eintrag nachgeschlagen, nie roh angezeigt (D-728).
+   * nur als eigener Eintrag nachgeschlagen, nie roh angezeigt (D-728). Der
+   * Erfolg kommt als `?erfolg=` (D-774); ein unbekannter Schlüssel zeigt
+   * keinen Kasten.
    */
-  const meldung = eigenerEintrag(t.ausgangMeldungen, suche['meldung']) ?? null;
+  const erfolgSatz = eigenerEintrag(t.ausgangMeldungen, suche['erfolg']) ?? null;
   const abgewiesen = typeof suche['fehler'] === 'string';
   const fehlerText = abgewiesen
     ? (eigenerEintrag(t.ausgangFehler, suche['fehler']) ?? t.ausgangFehlerSonst) : null;
@@ -368,8 +370,8 @@ export default async function EingangsrechnungDetail(
         </section>
       ) : null}
 
-      {meldung === null ? null : (
-        <Hinweis art="erfolg" rolle="status" cse="ausgang-meldung" className="mb-s5 max-w-prose">{meldung}</Hinweis>
+      {erfolgSatz === null ? null : (
+        <Hinweis art="erfolg" rolle="status" cse="ausgang-meldung" className="mb-s5 max-w-prose">{erfolgSatz}</Hinweis>
       )}
       {fehlerText === null ? null : (
         <Hinweis art="warnung" rolle="alert" cse="ausgang-fehler" className="mb-s5 max-w-prose">

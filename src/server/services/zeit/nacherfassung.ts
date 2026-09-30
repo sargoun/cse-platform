@@ -53,8 +53,21 @@ import { rechteImKontext } from '../../auth/kontext-rechte.js';
  * hielte — es gibt ja noch keine Korrekturzeile.
  */
 
+/**
+ * Warum eine Arbeitszeit NICHT nacherfasst wurde — als Schlüssel (V-275,
+ * D-773, D-769). `POST /api/zeit/nacherfassung` schickt ihn als
+ * `?fehler=<grund>` zurück, `/zeiten/nacherfassung` schlägt ihn nach; bis
+ * dahin reiste der Satz dieses Dienstes als `?meldung=` mit und stand roh auf
+ * der Seite.
+ */
+export const NACHERFASSUNG_GRUENDE = [
+  'begruendung_zu_kurz', 'fenster_ungueltig', 'pause_ungueltig', 'kein_nacherfassungsrecht',
+  'beginn_in_zukunft', 'nicht_selbst', 'nicht_angelegt',
+] as const;
+export type NacherfassungGrund = (typeof NACHERFASSUNG_GRUENDE)[number];
+
 export class NacherfassungFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
+  constructor(nachricht: string, readonly grund: NacherfassungGrund, readonly status = 400) {
     super(nachricht);
     this.name = 'NacherfassungFehler';
   }

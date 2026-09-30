@@ -10,7 +10,10 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
   EINLADUNG_COOKIE, EinladungFehler, istEinladbareRolle, ladeVerwaltungskontoEin,
+  type EinladungErgebnis,
 } from '@/server/services/system/verwaltungskonto';
+import type { VerwaltungskontoFehlerGrund }
+  from '@/lib/i18n/verwaltung/einstellungen/verwaltungskonto';
 
 /**
  * `POST /api/system/verwaltungskonto` — ein Verwaltungskonto einladen
@@ -31,6 +34,16 @@ import {
  * Route, die ihr Recht nur im eigenen Rumpf kennt, ist von aussen nicht
  * prüfbar (AUT-04), und die Definer-Funktion muss auch dann halten, wenn sie
  * einmal von woanders gerufen wird (Invariante 3).
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-774): der Erfolg als
+ * `?erfolg=eingeladen`, eine Abweisung als `?fehler=<grund>`. Bis dahin
+ * reiste beides als `?meldung=` — der Erfolg im selben Parameter wie ein
+ * Fehler, dazu ein fester Satz, der Satz von `EinladungFehler`, die deutschen
+ * Sätze der Datenbank und der rohe Text JEDES einzeiligen Fehlers. Der fing
+ * auch den Wurf von `authorize` ab: ein fehlendes Recht wurde
+ * `?meldung=Nicht gefunden` statt der byte-gleichen 404 (AUT-06), und ein
+ * Verbindungsabbruch eine erfundene Abweisung. Jetzt kommen Anmeldung und
+ * Recht zuerst, und ein unbekannter Fehler bleibt ein Fehler.
  */
 export const dynamic = 'force-dynamic';
 
@@ -46,16 +59,31 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const daten = await anfrage.formData();
   const mandantSlug = (daten.get('zurueck') as string | null)?.split('/')[2] ?? '';
   const seite = `/portal/${mandantSlug}/einstellungen/benutzer/einladen`;
+  const keks = await cookies();
+
+  /**
+   * Zurück auf die Seite — mit genau einem Schlüssel. Eine Abweisung nimmt
+   * einen Link aus einem früheren Versuch mit weg: sonst stünde er neben dem
+   * Satz, der sagt, dass diesmal nichts ausgestellt wurde.
+   *
+   * **Mit dem Pfad, unter dem er gesetzt wurde.** `delete(name)` allein
+   * schreibt einen Löschkeks ohne `Path`; der Browser legt ihn unter den Pfad
+   * dieser Route, und der Keks unter dem Pfad der Seite bleibt stehen — so
+   * löschte die Route ihn bis D-774 nie.
+   */
+  const zurSeite = (such: { readonly erfolg: 'eingeladen' } | {
+    readonly fehler: VerwaltungskontoFehlerGrund;
+  }): NextResponse => {
+    if ('fehler' in such) keks.delete({ name: EINLADUNG_COOKIE, path: seite });
+    const ziel = internesZiel(seite, '/portal', anfrage);
+    for (const [k, v] of Object.entries(such)) ziel.searchParams.set(k, v);
+    return NextResponse.redirect(ziel, 303);
+  };
 
   const rolle = String(daten.get('rolle') ?? '');
-  if (!istEinladbareRolle(rolle)) {
-    return NextResponse.redirect(internesZiel(
-      `${seite}?meldung=${encodeURIComponent(
-        'Über diesen Weg werden nur `admin` und `leitung` eingeladen.')}`,
-      '/portal', anfrage), 303);
-  }
+  if (!istEinladbareRolle(rolle)) return zurSeite({ fehler: 'rolle_unzulaessig' });
 
-  let ergebnis: { ok: boolean; grund: string; token: string | null };
+  let ergebnis: EinladungErgebnis;
   try {
     ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -63,46 +91,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           sitzung, { recht: 'system.verwaltungskonto_erstellen', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
-        const r = await ladeVerwaltungskontoEin(kontext, {
+        return ladeVerwaltungskontoEin(kontext, {
           mandantId: sitzung.aktiverMandantId as string,
           email: String(daten.get('email') ?? ''),
           name: String(daten.get('name') ?? ''),
           rolle,
         });
-        return { ok: r.ok, grund: r.grund, token: r.token };
-      })) as Promise<{ ok: boolean; grund: string; token: string | null }>);
+      })) as Promise<EinladungErgebnis>);
   } catch (fehler) {
-    if (fehler instanceof EinladungFehler) {
-      return NextResponse.redirect(internesZiel(
-        `${seite}?meldung=${encodeURIComponent(fehler.message)}`, '/portal', anfrage), 303);
-    }
-    /*
-     * Dieselbe Behandlung wie beim Kundenzugang: die Definer-Funktion wirft
-     * `insufficient_privilege` mit einem deutschen Satz (fehlendes Recht,
-     * fehlender zweiter Faktor, Gruppenansicht). Den rohen Fehler
-     * weiterzuwerfen hiesse „Da ist etwas schiefgegangen" für eine Lage,
-     * deren Grund die Datenbank gerade genannt hat.
-     */
-    const text = (fehler as { message?: string }).message ?? '';
-    if (text !== '' && !text.includes('\n')) {
-      return NextResponse.redirect(internesZiel(
-        `${seite}?meldung=${encodeURIComponent(text)}`, '/portal', anfrage), 303);
-    }
-    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    /* Anmeldung und Recht ZUERST (D-766, AUT-06): kein Wurf von `authorize` wird ein Satz. */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: daten });
     if (autorisierung !== null) return autorisierung;
+    if (fehler instanceof EinladungFehler) return zurSeite({ fehler: fehler.grund });
     throw fehler;
   }
 
-  const keks = await cookies();
-  if (ergebnis.ok && ergebnis.token !== null) {
-    keks.set(EINLADUNG_COOKIE, ergebnis.token, {
-      httpOnly: true, sameSite: 'lax', path: seite, maxAge: 300,
-      secure: process.env.NODE_ENV === 'production',
-    });
-  } else {
-    keks.delete(EINLADUNG_COOKIE);
-  }
-
-  return NextResponse.redirect(internesZiel(
-    `${seite}?meldung=${encodeURIComponent(ergebnis.grund)}`, '/portal', anfrage), 303);
+  if (!ergebnis.ok) return zurSeite({ fehler: ergebnis.grund });
+  keks.set(EINLADUNG_COOKIE, ergebnis.token, {
+    httpOnly: true, sameSite: 'lax', path: seite, maxAge: 300,
+    secure: process.env.NODE_ENV === 'production',
+  });
+  return zurSeite({ erfolg: ergebnis.grund });
 }

@@ -5,12 +5,13 @@ import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
+import { istGleicherUrsprung } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { CrmFehler } from '@/server/services/crm/anlegen';
 import {
   erfasseVollwiderspruch, erfasseWerbewiderspruch,
 } from '@/server/services/crm/kontakt-grundlage';
+import { zurueckMitSchluessel } from '@/app/api/crm/rueckweg';
 
 /**
  * `POST /api/crm/ansprechpartner/[id]/widerspruch` — einen Widerspruch
@@ -35,6 +36,16 @@ import {
  * Geschrieben wird in beiden Fällen von einer Definer-Funktion, die ihr Recht
  * selbst prüft (0248 bzw. 0222) — `authorize` hier ist die erste Linie, nicht
  * die einzige.
+ *
+ * **Zurück reisen nur Schlüssel** (D-769, D-772): `?fehler=<grund>` und
+ * `?erfolg=werbewiderspruch` bzw. `?erfolg=vollwiderspruch`. Hier reisten
+ * der Satz des `CrmFehler`, der Erfolgssatz und — für JEDEN anderen
+ * einzeiligen Fehler — dessen roher Text durch die Adresse. Dieser letzte
+ * Zweig lief VOR der Übersetzung der Autorisierung: ein fehlendes Recht
+ * wurde „Nicht gefunden" im Warnkasten statt der byte-gleichen 404 (AUT-06),
+ * eine abgelaufene Sitzung ein Satz statt der Anmeldung (D-766). Die
+ * Abweisungen der beiden Definer bildet jetzt der Dienst auf ihren Grund ab
+ * (`grundAusWiderspruch`); jeder andere Fehler bleibt ein Fehler.
  */
 export const dynamic = 'force-dynamic';
 
@@ -67,7 +78,6 @@ export async function POST(
     return t === '' ? undefined : t;
   };
 
-  let meldung: string;
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -92,37 +102,17 @@ export async function POST(
           await erfasseVollwiderspruch(kontext, id, String(daten.get('bemerkung') ?? ''));
         }
       }));
-    meldung = umfang === 'werbung'
-      ? 'Der Werbewiderspruch ist erfasst. Werbung ist ab jetzt gesperrt; Rechnungen '
-        + 'und Terminbestätigungen gehen weiter.'
-      : 'Der Widerspruch nach Art. 21 DSGVO ist erfasst. Die Rechtsgrundlage steht '
-        + 'damit zwingend auf „keine", und er wird nicht zurückgenommen.';
   } catch (fehler) {
-    if (fehler instanceof CrmFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
-    /*
-     * Die Definer werfen `insufficient_privilege` und `check_violation` mit
-     * deutschem Text. Den rohen Postgres-Fehler weiterzuwerfen hiesse hier
-     * „Da ist etwas schiefgegangen" für eine Eingabe, deren Grund die
-     * Datenbank gerade genannt hat.
-     */
-    const text = (fehler as { message?: string }).message ?? '';
-    if (text !== '' && !text.includes('\n')) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(text)}`,
-        '/portal', anfrage), 303);
-    }
+    /* Die Anmeldung zuerst (D-766, D-769 Nr. 7) — ein fehlendes Recht bleibt 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    /* Auch die Abweisungen der Definer — als Grund, nie als ihr Text (D-769 Nr. 8). */
+    if (fehler instanceof CrmFehler) {
+      return zurueckMitSchluessel(anfrage, zurueck, 'fehler', fehler.grund);
+    }
     throw fehler;
   }
 
-  const trenner = zurueck.includes('?') ? '&' : '?';
-  return NextResponse.redirect(internesZiel(
-    `${zurueck}${trenner}erfolg=${encodeURIComponent(meldung)}`, '/portal', anfrage), 303);
+  return zurueckMitSchluessel(anfrage, zurueck, 'erfolg',
+    umfang === 'werbung' ? 'werbewiderspruch' : 'vollwiderspruch');
 }

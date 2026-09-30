@@ -26,6 +26,12 @@
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
+import { mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
+import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
+import { istPersonalnummerKollision, PersonalnummerVergeben } from './personalnummer.js';
+
+/* EINE Klasse für dieselbe Kollision, hier nur durchgereicht (D-771 Nachtrag). */
+export { PersonalnummerVergeben };
 
 export type AnstellungStatus = 'geplant' | 'aktiv' | 'ruhend' | 'beendet';
 
@@ -59,41 +65,71 @@ export interface KonditionZeile {
   readonly erstelltAm: Date;
 }
 
+/*
+ * **Jede Abweisung trägt einen GRUND** (D-771, D-769, V-273). Er reist als
+ * `?fehler=` auf die Seite des Formulars zurück, und die Seite schlägt ihren
+ * Satz nach (`lib/i18n/verwaltung/personal-rueckweg.ts`). Der deutsche Satz
+ * der Klasse bleibt und geht nur an eine Schnittstelle (`meldung`, D-599):
+ * er trägt die Kennung der Beschäftigung, die Eingabe oder ein Datum dieser
+ * Zeile — nichts davon gehört in eine Adresse.
+ *
+ * Die Gründe stehen nach dem Weg, der sie wirft, damit jede Seite genau die
+ * Sätze führt, die ihre Route schicken kann — und nicht die der Nachbarseite.
+ */
+
 export class AnstellungNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  /** Der Grund für `?fehler=` (D-771) — der Satz unten trägt die Kennung, die Seite nicht. */
+  readonly grund = 'nicht_gefunden';
   constructor(id: string) {
     super(`Beschäftigung ${id} gibt es in dieser Gesellschaft nicht.`);
     this.name = 'AnstellungNichtGefunden';
   }
 }
 
-export class PersonalnummerVergeben extends Error {
-  readonly code = 'ungueltige_eingabe';
-  readonly status = 409;
-  constructor(nummer: string) {
-    super(
-      `Die Personalnummer „${nummer}" ist in dieser Gesellschaft schon vergeben. `
-      + 'Jede Gesellschaft führt ihre eigene Systematik (D-09) — dieselbe Nummer '
-      + 'in der Schwestergesellschaft wäre in Ordnung, hier nicht.',
-    );
-    this.name = 'PersonalnummerVergeben';
-  }
-}
+/** Was `aendereVertrag` an der Eingabe abweist. */
+export const VERTRAG_AENDERN_GRUENDE = [
+  'personalnummer_fehlt', 'eintritt_ungueltig', 'eintritt_nach_austritt',
+] as const;
+/** Was `beendeAnstellung` an der Eingabe abweist — `austritt_ungueltig` auch `beendigungsfolgen`. */
+export const BEENDEN_EINGABE_GRUENDE = ['austritt_ungueltig', 'grund_fehlt'] as const;
+/**
+ * Was eine neue Kondition abweist: `betrag_ungueltig` und — für eine Eingabe,
+ * die keine Zahl ist — `wochenstunden_ungueltig`/`arbeitstage_ungueltig` die
+ * Entgeltroute selbst (`parseGeld`, `mengeAusEingabe`), die übrigen
+ * `setzeKondition` (dort auch eine Zahl ausserhalb der Grenzen der Datenbank).
+ */
+export const KONDITION_GRUENDE = [
+  'betrag_ungueltig', 'gilt_ab_ungueltig', 'satz_negativ', 'wochenstunden_ungueltig',
+  'arbeitstage_ungueltig', 'vor_eintritt', 'periode_belegt', 'nicht_nach_laufender',
+] as const;
+/**
+ * Der Stichtag von `leseEntgelt` — ein LESEweg: die Entgeltseite prüft ihn,
+ * bevor sie fragt, und keine Route schickt diesen Grund.
+ */
+export const STICHTAG_GRUENDE = ['stichtag_ungueltig'] as const;
+export type VertragEingabeGrund =
+  | (typeof VERTRAG_AENDERN_GRUENDE)[number] | (typeof BEENDEN_EINGABE_GRUENDE)[number]
+  | (typeof KONDITION_GRUENDE)[number] | (typeof STICHTAG_GRUENDE)[number];
 
 export class VertragEingabeFehler extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(readonly grund: VertragEingabeGrund, nachricht: string) {
     super(nachricht);
     this.name = 'VertragEingabeFehler';
   }
 }
 
+/** Was `beendeAnstellung` am Stand der Zeile abweist. */
+export const BEENDIGUNG_GRUENDE = ['bereits_beendet', 'austritt_vor_eintritt'] as const;
+export type BeendigungGrund = (typeof BEENDIGUNG_GRUENDE)[number];
+
 export class BeendigungFehler extends Error {
   readonly code = 'ungueltiger_zustand';
   readonly status = 409;
-  constructor(nachricht: string) {
+  constructor(readonly grund: BeendigungGrund, nachricht: string) {
     super(nachricht);
     this.name = 'BeendigungFehler';
   }
@@ -110,6 +146,12 @@ export class BeendigungFehler extends Error {
 export class KeinEntgeltRecht extends Error {
   readonly code = 'kein_recht';
   readonly status = 404;
+  /**
+   * Der Grund wie bei jeder Klasse dieser Datei (D-771). Kein Rückweg schickt
+   * ihn: die Entgeltseite fragt das Recht, bevor sie liest, und keine Route
+   * liest den Satz.
+   */
+  readonly grund = 'kein_recht';
   constructor() {
     super(
       'Kein Recht auf Entgeltdaten in dieser Gesellschaft '
@@ -119,7 +161,12 @@ export class KeinEntgeltRecht extends Error {
   }
 }
 
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * **Jeder Kalendertag dieser Datei wird mit `istGueltigerKalendertag`
+ * geprüft** — einen Tag, den es gibt, nicht nur die Form `JJJJ-MM-TT`. Das
+ * Muster allein liess den 31. Februar durch, und die Datenbank antwortete am
+ * `::date` mit 22008: eine 500 statt eines Satzes (D-771 Nachtrag).
+ */
 
 const ZEILE = `
   select a.id, a.mandant_id, a.person_id,
@@ -203,18 +250,19 @@ export async function aendereVertrag(
 ): Promise<AnstellungZeile> {
   const nummer = eingabe.personalnummer.trim();
   if (nummer === '') {
-    throw new VertragEingabeFehler(
+    throw new VertragEingabeFehler('personalnummer_fehlt',
       'Die Personalnummer ist Pflicht — sie ist der Schlüssel, unter dem diese '
       + 'Gesellschaft die Beschäftigung führt.');
   }
-  if (!DATUM.test(eingabe.eintritt)) {
-    throw new VertragEingabeFehler('Der Eintritt erwartet einen Kalendertag als JJJJ-MM-TT.');
+  if (!istGueltigerKalendertag(eingabe.eintritt)) {
+    throw new VertragEingabeFehler('eintritt_ungueltig',
+      'Der Eintritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
 
   const vorher = await findeAnstellung(kontext, eingabe.anstellungId);
   if (vorher === null) throw new AnstellungNichtGefunden(eingabe.anstellungId);
   if (vorher.austritt !== null && eingabe.eintritt > vorher.austritt) {
-    throw new VertragEingabeFehler(
+    throw new VertragEingabeFehler('eintritt_nach_austritt',
       `Der Eintritt läge nach dem Austritt (${vorher.austritt}). Erst das `
       + 'Austrittsdatum korrigieren, dann den Eintritt.');
   }
@@ -223,7 +271,9 @@ export async function aendereVertrag(
    * Die Kollision wird als SATZ beantwortet und nicht als 23505. `unique
    * (mandant_id, personalnummer)` ist die Wahrheit; diese Vorabfrage ist die
    * Hoeflichkeit. Sie ersetzt die Wache nicht — zwei gleichzeitige
-   * Schreibvorgaenge laufen weiter in den Constraint, und das ist richtig.
+   * Schreibvorgaenge laufen weiter in den Constraint, und das ist richtig;
+   * dort wird der zweite zu derselben Klasse (`istPersonalnummerKollision`,
+   * D-771), statt als roher 23505 eine 500 zu werden.
    */
   const [kollision] = await kontext.abfrage<{ id: string }>(
     `select id from anstellung
@@ -239,7 +289,11 @@ export async function aendereVertrag(
       where id = $1::uuid and geloescht_am is null
       returning id`,
     [eingabe.anstellungId, nummer, eingabe.eintritt, kontext.benutzerId],
-  );
+  ).catch((fehler: unknown) => {
+    /* Eine gleichzeitige Änderung auf dieselbe Nummer: der Constraint sah sie, die Vorabfrage nicht. */
+    if (istPersonalnummerKollision(fehler)) throw new PersonalnummerVergeben(nummer);
+    throw fehler;
+  });
   if (zeilen.length === 0) throw new AnstellungNichtGefunden(eingabe.anstellungId);
 
   const gelesen = await findeAnstellung(kontext, eingabe.anstellungId);
@@ -275,8 +329,9 @@ export interface Beendigungsfolgen {
 export async function beendigungsfolgen(
   kontext: LeseKontext, anstellungId: string, austritt: string,
 ): Promise<Beendigungsfolgen> {
-  if (!DATUM.test(austritt)) {
-    throw new VertragEingabeFehler('Der Austritt erwartet einen Kalendertag als JJJJ-MM-TT.');
+  if (!istGueltigerKalendertag(austritt)) {
+    throw new VertragEingabeFehler('austritt_ungueltig',
+      'Der Austritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
   const [rechte] = await kontext.abfrage<{
     dienstplan: boolean; konto: boolean; abwesenheit: boolean; schluessel: boolean;
@@ -382,12 +437,13 @@ export interface BeendenEingabe {
 export async function beendeAnstellung(
   kontext: SchreibKontext, eingabe: BeendenEingabe,
 ): Promise<AnstellungZeile> {
-  if (!DATUM.test(eingabe.austritt)) {
-    throw new VertragEingabeFehler('Der Austritt erwartet einen Kalendertag als JJJJ-MM-TT.');
+  if (!istGueltigerKalendertag(eingabe.austritt)) {
+    throw new VertragEingabeFehler('austritt_ungueltig',
+      'Der Austritt erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
   const grund = eingabe.grund.trim();
   if (grund === '') {
-    throw new VertragEingabeFehler(
+    throw new VertragEingabeFehler('grund_fehlt',
       'Eine Beendigung ohne Begründung ist kein Vorgang, sondern ein Klick. Der '
       + 'Grund steht später in der Personalakte und in jeder Rückfrage.');
   }
@@ -395,12 +451,12 @@ export async function beendeAnstellung(
   const vorher = await findeAnstellung(kontext, eingabe.anstellungId);
   if (vorher === null) throw new AnstellungNichtGefunden(eingabe.anstellungId);
   if (vorher.status === 'beendet') {
-    throw new BeendigungFehler(
+    throw new BeendigungFehler('bereits_beendet',
       `Diese Beschäftigung ist bereits beendet (Austritt ${vorher.austritt ?? '—'}). `
       + 'Eine Beendigung wird nicht überschrieben.');
   }
   if (eingabe.austritt < vorher.eintritt) {
-    throw new BeendigungFehler(
+    throw new BeendigungFehler('austritt_vor_eintritt',
       `Der Austritt läge vor dem Eintritt (${vorher.eintritt}).`);
   }
 
@@ -463,8 +519,9 @@ export async function beendeAnstellung(
 export async function leseEntgelt(
   kontext: LeseKontext, anstellungId: string, stichtag?: string,
 ): Promise<Cent | null> {
-  if (stichtag !== undefined && !DATUM.test(stichtag)) {
-    throw new VertragEingabeFehler('Der Stichtag erwartet einen Kalendertag als JJJJ-MM-TT.');
+  if (stichtag !== undefined && !istGueltigerKalendertag(stichtag)) {
+    throw new VertragEingabeFehler('stichtag_ungueltig',
+      'Der Stichtag erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
   try {
     const [z] = await kontext.abfrage<{ satz: string | null }>(
@@ -526,11 +583,37 @@ export interface KonditionEingabe {
   /** Ganze Cent (Invariante 1) — `null` heisst „kein Satz hinterlegt". */
   readonly stundensatzCent: Cent | null;
   readonly arbeitszeitmodell?: string;
-  readonly wochenstunden?: string | null;
-  readonly arbeitstageWoche?: string | null;
+  /**
+   * Tausendstel (K-16) — GELESEN, bevor der Dienst sie sieht: die Route nimmt
+   * die Eingabe mit `mengeAusEingabe` („38,5" und „38.5"), und eine rohe
+   * Zeichenkette kommt hier gar nicht erst an. `null` heisst „nicht
+   * hinterlegt".
+   */
+  readonly wochenstunden?: MilliMenge | null;
+  readonly arbeitstageWoche?: MilliMenge | null;
   readonly tarifgruppe?: string | null;
   readonly kostenstelle?: string | null;
   readonly grund?: string | null;
+}
+
+/**
+ * Die Grenzen, die die Datenbank einer Kondition setzt — `ak_stunden_plausibel`
+ * und `ak_arbeitstage_plausibel` (0192): von 0 bis hierher, beide Enden
+ * eingeschlossen. Hier werden sie nur VORHER gefragt, damit eine Zahl
+ * ausserhalb ein Satz wird und kein roher 23514; die Wahrheit bleibt die
+ * Prüfung der Datenbank. `tests/kern/personal-gruende.test.ts` liest sie aus
+ * der Migration und hält beide Stellen gleich.
+ */
+export const KONDITION_GRENZEN = { wochenstunden: 168, arbeitstageWoche: 7 } as const;
+
+/** Liegt eine Menge ausserhalb von 0 bis `bis` (ganze Einheiten)? `null` ist keine Angabe. */
+function ausserhalb(wert: MilliMenge | null | undefined, bis: number): boolean {
+  return wert !== undefined && wert !== null && (wert < 0n || wert > BigInt(bis) * 1000n);
+}
+
+/** Die Form, die `numeric` liest (`38.500`) — keine Angabe bleibt `null`. */
+function alsNumeric(wert: MilliMenge | null | undefined): string | null {
+  return wert === undefined || wert === null ? null : mengeNachPostgres(wert);
 }
 
 /**
@@ -545,17 +628,26 @@ export interface KonditionEingabe {
 export async function setzeKondition(
   kontext: SchreibKontext, eingabe: KonditionEingabe,
 ): Promise<void> {
-  if (!DATUM.test(eingabe.giltAb)) {
-    throw new VertragEingabeFehler('„Gilt ab" erwartet einen Kalendertag als JJJJ-MM-TT.');
+  if (!istGueltigerKalendertag(eingabe.giltAb)) {
+    throw new VertragEingabeFehler('gilt_ab_ungueltig',
+      '„Gilt ab" erwartet einen Kalendertag als JJJJ-MM-TT.');
   }
   if (eingabe.stundensatzCent !== null && eingabe.stundensatzCent < 0n) {
-    throw new VertragEingabeFehler('Ein negativer Stundensatz ist kein Kostensatz.');
+    throw new VertragEingabeFehler('satz_negativ', 'Ein negativer Stundensatz ist kein Kostensatz.');
+  }
+  if (ausserhalb(eingabe.wochenstunden, KONDITION_GRENZEN.wochenstunden)) {
+    throw new VertragEingabeFehler('wochenstunden_ungueltig',
+      `Die Wochenstunden liegen zwischen 0 und ${String(KONDITION_GRENZEN.wochenstunden)}.`);
+  }
+  if (ausserhalb(eingabe.arbeitstageWoche, KONDITION_GRENZEN.arbeitstageWoche)) {
+    throw new VertragEingabeFehler('arbeitstage_ungueltig',
+      `Die Arbeitstage pro Woche liegen zwischen 0 und ${String(KONDITION_GRENZEN.arbeitstageWoche)}.`);
   }
 
   const vorher = await findeAnstellung(kontext, eingabe.anstellungId);
   if (vorher === null) throw new AnstellungNichtGefunden(eingabe.anstellungId);
   if (eingabe.giltAb < vorher.eintritt) {
-    throw new VertragEingabeFehler(
+    throw new VertragEingabeFehler('vor_eintritt',
       `Eine Kondition kann nicht vor dem Eintritt (${vorher.eintritt}) gelten.`);
   }
 
@@ -585,7 +677,7 @@ export async function setzeKondition(
     [eingabe.anstellungId, eingabe.giltAb],
   );
   if (kollision !== undefined) {
-    throw new VertragEingabeFehler(
+    throw new VertragEingabeFehler('periode_belegt',
       `Für den ${eingabe.giltAb} gilt bereits die Kondition vom `
       + `${kollision.gilt_ab} bis ${kollision.gilt_bis ?? 'offen'}. Zwei `
       + 'gleichzeitig gültige Sätze wären die Frage, welcher gilt. Eine '
@@ -601,7 +693,7 @@ export async function setzeKondition(
   );
   if (offen !== undefined) {
     if (eingabe.giltAb <= offen.gilt_ab) {
-      throw new VertragEingabeFehler(
+      throw new VertragEingabeFehler('nicht_nach_laufender',
         `Die laufende Kondition gilt ab ${offen.gilt_ab}. Eine neue Kondition muss `
         + 'später beginnen — zwei gleichzeitig gültige Sätze wären die Frage, '
         + 'welcher gilt, und jede Abfrage beantwortete sie anders.');
@@ -623,7 +715,8 @@ export async function setzeKondition(
     [
       kontext.aktiverMandantId, eingabe.anstellungId, eingabe.giltAb,
       eingabe.arbeitszeitmodell ?? null,
-      eingabe.wochenstunden ?? null, eingabe.arbeitstageWoche ?? null,
+      /* Die Datenbank liest Punkte: `mengeNachPostgres`, nie die deutsche Anzeige. */
+      alsNumeric(eingabe.wochenstunden), alsNumeric(eingabe.arbeitstageWoche),
       eingabe.stundensatzCent === null ? null : String(eingabe.stundensatzCent),
       eingabe.tarifgruppe ?? null, eingabe.kostenstelle ?? null,
       eingabe.grund ?? null, kontext.benutzerId,

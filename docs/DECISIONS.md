@@ -3371,6 +3371,8 @@ Beantworten helfen:
 | O-939 | **Welchen Nachweis verlangt die Plattform, bevor ein Bild an einem Beitrag hinausgeht — Nutzungsrecht und, bei erkennbaren Personen, Einwilligung?** Seit V-225 lässt sich einem Beitrag ein Bild anhängen (privat abgelegt, mit in der Freigabe). Wer es veröffentlicht, braucht das Nutzungsrecht (UrhG) und bei erkennbaren Personen deren Einwilligung (§ 22 KUG, Art. 6/7 DSGVO) — bei Beschäftigten auf einem Objektfoto zusätzlich die Freiwilligkeit im Arbeitsverhältnis (§ 26 BDSG). Denkbar sind (a) ein Pflichthäkchen „Rechte liegen vor" mit Person und Zeitpunkt, (b) ein hochgeladener Beleg (Lizenz, Einwilligungserklärung) als Dokument am Bild, (c) nichts in der Plattform — die Freigabe durch einen Menschen gilt als Prüfung. **Ausgeliefert ist (c) mit einem Hinweis am Formular**; kein Häkchen wird erfunden, das eine Rechtslage behauptete. Die Antwort ändert `legeBeitragsbildAn` (Pflichtangabe) und das Formular am Beitrag. | SOC-02, SOC-08, LEG-*, § 22 KUG, V-225, D-719, `src/server/services/social/beitragsbild.ts` (`legeBeitragsbildAn`, dort steht das TODO), `src/app/portal/[mandant]/social/posts/[id]/page.tsx` |
 | O-954 | **Darf der Absagegrund eines Bewerbungsgesprächs wörtlich im unveränderlichen Prüfprotokoll stehen — und was gilt für ihn, wenn die Bewerbung nach Ablauf ihrer Frist gelöscht wird (REC-07)?** Seit V-220 wird ein Gespräch mit Pflichtgrund abgesagt (`gespraech.abgesagt_grund`); der Grund ist ein Satz eines Menschen über die Bewerberin (Seed: „hat eine andere Stelle angenommen“). Bis V-267 schrieb `sageGespraechAb` ihn zusätzlich wörtlich ins Prüfprotokoll. Das Protokoll ist unveränderlich; der Löschlauf (`bewerberLoeschung.ts`) löscht die Gesprächszeile — der Satz stünde danach allein im Protokoll weiter, unter der Kennung eines Gesprächs, das es nicht mehr gibt, und erschiene in keiner Löschentscheidung der Bewerbung. Gegeneinander stehen die Nachvollziehbarkeit (wer hat wann warum abgesagt, § 22 AGG im Streitfall) und Art. 5 Abs. 1 lit. c/e und Art. 17 DSGVO; das allgemeine Löschkonzept des Protokolls ist O-92. Denkbar sind (a) der Wortlaut im Protokoll, dauerhaft; (b) der Wortlaut im Protokoll, mit der Bewerbung geschwärzt (verlangt eine Schwärzung im sonst unveränderlichen Protokoll, wie bei der Agenten-Nutzlast 0128); (c) im Protokoll nur, DASS ein Grund erfasst ist — der Wortlaut steht in der Zeile und geht mit ihr. **Ausgeliefert ist (c) als Platzhalter** (`{ status: 'abgesagt', grund_erfasst: true }`); der Grund steht in der Art.-15-Auskunft der Bewerbung. Die Antwort ändert `sageGespraechAb` und, bei (b), den Löschlauf. | REC-06, REC-07, LEG-11, § 22 AGG, Art. 5 Abs. 1 lit. c/e DSGVO, Art. 15 DSGVO, Art. 17 DSGVO, O-92, V-220, V-267, D-714, D-760, `src/server/services/recruiting/gespraech.ts` (`sageGespraechAb`), `src/server/jobs/bewerberLoeschung.ts`, `src/server/services/datenschutz/auskunft.ts` |
 | O-955 | **Läuft nach einer neuen Fassung jede Fassung für sich ab — oder gilt die längere Frist für das ganze Dokument mit allen Fassungen?** Seit V-266 trägt jede Fassung jenseits der ersten ihre eigene Aufbewahrungsfrist: die Datenbank rechnet mit dem Ablegen die Frist, die an diesem Berliner Kalendertag für die Kategorie gilt (`app.aufbewahrung_regel` je Gesellschaft, `app.aufbewahrung_ende`), und das Dokument behält die LÄNGERE; eine Löschsperre der Regel kommt dazu, eine offene Frist bleibt offen (0474). Ein überarbeitetes und neu abgesandtes Angebot ist ein eigener Handelsbrief mit eigenem Fristbeginn (§ 257 Abs. 5 HGB) — das hält die Regel. Offen ist die andere Seite: die ÄLTERE Fassung hätte ihre eigene, frühere Frist, und Art. 5 Abs. 1 lit. e DSGVO verlangt, personenbezogene Angaben nicht länger als nötig zu halten (bei einer Kundenunterlage etwa ein Ansprechpartner, den die neue Fassung nicht mehr nennt). Denkbar sind (a) die längere Frist gilt für das ganze Dokument, alle Fassungen bleiben bis dahin; (b) jede Fassung läuft für sich ab, eine ältere wird nach ihrer Frist einzeln gelöscht (Datei entfernt, Zeile der Kette bleibt als Nachweis, D-713 „Nicht Teil“ wäre dann zu öffnen). **Ausgeliefert ist (a) als Platzhalter** — damit wird nichts zu früh gelöscht, und der Nachtlauf (0382) nimmt ein Dokument erst nach der längsten Frist mit, dann aber mit allen Fassungen (D-758). Die Antwort ändert `kern.dokument_fassung_pruefen` (0474) und, bei (b), den Löschweg um die einzelne Fassung. | DOC-05, DOC-07, § 257 Abs. 5 HGB, § 147 AO, Art. 5 Abs. 1 lit. e DSGVO, O-937, V-266, D-713, D-758, `drizzle/0474_fassung_traegt_ihre_frist.sql`, `src/server/services/dokument/ablage.ts` (`legeFassungAn`), `src/server/jobs/dokumentAufbewahrung.ts` |
+| O-980 | **Wie wird ein verlorener oder abgelaufener Einladungslink eines Verwaltungskontos ersetzt — und von wem?** Seit 0372 legt `app.verwaltungskonto_einladen` Konto, Mitgliedschaft (admin oder leitung) und Einladungstoken in einem Vorgang an; der Link steht genau einmal auf der Seite, gespeichert ist nur seine Prüfsumme, und es ist kein Mailversand verbunden (O-501). Einen Weg, für eine OFFENE Einladung einen neuen Link auszustellen, gibt es nicht: eine zweite Einladung derselben Adresse in derselben Gesellschaft findet die Mitgliedschaft und weist ab („schon eingetragen"); „Kennwort vergessen" legt zwar einen Link an, schickt ihn aber nur über den Versand, der nicht verbunden ist; „Zugang entziehen" (0379) nimmt das ganze Konto zurück und stellt ebenfalls keinen Link aus. Den Weg hat nur der Kundenzugang (`app.kundenzugang_neu_einladen`, 0249: der alte Link verfällt, ein neuer entsteht). Bis D-774 versprach der Satz am Link trotzdem „stellen Sie einen neuen aus — der alte verfällt dabei". Zu entscheiden: (1) ob es den Weg geben soll — etwa „Link neu ausstellen" an einer offenen Einladung, der den alten entwertet (wie 0155 und 0249); (2) wer ihn benutzen darf — nur die Super-Administration wie beim Einladen (D-610) oder auch die Administration der Gesellschaft; (3) ob er auch nach Ablauf der Frist (`auth.einladung_stunden`) gilt. **Ausgeliefert ist der Satz, dass es den Weg noch nicht gibt** (`linkEinmal`, `fehler.schon_eingetragen`); die Antwort bringt Dienst, Route und Knopf und ändert die zwei Sätze. | AUT-04, D-610, O-501, O-981, V-276, D-774, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts` (`linkEinmal`, dort steht das TODO), `src/server/services/system/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `drizzle/0372_verwaltungskonto_einladung.sql`, `drizzle/0249_kundenzugang.sql` |
+| O-981 | **Soll sich die Rolle eines Verwaltungskontos in einer Gesellschaft ändern lassen — und von wem?** Der Satz der Datenbank zu einer zweiten Einladung (0372) rät „Ändern Sie seine Rolle, statt es erneut einzuladen", und die Seite zeigte ihn bis D-774 so. Einen Weg dafür gibt es nicht: keine Funktion, keine Route und kein Knopf ändert die Rolle einer Mitgliedschaft (`benutzer_mandant.rolle_id`); das Benutzerblatt zeigt sie nur an. Zu entscheiden: (1) ob eine Mitgliedschaft ihre Rolle wechseln darf (admin ↔ leitung) oder ob ein Wechsel ein Entzug und eine neue Mitgliedschaft ist; (2) wer wechseln darf — ein Wechsel zu admin erweitert die Rechte wie ein neues Verwaltungskonto, das nur die Super-Administration anlegt (D-610). **Ausgeliefert ist der Satz, dass es den Weg noch nicht gibt** (`fehler.schon_eingetragen`); die Antwort bringt Dienst, Route und Knopf am Benutzerblatt und ändert den Satz. | AUT-04, D-610, O-980, V-276, D-774, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts` (`fehler.schon_eingetragen`, dort steht das TODO), `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `drizzle/0372_verwaltungskonto_einladung.sql` |
 
 
 ### D-619 — Ein Objekt entsteht in der Anwendung, nicht im Seed
@@ -13979,6 +13981,17 @@ Vorgangsnummer — das einzige, womit ein Anfragender bei einem Rückruf auf sei
 Anfrage zeigen kann — und trägt `robots: noindex`, weil eine Adresse mit einer
 Vorgangsnummer darin nicht in einen Suchindex gehört.
 
+**Nachsatz (D-769, D-770, V-272).** „Der Text reist mit und nicht ein
+Schlüssel" gilt nicht mehr — D-769 ersetzt ihn. Ein Text in der Adresse hiess:
+jeder präparierte Link schrieb seinen eigenen Satz in den Warnkasten und unter
+die Felder des Formulars. Und der Einwand gegen einen Schlüssel — eine zweite
+Liste in der Oberfläche liefe auseinander — trägt nicht: die Seite lädt
+dieselbe veröffentlichte Definition, gegen die die Annahme prüft. Eine
+Abweisung kommt jetzt als `?fehler=<grund>&felder=<k1,k2,…>` zurück; die Seite
+zeigt den Sammelsatz aus `API_TEXTE` und unter jedem genannten Feld dessen
+`fehlermeldung` aus der Definition (englisch über dieselbe Auflage wie die
+Beschriftungen). Programme bekommen weiter JSON mit Satz und Feldmeldungen.
+
 ### D-598 · Eine Absage nennt keinen Grund — und die Datenbank passt darauf auf
 
 **Der Auftrag.** Der Agent soll auf Bewerbungen antworten und senden. Gebaut
@@ -23194,4 +23207,1077 @@ Revier und Veranstaltung, deren Seiten nur anlegen, und acht Felder in
    `Karte<…>`, zweiter Name).
 
 | Betrifft | V-249, D-740, D-592, `tests/kern/satztabellen-leser.test.ts`, `tests/kern/satztabellen-bestand.ts`, `tests/kern/hilfen/satztabellen.ts`, `src/lib/i18n/**` |
+|---|---|
+
+### D-769 · Kein Satz aus der Adresse: ein Rückweg trägt Schlüssel, die Seite schlägt nach — auch für Erfolg, auch auf der Website (ersetzt D-599 „der Text reist mit“)
+
+**Der Befund** (Schlussdurchgang). 34 Seiten lasen den Suchparameter
+`meldung`; acht weitere zeigten `?erfolg=` oder `?ok=`, eine einen Satz in
+`?fehler=`. Etwa 25 Routen schrieben dafür den deutschen Satz eines Dienstes
+per `encodeURIComponent` in die Adresse. Vier Folgen:
+
+1. **Jeder präparierte Link schrieb seine eigene Systemmeldung.** Auf der
+   Website stand sie im `role="alert"`-Kasten des Angebotsformulars, der
+   Datenschutzanfrage und der Barrierefreiheits-Rückmeldung, je deutsch und
+   englisch. Im Portal stand sie in einem Warnkasten. React maskiert, es
+   läuft also kein Skript — aber der Inhalt ist verfälscht, auf Seiten, die
+   Kunden und Behörden sehen. D-753 hat dasselbe für vier Seiten als Mangel
+   behandelt; hier ist der Rest.
+2. **Eine englische Sitzung bekam den deutschen Satz**, auch auf Seiten, die
+   der Sitzungssprache folgen.
+3. **Kennungen, Eingaben und Datenbanktexte reisten mit**: UUIDs in drei
+   Sätzen (Hausregel „keine UUIDs“), die Eingabe des Menschen in zwei, rohe
+   Postgres-Meldungen und die deutschen `grund`-Sätze zweier SQL-Funktionen
+   in drei Routen.
+4. **Zwei Nachschlagestellen ohne `eigenerEintrag`** (D-728): `?stempel=__proto__`
+   brachte die Startseite des Arbeiterportals zum Absturz, `?grund=__proto__`
+   das Kundenblatt.
+
+**Die Entscheidung** (gilt für jeden Rückweg einer Seite; die fünf Teile
+V-272 bis V-276 setzen sie um):
+
+1. **Eine Umleitung zurück auf eine Seite trägt nur Schlüssel.** Eine
+   Abweisung reist als `?fehler=<grund>`, ein Erfolg als `?erfolg=<schluessel>`
+   oder als schon vorhandener Schlüsselparameter (`?stand=`, `?geschlossen=`).
+   `meldung=` gibt es nicht mehr, und auch keinen Satz, keine Eingabe und
+   keine Kennung in der Adresse.
+2. **Die Seite schlägt den Satz nach**, nur mit
+   `eigenerEintrag(TABELLE, schluessel)` und nie mit `TABELLE[schluessel]`.
+   Ein unbekannter oder fehlender Schlüssel ergibt den allgemeinen Satz der
+   Seite, nie den Schlüssel und nie Text aus der Adresse. Ein Warnkasten
+   einer Abweisung trägt `rolle="alert"`, ein Erfolgskasten `rolle="status"`.
+3. **Die Fehlerklasse trägt den Grund** (wie D-753 Nr. 1). Eine Klasse ohne
+   `grund` bekommt einen getypten. Die Route schickt ihn, wo es passt über
+   `grundAufsFormular`/`grundAufsFormularweg`. `fehlerAufsFormular` entfällt.
+4. **Sprache.** Eine Seite, die der Sitzungssprache folgt, hat de/en-Tabellen
+   unter `src/lib/i18n/verwaltung/…`. Eine Seite auf der Ausnahmeliste hat
+   eine deutsche Tabelle derselben Form. Die Website nimmt die Sprache aus dem
+   Pfad.
+5. **Werte, die ein Satz braucht** (Monat, Frist, Nummer, Anzahl), leitet die
+   Seite aus ihren eigenen Daten ab. Sonst reist ein streng geprüfter
+   Wertparameter mit, oder der Satz kommt ohne den Wert aus (wie D-753: „das
+   Jahr dieses Urlaubs“). Die Eingabe des Menschen reist nie zurück in die
+   Adresse.
+6. **Programme bekommen weiter JSON** (`{ fehler, meldung }` mit Status,
+   D-599). Nur der Weg zurück auf eine Seite ändert sich.
+7. **Die Anmeldung kommt zuerst.** `anmeldungsAntwort`,
+   `autorisierungsAntwort` bzw. `alsAntwort` laufen vor jedem allgemeinen
+   `status`/`code`-Zweig. Ein fehlendes Recht bleibt die byte-gleiche 404
+   (AUT-06), und die Umleitung auf Anmeldung oder Faktor-Schritt wird nie
+   durch einen Formular-Rückweg ersetzt (D-766).
+8. **Ein Datenbanktext erscheint nie auf dem Schirm.** Ein bekannter Schlüssel
+   wird abgebildet, alles andere ergibt den allgemeinen Satz. Ein unbekannter
+   Fehler bleibt ein Fehler; es gibt keine erfundene Abweisung.
+9. **Das Angebotsformular** (D-599 Nr. „Auch der Fehlerweg“) schickt
+   `?fehler=<grund>&felder=<k1,k2,…>`. Das sind nur Feldschlüssel, und die
+   Seite prüft sie gegen die Definition, die sie ohnehin lädt. Sie zeigt die
+   `fehlermeldung` des Felds aus derselben `formular_definition` (englisch
+   über `uebersetzeFelder`) und den Sammelsatz aus `API_TEXTE`. Die
+   Begründung von D-599 („eine zweite Liste liefe auseinander“) trägt nicht
+   mehr: es gibt keine zweite Liste, die Seite liest dieselbe Definition.
+
+**Die Wache.** Ab dem Zusammenführen aller fünf Teile prüft die Wache
+`adressparameter` (D-741) auch `direkt` für `meldung`, `erfolg` und `ok`:
+Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
+`tests/kern/rueckweg-schluessel.test.ts`, dass keine Datei in `src/app` oder
+`src/server` eine Adresse mit `meldung=` baut und dass kein Satz per
+`encodeURIComponent` in `fehler`, `erfolg`, `ok` oder `grund` geht.
+
+**Nachsatz (Zusammenführung der fünf Teile).** (1) `fehlerAufsFormular` ist entfernt; es hatte seit D-753 keinen Aufrufer. (2) Die Wache ist hart: `tests/kern/rueckweg-schluessel.test.ts` (keine Adresse mit `meldung=`, keine Seite liest `meldung`, kein kodierter Satz in `fehler`/`erfolg`/`ok`/`grund`/`hinweis`) und in `adressparameter.test.ts` der Fall „keine Rückmeldung steht roh“ für `meldung`, `erfolg`, `ok`, `hinweis`. Für `hinweis` steht ein Bestand von elf Pflegeseiten (V-277, offen), der nur abgebaut wird. (3) Der Kontoauszug schickt seine Rückmeldung als `?erfolg=` statt `?meldung=` (dieselben Schlüssel). (4) `istGueltigerKalendertag` weist das Jahr 0000 ab — Postgres kennt es nicht (22008); gefunden im CRM-Teil. (5) Aus dem unabhängigen Review übernommen: die Dankseite zeigt `?nr=` nur in der Form von `leadnummerAus` (D-770), die Turnus-Vorschau hält ein Fenster jenseits von 9999 aus, und die Kästen der Nacherfassung sind Hinweise (D-773). Die Reviews der fünf Teile liefen nur teilweise (Nutzungslimit); ihre übrigen, nicht gegengeprüften Punkte stehen im PR.
+
+| Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-277, `tests/kern/rueckweg-schluessel.test.ts`, `tests/kern/adressparameter.test.ts`, `src/app/api/formular-antwort.ts`, `src/lib/datum/kalendertag.ts` |
+|---|---|
+
+### D-771 · Die sechs Personalformulare kommen mit einem Grund zurück — das Recht vor der Abweisung, kein Satz, keine Kennung und keine Eingabe in der Adresse (V-273, Teil „personal" von D-769)
+
+**Der Befund** (Schlussdurchgang, Gruppe rueckweg-schluessel). `fuehrePersonalAus`
+(`api/personal/gemeinsam.ts`), das Gerüst von sechs Schreibwegen, schickte die
+`message` JEDES Fehlers mit numerischem `status` und einem `code` als
+`?meldung=` auf die Seite des Formulars zurück. Einstellen, Vertrag, Entgelt,
+Beenden, Stammdaten und Zusammenführen zeigten den Text roh im Warnkasten:
+zwei Sätze mit voller Kennung („Beschäftigung 5b0d6c1e-… gibt es in dieser
+Gesellschaft nicht.", „Diesen Menschen gibt es in dieser Gesellschaft nicht
+(…)."), vier mit der Eingabe (die Personalnummer auf zwei Wegen, der getippte
+Betrag, der Tag „gilt ab"), zwei mit einem Namen aus der Datenbank (Dublette,
+zusammengeführte Zeile), sechs mit einem Datum der Zeile (Ein- und Austritt,
+Perioden der Konditionen), einer mit einem Namen aus dem Quelltext („`person`
+trägt keinen Mandanten") — und jeder präparierte Link schrieb seine eigene
+Systemmeldung in den Kasten. Keine der 14 Fehlerklassen der vier Dienste trug
+einen Grund. Und weil diese allgemeine Weiche VOR `autorisierungsAntwort`
+stand, wurde ein fehlendes Recht (`NichtGefundenFehler` trägt `status` 404 und
+einen `code`) zu `?meldung=Nicht gefunden` auf dem Formular statt der
+byte-gleichen 404 aller Schreibwege (AUT-06, D-656 Nr. 2).
+
+**Die Entscheidung** (setzt D-769 für diesen Teil um):
+
+1. **Das Recht zuerst.** Der Fangzweig von `fuehrePersonalAus` fragt
+   `autorisierungsAntwort` vor der allgemeinen `status`/`code`-Weiche: ein
+   fehlendes Recht ist die 404 aller Schreibwege, auch hinter einem Formular;
+   ohne Sitzung oder zweiten Faktor geht es auf die Anmeldung bzw. den
+   Faktor-Schritt mit `weiter=` (D-766), nie auf den Rückweg des Formulars.
+2. **Jede Fehlerklasse trägt einen getypten Grund.** In
+   `services/personal/{einstellung,anstellung,dublette,stammdaten}.ts` hat
+   jede der 14 Klassen einen `grund`. Eine Klasse mit mehreren Anlässen nimmt
+   ihn im Konstruktor, als Vereinigungstyp aus einer Liste
+   (`EINSTELLUNG_GRUENDE`, `VERTRAG_AENDERN_GRUENDE`,
+   `BEENDEN_EINGABE_GRUENDE`, `KONDITION_GRUENDE`, `STICHTAG_GRUENDE`,
+   `BEENDIGUNG_GRUENDE`, `ZUSAMMENFUEHREN_GRUENDE`, `STAMMDATEN_GRUENDE`);
+   eine Klasse mit einem Anlass trägt ihn fest (`nicht_gefunden`,
+   `personalnummer_vergeben`, `dublette_im_haus`, `person_nicht_sichtbar`,
+   `bestaetigung_falsch`, `kein_recht`). `VertragEingabeFehler` hat vier
+   Listen, eine je Weg, der ihn wirft — damit jede Seite genau die Sätze
+   führt, die ihre Route schicken kann, und keinen der Nachbarseite. Die zwei
+   `kein_recht`-Klassen schickt keine Route (Entgelt- und Stammdatenseite
+   fragen das Recht vorher bzw. fangen die Klasse selbst); sie tragen den
+   Grund, damit keine Klasse dieser Dateien ohne einen ist. Der deutsche Satz
+   jeder Klasse bleibt unverändert — er geht nur noch an eine Schnittstelle.
+3. **Die Route schickt den Grund**, über `grundAufsFormular` als
+   `?fehler=<grund>` an `zurueck`: den `grund` der Klasse, sonst ihren `code`
+   (wie D-753). Es reist nur, was ein Schlüssel ist: ein `grund`, der ein Satz
+   ist (anderswo heissen so Texte einer SQL-Funktion), fällt auf den `code`
+   zurück, und ist auch der keiner, reist `abgewiesen`, den keine Seite kennt.
+   Ein Fehler ohne `status` bleibt ein Wurf und damit ein Serverfehler — keine
+   erfundene Abweisung. Der Erfolg reist wie bisher als Schlüssel
+   (`eingestellt=1`, `gespeichert=1`, `zusammengefuehrt=1`) oder ohne
+   Parameter.
+4. **Die Seite schlägt nach.** Je Seite eine Tabelle in
+   `lib/i18n/verwaltung/personal-rueckweg.ts` (`titel`, `sonst`, `fehler`),
+   gezeigt von EINEM Kasten, `PersonalAbweisung`
+   (`portal/[mandant]/personal/abweisung.tsx`): nur `eigenerEintrag`, ein
+   unbekannter Grund (auch `__proto__`, `constructor`) wird `sonst`, der Wert
+   aus der Adresse steht nie auf dem Schirm; `Hinweis` `warnung` mit
+   `role="alert"`. Keine der sechs Seiten liest `?meldung=` noch. Die drei
+   Erfolgskästen (Entgelt, Stammdaten, Zusammenführen) sagen sich mit
+   `role="status"` an. Die `data-cse`-Anker bleiben, wie sie waren.
+5. **Deutsch.** Die sechs Seiten stehen auf der Ausnahmeliste der
+   Übersetzungswache und folgen nicht der Sitzungssprache; ihre Tabellen sind
+   deutsch, aber nach Sprache geschlüsselt wie `ENTSCHEIDUNG_FEHLER_TEXTE`
+   (`NurDeutsch<…>`) — wer eine Seite umstellt, ergänzt `en` und wählt mit
+   `nachSprache`.
+6. **Werte aus den Daten der Seite, nicht aus der Adresse** (D-769 Nr. 5). Die
+   Sätze nennen keinen Wert; was der Satz des Dienstes trug, zeigt die Seite
+   selbst: den Eintritt der Kopf von „Beenden" (schon bisher) und von
+   „Entgelt" (neu: eine Angabe im Kopf, aus der Zeile, die die Seite ohnehin
+   liest), den Austritt die Vertragsseite unter „Nicht hier zu ändern", die
+   Perioden die Tabelle „Konditionen", den gleichnamigen Menschen die
+   Trefferliste der Einstellung. Personalnummer, Betrag, Tag und Name reisen
+   nicht mehr mit.
+7. **Programme bekommen weiter JSON**: `{ fehler: code, meldung }` mit Status
+   (D-599).
+8. **Nicht Teil dieses Schritts:** `fehlerAufsFormular` bleibt stehen, und die
+   Wache `adressparameter` bleibt, wie sie ist — beides macht der Schritt, der
+   die fünf Teile zusammenführt (D-769).
+
+**Geprüft:** `tests/kern/personal-rueckweg.test.ts` — die sechs ECHTEN Routen
+(ersetzt sind Sitzung, Datenbank, Tor und Dienst): jeder Grund jeder
+Fehlerklasse → 303 auf `zurueck` mit genau `fehler=<grund>`, ohne `meldung=`
+und ohne Kennung; ein Fehler ohne eigenen Grund reist mit seinem `code`, ein
+Satz als Grund nie; Erfolg → Ziel mit Schlüssel oder ohne Parameter; JSON wie
+bisher; fehlendes Recht → die byte-gleiche 404; ohne Sitzung bzw. Faktor →
+Anmeldung bzw. Faktor-Schritt, nie der Rückweg; `zurueck` nie nach draussen;
+die zwei Abweisungen der Routen selbst (`betrag_ungueltig` ohne die Eingabe,
+`keine_auswahl` vor dem Dienst); ein Fehler ohne `status` bleibt ein Wurf.
+Dazu die Tabellen (jeder Grund der Route hat einen Satz, keiner ohne Route;
+ohne Kennung, Platzhalter, Datum, Backtick; kein Prototyp-Treffer), der Kasten
+(gerendert: bekannter Grund, unbekannte und präparierte Werte, kein Kasten
+ohne Grund) und der Quelltext der sechs Seiten samt `rohAusDerAdresse` (keine
+Meldung, kein Erfolg, kein Rückfall mehr aus der Adresse; es bleiben die
+Suchwörter). `tests/kern/personal-gruende.test.ts` — die echten Dienste an
+jeder der 41 Wurfstellen (ein Kontext liefert die Zeilen, die dorthin führen)
+mit dem richtigen Grund, und eine Sperrklinke: jede Fehlerklasse der vier
+Dateien trägt einen.
+
+**Nachtrag — die Nebenbefunde dieses Teils** (gemeldet mit V-273, behoben auf
+demselben Zweig):
+
+9. **Der Erfolg kommt auf dem Blatt der Beschäftigung an** (Nebenbefund 1). Einstellen schickte
+   `?eingestellt=1`, und keine Seite las es; Vertrag und Beenden führten ganz
+   ohne Parameter auf dasselbe Blatt — nach dem Absenden stand dort kein Wort.
+   Jetzt schicken Vertrag und Beenden einen Schlüssel
+   (`?erfolg=vertrag_gespeichert`, `?erfolg=beendigung_eingetragen`), und das
+   Blatt (`anstellungen/[id]/page.tsx`) schlägt ihn zusammen mit
+   `?eingestellt=1` in `ANSTELLUNG_ERFOLG` nach — nur als eigener Eintrag —
+   und zeigt ihn mit `PersonalErfolg` (`personal/bestaetigung.tsx`, `Hinweis`
+   `erfolg`, `role="status"`). **Ein unbekannter Schlüssel zeigt nichts**:
+   anders als eine Abweisung hat eine Bestätigung keinen allgemeinen Satz —
+   „gespeichert" zu sagen, ohne zu wissen, was geschah, wäre eine Bestätigung,
+   die ein Link erfinden kann. Die Sätze nennen keinen Wert; Personalnummer,
+   Eintritt und Austritt zeigt das Blatt darunter aus seinen Daten.
+10. **Wochenstunden und Arbeitstage werden gelesen, bevor sie die Datenbank
+    sehen** (Nebenbefund 2). Die beiden Felder der Entgeltseite sind frei, und die Route
+    reichte den rohen Text an `$5::numeric` — „38,5", wie ein deutsches
+    Tastenfeld es schreibt, war ein 22P02 und eine 500. Jetzt liest die Route
+    beide mit `mengeAusEingabe` (`finanz/menge.ts`, der vorhandene Leser für
+    getippte Mengen: Komma und Punkt, höchstens drei Nachkommastellen, nie eine
+    Gleitkommazahl); was keine Zahl ist, wird `wochenstunden_ungueltig` bzw.
+    `arbeitstage_ungueltig`. Der Dienst nimmt nur noch `MilliMenge` — eine rohe
+    Zeichenkette kommt bei ihm nicht mehr an — und fragt VOR jeder Abfrage die
+    Grenzen, die die Datenbank setzt: `ak_stunden_plausibel` (0 bis 168) und
+    `ak_arbeitstage_plausibel` (0 bis 7) aus 0192, als `KONDITION_GRENZEN`
+    abgelesen und von einer Prüfung gegen die Migration festgehalten. Keine
+    Grenze ist erfunden; die Wahrheit bleibt die Prüfung der Datenbank, der
+    Dienst macht aus ihrem 23514 nur vorher einen Satz. „38.5" gilt wie
+    „38,5" (so liest `mengeAusEingabe` jede Menge), leer heisst weiter „nicht
+    hinterlegt".
+11. **Eine vergebene Personalnummer ist EIN Befund mit EINEM Code**
+    (Nebenbefund 4). `PersonalnummerVergeben` gab es zweimal — in
+    `einstellung.ts` mit `ungueltiger_zustand`, in `anstellung.ts` mit
+    `ungueltige_eingabe`, beide mit 409: eine Schnittstelle bekam für dieselbe
+    Kollision zwei Codes, und ein `instanceof` der einen Klasse fing die
+    andere nicht. Jetzt steht die Klasse einmal in
+    `services/personal/personalnummer.ts`, mit `ungueltiger_zustand` — die
+    Kollision liegt am Bestand, nicht an der Form der Eingabe, wie bei
+    `DubletteImHaus` —, und beide Dienste reichen sie unter ihrem Namen durch
+    (kein Aufrufer ändert seinen Import). Kein Test und kein Aufrufer erwartete
+    einen der beiden Codes. Die vier Dienste haben damit 13 Fehlerklassen
+    statt 14; die Sperrklinke zählt `personalnummer.ts` mit. Das
+    Dienstregister (`registry/dienste.ts`) führt das Modul als nicht
+    schreibend — der Gegentest in `tests/kern/portal-shell.test.ts` verlangt
+    jeden Dienst unter `services/` dort.
+12. **Was die Datenbank abweist, wird ein Grund — was sie nicht kennt,
+    bleibt ein Wurf** (Nebenbefund 3). Drei Wege endeten als 500:
+    - **Ein Kalendertag, den es nicht gibt.** Die drei Dienste prüften nur
+      das Muster `JJJJ-MM-TT`; `2025-02-31` kam durch, und die Datenbank
+      antwortete am `::date` mit 22008. Jetzt prüfen `einstellung.ts`,
+      `anstellung.ts` und `stammdaten.ts` jeden Tag mit dem vorhandenen
+      `istGueltigerKalendertag` (`lib/datum/kalendertag.ts`, seit V-217) —
+      vor jeder Abfrage und mit den Gründen, die es schon gab
+      (`eintritt_ungueltig`, `austritt_ungueltig`, `gilt_ab_ungueltig`,
+      `stichtag_ungueltig`, `geburtsdatum_ungueltig`). Die Seiten Beenden und
+      Entgelt lassen einen solchen `?austritt=`/`?stichtag=` auf heute
+      zurückfallen, statt ihre Vorschau damit zu fragen.
+    - **Die gleichzeitige Personalnummer.** Die Vorabfrage beider Dienste
+      sieht eine zweite Anlage nicht, die zwischen Frage und Schreiben
+      festgeschrieben wird; sie lief als 23505 in
+      `anstellung_personalnummer_uk`. `istPersonalnummerKollision`
+      (`personalnummer.ts`) erkennt genau diesen Constraint an Code UND Name
+      (wie `bau/gewerk.ts`) und macht daraus `PersonalnummerVergeben` (Nr. 11),
+      also `personalnummer_vergeben` — denselben Grund wie die Vorabfrage.
+      Ein anderer 23505 bleibt, was er ist.
+    - **Die Abweisungen von `app.person_zusammenfuehren`** (0194): ein zweites
+      Zusammenführen derselben Zeile (Doppelklick, eine Kollegin war
+      schneller), eine Dublette, die nur die Schwestergesellschaft
+      beschäftigt, eine Kette in beide Richtungen. Vier neue Gründe —
+      `bereits_zusammengefuehrt`, `nicht_beide_hier`,
+      `fuehrend_zusammengefuehrt`, `dublette_ist_fuehrend` —, dazu
+      `dieselbe_zeile` und `grund_fehlt`, wenn die Datenbank sie vor dem Dienst
+      sieht (eine Kennung in Grossbuchstaben ist für den Dienst eine andere
+      Zeichenkette, für die Funktion dieselbe Zeile). Erkannt an SQLSTATE UND
+      am Satz der Funktion (`FUNKTION_ABWEISUNGEN` in `dublette.ts`, wie
+      `freigabe/entscheiden.ts`) — einen anderen Schlüssel trägt sie nicht;
+      eine Prüfung liest jeden Satz samt `errcode` in 0194 nach. Die Sätze der
+      Seite wiederholen, was die Funktion selbst begründet (O-611,
+      Invariante 8, der eine Sprung) — keine Regel ist neu. **Was die Route
+      vorher fragt, bleibt ein Wurf**: genau eine aktive Gesellschaft, die
+      Gruppenansicht, das Recht (42501) sieht `authorize` zuerst, und ein
+      unbekannter Datenbankfehler wird keine erfundene Abweisung.
+13. **Kein Tag, den es nicht gibt, erreicht aus einem Personal- oder
+    Beschäftigtenformular ein `::date`** (Nebenbefund zu Nr. 12, auf
+    Nachfrage). Geprüft wurden alle Routen unter `api/personal/**` und die
+    Abwesenheits-, Antrags- und Urlaubswege unter `api/mein/**`:
+    - `personal/urlaubsanspruch` („Verfällt am") und `personal/abwesenheit`
+      (Von, Bis, „Bescheinigung gültig bis") prüften nur das Muster;
+      `2026-02-30` lief bis `::date`, die Datenbank antwortete mit 22008, und
+      keine der beiden Routen kannte den Fehler — eine 500. Jetzt steht an
+      derselben Stelle `istGueltigerKalendertag`, mit dem Grund, den die Route
+      für ein unlesbares Datum schon hat (`kein_datum`, 400, wie bisher).
+    - `mein/abwesenheit`: den 31.02. fing `datenbankGrund` als `kein_datum`
+      auf, ein Tag im 13. Monat warf aber schon vorher in `rechneTage`
+      (`tagePlus`) einen RangeError — eine 500. `mein/antraege` fing beides
+      über `datenbankGrund` auf. Beide prüfen jetzt vor der Datenbank, mit
+      demselben Grund und derselben Maske.
+    - `rechneTage` (`services/abwesenheit/tage.ts`) prüft selbst mit
+      `istGueltigerKalendertag`: es rollte den 31.02. lautlos in den März und
+      zählte einen Tag, den es nicht gibt. Jetzt `ZeitraumFehler`
+      `kein_datum` für jeden Aufrufer.
+    - `personal/nachweise` prüfte Beginn, Ende und Ausstellungstag gar
+      nicht; `nimmNachweisAuf` reichte sie an drei `::date` — 22008 und eine
+      500, und „01.03.2026" las die Datenbank mit `DateStyle = ISO, MDY` (so
+      die Testdatenbank) lautlos als 3. Januar. Jetzt prüft der Dienst vor der
+      ersten Abfrage die Form, die das Formular (`type="date"`) schickt. Kein
+      vorhandener Grund passte, deshalb ein neuer, `kein_datum`, mit Satz auf
+      beiden Nachweisseiten (de/en, der Wortlaut der Aufnahmeseite der
+      Abwesenheiten). Leer heisst weiter „nicht genannt".
+    - Ohne Befund: die übrigen Routen unter `api/personal/**` tragen keinen
+      Tag (Zugang, Zugangscode, Zusammenführen) oder prüfen seit Nr. 12 mit
+      `istGueltigerKalendertag` (Einstellen, Vertrag, Entgelt, Beenden,
+      Stammdaten).
+14. **Das Urlaubsjahr hat die Grenzen der Datenbank, und ein früher
+    Eingabefehler führt ein Formular zurück** (die beiden Nebenbefunde zu
+    Nr. 13, auf Nachfrage).
+    - `personal/urlaubsanspruch` prüfte das Jahr nur auf vier Ziffern; ein
+      Jahr ausserhalb von `uk_jahr_bereich` (0061: 2000 bis 2100) lief in die
+      Prüfung der Datenbank, 23514, und wurde eine 500. Jetzt prüft die Route
+      VOR der Datenbank gegen `URLAUBSJAHR_GRENZEN`
+      (`services/zeit/urlaubskonto.ts`) — abgelesen aus der Migration, und
+      eine Prüfung liest die Grenzen dort nach. Ein Jahr ausserhalb wird der
+      neue Grund `jahr_ausserhalb` mit einem Satz, der die Grenzen nennt (de/en,
+      ebenfalls gegen die Konstante geprüft); `kein_jahr` („Bitte geben Sie ein
+      Jahr an.") passte auf ein genanntes Jahr nicht.
+    - `personal/abwesenheit` und `personal/urlaubsanspruch` beantworteten ihre
+      frühen Eingabefehler (`keine_anstellung`, `keine_art`, `kein_jahr`,
+      `jahr_ausserhalb`, `kein_anspruch`, `kein_datum`) mit JSON — auch einem
+      Formular mit `fehlerweg`/`zurueck`, auf einer Seite ohne JavaScript eine
+      weisse Seite. Jetzt geht jeder über `grundAufsFormularweg` (D-599,
+      D-766): ein Formular kommt mit dem Grund auf seine Seite zurück, ein
+      Programm ohne beide Felder bekommt weiter `{ fehler }` mit 400. Es reist
+      nur der Grund, keine Eingabe. Die Urlaubskontenseite hatte die Sätze
+      schon; der Aufnahmeseite der Abwesenheiten fehlten `keine_anstellung` und
+      `keine_art` — sie zeigte dafür den allgemeinen Satz — und hat sie jetzt
+      (de/en). Die späteren Abweisungen bleiben, wie sie sind: der
+      Urlaubsanspruch führte sie schon zurück; bei der Abwesenheit führen
+      Zeitraum, Bescheinigung, 23514 und 23P01 zurück, während
+      `AbwesenheitNichtGefunden` und `ArtUngeklaertFehler` weiter in die
+      allgemeine Weiche laufen (JSON mit `meldung`) — nicht Teil dieses
+      Schritts.
+15. **Kein Personalformular bekommt mehr JSON** (der Nebenbefund zu Nr. 14,
+    auf Nachfrage, und die Durchsicht aller Routen unter `api/personal/**`).
+    - `personal/abwesenheit`: `AbwesenheitNichtGefunden` und
+      `ArtUngeklaertFehler` aus `pruefeArt` liefen in die allgemeine Weiche —
+      ein Formular bekam `{ fehler, meldung }`, und die Meldung nannte die Art.
+      Jetzt wie `mein/abwesenheit`: `art_nicht_waehlbar` und `art_ungeklaert`
+      als Grund auf die Aufnahmeseite; ein Programm bekommt dasselbe JSON wie
+      bisher. Eine Anstellung, die es in dieser Gesellschaft nicht gibt, war
+      ein 23503 auf `ab_anstellung_fk` (0073) und eine 500 — jetzt
+      `nicht_gefunden`, für ein Programm die byte-gleiche 404 (AUT-06); ein
+      anderer 23503 bleibt ein Wurf. Die allgemeine Weiche führt ein Formular
+      mit dem Code als Grund zurück (ein Programm bekommt Code und Satz), und
+      „Formular" heisst in der ganzen Route `fehlerweg`, sonst `zurueck` —
+      vorher galt für die Abweisungen des Dienstes nur `fehlerweg`. Ein
+      fehlendes Recht bleibt die byte-gleiche 404: `autorisierungsAntwort`
+      steht vor jeder Weiche. Die Aufnahmeseite hat die drei Sätze neu
+      (de/en), ohne den Namen der Art.
+    - `personal/nachweise` und `personal/zugang` antworteten auf eine
+      unbekannte Handlung und eine fehlende Kennung mit JSON, auch ihrem
+      Formular. Jetzt `grundAufsFormularweg`, mit Sätzen auf beiden Seiten
+      (de/en).
+    - **Bewusst JSON bleiben:** `fremder_ursprung` (403, die
+      Ursprungsprüfung vor allem anderen — kein Formular dieser Anwendung);
+      die `nicht_gefunden`-404 für eine Kennung im Pfad, die keine ist
+      (byte-gleich mit `nichtGefundenAntwort`, AUT-06); `unlesbarer_rumpf` in
+      `gemeinsam.ts` (ein Rumpf, der weder Formular noch JSON ist); und
+      `unvollstaendig` in `zugang-code` — dieses Formular schickt kein
+      `zurueck`, seine Zielseite entsteht erst aus den Werten, die dort
+      fehlen. `urlaubsanspruch` führt die Abweisungen des Dienstes nur über
+      `fehlerweg` zurück; sein Formular schickt ihn.
+
+| Betrifft | D-769, AUT-06, D-599, D-656, D-728, D-753, D-766, V-273, `src/app/api/personal/gemeinsam.ts`, `src/app/api/personal/{anstellungen/[id]/entgelt,zusammenfuehren}/route.ts`, `src/server/services/personal/{einstellung,anstellung,dublette,stammdaten,personalnummer}.ts`, `src/lib/i18n/verwaltung/personal-rueckweg.ts`, `src/app/portal/[mandant]/personal/{abweisung,bestaetigung}.tsx`, `src/app/portal/[mandant]/personal/{anstellungen/neu,anstellungen/[id],anstellungen/[id]/entgelt,anstellungen/[id]/vertrag,anstellungen/[id]/beenden,personen/[id]/stammdaten,zusammenfuehren}/page.tsx`, `src/app/api/personal/anstellungen/[id]/{vertrag,beenden}/route.ts`, `tests/kern/{personal-rueckweg,personal-gruende}.test.ts`, `tests/isolation/{personal-anstellung,einstellung,person-dublette}.test.ts`, V-217, `src/lib/datum/kalendertag.ts`, `drizzle/0194_person_zusammenfuehren.sql`, `src/server/registry/dienste.ts`, `src/app/api/personal/{abwesenheit,urlaubsanspruch}/route.ts`, `src/app/api/mein/{abwesenheit,antraege}/route.ts`, `src/server/services/abwesenheit/tage.ts`, `src/server/services/nachweis/aufnahme.ts`, `src/lib/i18n/verwaltung/personal-nachweis.ts`, `tests/kern/{personal-kalendertag,meldung-rueckweg,antrag-rueckweg}.test.ts`, `tests/isolation/{abwesenheit-aufnehmen,nachweis-aufnehmen}.test.ts`, `src/server/services/zeit/urlaubskonto.ts`, `src/lib/i18n/verwaltung/{urlaubskonten,personal}.ts`, `drizzle/0061_urlaubskonto.sql`, `src/app/api/personal/{nachweise,zugang}/route.ts`, `src/lib/i18n/verwaltung/personal-zugang.ts`, `tests/kern/personal-formularweg.test.ts` |
+### D-772 · CRM: der Rückweg trägt Schlüssel — eigene Namen, wo `fehler` schon vergeben ist, die Datenbanksätze werden im Dienst Gründe (V-274, Teil crm von D-769)
+
+**Der Befund** (V-274, Katalog von D-769): neun CRM-Routen schickten den
+Satz ihres Dienstes als `?meldung=` und ihre Erfolgssätze als `?erfolg=`
+zurück; sieben der elf Seiten zeigten sie roh. `kunde/zugang` und
+`ansprechpartner/[id]/widerspruch` reichten dazu die deutschen Sätze der
+Definer (0249, 0248, 0222) und jeden anderen einzeiligen Fehlertext durch —
+vor `autorisierungsAntwort`. Drei Seiten und eine Route schlugen einen Wert
+aus der Adresse mit eckigen Klammern nach.
+
+**Die Entscheidung** (setzt D-769 für den Teil crm um):
+
+1. **Ein Helfer, vier Namen.** `zurueckMitSchluessel(anfrage, zurueck,
+   parameter, schluessel)` (`src/app/api/crm/rueckweg.ts`) hängt genau
+   einen Schlüssel an, über `internesZiel`. `fehler` für Lead, Steuer,
+   Konditionen, Zugang, Rechtsgrundlage und Widerspruch; `grund` für
+   `POST /api/crm/kunde` — das Kontaktblatt liest `fehler` für den
+   Sendeweg (V-101); `wiedervorlage` für `POST /api/crm/wiedervorlage` —
+   Lead- und Kontaktblatt lesen `fehler` schon für andere Formulare, und
+   `betreff_fehlt` hiesse dort „Ein Lead braucht einen Betreff“; `notiz`
+   bleibt (V-147). Ein Erfolg reist als `?erfolg=<schluessel>`.
+2. **Nicht `grundAufsFormular`** (D-769 Nr. 3): er kennt nur `fehler` und
+   antwortet ohne `zurueck` mit JSON. Die CRM-Routen kehrten bei einer
+   fachlichen Abweisung immer zurück (ohne `zurueck` auf `/portal`); einen
+   JSON-Weg dafür gab es nicht, und dieser Schritt erfindet keinen.
+   Programme bekommen dieselben JSON-Antworten wie bisher (D-599 —
+   `unbekannte_kennung`, `unbekannter_vorgang`, `unbekannter_umfang`,
+   `fremder_ursprung`).
+3. **Getypte Gründe, gegen den Syntaxbaum geprüft.** `CrmFehler`
+   (`CRM_GRUENDE`), `SteuerFehler` (`STEUER_GRUENDE`) und `ZugangFehler`
+   (`ZUGANG_GRUENDE`) tragen `grund` als Vereinigung fester Wörter. Welche
+   Gründe eine Route schicken kann, liest `tests/kern/hilfen/gruende.ts`
+   aus dem Quelltext (Aufrufe in Dienste, beide Äste, Parameter); die Liste
+   muss GLEICH der Menge der Würfe sein, nicht nur sie enthalten. Eine
+   Stelle, deren Grund erst zur Laufzeit feststeht, ist ausdrücklich
+   benannt (`datei#funktion`) und zählt über ihre Tabelle.
+4. **Datenbanksätze werden im Dienst Gründe** (D-769 Nr. 8).
+   `ZUGANG_DATENBANK_GRUENDE` (0249) und `WIDERSPRUCH_DATENBANK_GRUENDE`
+   (0248, 0222) bilden jeden Satz wörtlich auf seinen Grund ab; ein Satz,
+   den die Tabelle nicht kennt, wird `abgewiesen` bzw.
+   `widerspruch_abgewiesen` — der allgemeine Satz der Seite, nie der Text.
+   Zum Grund wird nur eine ABWEISUNG: `insufficient_privilege` und
+   `no_data_found`, beim Widerspruch dazu `check_violation` (dort Zukunft,
+   Kanal, Begründung). Alles andere bleibt ein Fehler — etwa der
+   `check_violation` am Einladungstoken (0249), ein Programmfehler. **Eine
+   Eingabe des Menschen endet nie in einer 500** (berichtigt in der
+   Nachrunde, Nr. 14): ein Wort außerhalb der Rechtsgrundlagen und ein Tag,
+   den es nicht gibt, werden VOR dem Cast geprüft und sind Gründe mit Satz
+   auf der Seite. Hier stand, ein ungültiges Datum ende beim Widerspruch
+   gewollt als Fehler — das gilt nicht mehr. Die Kerntests lesen die Sätze aus
+   der letzten Fassung jedes Definers in `drizzle/`, die Isolation löst sie
+   an der echten Datenbank aus.
+5. **Die Anmeldung zuerst, in allen neun Routen** (D-769 Nr. 7, D-766).
+   Der Rohtext-Zweig in `zugang` und `widerspruch` entfällt; vorher wurde
+   ein fehlendes Recht dort „Nicht gefunden“ im Warnkasten.
+6. **Die Seiten schlagen über zwei Bausteine nach**
+   (`src/components/portal/Rueckweg.tsx`): `Abweisung` (`rolle="alert"`,
+   unbekannter Grund → der allgemeine Satz der Seite) und `Bestaetigung`
+   (`rolle="status"`, NUR zu einem bekannten Schlüssel — ein allgemeines
+   „Gespeichert.“ wäre mit jedem Link fälschbar). `einSchluessel` nimmt nur
+   einen einzelnen, nicht leeren Wert. Nachgeschlagen wird nur mit
+   `eigenerEintrag` — auch an den drei Stellen, die es nicht taten:
+   Kundenblatt (`tk.kontaktFehler[…]`), Kontaktblatt (`SENDE_FEHLER[…]`),
+   Steuerroute (`RECHT[was]`, jetzt `istVorgang` gegen die Liste).
+7. **Sprache** (D-769 Nr. 4): die Tabellen stehen in
+   `src/lib/i18n/verwaltung/crm-rueckweg.ts` (dazu
+   `KONTAKT_ANLEGEN_GRUENDE` in `crm-kunde.ts`), deutsch für die Seiten der
+   Ausnahmeliste in derselben Form (`NurDeutsch`); zweisprachig ist nur die
+   Wiedervorlage, weil das Leadblatt der Sitzung folgt. Rechte stehen mit
+   ihrem Namen (`rechtName`), kein Schlüssel, kein Backtick, kein
+   Datenbankname im Satz.
+8. **Erfolgsschlüssel**: Wiedervorlage `erledigt`, `verschoben`,
+   `angelegt`, `angelegt_ohne_aufgabe` / `_ohne_kalender` / `_ohne_spiegel`
+   (`anlageSchluessel` — was vom Spiegel fehlt, O-663); Steuer der Vorgang
+   (`erechnung`, `bauleistender`, `bescheinigung`, `widerruf`); Konditionen
+   und Rechtsgrundlage `gespeichert`; Widerspruch `werbewiderspruch`,
+   `vollwiderspruch`; Zugang `ausgestellt`, `eingeladen`, `entzogen`,
+   `entzogen_mit_sitzungen`.
+9. **Werte fallen weg, statt in die Adresse zu gehen** (D-769 Nr. 5): die
+   Daten der kollidierenden Zeitscheibe (sie steht in der Liste darüber),
+   jede Eingabe (die Sätze beschreiben die erwartete Form), die Zahl
+   beendeter Sitzungen (eigener Schlüssel; die Zahl bleibt im Protokoll des
+   Definers, `beendete_sitzungen`), die Leadnummer.
+10. **Was sich nebenbei ändert:** das Leadblatt zeigt den Ausgang seiner
+    Wiedervorlage (vorher „Das ließ sich nicht speichern.“ oder nichts);
+    die Zugangsseite überschreibt eine Abweisung mit „Nicht ausgeführt.“
+    statt „Nicht ausgestellt.“ — sie gilt auch für Einladen und Entziehen;
+    `nichtGespiegelt` (wiedervorlage.ts) bleibt, reist aber nicht mehr.
+    Der Grund `grundlage_ohne_quelle` ist auf dem Leadweg unerreichbar (die
+    Kette legt den Kunden mit Grundlage „keine“ an) und wird für das
+    Leadblatt nicht verlangt — der Kerntest hält die Bedingung am
+    Quelltext fest.
+11. **Bewusst angepasste Tests:** `tests/kern/formular-rueckwege.test.ts`
+    (c) schrieb `meldung=${encodeURIComponent(fehler.message)}` und
+    `tk.kontaktFehler[meldungGrund]` fest; `tests/e2e/crm-anlegen.spec.ts`
+    erwartete `?meldung=` (jetzt `?grund=grundlage_ohne_quelle` bzw.
+    `?fehler=ohne_namen`; nicht lokal gelaufen). Keine offene Frage: jeder
+    Satz sagt, was Dienst und Datenbank schon entscheiden.
+12. **Nachrunde — `POST /api/lead`** (vom Leadblatt, V-137): Anmeldung und
+    Recht werden vor dem `CrmFehler` übersetzt (`autorisierungsAntwort`).
+    Ein fehlendes Recht antwortete `{"fehler":"unbekannt"}` statt der
+    byte-gleichen 404 der übrigen Routen (D-656 Nr. 2); jetzt
+    `nichtGefundenAntwort()`. Ein Lead, den es hier nicht gibt — auch der
+    einer anderen Gesellschaft (AUT-06) —, antwortete ebenfalls `unbekannt`;
+    er bekommt dieselben Bytes, damit „gibt es nicht“ und „darf nicht“
+    gleich bleiben. Die übrigen JSON-Antworten (`fremder_ursprung`,
+    `unvollstaendig`, `typ`, `keine_sitzung`, `zweiter_faktor`) bleiben.
+13. **Nachrunde — `POST /api/crm/nachrichten`** (der Sendeweg des
+    Kontaktblatts): `autorisierungsAntwort` steht jetzt vor den Zweigen für
+    `NachrichtFehler`, `RechtsgrundlageFehlt` und `FreigabeErforderlich`.
+    Heute fängt keiner von ihnen einen Wurf der Anmeldung; die Reihenfolge
+    ist trotzdem die aller Routen (D-769 Nr. 7) — ein Fachfehler, der einmal
+    einen trägt, schickte sonst ein fehlendes Recht als Grund aufs
+    Kontaktblatt statt als byte-gleiche 404. Die Schlüssel (`?fehler=`,
+    `?gesendet=1`, `#senden`) bleiben.
+14. **Nachrunde — Eingaben vor dem Cast** (Rechtsgrundlage und Widerspruch;
+    berichtigt Nr. 4). `setzeGrundlage` nimmt das Wort des Formulars
+    ungecastet und prüft es mit `alsGrundlage` gegen `GRUNDLAGEN`
+    (`uwg-matrix.ts`, die vier Werte des Enums). Der Kerntest gleicht die
+    Liste gegen `create type rechtsgrundlage` in `drizzle/` und gegen die
+    Auswahl des Formulars ab, die Isolation gegen `enum_range`; die zweite,
+    gleiche Liste in `kontakt-grundlage.ts` entfällt. `nachweisAm` und das
+    Eingangsdatum des Widerspruchs prüft `istGueltigerKalendertag` vor dem
+    Cast. Das Jahr 0000 lässt diese Prüfung durch, Postgres weist es mit
+    `22008` ab — `istTag` weist es deshalb zusätzlich ab. Neue Gründe
+    `nachweis_kein_datum` und `eingang_kein_datum` (`unbekannte_grundlage`
+    gab es schon), je mit Satz in `GRUNDLAGE_RUECKWEG`. Vorher endeten ein
+    ungültiges Wort (`22P02`) und ein ungültiger Tag (`22007`/`22008`) in
+    einer 500.
+
+| Betrifft | D-769, D-753, D-728, D-599, D-766, AUT-06, V-274, `src/app/api/crm/rueckweg.ts`, `src/app/api/crm/{kunde,lead,wiedervorlage,notiz}/route.ts`, `src/app/api/crm/kunde/{steuer,konditionen,zugang}/route.ts`, `src/app/api/crm/ansprechpartner/[id]/{rechtsgrundlage,widerspruch}/route.ts`, `src/server/services/crm/{anlegen,wiedervorlage,kundenzugang,kontakt-grundlage}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/components/portal/Rueckweg.tsx`, `src/components/portal/Kommunikationsverlauf.tsx`, `src/lib/i18n/verwaltung/{crm-rueckweg,crm-kunde}.ts`, Seiten unter `src/app/portal/[mandant]/crm` (`kunden/neu`, `kunden/[id]` mit `steuer`, `zugang`, `konditionen`, `wiedervorlagen`, `kontakte/[id]` mit `rechtsgrundlage`, `leads/neu`, `leads/[id]`) und `src/app/portal/[mandant]/radar/[id]`, `tests/kern/crm-*-rueckweg.test.ts`, `tests/kern/crm-rueckweg.test.ts`, `tests/kern/crm-notiz-route.test.ts`, `tests/kern/hilfen/gruende.ts`, `tests/kern/formular-rueckwege.test.ts`, `tests/isolation/crm-rueckweg-datenbank.test.ts`, `tests/e2e/crm-anlegen.spec.ts`, `src/app/api/lead/route.ts`, `tests/kern/lead-route.test.ts`, `src/app/api/crm/nachrichten/route.ts`, `tests/kern/crm-nachrichten-route.test.ts`, `src/server/services/crm/uwg-matrix.ts` (`GRUNDLAGEN`), `src/lib/datum/kalendertag.ts` (`istGueltigerKalendertag`) |
+### D-773 · Der Rückweg des Betriebs trägt Schlüssel — Veranstaltung, Bewacherregister, Revier, Sonderleistung, Turnus, Bauprojekt, Nacherfassung, laufender Eintrag und die Stempeluhr (V-275, Teil „betrieb" von D-769)
+
+**Der Befund** (Teil C1 der Gruppe „rueckweg-schluessel", D-769). Acht
+Routen des Betriebs schickten Sätze in die Adresse, acht Seiten zeigten sie
+roh (die neunte, `/turnus/neu`, seit V-250 einen allgemeinen Satz):
+
+1. **`?meldung=<Satz>`** aus `security/veranstaltungen`, `reinigung/reviere`,
+   `bau/projekte`, `zeit/nacherfassung` und `zeit/laufend` — gezeigt in einem
+   Warnkasten ohne `role`, deutsch auch in einer englischen Sitzung (drei der
+   Seiten folgen der Sitzungssprache), mit der vollen Kennung des Eintrags
+   (`LaufenderEintragNichtGefunden`), der Auftragsnummer und der Zahl offener
+   Schichten oder Nachträge. Der Kasten der freien Nacherfassung stand in
+   einem zugeklappten Bereich.
+2. **`?ok=<Satz>` und `?fehler=<Satz>`** aus `security/bewacherregister` und
+   `reinigung/sonderleistungen`, **`?fehler=<Satz>`** aus `reinigung/turnus`
+   (ausser dem abgewiesenen Anker, V-192) — das Turnusblatt zeigte „Den
+   Turnus 5b0d6c1e-… gibt es in dieser Gesellschaft nicht.", die
+   Sonderleistung „Der Abruf steht jetzt auf „Erbracht" (vorher „Geplant")".
+3. **Die Weiche dieser drei Routen ersetzte JEDE Antwort von `alsAntwort`
+   mit Meldung durch den Rückweg** — auch die Umleitung auf den
+   Faktor-Schritt („Zweiter Faktor erforderlich" über der Liste, D-766) und,
+   bei Sonderleistung und Turnus, die byte-gleiche 404 eines fehlenden
+   Rechts („Nicht gefunden" auf der Seite, AUT-06).
+4. **`StempelUhr`** (`portal/mein/bausteine.tsx`) schlug `?stempel=` mit
+   `SAETZE[meldung]` nach: `?stempel=__proto__` warf „Objects are not valid
+   as a React child" — die Startseite des Arbeiterportals war eine
+   Fehlerseite (D-769 Befund Nr. 4).
+
+**Die Entscheidung** (D-769 angewandt; was dieser Teil konkret festlegt):
+
+1. **Jede Fehlerklasse, deren Abweisung auf eine Seite zurückgeht, trägt
+   einen getypten Grund**, die Liste steht im Dienst neben der Klasse:
+   `VERANSTALTUNG_GRUENDE`, `BEWACHER_GRUENDE` (samt den zwei Gründen des
+   unvollständigen Formulars), `REVIER_GRUENDE`, `SONDERLEISTUNG_GRUENDE`
+   (Formular, Eingabe, Zustand, `abruf_unbekannt`, `katalogzeile_unbekannt` —
+   `setzeZeitwert` warf für eine fehlende Katalogzeile `AbrufNichtGefunden`,
+   der Grund unterscheidet es jetzt), `TURNUS_AUSNAHME_GRUENDE`,
+   `TURNUS_ANLAGE_GRUENDE`, `PROJEKT_GRUENDE`, `NACHERFASSUNG_GRUENDE`,
+   `LAUFEND_GRUENDE`. `statuswechsel` liefert neben dem Satz einen Schlüssel
+   (`abweisung`, `STATUS_ABWEISUNGEN`). **`SerieEingabeFehlt`** (auch von den
+   Routen des Dienstplans benutzt) bekommt ebenfalls einen Grund, in zwei
+   Listen: `SERIE_REGEL_GRUENDE` (alles, was `legeTurnusSerieAn` werfen kann)
+   und `SERIE_AUSNAHME_GRUENDE` (die Einzeltermin-Ausnahme); an deren
+   JSON-Antworten ändert sich nichts. `LaufenderEintragNichtGefunden` trägt
+   die Kennung nur noch als Feld, nicht im Satz; die Sätze von
+   `AbrufNichtGefunden`, `TurnusNichtGefunden` und `EintragNichtGefunden`
+   behalten ihre — sie erreichen keine Seite und kein Programm mehr.
+2. **Die Anmeldung zuerst, in allen acht Routen:** `autorisierungsAntwort`
+   läuft vor dem Rückweg (fehlendes Recht und nicht gebuchtes Modul
+   byte-gleich 404, ohne Sitzung oder Faktor die Umleitung, gesperrtes Konto
+   und zu viele Versuche JSON). Danach:
+   - **Formulare mit `zurueck`** (Veranstaltung, Revier, Bauprojekt,
+     Nacherfassung, laufender Eintrag): `grundAufsFormular` →
+     `zurueck?fehler=<grund>`. **Ohne `zurueck` fragt ein Programm** und
+     bekommt `{ fehler: <grund>, meldung }` mit dem Status der Klasse (D-599,
+     D-692 Nr. 1, wie `website/referenzen`) — vorher eine Umleitung auf
+     `/portal?meldung=…`, die dort niemand las.
+   - **Feste Ziele** (Bewacherregister, Sonderleistung → Liste; Turnus →
+     Turnusblatt bzw. `/turnus/neu`): jeder Fehler mit `status` und `code`
+     geht als `?fehler=<grund>` zurück; eine Klasse ohne eigenen Grund reist
+     mit ihrem `code` (die Seite zeigt dafür ihren allgemeinen Satz), alles
+     andere bleibt ein Wurf.
+   - **JSON wie bisher:** fremder Ursprung, unbekannte Art, fehlende
+     Beschäftigung, fehlender Eintrag — die Prüfungen vor der Transaktion
+     antworten unverändert.
+3. **Der Erfolg reist als Schlüssel:** `?erfolg=erfasst|fortgeschrieben`
+   (Bewacherregister), `?erfolg=abruf_erfasst|status_gesetzt|abruf_storniert|
+   zeitwert_gesetzt` (Sonderleistung) statt `?ok=<Satz>`. Die Serienliste
+   bekommt nach einem neuen Turnus `?angelegt=1` statt der Kennung der Serie
+   — sie fragt nur, OB angelegt wurde —, dazu wie bisher `erzeugt` (eine
+   Anzahl, von der Liste als Ziffernfolge geprüft), `bestand` und den
+   Schlüssel `uebersprungen`. Unverändert: `?ausnahme=1` am Turnusblatt; die
+   übrigen Routen führen auf das neue Blatt. Ein unbekannter
+   Erfolgsschlüssel zeigt keinen Kasten (wie die Eingangsrechnung, V-216).
+4. **Die Sätze stehen unter `src/lib/i18n/verwaltung/`** in der Form von
+   `ENTSCHEIDUNG_FEHLER_TEXTE` (`titel`, `sonst`, `fehler`, bei Erfolg dazu
+   `gespeichert`, `erfolg`), jede Tabelle als `Record` über den Grundtyp des
+   Dienstes — ein Grund ohne Satz ist ein Übersetzungsfehler.
+   **De und en**, wo die Seite der Sitzung folgt: `VERANSTALTUNG_FEHLER_TEXTE`
+   (`security.ts`), `REVIER_FEHLER_TEXTE` (`reinigung.ts`),
+   `PROJEKT_FEHLER_TEXTE` (`bau.ts`) und `LAUFEND_FEHLER_TEXTE` (`zeit.ts`;
+   das Live-Brett steht auf der Ausnahmeliste, sein Formular spricht aber
+   schon die Sitzungssprache — wie D-753). **Nur deutsch, dieselbe Form**, wo
+   die Seite auf der Ausnahmeliste steht: `BEWACHERREGISTER_TEXTE`,
+   `SONDERLEISTUNG_TEXTE`, `TURNUS_AUSNAHME_TEXTE`, `TURNUS_ANLAGE_TEXTE`,
+   `NACHERFASSUNG_FEHLER_TEXTE`. Nachgeschlagen wird nur mit
+   `eigenerEintrag`; ein unbekannter Grund ergibt `sonst`. Warnkasten
+   `rolle="alert"`, Erfolgskasten `rolle="status"`. Kein Satz nennt ein Recht
+   als Schlüssel (D-741) — „die Reinigung bearbeiten", „Nacherfassungen
+   prüfen" stehen als Worte da.
+5. **Werte, die ein Satz trug, fallen weg** (D-769 Nr. 5): welches Zeitfeld
+   die Form verfehlte, wie viele Schichten oder Nachträge offen sind, die
+   Nummer des schon verbauten Auftrags, der Feldname eines Datumsfehlers,
+   „jetzt/vorher" beim Zustandswechsel (der neue Zustand ist die Eingabe
+   des Formulars; die Liste darunter zeigt ihn), die Werte der gewählten
+   Wochentage.
+6. **Zwei Formulare, ein `?fehler=`:** `/zeiten/nacherfassung` liest
+   `?fehler=` schon für die Ansprüche (`api/offline-ereignis/[id]`). Das
+   freie Formular schickt deshalb `zurueck=…?frei=1`; mit `frei=1` steht der
+   Satz in seinem Kasten, und der Bereich geht auf. Die beiden Kästen der
+   Ansprüche tragen jetzt `role`.
+7. **Die Stempeluhr** schlägt mit `eigenerEintrag(SAETZE, meldung)` nach —
+   ein Wort, das sie nicht kennt, ergibt keinen Satz; an Texten, Sprachen
+   (de/en/ar/tr) und Grössen (44 px/16 px) ändert sich nichts.
+
+**Nicht Teil dieser Entscheidung:** `fehlerAufsFormular` bleibt stehen, und
+die Wache `adressparameter` wird nicht verschärft — beides macht der Schritt,
+der alle fünf Teile zusammenführt (D-769). Die Serienliste
+(`/reinigung/turnus`) und die Vorschau auf `/turnus/neu`, zuerst als Befund
+offen gelassen, regelt der Nachtrag unten (Nr. 1).
+
+**Geprüft:** je Route ein Kern-Test der echten Route (ersetzt sind Sitzung,
+Datenbank, Tor und Dienst): jeder Grund jeder Fehlerklasse → 303 mit
+`?fehler=<grund>`, ohne `meldung=`, ohne Kennung, ohne Leerzeichen; der
+Erfolg als Schlüssel; JSON ohne `zurueck` und JSON wie bisher; ein fehlendes
+Recht → byte-gleiche 404; ohne zweiten Faktor → Faktor-Schritt. Je Seite:
+die Tabelle hat für jeden Grund einen Satz in jeder Sprache (ohne Kennung,
+Platzhalter oder Schlüssel, englisch nicht gleich deutsch), ein fremdes Wort
+findet nichts, der Quelltext liest weder `meldung` noch `ok`, schlägt nach und
+zeigt nach `rohAusDerAdresse` keinen Rückmeldeparameter roh
+(`tests/kern/rueckweg-{zeit-laufend,zeit-nacherfassung,veranstaltung,bewacherregister,revier,projekt,sonderleistung,turnus}.test.ts`,
+Handgriffe in `tests/kern/hilfen/rueckweg-betrieb.ts`). Die Stempeluhr:
+`tests/kern/stempeluhr-rueckweg.test.ts` rendert den echten Baustein — vor
+der Änderung rot, danach grün, in allen vier Sprachen.
+
+**Nachtrag (Nachrunde zu V-275).** Befunde der ersten Runde, die zu D-769
+und damit zu diesem Teil gehören:
+
+1. **Serienliste und Vorschau zeigen nichts mehr aus der Adresse.** Vorher
+   stand `?angelegt=1&uebersprungen=<Text>` als „Übersprungen: <Text>" im
+   grünen Kasten; `?vorschau=1&wochentag=<Text>` ergab „„<Text>" ist kein
+   Wochentag (MO … SU).", `?gueltig_ab=<Text>` einen Satz mit Feldnamen des
+   Quelltexts und dem Text, und ein `?gueltig_ab=` aus Buchstaben warf in
+   `tagePlus` — `/turnus/neu` war eine Fehlerseite. Jetzt führt der
+   Generator seine Gründe als Liste (`GENERATOR_UEBERSPRUNGEN`, der Bericht
+   ist darüber getypt); die Liste schlägt `?uebersprungen=` in
+   `TURNUS_LISTE_TEXTE` nach, ein unbekanntes Wort ergibt „Der Generator hat
+   mindestens einen Termin übersprungen.", und `erzeugt` gilt nur als
+   Ziffernfolge (sonst meldet die Liste, dass die Zahl fehlt). Die Vorschau
+   zeigt zu `SerieEingabeFehlt` den Satz seines Grundes aus
+   `TURNUS_ANLAGE_TEXTE`, zu jedem anderen Fehler `vorschauSonst`; ihr
+   Fenster wird nur aus einem gültigen Kalendertag gerechnet, sonst ab
+   heute (die Vorschau weist die Angabe dann selbst ab). Beides steht in
+   `reinigung/turnus/rueckmeldung.ts` neben den Seiten; geprüft mit
+   präparierten Adressen durch die echten `turnusRegel` und `turnusVorschau`
+   (`tests/kern/rueckweg-turnus-adresse.test.ts`).
+2. **Aus einem Einwand bleiben Person und Einwand nach einer Abweisung.**
+   Vorher las `/zeiten/nacherfassung` `?anstellung=` und `?einwand=`
+   ungeprüft — ein Einwand ohne Kennungsform ging als verstecktes Feld mit,
+   und das Speichern endete in `$1::uuid` mit einem Serverfehler —, und das
+   `zurueck` des freien Formulars war nur `?frei=1`: nach einer Abweisung
+   stand die Auswahl wieder auf „Person wählen", und ein zweiter Versuch
+   legte den Eintrag an, ohne dass die Entscheidung des Einwands ihn nannte
+   (V-067). Jetzt gelten beide nur als Kennung (`istKennung`), und das
+   `zurueck` trägt genau diese weiter
+   (`?frei=1&anstellung=<Kennung>&einwand=<Kennung>`; die Route hängt nur
+   `&fehler=<grund>` an) — nie Freitext, keine Zeit, keine Begründung.
+   Vorbelegt wird nur eine Beschäftigung, die die Liste anbietet; eine
+   Auswahl mit fremder Vorgabe zeigt im Browser die erste Person im
+   Alphabet. Diese zwei Kennungen sind die einzige Kennung in einem
+   Rückweg dieses Teils: sie kamen aus der Adresse der Seite und gehen
+   geprüft dorthin zurück (`zeiten/nacherfassung/vorgaben.ts`; präparierte
+   Adressen und die echte Route in
+   `tests/kern/rueckweg-zeit-nacherfassung.test.ts`).
+3. **Der Bereich eines Erfolgs kommt aus der Sitzung, nicht aus
+   `zurueck`.** Veranstaltung, Revier, Bauprojekt und Nacherfassung lasen
+   ihn aus dem zweiten Wegstück von `zurueck`: ein Programm ohne `zurueck`
+   landete nach dem Speichern auf `/portal//security/veranstaltungen/<Kennung>`
+   (ebenso `/portal//reinigung/reviere/…`, `/portal//bau/projekte/…`,
+   `/portal//zeiten/…`), und ein `zurueck` aus einem anderen Bereich
+   bestimmte das Ziel. Jetzt lesen alle vier nach dem Tor und VOR dem
+   Schreiben den Slug des aktiven Mandanten (`select m.slug from mandant m
+   where m.id = app.aktiver_mandant()`, wie `api/kalkulation`); fehlt er,
+   ist nichts geschrieben (byte-gleiche 404). Was ein Programm bekam, bleibt,
+   wo es kein Fehler war: im Erfolg die Umleitung (303) auf dasselbe Blatt,
+   jetzt mit Bereich — kein JSON —, bei einer Abweisung `{ fehler, meldung }`
+   mit Status wie bisher. Ein Formular merkt es nur, wenn der Mandant
+   zwischen Seite und Absenden in einem anderen Fenster gewechselt wurde:
+   dann führt der Erfolg in den Bereich, in dem geschrieben wurde. Geprüft
+   in `tests/kern/rueckweg-{veranstaltung,revier,projekt,zeit-nacherfassung}.test.ts`
+   (Programm ohne `zurueck` je Aktion, fremder Bereich in `zurueck`, kein
+   Slug → 404 ohne Schreiben).
+4. **Auch Bewacherregister, Sonderleistung und Turnus nehmen den Bereich
+   aus der Sitzung** — Invariante 3: der aktive Mandant kommt aus der
+   Sitzung, nie aus Client-Zustand, und das gilt auch für den Slug einer
+   Umleitung. Vorher bauten die drei ihr Ziel UND ihren Rückweg aus dem
+   Formularfeld `mandant`: ohne das Feld ging es auf
+   `/portal//security/bewacherregister`, `/portal//reinigung/sonderleistungen`
+   bzw. `/portal//reinigung/turnus/…`, mit einem fremden Slug im Feld in
+   dessen Bereich — im Erfolg wie mit einer Abweisung (einen Unterschied
+   zwischen Programm und Formular machen diese Routen nicht: beide bekommen
+   die Umleitung). Jetzt lesen sie den Slug des aktiven Mandanten gleich
+   nach `authorize` und VOR dem Schreiben, wie Nr. 3; er gilt für den Erfolg
+   und für jede Abweisung danach — vorher antwortet nur das Tor, und das
+   ohne Ziel —, und fehlt er, ist nichts geschrieben (byte-gleiche 404).
+   Keine der drei Routen liest das Feld mehr, und die sieben Formulare, die
+   es an sie schickten (Bewacherregister 1, Sonderleistungen 4,
+   Turnusblatt 1, `/turnus/neu` 1), schicken es nicht mehr. Per grep
+   geprüft: die übrigen 90 Felder `mandant` in 62 Seiten gehen an andere
+   Routen (Dienstplan, Bau, Sicherheit, Freigaben, Vergabe, Personal …),
+   die es selbst lesen — nicht Teil dieser Entscheidung. Geprüft in
+   `tests/kern/rueckweg-{bewacherregister,sonderleistung,turnus}.test.ts`
+   (ohne Feld: Erfolg und Abweisung im aktiven Bereich; ein fremder Slug im
+   Feld ändert kein Ziel; der Bereich folgt dem aktiven Mandanten; kein Slug
+   → 404 ohne Schreiben; Seiten und Route ohne das Feld) und in
+   `tests/kern/leistungsanker-rueckweg.test.ts` (der abgewiesene Anker geht
+   ohne Feld in die Vorschau des aktiven Bereichs).
+
+**Nachsatz (Review).** (a) Die Vorschau auf `/turnus/neu` warf weiter bei einem gültigen „Gültig ab“ ab 9999-12-04: das Fenster endete jenseits von 9999-12-31. `vorschauFenster` nimmt einen solchen Beginn wie einen ungültigen (das Fenster beginnt heute). (b) Die zwei Kästen der Ansprüche auf der Nacherfassung sind jetzt der Hinweis-Baustein (erfolg/status, warnung/alert) statt eines Nachbaus aus Klassen (DESIGN „Notices“). Geprüft in `tests/kern/rueckweg-turnus-adresse.test.ts` und `tests/kern/rueckweg-zeit-nacherfassung.test.ts`.
+
+| Betrifft | D-769, D-753, D-728, D-741, D-766, D-599, AUT-06, V-192, V-275, `src/app/api/{security/veranstaltungen,security/bewacherregister,reinigung/reviere,reinigung/sonderleistungen,reinigung/turnus,bau/projekte,zeit/nacherfassung,zeit/laufend}/route.ts`, `src/app/portal/[mandant]/{security/veranstaltungen/neu,security/bewacherregister,reinigung/reviere/neu,reinigung/sonderleistungen,reinigung/turnus,reinigung/turnus/[id],reinigung/turnus/neu,bau/projekte/neu,zeiten/nacherfassung,zeiten/live}/page.tsx`, `src/app/portal/[mandant]/reinigung/turnus/rueckmeldung.ts`, `src/app/portal/[mandant]/zeiten/nacherfassung/vorgaben.ts`, `src/app/portal/mein/bausteine.tsx`, `src/server/services/{security/veranstaltung-anlegen,security/bewacherregister,reinigung/revier,reinigung/sonderleistung,reinigung/turnus,dienstplan/serie,dienstplan/generator,bau/projekt,zeit/nacherfassung,zeit/laufender-eintrag}.ts`, `src/lib/i18n/verwaltung/{security,reinigung,bau,zeit}.ts`, `tests/kern/rueckweg-*.test.ts`, `tests/kern/stempeluhr-rueckweg.test.ts`, `tests/kern/hilfen/rueckweg-betrieb.ts`, `tests/kern/leistungsanker-rueckweg.test.ts` |
+### D-774 · Die Verwaltung schickt Schlüssel zurück: Konto, Einladung, Ablage, Aufbewahrung, Periodenschloss, Eingangsrechnung, Freigabe (V-276, Teil „verwaltung" von D-769)
+
+**Der Befund** (Teil C2 der Gruppe „rueckweg-schluessel"). Sieben Routen der
+Verwaltung schickten den Satz eines Dienstes, einer Datenbankfunktion oder
+eine eigene feste Zeile per `?meldung=` zurück auf ihre Seite, und die Seite
+zeigte ihn roh. Die Entscheidung ist D-769; hier steht, was dieser Teil
+daraus konkret gemacht hat.
+
+1. **Konto → Sicherheit** (`POST /api/konto/sitzung`,
+   `/portal/konto/sicherheit`). `SitzungFehler` trägt einen getypten Grund
+   (`diese_sitzung`, `nicht_gefunden`); die Route schickt ihn über
+   `grundAufsFormular` als `?fehler=`. Die Seite folgt der Sprache des KONTOS
+   in allen vier Portalsprachen (de, en, ar, tr — eine Reinigungskraft mit
+   arabischer Portalsprache beendet hier ihre Anmeldungen), deshalb stehen
+   die Sätze in `SICHERHEIT_TEXTE` (`nichtBeendet`, `fehler`,
+   `fehlerSonst`) und nicht zweisprachig unter `lib/i18n/verwaltung`. Ein
+   leeres `zurueck` führt auf die Sicherheitsseite statt in einen 500.
+   Warnkasten `rolle="alert"`, Bestätigung `rolle="status"`.
+2. **Verwaltungskonto einladen** (`POST /api/system/verwaltungskonto`,
+   `…/einstellungen/benutzer/einladen`). Der ERFOLG reist getrennt als
+   `?erfolg=eingeladen` (vorher `?meldung=eingeladen`, derselbe Parameter wie
+   jeder Fehler — ohne den Keks stand „eingeladen" im Warnkasten), eine
+   Abweisung als `?fehler=<grund>`.
+   - **Die Sätze der Datenbank werden Schlüssel.** `app.verwaltungskonto_einladen`
+     (0372) gibt bei einer Abweisung einen deutschen Satz zurück; der Dienst
+     bildet die sechs bekannten Sätze Wort für Wort ab (`einladungsGrund`:
+     `gesellschaft_fehlt`, `email_ungueltig`, `name_fehlt`, `rolle_unzulaessig`,
+     `kundenkonto`, `schon_eingetragen`), jeder andere Satz und eine fehlende
+     Zeile werden `nicht_ausgestellt` — nie der Text. Die Migration bleibt,
+     wie sie ist: ein Umbau der Funktion auf Schlüssel wäre eine neue
+     Migration in fünf parallel arbeitenden Zweigen; die Abbildung an EINER
+     Stelle, gegen die echte Funktion geprüft, leistet dasselbe.
+   - **`42501` wird `nicht_erlaubt`** (`EinladungFehler`, 403), wie bei den
+     Kontohandlungen (`konto/verwaltung.ts`): die Definer-Funktion nennt im
+     Satz, WELCHE Bedingung fehlte; nach der Rechteprüfung der Route bekommt
+     der Schirm einen Satz ohne diese Auskunft (AUT-06). Der Satz der
+     Datenbank bleibt als `cause` am Fehler. Jeder andere Fehler bleibt ein
+     Fehler — vorher wurde der rohe Text JEDES einzeiligen Fehlers eine
+     Abweisung, auch ein Verbindungsabbruch.
+   - **Anmeldung und Recht zuerst.** Dieselbe Weiche fing den Wurf von
+     `authorize` ab: ein fehlendes Recht wurde `?meldung=Nicht gefunden` statt
+     der byte-gleichen 404 (AUT-06), ein fehlender zweiter Faktor ein Satz
+     statt des Faktor-Schritts (D-766). `autorisierungsAntwort` läuft jetzt
+     vor jeder anderen Weiche.
+   - `EinladungFehler.grund` und `EinladungErgebnis.grund` sind getypt; die
+     Route weist sie dem Typ der Satztabelle zu — ein neuer Grund ohne Satz
+     bricht die Übersetzung. Die eigene Rollenprüfung der Route schickt
+     `rolle_unzulaessig` (vorher ein Satz mit Backticks).
+   - Eine Abweisung löscht den Keks eines früheren Versuchs: sonst stünde
+     dessen Link neben dem Satz, dass diesmal nichts ausgestellt wurde. Der
+     Warnkasten steht deshalb auch nicht mehr nur „ohne Link-Keks". Gelöscht
+     wird mit dem Pfad, unter dem der Keks gesetzt ist: `delete(name)` allein
+     schrieb einen Löschkeks ohne `Path`, den der Browser unter den Pfad der
+     Route legte — der Keks unter dem Pfad der Seite blieb stehen, auch beim
+     bisherigen Löschen nach einer Abweisung der Datenbank.
+   - Ist der Keks abgelaufen und `?erfolg=eingeladen` noch da, sagt ein
+     Erfolgskasten, dass der Link nur unmittelbar danach erscheint. Ein
+     UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten: ein allgemeiner
+     Erfolgssatz behauptete einen Erfolg, den es nicht gab.
+   - `tests/isolation/verwaltungskonto-einladung.test.ts` BEWUSST angepasst:
+     wo er den Satz der Datenbank prüfte (`/schon/`, `/admin.*leitung/`, der
+     Wurf mit `privilege`), prüft er jetzt den Schlüssel — und den Satz der
+     Absage weiter, am `cause`. Dazu: jeder Grund der Abweisungen, die er
+     schon auslöste, und neu `gesellschaft_fehlt` und `kundenkonto` — damit
+     ist jeder der sechs Sätze gegen die echte Funktion geprüft.
+3. **Ablegen** (`POST /api/dokumente/upload`, `…/dokumente/upload`).
+   - **Anmeldung und Recht gehen durch.** Der Fangzweig ersetzte, was
+     `alsAntwort` lieferte, für ein Formular durch
+     `?fehler=eingabe&meldung=<message>` — auch die Umleitung auf die
+     Anmeldung oder den Faktor-Schritt (D-766) und die byte-gleiche 404 eines
+     fehlenden Rechts (AUT-06): „Nichts abgelegt. Nicht gefunden".
+     `autorisierungsAntwort` läuft jetzt zuerst, mit den gelesenen Feldern.
+   - **Jede Fehlerklasse der Ablage trägt ihren Grund.** `AblageFehler`
+     bekommt einen getypten (`titel_fehlt`, `titel_zu_lang`,
+     `kategorie_unbekannt`, `beschreibung_zu_lang`, `kunde_unbekannt`,
+     `objekt_unbekannt`, `auftrag_unbekannt`, `datei_leer`,
+     `datei_zu_gross`); `BezugUnbekannt` trägt `<bezug>_unbekannt` — eine
+     Kennung, die schon an der Form scheitert, und eine, die die Sitzung nicht
+     sieht, sind für den Menschen, der aus der Liste gewählt hat, derselbe
+     Fall. `MimeFehler` reist als `datei_<grund>` (wie beim Blatt der Fassung,
+     `fassungGrund`), `ExifFehler` als `datei_metadaten`, der fehlende
+     Speicher als `speicher`. Ein Dienstfehler ohne eigenen Grund reist mit
+     seinem `code`; die Seite hat dafür ihren allgemeinen Satz.
+   - **Ein Programm ohne `zurueck`** bekommt, was es bekam: ein Dienstfehler
+     ist JSON mit Status (D-599), Speicher und Datei führen ins Portal — jetzt
+     mit dem Grund und ohne Satz.
+   - Die Seite steht auf der Ausnahmeliste der Übersetzungswache: ihre Tabelle
+     ist deutsch, in der Form der zweisprachigen (`UPLOAD_RUECKWEG_TEXTE` in
+     `lib/i18n/verwaltung/dokument-rueckweg.ts`, `{ de: … }`); die Sätze der
+     Prüfkette nimmt sie vom Blatt der Fassung (eine Quelle, D-759). Sie
+     ersetzt `FEHLER_TEXT` im Seitenrumpf; `datei` und `eingabe` schickt keine
+     Route mehr. Warnkasten `rolle="alert"`.
+   - `tests/kern/dokument-ablage-rueckweg.test.ts` BEWUSST angepasst: er las
+     die Tabelle am Quelltext der Seite; sie steht jetzt unter `lib/i18n`, und
+     geprüft wird dort — dazu, dass der Satz derselbe Wert wie auf dem Blatt
+     ist und die Seite ihn nachschlägt.
+4. **Aufbewahrungsregeln** (`POST /api/dokumente/aufbewahrung`,
+   `…/dokumente/aufbewahrung`). `AufbewahrungFehler` trug seinen Grund
+   schon; die Route schickt jetzt NUR ihn (`?fehler=<grund>`), auch für ihre
+   eigene Prüfung der Frist (`jahre`). Der Satz des Dienstes reiste mit —
+   samt der Kategorie, wie das Formular sie schickte, und der Mindestfrist.
+   Die Sätze der Seite kommen ohne diese Werte aus: die Mindestfrist steht in
+   der Zeile jeder Kategorie („Gesetzliche Untergrenze"), der Satz zeigt
+   dorthin (D-769 Nr. 5). `autorisierungsAntwort` läuft vor der Weiche der
+   Fachklasse (vorher `anmeldungsAntwort` und eine eigene 404 danach —
+   byte-gleich, jetzt an einer Stelle). Tabelle deutsch
+   (`AUFBEWAHRUNG_RUECKWEG_TEXTE`, Ausnahmeliste), Warnkasten
+   `rolle="alert"`, der Erfolgskasten (`?gesetzt=`, schon ein Schlüssel)
+   `rolle="status"`.
+5. **Periodenschloss** (`POST /api/buchhaltung/perioden`,
+   `…/buchhaltung/perioden`).
+   - **Der Erfolg ist ein Schlüssel**: `?erfolg=<zustand>`
+     (`vorlaeufig_geschlossen`, `geschlossen`, `geoeffnet` — der Zustand, in
+     dem der Monat nach der Handlung steht). Vorher reiste der Satz „Monat
+     MM/JJJJ … ." als `?meldung=` und `?geschlossen=MM/JJJJ` als Auslöser.
+   - **Der Monat reist als geprüfter Wert** (`?monat=JJJJ-MM`, gebildet aus
+     den schon geprüften Feldern, nur für 1–12). Die Seite nennt ihn nur, wenn
+     er einer IHRER Monate ist — mit dessen eigenem Namen („März 2026");
+     sonst steht „Monat" bzw. gar nichts. Ein Wert aus der Adresse erscheint
+     so nie als solcher.
+   - Eine Abweisung reist als `?fehler=<grund>` — die sechs Gründe von
+     `PeriodenschlussFehler` und `datenbank` für die Abweisung der Datenbank
+     (23001), deren Meldung Monat und Anzahl nannte. Der Satz zu `recht`
+     nennt das Recht in Worten („wer Buchungen festschreiben darf"), nicht
+     als Schlüssel (D-741).
+   - Ein UNBEKANNTER Erfolgsschlüssel zeigt keinen Kasten (wie Nr. 2).
+   - `autorisierungsAntwort` läuft vor den Weichen der Fachklasse und der
+     Datenbank. Tabelle deutsch (`PERIODEN_RUECKWEG_TEXTE`, Ausnahmeliste),
+     `rolle="alert"`/`rolle="status"`.
+   - `tests/e2e/buchhaltung.spec.ts` BEWUSST angepasst: er erwartete
+     `?geschlossen=` in der Adresse; jetzt `?erfolg=vorlaeufig_geschlossen`.
+     Die Wörter im Kasten („vorläufig geschlossen", „wieder geöffnet",
+     „geschlossen", „ohne Konto") bleiben und sind im Kern-Test festgehalten.
+     Nicht lokal gelaufen.
+6. **Eingangsrechnung erfassen** (`POST /api/finanzen/eingangsrechnungen`,
+   `…/finanzen/eingangsrechnungen/neu`). Neun Stellen schickten neben dem
+   Schlüssel einen Satz als `?meldung=`; `/neu` zeigte `meldung ?? fehler` —
+   den deutschen Satz auch einer englischen Sitzung, ohne ihn den rohen
+   Schlüssel. Jetzt reist nur der Grund, und `/neu` schlägt ihn zweisprachig
+   nach (`erfassenFehler`, `ERFASSEN_FEHLER_GRUENDE`).
+   - `ERechnungFehler` reist als `erechnung_<grund>`, `VorschlagFehler` als
+     `vorschlag_<grund>` (vorher beide mit ihrem Satz, der eine mit der
+     Wurzel der hochgeladenen Datei darin). Das Präfix trennt sie von den
+     gleichnamigen Gründen der Route (`unvollstaendig`).
+   - Eine fehlende Datei im E-Rechnungs-Formular heisst jetzt
+     `erechnung_fehlt` (vorher `ohne_beleg` wie im Erfassungsformular, mit
+     einem anderen Satz — ein Schlüssel, zwei Bedeutungen).
+   - Die Dublette reist ohne die Warnung des Dienstes: sie wiederholte die
+     getippte Rechnungsnummer. Der Satz sagt, dass die Rechnung für dieses
+     Jahr schon vorliegt und wo sie steht (D-769 Nr. 5).
+   - Der Warnkasten ist `Hinweis` mit `rolle="alert"` statt eines nachgebauten
+     `<p>` (DESIGN §5 „Notices"), `data-cse="eingang-hinweis"` bleibt; die
+     Wörter, die die Browserprüfungen suchen („Ohne Dokument", „nicht
+     verbunden", „NICHTS gespeichert"), bleiben und sind im Kern-Test
+     festgehalten.
+   - JSON bleibt JSON: `EingangsrechnungFehler` und `FreigabeFehler` der
+     Zustandswechsel antworten weiter `{ fehler, meldung }` mit Status.
+   - **Der Zahlungsausgang** (`POST /api/finanzen/zahlungen`, aktion
+     `ausgang`, → `…/eingangsrechnungen/[id]`; nachgetragen auf Bitte der
+     Koordination). Sein Erfolg war schon ein Schlüssel (`ausgang_erfasst`,
+     `ausgang_guthaben`), reiste aber als `?meldung=`, und das Blatt las den
+     Suchparameter `meldung`. Jetzt `?erfolg=<schluessel>`, das Blatt liest
+     `erfolg` — so braucht die Wache über den Baum keine Ausnahme für einen
+     `meldung`-Parameter, der ausnahmsweise ein Schlüssel ist. Kein Kern- oder
+     Browsertest erwartete `meldung=ausgang_…`.
+7. **Freigabe entscheiden** (`POST /api/freigaben/[id]/entscheidung`,
+   `…/freigaben/[id]`). `AusfuehrungAbgewiesen` trug einen Grund, geschickt
+   wurde aber `?fehler=ausfuehrung&meldung=<Satz>`, und das Blatt zeigte den
+   Satz roh. Jetzt `?fehler=ausfuehrung_<grund>`; der Grund ist getypt
+   (`AusfuehrungGrund` = der Grund von `VorschlagFehler`, des einzigen
+   Ausführers), die Sätze stehen deutsch in `AUSFUEHRUNG_RUECKWEG_TEXTE`
+   (Ausnahmeliste) und sagen, dass die Entscheidung mit zurückgerollt ist.
+   Das Blatt schlägt zuerst die Gründe der Entscheidung (`FEHLER_TEXT`), dann
+   die der Ausführung nach; ein unbekannter Grund wird „Die Entscheidung
+   wurde abgewiesen.". Sein Kasten ist der eigene `Kasten` des Blatts; er
+   bekommt `rolle` wie `Hinweis`, die Abweisung `rolle="alert"`. JSON bleibt
+   `{ fehler: 'ausfuehrung', grund, meldung }` mit 409.
+
+**Was alle sieben Teile gemeinsam haben.** Jede Route schickt nur noch
+Schlüssel; jede Seite schlägt sie mit `eigenerEintrag` in einer Tabelle unter
+`lib/i18n` nach (de/en, wo die Seite der Sitzung folgt; de/en/ar/tr auf der
+Sicherheitsseite, die dem Konto folgt; sonst deutsch in derselben Form); ein
+unbekannter Grund ergibt den allgemeinen Satz der Seite, ein unbekannter
+Erfolgsschlüssel keinen Kasten. Wo die Route ein Recht prüft, läuft
+`autorisierungsAntwort` vor jeder anderen Weiche. Programme bekommen JSON wie
+bisher. Kein Satz nennt eine Kennung oder eine Eingabe des Menschen; wo eine
+Meldung einen Wert trug, nennt die Seite ihn aus eigenen Daten (Monat) oder
+kommt ohne ihn aus (Kategorie, Frist, Rechnungsnummer, Belegnummer).
+`fehlerAufsFormular` und die Wache `adressparameter` bleiben, wie sie sind —
+beides gehört zum Schritt, der die fünf Teile zusammenführt (D-769).
+
+**Geprüft.** Je Route ein Kern-Test der echten Route
+(`tests/kern/{konto-sitzung,verwaltungskonto,dokument-upload,dokument-aufbewahrung,perioden,eingangsrechnung,zahlungsausgang,freigabe-entscheidung}-rueckweg.test.ts`):
+jeder Grund jeder Fehlerklasse → 303 auf die Seite mit `?fehler=<grund>`,
+ohne `meldung=` und ohne Kennung; der Erfolg als Schlüssel; JSON wie bisher;
+fehlendes Recht → byte-gleiche 404; die Tabelle in jeder Sprache der Seite,
+ohne Prototyp-Treffer; am Quelltext, dass die Seite `meldung` nicht liest und
+auf den allgemeinen Satz zurückfällt. Isolation (je Datei, die einen
+geänderten Dienst importiert): `eigene-sitzungen`,
+`verwaltungskonto-einladung`, `dokument-ablage`, `auftrag-akte`,
+`dokument-fassung`, `dokument-loeschen`, `eingang-vorschlag`. Bewusst
+angepasst: `tests/isolation/verwaltungskonto-einladung.test.ts`,
+`tests/kern/dokument-ablage-rueckweg.test.ts`, `tests/e2e/buchhaltung.spec.ts`
+(nicht lokal gelaufen). Keine offene Frage an den Mandanten: keine
+Geschäftsregel war zu entscheiden. (Die Nachrunde öffnet zwei — O-980 und
+O-981, N5.)
+
+**Nachrunde** (die Nebenbefunde aus V-276, auf Bitte der Koordination).
+
+N1. **Ein Hinweis aus der Adresse nur als eigener Eintrag** (drei Bildschirme des Ausgangs-Gates: `agenten/richtlinien`, `agenten/richtlinien/[id]`, `einstellungen/agent-richtlinien`). Sie schlugen `HINWEIS_TEXT[suche['hinweis']]` nach; `?hinweis=__proto__` fand `Object.prototype`, `?hinweis=constructor` eine Funktion, der Rückfall griff nicht, und React warf beim Zeigen — ein getippter Link brachte die Seite zum Absturz (D-728; die Wache `nachschlagen.test.ts` sucht nur `[fehler]` und `[grund]`). Alle drei nehmen jetzt `richtlinienHinweis()` (`agenten/richtlinien/hinweis.ts`, `eigenerEintrag`); ein unbekannter Name zeigt nichts, wie bisher. Die Koordination nannte zwei Seiten; die dritte (Einstellungen) hatte denselben Ausdruck. Dazu die Route `POST /api/einstellungen/agent-richtlinien`: das Formularfeld `ziel` ging roh in `ZIELE` — `ziel=__proto__` wurde „bauer is not a function", ein 500; jetzt `eigenerEintrag(ZIELE, ziel)` mit dem bisherigen Rückfall auf die Einstellungen.
+
+N2. **Die Prüfkette der Datei beim Erfassen einer Eingangsrechnung.** `ladeHoch` wirft `MimeFehler` und `ExifFehler` ohne Status; `POST /api/finanzen/eingangsrechnungen` kannte beide nicht, sie fielen durch die Übersetzung und endeten als 500 — beim verschlüsselten PDF eines Lieferanten ebenso wie bei einer Datei, deren Inhalt nicht zum angegebenen Typ passt, und auf beiden Wegen der Seite (Beleg der Erfassung, E-Rechnung über `legeERechnungAb`). Jetzt wie bei der Ablage: `datei_<grund>` bzw. `datei_metadaten` zurück auf `/neu`; die Sätze in de und en sind dieselben wie auf dem Fassungsblatt und bei der Ablage (eine Quelle, `DOKUMENT_BLATT_TEXTE.*.faFehler`). Geschrieben wird in keinem Fall etwas: die Kette prüft, bevor der Speicher etwas bekommt. `datei_leer` steht in der Liste, weil der Typ es verlangt; erreichbar ist es nicht — eine leere Datei ohne gewählten Beleg ist schon `ohne_beleg`, auf dem E-Rechnungs-Weg `erechnung_fehlt`. Prüfung: `tests/kern/eingangsrechnung-datei.test.ts` (echte Route, echtes `ladeHoch`, echte Prüfkette: verschlüsseltes PDF → `datei_metadaten`, nichts abgelegt, nichts erfasst; Programm → `datei_unbekannt`; ZIP → `datei_nicht_erlaubt`; PDF, das sich als PNG ausgibt → `datei_widerspruch`; E-Rechnungs-Weg mit echtem `legeERechnungAb`, XML als PDF → `datei_widerspruch`; Gegenprobe: ein unverschlüsseltes PDF läuft durch und wird abgelegt; Sätze de/en aus der einen Quelle).
+
+N3. **Die Abweisung des Dienstes beim Erfassen kommt als Grund zurück, nicht als JSON.** `EingangsrechnungFehler` endete auch für die zwei Formulare auf `/neu` als `{"fehler":…,"meldung":…}` mit Status 409 — eine weisse Seite, die Eingabe weg. Beim Erfassen wirft der Dienst genau zwei Gründe: `abgewiesen` (`legeBelegAn`, auch unter `legeERechnungAb`, und `erfasseEingangsrechnung`) und `unvollstaendig` (`setzeSteuerzeile`: eine Steuersatzgruppe, die es nicht gibt). Ein Browserformular von `/neu` (`istBrowserFormular`: Formularrumpf und `Accept: text/html` — dasselbe Kriterium wie auf den Fehlerwegen, D-766) bekommt jetzt `rechnung_abgewiesen` bzw. `rechnung_unvollstaendig`, mit einem Satz in de und en; ein Programm bekommt weiter JSON mit Status und dem Satz des Dienstes (D-599). Die übrigen drei Gründe (`nicht_gefunden`, `dublette`, `vier_augen`) wirft nur ein Zustandswechsel des Blatts; die Tabelle der Route führt sie ausdrücklich als „bleibt JSON", und ein neuer Grund des Dienstes bricht die Übersetzung, bis jemand entschieden hat. Die Datei, die vor der Abweisung schon im Speicher lag, wird wie bisher wieder entfernt. Nicht Teil dieses Punkts und unverändert: die Zustandswechsel des Blatts `/[id]` antworten auch einem Browser mit JSON. Prüfung: `tests/kern/eingangsrechnung-rueckweg.test.ts` (echte Route, echte Dienste: Beleg abgewiesen → `rechnung_abgewiesen` und die Datei entfernt; unbekannte Steuersatzgruppe → `rechnung_unvollstaendig`, ohne den Schlüssel in der Adresse; E-Rechnungs-Weg → `rechnung_abgewiesen`; ein Programm → JSON 409 mit Satz, die Datei ebenso entfernt; beide Gründe in der Liste — die Sätze de/en prüft der bestehende Tabellentest mit).
+
+N4. **Das Periodenschloss kehrt auf das Wirtschaftsjahr zurück, aus dem das Formular kam.** Das Formular schickte nur das Kalenderjahr des Monats (`jahr` — das braucht der Dienst), und die Route kehrte auf `?jahr=<Kalenderjahr>` zurück. Die Seite zählt aber nach Wirtschaftsjahren (`?jahr=` ist das Jahr, in dem eines beginnt): beginnt es im Juli, liegt März 2026 im Wirtschaftsjahr 2025/2026, und nach dem Schliessen stand die Seite in 2026/2027 — ohne den Monat, den sie hätte nennen sollen. Jetzt schickt das Formular `wirtschaftsjahr`, das Jahr der Seite (`z.jahr`); die Route prüft es wie den Monat: die Form am Eingang (vier Ziffern, sonst 400 wie ein falscher Monat), den Inhalt beim Mitreisen — ein Wirtschaftsjahr aus zwölf Monaten, das einen Monat des Kalenderjahrs J enthält, beginnt in J oder in J − 1 (so rechnet `wirtschaftsjahrZeitraum`); ein anderes Jahr reist nicht mit. Ohne das Feld kehrt die Route wie bisher auf das Kalenderjahr zurück. Die Tabelle lässt jeden Beginn zu (`datev_konfiguration.wj_beginn_monat` 1 bis 12, 0126); der Seed setzt keinen abweichenden, der Browserlauf (`tests/e2e/buchhaltung.spec.ts`) sieht deshalb dieselben Adressen wie vorher. Prüfung: `tests/kern/perioden-rueckweg.test.ts` (echte Route, ein Wirtschaftsjahr mit Beginn im Juli und das echte Monatsraster der Seite, `monateDesWirtschaftsjahrs`: März 2026 → `?jahr=2025`, und dort steht der Monat — unter dem alten `?jahr=2026` nicht; der Dienst bekommt weiter den Kalendermonat; eine Abweisung ebenso; ein Kalenderjahr-Wirtschaftsjahr kehrt auf sich zurück; eine falsche Form → 400, nichts geschlossen; ein Jahr, das den Monat nicht enthalten kann, reist nicht mit; ohne das Feld wie bisher; die Seite schickt `z.jahr`).
+
+N5. **Der Satz zum Einladungslink sagt, was wirklich geht.** `linkEinmal` versprach „wenn Sie ihn verlieren, stellen Sie einen neuen aus — der alte verfällt dabei"; eine zweite Einladung derselben Adresse ergibt aber `schon_eingetragen` (0372: die Mitgliedschaft entsteht mit der Einladung, und eine bestehende weist die Datenbank ab). Geprüft, ob es einen echten Weg gibt — Dienst (`verwaltungskonto.ts` kennt nur `ladeVerwaltungskontoEin`), Route (nur das Einladen), Knopf (das Benutzerblatt hat Entsperren, Entziehen, Wiedergeben, Sitzungen widerrufen): keiner stellt für eine offene Einladung einen neuen Link aus; „Kennwort vergessen" legt einen Link an, schickt ihn aber nur über den Versand, der nicht verbunden ist (O-501); den Weg hat nur der Kundenzugang (`app.kundenzugang_neu_einladen`, 0249). Ob und für wen es ihn beim Verwaltungskonto geben soll (wer darf — D-610; gilt er nach Ablauf der Frist), ist eine Entscheidung: **O-980**, mit Platzhaltersatz und `TODO(client, O-980)`. Der Satz sagt jetzt: gespeichert ist nur die Prüfsumme, einen neuen Link für eine offene Einladung stellt das Portal noch nicht aus, eine zweite Einladung wird abgewiesen, wie ein verlorener Link ersetzt wird, ist offen (O-980). `schon_eingetragen` riet dazu „Ändern Sie seine Rolle, statt es erneut einzuladen" — auch dafür gibt es keinen Weg (nichts ändert `benutzer_mandant.rolle_id`); der Satz sagt jetzt, dass eine zweite Einladung nichts anlegt und keinen Link ausstellt, und nennt beide offenen Fragen — **O-981** für die Rolle, mit `TODO(client, O-981)`. Kein neuer Ablauf, keine Regel. Nebenbefund, nicht angefasst (nicht Teil der Verwaltung): `/auth/passwort-vergessen` sagt bei nicht verbundenem Versand „Ihre Verwaltung kann das Kennwort im Portal zurücksetzen (Einstellungen → Benutzer)" — das Benutzerblatt hat keinen solchen Knopf. Prüfung: `tests/kern/verwaltungskonto-rueckweg.test.ts` (de/en: kein Versprechen eines neuen Links und keiner Rollenänderung, beide Fragen genannt; der Satz bleibt wahr — 0372 weist eine zweite Einladung ab, kein Dienst und keine Route stellt neu aus; O-980 und O-981 stehen im Abschnitt „Open", ihr TODO an dem Satz, den die Antwort ändert).
+
+N6. **Nachgebaute Hinweise werden der Baustein** (DESIGN §5 „Notices"). `freigaben/[id]` trug einen eigenen `Kasten` aus den Klassen von `components/ui/Hinweis.tsx` (neun Stellen), `eingangsrechnungen/neu` zwei `<p>` mit denselben Klassen („kein Lieferant" und die Vorbelegung aus einem Vorschlag). Jetzt überall `Hinweis`: die Art wie bisher (hinweis, warnung, erfolg; kein danger), dieselben `data-cse`-Anker, derselbe Abstand (`mb-s6` bzw. `mb-s5 max-w-prose`), `rolle` beim Ausgang eines abgeschickten Formulars — `status` für „Vorschlag angelegt" (nach dem E-Rechnungs-Formular), „Freigegeben"/„Abgelehnt" und „Einspruch vermerkt"/„Zurückgenommen", `alert` für die abgewiesene Entscheidung (wie bisher); die Hinweise auf einen Stand (E-Rechnungs-Wege, übernommen, Bild fehlt, kein Rückgängig, Freigeben gesperrt, kein Lieferant, Vorbelegung) tragen keine. „Kein Lieferant" setzt die ersten Worte fett, wie §5 verlangt: der Satz steht jetzt in zwei Stücken (`keinLieferantAngelegt`, `keinLieferantFolge`), der Wortlaut ist derselbe; der Hinweis bekommt den Anker `kein-lieferant`. Die Vorbelegung wechselt dabei von `p-s4` und gedämpfter Schrift auf die Maße des Bausteins. Grep über die Prüfungen: `tests/kern/freigabe-entscheidung-rueckweg.test.ts` erwartete `<Kasten … cse="entscheidung-abgewiesen"` — bewusst auf `<Hinweis …` umgestellt; die Browserprüfungen (`freigaben.spec.ts`, `erechnung.spec.ts`, `eingangsrechnung.spec.ts`) suchen nur die `data-cse`-Anker und Text, beides unverändert (nicht lokal gelaufen); keine erwartet eine ARIA-Rolle. `freigabe-bild-fehlt` bleibt ohne fetten Anfang: sein Satz kommt in einem Stück aus `SOCIAL_BILD_TEXTE` (Social, nicht Teil dieses Punkts). Prüfung: `tests/kern/freigabe-entscheidung-rueckweg.test.ts` (alle neun Hinweise des Blatts mit Art und Rolle; kein `Kasten`, keine Klassen des Bausteins, kein danger), `tests/kern/eingangsrechnung-rueckweg.test.ts` (`/neu` baut keinen Hinweis mehr nach; beide als `Hinweis`; der fette Anfang).
+
+N7. **`AblageFehler` reist auf dem Fassungsblatt mit seinem Grund, wo das Blatt einen Satz dafür hat.** `fassungGrund` bildete JEDEN `AblageFehler` auf `datei_zu_gross` ab — richtig für den einen, den `legeFassungAn` heute wirft (grösser als die Grenze), falsch für jeden anderen: `datei_leer` hätte „Die Datei ist zu groß." gezeigt. Jetzt reist `fehler.grund`, wenn das Fassungsblatt einen eigenen Satz dafür hat (nachgeschlagen als eigener Eintrag in `DOKUMENT_BLATT_TEXTE.de.faFehler`: `datei_leer`, `datei_zu_gross`); die Gründe der Ablagefelder (Titel, Kategorie, Beschreibung, Bezug) haben dort keinen und bleiben beim bisherigen Rückfall. `fassungGrund` gibt jetzt den Typ der Satztabelle zurück (`FassungAbweisungText`) statt `string`: ein Grund ohne Satz bricht die Übersetzung. Prüfung: `tests/kern/dokument-fassung.test.ts` (grün wie bisher; dazu: beide Gründe mit Satz reisen als sie selbst, mit einem Satz in de und en; die sieben ohne Satz werden `datei_zu_gross`).
+
+| Betrifft | D-769, D-599, D-610, D-728, D-753, D-766, AUT-06, V-276, O-980, O-981, `src/app/api/konto/sitzung/route.ts`, `src/server/services/konto/sitzungen.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/app/api/system/verwaltungskonto/route.ts`, `src/server/services/system/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/einladen/page.tsx`, `src/app/api/dokumente/upload/route.ts`, `src/server/services/dokument/ablage.ts`, `src/lib/i18n/verwaltung/dokument-rueckweg.ts`, `src/app/portal/[mandant]/dokumente/upload/page.tsx`, `src/app/api/dokumente/aufbewahrung/route.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `src/app/api/buchhaltung/perioden/route.ts`, `src/lib/i18n/verwaltung/buchhaltung-perioden.ts`, `src/app/portal/[mandant]/buchhaltung/perioden/page.tsx`, `tests/e2e/buchhaltung.spec.ts`, `src/app/api/finanzen/eingangsrechnungen/route.ts`, `src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/neu/page.tsx`, `src/app/api/finanzen/zahlungen/route.ts`, `src/app/portal/[mandant]/finanzen/eingangsrechnungen/[id]/page.tsx`, `src/app/api/freigaben/[id]/entscheidung/route.ts`, `src/server/services/freigabe/ausfuehrung.ts`, `src/lib/i18n/verwaltung/freigabe-ausfuehrung.ts`, `src/app/portal/[mandant]/freigaben/[id]/page.tsx`, `src/app/portal/[mandant]/agenten/richtlinien/{hinweis.ts,page.tsx,[id]/page.tsx}`, `src/app/portal/[mandant]/einstellungen/agent-richtlinien/page.tsx`, `src/app/api/einstellungen/agent-richtlinien/route.ts`, `tests/kern/richtlinien-hinweis.test.ts`, `tests/kern/eingangsrechnung-datei.test.ts`, `src/app/api/dokumente/[id]/version/grund.ts`, `tests/kern/dokument-fassung.test.ts`, `tests/kern/{konto-sitzung,verwaltungskonto,freigabe-entscheidung,zahlungsausgang,eingangsrechnung,perioden,dokument-aufbewahrung,dokument-upload,dokument-ablage}-rueckweg.test.ts`, `tests/isolation/verwaltungskonto-einladung.test.ts` |
+### D-770 · Die Website schickt eine Abweisung als Schlüssel zurück — Angebotsformular, Datenschutzanfrage und Barriere-Meldung schlagen ihren Satz selbst nach (V-272, Teil „öffentlich" von D-769)
+
+**Der Befund** (D-769, am Code gegengeprüft). Drei öffentliche Routen
+schrieben einen Satz in die Adresse, und sechs Seiten — je deutsch und
+englisch — zeigten ihn im `role="alert"`-Kasten:
+
+- `POST /api/anfrage` schickte `/angebot/<bereich>?meldung=<Sammelsatz>&felder=<JSON>`;
+  das JSON trug die Feldmeldungen, und die Seite setzte jede unter „ihr" Feld
+  (geprüft wurde nur die Form: ein Objekt aus Zeichenketten bis 300 Zeichen).
+  Ein präparierter Link schrieb also einen Warnkasten UND Text unter jedes
+  Feld des Formulars, an dem Umsatz ankommt. Die Meldung eines Dateifelds
+  (`dateiZuGross`, `dateityp`) war der deutsche Text der Definition, auch unter
+  `/en`. Ein unbekannter Bereich führte auf `/angebot`, das die Adresse nicht
+  las — der Satz ging verloren; ein Bereich ohne veröffentlichtes oder mit
+  kaputtem Formular führte auf sein Formular und dort ins 404 bzw. auf die
+  Fehlerseite.
+- `POST /api/datenschutz/anfrage` und `POST /api/barrierefreiheit/meldung`
+  schickten `?meldung=<Satz>` (deutsch der Satz des Dienstes, englisch der aus
+  `PFLICHTWEG_FEHLER_EN`). Der Fall „diese Gesellschaft / diesen Bereich gibt
+  es nicht" stand als Satz in der Route, ohne Schlüssel. `AnfrageFehler` und
+  `BarriereFehler` trugen ihren Grund als freies `string`.
+
+**Die Entscheidung** (D-769 Nr. 1–9 für die Website):
+
+1. **Angebot: `?fehler=<grund>&felder=<k1,k2,…>`.** Der Grund ist der NAME des
+   Sammelsatzes in `API_TEXTE` (`ANGEBOT_FEHLER_GRUENDE`: `pruefen`,
+   `datenschutzBestaetigen`, `zuVieleAnfragen`, `keinFormular`,
+   `nichtVerfuegbar`, `dateiZuGross`, `dateityp`, `uploadNichtVerbunden`,
+   `nichtGespeichert`). Nicht dabei sind `dank` — `?fehler=dank` ergäbe sonst
+   „Vielen Dank" in einem Warnkasten — und `unlesbar` (ein Rumpf, der sich nicht
+   lesen lässt, sagt nicht, dass er ein Formular war; er bleibt JSON). Ein
+   `FormularFehler` reist mit dem Grund, den `formularSammelgrund` aus
+   `FormularFehler.grund` macht: `pruefen` → `pruefen`, `datenschutz` →
+   `datenschutzBestaetigen`, `zu_viele` → `zuVieleAnfragen`, alles andere →
+   `nichtGespeichert` — dieselbe Abbildung, mit der die englische Seite ihren
+   Satz seit V-160 fand. Ein zweiter Satz von Namen neben `API_TEXTE` wäre eine
+   Abbildung mehr, die auseinanderläuft.
+2. **`felder` sind nur Schlüssel** in der Form eines Feldschlüssels
+   (`FELDSCHLUESSEL`, jetzt eine Konstante in `lib/formular/schema.ts`, gegen
+   die auch die Definition geprüft wird; der leere Schlüssel eines
+   Zod-Befunds „unbekanntes Feld" fällt so weg). Die Seite übernimmt nur
+   Schlüssel der Definition, die sie ohnehin lädt, und setzt unter jedes
+   genannte Feld dessen `fehlermeldung` — englisch über `uebersetzeFelder`,
+   dieselbe Auflage wie die Beschriftung. Damit sind auch die Dateifelder
+   englisch. D-599s Einwand gegen einen Schlüssel („eine zweite Liste liefe
+   auseinander") trägt nicht mehr: es gibt keine zweite Liste (Nachsatz dort).
+   Die Seite prüft nicht nach, ob das Feld beim Absenden wirklich falsch war —
+   ein präparierter Link kann ein Feld mit seiner EIGENEN Meldung markieren,
+   aber keinen Text mehr hineinschreiben.
+3. **Der Sammelsatz steht in `ANGEBOT_FEHLER_TEXTE`** (de/en), Satz für Satz
+   aus `API_TEXTE` gelesen; ein fremder Grund bekommt `nichtGespeichert`
+   („Die Anfrage konnte nicht gespeichert werden."). Nachgeschlagen wird nur
+   als eigener Eintrag (D-728), auch am Feld (`AnfrageFormular`: ein Feld
+   `constructor` fände sonst die Funktion). Ohne `?fehler=` zeigt die Seite
+   keine Abweisung, auch nicht mit `?felder=`.
+4. **Ohne zeigbares Formular geht es auf die Auswahl.** `keinFormular` und
+   `nichtVerfuegbar` führen immer auf `/angebot` (`/en/angebot`); die Auswahl
+   zeigt den Satz jetzt im selben Kasten wie das Formular (`role="alert"`).
+   Vorher nur ein unbekannter Bereich — und der ohne Satz.
+5. **Datenschutzanfrage und Barriere-Meldung: `?fehler=<grund>`.** Die Seite
+   schlägt ihn in `PFLICHTWEG_FEHLER_TEXTE[sprache].anfrage` bzw. `.barriere`
+   nach, Form `{ sonst, fehler }`: die deutsche Tabelle ist neu, die englische
+   ist `PFLICHTWEG_FEHLER_EN` in dieser Form. Die zwei Fälle der Route haben
+   Schlüssel: `gesellschaft_fehlt`, `bereich_fehlt`. Die deutschen Sätze sind
+   die des Dienstes, Wort für Wort — ein Programm bekommt sie weiter als
+   `meldung`, und die Prüfung hält beide zusammen. Ein fremder Grund bekommt
+   `sonst` („Ihre Anfrage/Meldung konnte nicht angenommen werden. Bitte prüfen
+   Sie Ihre Angaben."). Der Erfolg der Barriere-Meldung bleibt der Schlüssel
+   `ok=1` (schon vorhanden, streng verglichen); sein Satz steht jetzt in der
+   Tabelle der Seite statt im Ausdruck.
+6. **`AnfrageFehler` und `BarriereFehler` tragen einen getypten Grund**
+   (`AnfrageFehlerGrund`, `BarriereFehlerGrund` — jeder Grund, den der Dienst
+   wirft); `PFLICHTWEG_FEHLER_GRUENDE` ist gegen diese Typen geprüft
+   (`satisfies`). Laufzeit und Sätze ändern sich dadurch nicht.
+7. **Programme bekommen dasselbe JSON wie vorher**: beim Angebot
+   `{ ok: false, meldung, felder }` mit den Feldmeldungen der Definition
+   (englisch übersetzt, die eines Dateifelds wie bisher der Text der
+   Definition), bei den Pflichtformularen `{ ok: false, meldung }`, mit
+   denselben Status. Ein Fehler, der keine Abweisung des Dienstes ist, bleibt
+   bei den Pflichtformularen ein Wurf; das Angebot antwortet wie bisher mit
+   `nichtGespeichert` (500), jetzt als Grund — der Text der Datenbank
+   erschien dort nie und erscheint nicht.
+8. **Anmeldung und Rechte sind hier nicht berührt** (D-769 Nr. 7): die drei
+   Routen sind bewusst offen (Eingangsprinzipal, `route-manifest`); es gibt
+   weder eine Sitzung noch einen `status`/`code`-Zweig vor einem Recht.
+9. **Die Kästen sind Hinweise** (Nachrunde (a), DESIGN §5 „Notices",
+   V-217). Die Website baute ihre Kästen aus Klassen nach, eine Abweisung in
+   `border-danger bg-danger-soft` — einen danger-Hinweis kennt DESIGN nicht.
+   Jetzt nehmen alle sieben Kästen der Website `components/ui/Hinweis.tsx`:
+   Angebotsformular, Angebotsauswahl, Datenschutzanfrage, Barriere-Meldung
+   und — damit die Website einheitlich ist — Karriere (Seite und Formular)
+   und Werbewiderspruch. Eine Abweisung ist `warnung` mit `role="alert"`, eine
+   Bestätigung (der Dank der Barriere-Meldung, der angenommene
+   Werbewiderspruch) `erfolg` mit `role="status"`; der Werbewiderspruch trug
+   vorher auch bei der Bestätigung `role="alert"`, ein Screenreader kündigte
+   sie wie einen Fehler an. Die `data-cse`-Anker bleiben; `data-stand` am
+   Kasten des Werbewiderspruchs entfällt (kein Leser; Erfolg oder Warnung sagt
+   jetzt `data-art`). Schrift `sm` wie jeder Hinweis. Die Sätze bleiben, wie
+   sie sind: jeder sagt den Ausgang oder was zu tun ist selbst, und neben der
+   Farbe tragen Rolle und Text die Bedeutung (§9). Eine fett gesetzte
+   Einleitung („Nicht gesendet.") kommt nicht dazu — das wäre neuer Text auf
+   Pflicht- und Karriereseiten und bei der Karriere eine Doppelung („Ihre
+   Bewerbung ist nicht angekommen: …"); die Kästen, die V-217 umgestellt hat,
+   tragen auch keine. Die Meldung am einzelnen Feld bleibt am Feld (§5 Forms:
+   Rand und Text in `--danger`).
+
+**Nachrunde** (nach der Prüfung des Teils, dieselbe Nummer): (a) die Kästen
+der Website sind Hinweise — Nr. 9.
+
+(b) **Ein Name des Prototyps ist kein Bereich.** `formularSchluessel`
+(`lib/formular/bereiche.ts`) schlug `FORMULAR_SCHLUESSEL[bereich]` nach —
+mit einem `bereich` aus der Adresse (`/angebot/[bereich]`, `…/danke`) oder aus
+dem Formular (`POST /api/anfrage`). `toString`, `constructor` und `__proto__`
+fanden eine Funktion bzw. `Object.prototype` und galten als bekannter Bereich:
+Seite und Route fragten die Datenbank nach einem Formular, dessen Schlüssel der
+Treiber aus dem Wert machte („[object Object]", „function Object() { [native
+code] }"), und kamen erst am leeren Ergebnis zu 404 bzw. `keinFormular`;
+`/angebot/__proto__/danke?nr=…` bestätigte dagegen eine Anfrage, die es nie
+geben konnte. Jetzt nur als eigener Eintrag (`eigenerEintrag`, D-728): die
+Seite antwortet 404 ohne Frage an die Datenbank, die Dankseite ebenso, und die
+Route weist mit dem vorhandenen Grund `keinFormular` ab (Seite: `/angebot`,
+Programm: 404). Die Auswahl fragt dieselbe Funktion statt der Tabelle daneben.
+
+(c) **Ein Recht steht als Satz im Satz des Dienstes** (D-741). Die Zuordnung
+einer Betroffenenanfrage (`ordneZu`, Grund `kontakt_unbekannt`) sagte
+„Möglich ist auch, dass Ihnen crm.lesen fehlt." — Quelltext für den Menschen,
+der die Anfrage bearbeitet. Jetzt „… dass Ihnen das Recht „Kundendaten lesen"
+fehlt.", mit dem Namen der Rechtematrix (`rechtName('crm.lesen')`). Kein Test
+erwartete den alten Satz; der Grund bleibt.
+
+**Geprüft:** `tests/kern/angebot-rueckweg.test.ts` und
+`tests/kern/pflichtweg-rueckweg.test.ts` — die echten Routen (ersetzt nur
+Datenbank, Kontexte, Speicher, Bestätigungsmail; `nimmAn` und die
+Datenschutzdienste laufen echt): jeder Grund → 303 auf die Seite mit genau
+`fehler` (und `felder`), ohne `meldung`, ohne Kennung, ohne Eingabe; die
+Menge der Gründe, mit denen die Routen zurückkamen, ist genau die Liste;
+JSON wie vorher, de und en; ein Fehler ohne Grund bleibt ein Wurf; die
+Tabellen in beiden Sprachen ohne Kennung und ohne Prototyp-Treffer; die
+gerenderten Seiten zeigen den nachgeschlagenen Satz, für einen fremden Grund
+den allgemeinen, für den alten Parameter nichts; die Dateimeldung englisch;
+keine Seite liest `meldung`. Isolation (die Dateien, die die geänderten
+Dienste und die Annahme laden): `anfrage-aufnehmen`, `datenschutz-dienste`,
+`datenschutz-identitaet`, `lead` — unverändert grün. Angepasst:
+`tests/kern/anfrage-honigtopf.test.ts`
+(die Quelltextprobe nennt den neuen Aufruf `antworteFehler(429,
+'zuVieleAnfragen')`), `tests/e2e/sprachen.spec.ts` (5) (die Adresse der
+englischen Abweisung trägt `fehler=pruefen` und `felder`, kein `meldung`, der
+Satz ist englisch) und neu (8), `tests/e2e/angebot.spec.ts` (6).
+
+**Nachsatz (Review): die Vorgangsnummer der Dankseite.** `?nr=` stand ungeprüft als „Ihre Vorgangsnummer“ groß auf der Dankseite — ein präparierter Link setzte damit eigenen Text auf die Website. Die Seite zeigt die Nummer nur noch in der Form, die `leadnummerAus` baut (`L-` und zehn Hexziffern, `src/lib/formular/leadnummer.ts`); sonst bleibt der Kasten weg, der Dank selbst bleibt. Geprüft in `tests/kern/angebot-rueckweg.test.ts` (Form gegen den Dienst, gerenderte Seite) und `tests/e2e/angebot.spec.ts` (präparierter Link).
+
+| Betrifft | D-769, D-599, D-728, D-83, V-156, V-157, V-160, V-272, `src/app/api/anfrage/route.ts`, `src/app/api/datenschutz/anfrage/route.ts`, `src/app/api/barrierefreiheit/meldung/route.ts`, `src/app/(public)/angebot/Auswahl.tsx`, `src/app/(public)/angebot/[bereich]/{Angebot,page}.tsx`, `src/app/(public)/en/angebot/[bereich]/page.tsx`, `src/app/(public)/datenschutz/anfrage/{Anfrage,page}.tsx`, `src/app/(public)/en/datenschutz/anfrage/page.tsx`, `src/app/(public)/barrierefreiheit/feedback/{Feedback,page}.tsx`, `src/app/(public)/en/barrierefreiheit/feedback/page.tsx`, `src/components/oeffentlich/AnfrageFormular.tsx`, `src/lib/i18n/texte.ts` (`ANGEBOT_FEHLER_*`, `formularSammelgrund`, `PFLICHTWEG_FEHLER_*`), `src/lib/formular/schema.ts` (`FELDSCHLUESSEL`), `src/server/services/datenschutz/{anfrage,barriere}.ts` (Grund-Typen), `src/app/(public)/karriere/{page,Formular}.tsx`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx` (Nachrunde (a)), `src/lib/formular/bereiche.ts` (`formularSchluessel`, Nachrunde (b)), `src/server/services/datenschutz/anfrage.ts` (`ordneZu`, Nachrunde (c)), `tests/kern/{angebot-rueckweg,pflichtweg-rueckweg,anfrage-honigtopf,website-hinweise,einteilung-bewerbung-rueckweg}.test.ts`, `tests/e2e/{sprachen,angebot}.spec.ts` |
 |---|---|

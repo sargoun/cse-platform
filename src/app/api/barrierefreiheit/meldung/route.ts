@@ -4,8 +4,10 @@ import { db } from '@/server/db/pool';
 import { withEingang } from '@/server/kontext/eingang';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { mitSprache, SPRACHEN, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
-import { pflichtwegMeldung } from '@/lib/i18n/texte';
-import { BarriereFehler, melde } from '@/server/services/datenschutz/barriere';
+import { PFLICHTWEG_FEHLER_TEXTE, pflichtwegMeldung } from '@/lib/i18n/texte';
+import {
+  BarriereFehler, melde, type BarriereFehlerGrund,
+} from '@/server/services/datenschutz/barriere';
 
 /**
  * `POST /api/barrierefreiheit/meldung` — der Meldeweg für Barrieren
@@ -41,11 +43,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const bereich = String(daten.get('bereich') ?? '');
   const ziel = mitSprache('/barrierefreiheit/feedback', sprache);
 
-  const fehler = (status: number, meldung: string): NextResponse =>
-    alsSeite
-      ? NextResponse.redirect(new URL(
-          `${ziel}?meldung=${encodeURIComponent(meldung)}`, anfrage.url), 303)
-      : NextResponse.json({ ok: false, meldung }, { status });
+  /**
+   * Eine Abweisung: ein Programm bekommt JSON mit dem Satz (D-599), ein
+   * Browser DIESELBE Seite mit dem GRUND (D-769, V-272).
+   *
+   * **Nur der Grund reist durch die Adresse.** Hier reiste der Satz im
+   * Parameter `meldung`, und die Seite zeigte ihn in ihrem Warnkasten — auch
+   * den eines präparierten Links, auf dem Meldeweg, den das BFSG vorschreibt.
+   * Jetzt schlägt die Seite den Grund in ihrer Sprache nach
+   * (`PFLICHTWEG_FEHLER_TEXTE`); nichts, was jemand eingegeben hat, steht in
+   * der Adresse.
+   */
+  const abweisen = (
+    status: number, grund: BarriereFehlerGrund | 'bereich_fehlt', meldung: string,
+  ): NextResponse => {
+    if (!alsSeite) return NextResponse.json({ ok: false, meldung }, { status });
+    const zurueck = new URL(ziel, anfrage.url);
+    zurueck.searchParams.set('fehler', grund);
+    return NextResponse.redirect(zurueck, 303);
+  };
 
   const [gesellschaft] = await (db().begin((tx: postgres.TransactionSql) =>
     withOeffentlich(tx, (kontext) => kontext.abfrage<{ id: string }>(
@@ -53,9 +69,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     ))) as Promise<readonly { id: string }[]>);
 
   if (gesellschaft === undefined) {
-    return fehler(404, sprache === 'en'
-      ? 'Please choose one of the divisions.'
-      : 'Bitte wählen Sie einen der Bereiche.');
+    return abweisen(404, 'bereich_fehlt',
+      PFLICHTWEG_FEHLER_TEXTE[sprache].barriere.fehler.bereich_fehlt);
   }
 
   try {
@@ -67,10 +82,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         email: String(daten.get('email') ?? '') || undefined,
       })));
   } catch (f) {
-    // Der Dienst spricht deutsch; die englische Seite bekommt den Satz zum
-    // GRUND (V-156), nicht den deutschen Wortlaut.
+    // Der Dienst spricht deutsch; ein Programm bekommt auf Englisch den Satz
+    // zum GRUND (V-156), die Seite nur den Grund selbst (D-769).
     if (f instanceof BarriereFehler) {
-      return fehler(f.status, pflichtwegMeldung('barriere', sprache, f.grund, f.message));
+      return abweisen(f.status, f.grund,
+        pflichtwegMeldung('barriere', sprache, f.grund, f.message));
     }
     throw f;
   }

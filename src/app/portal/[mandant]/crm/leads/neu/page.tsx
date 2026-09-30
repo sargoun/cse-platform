@@ -30,6 +30,10 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * **Und er gehört dem, der ihn anlegt.** Ein Auswahlfeld „zuständig" wäre die
  * ehrlichere Oberfläche, sobald es mehr als eine Handvoll Menschen sind; heute
  * wäre es eine Liste, aus der man sich selbst heraussucht.
+ *
+ * **Eine Abweisung kommt als Grund zurück (`?fehler=`)**, der Satz steht in
+ * `KETTE_TEXTE` (D-769, D-772). Den Satz des Dienstes, den die Route bis
+ * hierher als `meldung` dazuschickte, liest die Seite nicht mehr.
  */
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +56,6 @@ export default async function LeadNeu(
   const { zugang } = tor;
   const darf = await haeltRechte(zugang.sitzung, 'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const k = nachSprache(KETTE_TEXTE, zugang.sprache);
 
@@ -77,11 +80,11 @@ export default async function LeadNeu(
     >
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Lead</h1>
 
-      {(meldung !== null || fehler !== null) && (
-        <Hinweis art="warnung" cse="lead-meldung" className="mb-s5 max-w-prose">
+      {fehler !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="lead-meldung" className="mb-s5 max-w-prose">
           {/* Der übersetzte Schlüssel wird ein Satz; ein Wort, das die Seite nicht kennt,
               der allgemeine Satz — nie, was in der Adresse steht (V-250). */}
-          {(fehler === null ? undefined : eigenerEintrag(k.fehler, fehler)) ?? k.nichtAngelegt}
+          {eigenerEintrag(k.fehler, fehler) ?? k.nichtAngelegt}
         </Hinweis>
       )}
 

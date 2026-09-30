@@ -25,7 +25,7 @@ import { ZahlungFehler } from '@/server/services/finanz/zahlung/index';
  * der Mensch gewaehlt hat. Sie leitet zurueck auf den Auszug, mit einem Wort
  * darueber, was geschehen ist.
  *
- * **Das Wort ist ein SCHLÜSSEL** (V-217, D-710): `?meldung=zugeordnet`,
+ * **Das Wort ist ein SCHLÜSSEL** (V-217, D-710): `?erfolg=zugeordnet`,
  * `?fehler=<grund>`. Vorher reiste bei einer Abweisung der deutsche Satz des
  * Dienstes als `?meldung=` mit, und das Blatt zeigte ihn so, wie er in der
  * Adresse stand — in jeder Sprache deutsch, und mit jedem Text, den jemand
@@ -81,7 +81,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           : markiereOhneBezug(kontext, umsatzId, text('notiz') ?? '');
       }))) as KlaerungErgebnis;
     return zurueck(anfrage, slug, ergebnis.auszugId, {
-      meldung: aktion === 'zuordnen' ? 'zugeordnet' : 'ohne_bezug',
+      erfolg: aktion === 'zuordnen' ? 'zugeordnet' : 'ohne_bezug',
       ...(ergebnis.auszugAbgeglichen ? { abgeglichen: '1' } : {}),
     });
   } catch (fehler: unknown) {

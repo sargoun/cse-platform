@@ -1,17 +1,17 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { ohneSitzungAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
-  erfasseAbruf, setzeStatus, setzeZeitwert, storniereAbruf,
-  SONDERLEISTUNG_STATUS, STATUS_TEXT, type SonderleistungStatus,
+  erfasseAbruf, setzeStatus, setzeZeitwert, storniereAbruf, SONDERLEISTUNG_STATUS,
+  type AbrufFormularGrund, type SonderleistungErfolg, type SonderleistungStatus,
 } from '@/server/services/reinigung/sonderleistung';
-import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
  * `POST /api/reinigung/sonderleistungen` — Abruf erfassen, Zustand setzen,
@@ -27,7 +27,17 @@ import { alsAntwort } from '../../sicherheit/antwort';
  *
  * **Der Zustand „abgerechnet" kommt hier nicht durch.** Die Regel steht in
  * `statuswechsel` im Dienst und wird dort geprüft — dieser Handler reicht den
- * Wunsch weiter und übersetzt die Absage in einen Satz, den ein Mensch liest.
+ * Wunsch weiter, und die Absage reist als Schlüssel zurück auf die Seite.
+ *
+ * **Zurück auf die Seite gehen nur Schlüssel** (V-275, D-773, D-769): ein
+ * Erfolg als `?erfolg=<schluessel>`, eine Abweisung als `?fehler=<grund>`;
+ * die Seite schlägt beide nach (`SONDERLEISTUNG_TEXTE`). Hier standen vorher
+ * die Sätze selbst in `?ok=` und `?fehler=` — der Zustandswechsel samt den
+ * Wörtern „vorher/jetzt", ein unbekannter Abruf samt Kennung —, und die
+ * Weiche ersetzte JEDE Antwort von `alsAntwort` mit Meldung durch den
+ * Rückweg: ein fehlendes Recht wurde „Nicht gefunden" über der Liste statt
+ * der byte-gleichen 404 (AUT-06), die Umleitung auf den Faktor-Schritt ein
+ * Satz (D-766). Die Anmeldung kommt jetzt zuerst.
  */
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +49,7 @@ function text(daten: FormData, feld: string): string | null {
 class Unvollstaendig extends Error {
   readonly code = 'unvollstaendig';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: AbrufFormularGrund) {
     super(nachricht);
     this.name = 'Unvollstaendig';
   }
@@ -58,17 +68,24 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = (text(daten, 'mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
   const roheArt = text(daten, 'art');
   const art: Art | undefined = ARTEN.find((a) => a === roheArt);
   if (art === undefined) {
     return NextResponse.json({ fehler: 'art_unbekannt' }, { status: 400 });
   }
-  const liste = `/portal/${mandant}/reinigung/sonderleistungen`;
+  /*
+   * **Die Seite liegt im Bereich der SITZUNG** (Invariante 3; V-275 Nachtrag,
+   * D-773): der Slug des aktiven Mandanten, gelesen gleich nach dem Tor und
+   * VOR dem Schreiben — er gilt für den Erfolg UND für jede Abweisung danach.
+   * Vorher kam er aus dem Formularfeld `mandant`: ein Programm ohne das Feld
+   * landete auf `/portal//…`, und ein fremder Slug im Feld bestimmte das
+   * Ziel. Vor dem Slug antwortet nur das Tor, und das braucht kein Ziel.
+   */
+  let liste = '/portal';
 
-  let meldung: string;
+  let erfolg: SonderleistungErfolg;
   try {
-    meldung = await (db().begin(async (tx: postgres.TransactionSql) =>
+    erfolg = await (db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         /*
          * Der Zeitwert gehoert dem Katalog, der Abruf der Reinigung — zwei
@@ -84,10 +101,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        liste = `/portal/${aktiv.slug}/reinigung/sonderleistungen`;
 
         if (art === 'zeitwert') {
           const position = text(daten, 'position');
-          if (position === null) throw new Unvollstaendig('Die Katalogposition fehlt.');
+          if (position === null) {
+            throw new Unvollstaendig('Die Katalogposition fehlt.', 'position_fehlt');
+          }
           await setzeZeitwert(kontext, {
             id: position,
             zeitwertMinuten: text(daten, 'zeitwert'),
@@ -97,7 +120,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
                falsch — eine Zahl steht auch im Platzhalter (O-17). */
             istPlatzhalter: daten.get('bestaetigt') !== 'ja',
           });
-          return 'Der Zeitwert der Katalogzeile ist gesetzt.';
+          return 'zeitwert_gesetzt';
         }
 
         if (art === 'status') {
@@ -106,20 +129,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           const status: SonderleistungStatus | undefined =
             SONDERLEISTUNG_STATUS.find((s) => s === roherStatus);
           if (abruf === null || status === undefined) {
-            throw new Unvollstaendig('Abruf und Zustand sind Pflicht.');
+            throw new Unvollstaendig('Abruf und Zustand sind Pflicht.', 'zustand_unvollstaendig');
           }
-          const { von, nach } = await setzeStatus(kontext, { id: abruf, status });
-          return `Der Abruf steht jetzt auf „${STATUS_TEXT[nach]}" (vorher „${STATUS_TEXT[von]}").`;
+          /*
+           * Der Satz nannte „jetzt" und „vorher". Beides reist nicht mit: der
+           * neue Zustand ist die Eingabe des Formulars, und die Liste darunter
+           * zeigt ihn (D-769 Nr. 5).
+           */
+          await setzeStatus(kontext, { id: abruf, status });
+          return 'status_gesetzt';
         }
 
         if (art === 'storno') {
           const abruf = text(daten, 'abruf');
           const grund = text(daten, 'grund');
           if (abruf === null || grund === null) {
-            throw new Unvollstaendig('Abruf und Stornogrund sind Pflicht.');
+            throw new Unvollstaendig('Abruf und Stornogrund sind Pflicht.', 'storno_unvollstaendig');
           }
           await storniereAbruf(kontext, { id: abruf, grund });
-          return 'Der Abruf ist storniert — mit Grund und Urheber, und nicht gelöscht.';
+          return 'abruf_storniert';
         }
 
         const objekt = text(daten, 'objekt');
@@ -129,7 +157,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (objekt === null || position === null || bezeichnung === null
           || beauftragtAm === null) {
           throw new Unvollstaendig(
-            'Objekt, Katalogposition, Bezeichnung und „Beauftragt am" sind Pflicht.');
+            'Objekt, Katalogposition, Bezeichnung und „Beauftragt am" sind Pflicht.',
+            'abruf_unvollstaendig');
         }
         /*
          * Der Kunde kommt vom OBJEKT und nie aus dem Formular: `kunde_id` ist
@@ -143,12 +172,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (ziel === undefined) {
           throw new Unvollstaendig(
             'Das Objekt gehört nicht zu dieser Gesellschaft, oder es fehlt das Recht '
-            + 'objekt.lesen — ohne das Objekt ist kein Kunde bekannt.');
+            + 'objekt.lesen — ohne das Objekt ist kein Kunde bekannt.', 'objekt_unbekannt');
         }
         if (ziel.kunde_id === null) {
           throw new Unvollstaendig(
             'An diesem Objekt hängt kein Kunde. Ein Abruf ohne Kunde lässt sich nicht '
-            + 'abrechnen — bitte zuerst den Kunden am Objekt hinterlegen.');
+            + 'abrechnen — bitte zuerst den Kunden am Objekt hinterlegen.', 'objekt_ohne_kunde');
         }
         const roherStatus = text(daten, 'status');
         const status = SONDERLEISTUNG_STATUS.find((s) => s === roherStatus);
@@ -175,23 +204,39 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           einheit: text(daten, 'einheit'),
           ...(status === undefined ? {} : { status }),
         });
-        return 'Der Abruf ist erfasst.';
-      })) as Promise<string>);
+        return 'abruf_erfasst';
+      })) as Promise<SonderleistungErfolg>);
   } catch (fehler) {
-    const antwort = alsAntwort(fehler, anfrage);
-    if (antwort !== null) {
-      const nachricht = (fehler as { message?: string }).message;
-      if (typeof nachricht === 'string' && nachricht !== '') {
-        return NextResponse.redirect(
-          internesZiel(`${liste}?fehler=${encodeURIComponent(nachricht)}`, liste, anfrage), 303,
-        );
-      }
-      return antwort;
+    /*
+     * **Die Anmeldung zuerst** (D-766, D-769 Nr. 7): ein fehlendes Recht ist
+     * die byte-gleiche 404 (AUT-06), ohne zweiten Faktor geht es auf den
+     * Faktor-Schritt — keines davon wird je ein Rückweg auf die Seite.
+     */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
+    /*
+     * Ein fachlicher Fehler trägt `status` und `code` — und seinen GRUND
+     * (`SONDERLEISTUNG_GRUENDE`); eine Klasse ohne eigenen Grund reist mit
+     * ihrem `code`, und die Seite zeigt dafür ihren allgemeinen Satz. Alles
+     * andere bleibt ein Wurf (ein Programmfehler ist ein roter Lauf).
+     */
+    const status = (fehler as { status?: unknown }).status;
+    const code = (fehler as { code?: unknown }).code;
+    if (typeof status === 'number' && typeof code === 'string') {
+      const grund = (fehler as { grund?: unknown }).grund;
+      return zurueckAufDieSeite(anfrage, liste, 'fehler', typeof grund === 'string' ? grund : code);
     }
     throw fehler;
   }
 
-  return NextResponse.redirect(
-    internesZiel(`${liste}?ok=${encodeURIComponent(meldung)}`, liste, anfrage), 303,
-  );
+  return zurueckAufDieSeite(anfrage, liste, 'erfolg', erfolg);
+}
+
+/** 303 auf die Seite mit genau EINEM Schlüssel — nie einem Satz (V-275, D-769). */
+function zurueckAufDieSeite(
+  anfrage: NextRequest, liste: string, name: 'erfolg' | 'fehler', schluessel: string,
+): NextResponse {
+  const ziel = internesZiel(liste, liste, anfrage);
+  ziel.searchParams.set(name, schluessel);
+  return NextResponse.redirect(ziel, 303);
 }

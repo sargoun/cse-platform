@@ -34,7 +34,11 @@ vi.mock('@/server/db/pool', () => ({
 }));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
-    fn({ abfrage: () => Promise.resolve([]) }),
+    /* Nur der Slug des aktiven Mandanten hat eine Zeile (Turnus, V-275 Nachtrag, D-773). */
+    fn({
+      abfrage: (sql: string) => Promise.resolve(
+        sql.includes('app.aktiver_mandant()') ? [{ slug: 'reinigung' }] : []),
+    }),
 }));
 vi.mock('@/server/auth/authorize', () => ({ authorize: () => Promise.resolve(undefined) }));
 vi.mock('@/server/auth/zugang', () => ({ rechtepruefer: () => ({}) }));
@@ -106,7 +110,8 @@ describe('POST /api/dienstplan/serien — ein Ankerfehler kommt auf die Maske (V
   });
 
   it('eine andere Abweisung dieses Wegs bleibt, wie sie war (D-599-Altlast, D-686 Nr. 8)', async () => {
-    zustand.turnus.mockRejectedValueOnce(new SerieEingabeFehlt('Mindestens ein Wochentag.'));
+    zustand.turnus.mockRejectedValueOnce(
+      new SerieEingabeFehlt('Mindestens ein Wochentag.', 'wochentag_fehlt'));
     const antwort = await SERIE(anfrage('/api/dienstplan/serien', TURNUS_FELDER));
     expect(antwort.status).toBe(400);
   });
@@ -133,8 +138,10 @@ describe('POST /api/sicherheit/posten (Anlage) — ein Ankerfehler kommt auf die
 
 describe('POST /api/reinigung/turnus — der Grund reist als Schlüssel, nicht als Satz (VORHER ?fehler=<Satz>)', () => {
   it('303 zurück in die Vorschau, mit allen Eingaben und dem Schlüssel', async () => {
+    /* Ohne Feld `mandant`: der Turnus nimmt den Bereich aus der Sitzung (V-275 Nachtrag). */
     const antwort = await TURNUS(anfrage('/api/reinigung/turnus', [
-      ...TURNUS_FELDER, ['frequenz', 'woechentlich'], ['interval', '1'],
+      ...TURNUS_FELDER.filter(([k]) => k !== 'mandant'), ['frequenz', 'woechentlich'],
+      ['interval', '1'],
     ]));
     expect(antwort.status).toBe(303);
     const z = ziel(antwort);

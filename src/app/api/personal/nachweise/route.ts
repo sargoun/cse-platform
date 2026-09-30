@@ -7,6 +7,7 @@ import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import {
   NachweisFehler, bestaetigeNachweis, nimmNachweisAuf, widerrufeNachweis,
 } from '@/server/services/nachweis/aufnahme';
@@ -61,11 +62,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const aktion = String(daten.get('aktion') ?? '') as Aktion;
   const id = feld('id');
 
+  /* Ein Formular kommt auch hier mit dem Grund zurück, ein Programm bekommt JSON (D-599,
+     V-273, D-771 Nr. 15) — vorher JSON für beide. */
   if (!AKTIONEN.includes(aktion)) {
-    return NextResponse.json({ fehler: 'unbekannte_handlung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'unbekannte_handlung', 400);
   }
   if (aktion !== 'aufnehmen' && (id === undefined || !UUID.test(id))) {
-    return NextResponse.json({ fehler: 'keine_kennung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_kennung', 400);
   }
   if (aktion === 'aufnehmen') {
     const person = feld('person');

@@ -97,7 +97,13 @@ describe('der Sammelsatz spricht die Sprache der Seite (V-157)', () => {
   it('die Route reicht weder fehler.message noch die Ratenlimitmeldung roh durch', () => {
     const quelle = readFileSync('src/app/api/anfrage/route.ts', 'utf8');
     expect(quelle).not.toMatch(/antworteFehler\(\s*\d+\s*,\s*fehler\.message/u);
-    expect(quelle).toContain('antworteFehler(429, t.zuVieleAnfragen)');
+    /*
+     * Seit D-769 nennt die Route den GRUND — `'zuVieleAnfragen'`, den Namen des
+     * Satzes in `API_TEXTE` —, und `antworteFehler` nimmt für ein Programm den
+     * Satz dazu, für eine Seite nur den Grund. Vorher stand hier der Satz selbst
+     * (`t.zuVieleAnfragen`); nie der des Dienstes, damals wie heute.
+     */
+    expect(quelle).toContain("antworteFehler(429, 'zuVieleAnfragen')");
     expect(quelle).toContain('formularSammelmeldung(sprache, fehler)');
   });
 });

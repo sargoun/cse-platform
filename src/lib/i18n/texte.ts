@@ -14,6 +14,8 @@
  */
 import type { Sprache } from '../sprache.js';
 import { eigenerEintrag } from '../nachschlagen.js';
+import type { AnfrageFehlerGrund } from '../../server/services/datenschutz/anfrage.js';
+import type { BarriereFehlerGrund } from '../../server/services/datenschutz/barriere.js';
 
 export interface ShellTexte {
   readonly hauptnavigation: string;
@@ -284,49 +286,125 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
 };
 
 /**
- * Die Meldungen der zwei öffentlichen Pflichtformulare — englisch (V-156).
+ * Die Sätze der zwei öffentlichen Pflichtformulare — deutsch und englisch,
+ * nachgeschlagen nach einem GRUND (V-156, D-769, V-272).
  *
- * **Der Befund.** Mit den englischen Routen (`/en/datenschutz/anfrage`,
- * `/en/barrierefreiheit/feedback`) kam ein zweiter Fehler ans Licht: die
- * Dienste (`services/datenschutz/{anfrage,barriere}.ts`) sprechen deutsch, und
- * die Routen reichten `fehler.message` unverändert zurück. Eine englische
+ * **Der erste Befund (V-156).** Mit den englischen Routen
+ * (`/en/datenschutz/anfrage`, `/en/barrierefreiheit/feedback`) kam ans Licht:
+ * die Dienste (`services/datenschutz/{anfrage,barriere}.ts`) sprechen deutsch,
+ * und die Routen reichten `fehler.message` unverändert zurück. Eine englische
  * Seite hätte „Bitte prüfen Sie die E-Mail-Adresse" als `role="alert"`
  * gezeigt — genau dem Menschen, der die englische Fassung geöffnet hat, weil
- * er kein Deutsch liest.
+ * er kein Deutsch liest. Übersetzt wird seitdem über den GRUND, nicht über den
+ * Satz: ein Abgleich auf den deutschen Wortlaut bräche beim ersten Komma, das
+ * jemand ändert.
  *
- * **Übersetzt wird über den GRUND, nicht über den Satz.** Die Dienste tragen
- * je Fehler einen festen Schlüssel (`grund`); ein Abgleich auf den deutschen
- * Wortlaut bräche beim ersten Komma, das jemand ändert. Ein unbekannter Grund
- * bekommt einen allgemeinen englischen Satz — nie den deutschen.
+ * **Der zweite Befund (D-769).** Der Satz reiste trotzdem weiter im Parameter
+ * `meldung` durch die Adresse, und die Seite zeigte, was dort stand: jeder
+ * präparierte Link schrieb seine eigene Systemmeldung in den Warnkasten des
+ * Datenschutz- und des Barriere-Formulars — auf Seiten, die Kunden und
+ * Behörden sehen. Jetzt reist nur der Grund (`?fehler=<grund>`), und die Seite
+ * schlägt ihn HIER nach, nur als eigenen Eintrag (D-728). Ein Grund, den die
+ * Tabelle nicht kennt, bekommt `sonst` — nie den Grund und nie Text aus der
+ * Adresse.
+ *
+ * **Die deutschen Sätze sind die der Dienste**, Wort für Wort: ein Programm
+ * bekommt den Satz des Dienstes als `meldung` (JSON, D-599), und Seite und
+ * Programm sagen dasselbe. `tests/kern/pflichtweg-rueckweg.test.ts` hält beide
+ * zusammen.
+ *
+ * **Die Gründe** sind die des Dienstes und je einer der Route: eine
+ * Gesellschaft (ein Bereich), die es nicht gibt. Der stand als Satz in der
+ * Route, deutsch und englisch, ohne Schlüssel.
  */
-const PFLICHTWEG_FEHLER_EN: Readonly<Record<'anfrage' | 'barriere',
-  Readonly<Record<string, string>>>> = {
+export const PFLICHTWEG_FEHLER_GRUENDE = {
+  anfrage: ['gesellschaft_fehlt', 'name_fehlt', 'email_ungueltig', 'art_fehlt', 'nicht_gespeichert'],
+  barriere: ['bereich_fehlt', 'ohne_beschreibung', 'email_ungueltig', 'nicht_gespeichert'],
+} as const satisfies {
+  readonly anfrage: readonly (AnfrageFehlerGrund | 'gesellschaft_fehlt')[];
+  readonly barriere: readonly (BarriereFehlerGrund | 'bereich_fehlt')[];
+};
+
+export type Pflichtweg = keyof typeof PFLICHTWEG_FEHLER_GRUENDE;
+export type PflichtwegGrund<W extends Pflichtweg> = (typeof PFLICHTWEG_FEHLER_GRUENDE)[W][number];
+
+/** Die Sätze EINES Pflichtformulars — dieselbe Form wie die Rückweg-Tabellen des Portals. */
+export interface PflichtwegFehlerTexte<G extends string> {
+  /** Für einen Grund, den die Tabelle nicht kennt — nie der Grund selbst. */
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<G, string>>;
+}
+
+export type PflichtwegTabelle = {
+  readonly [W in Pflichtweg]: PflichtwegFehlerTexte<PflichtwegGrund<W>>;
+};
+
+const PFLICHTWEG_FEHLER_DE: PflichtwegTabelle = {
   anfrage: {
-    name_fehlt: 'Please give your name.',
-    email_ungueltig: 'Please check the e-mail address — our reply goes to it.',
-    art_fehlt: 'Please choose what you would like us to do.',
-    nicht_gespeichert: 'Your request could not be saved. Please try again.',
-    sonst: 'Your request could not be accepted. Please check your entries.',
+    sonst: 'Ihre Anfrage konnte nicht angenommen werden. Bitte prüfen Sie Ihre Angaben.',
+    fehler: {
+      gesellschaft_fehlt: 'Bitte wählen Sie eine der Gesellschaften.',
+      name_fehlt: 'Bitte nennen Sie Ihren Namen.',
+      email_ungueltig: 'Bitte prüfen Sie die E-Mail-Adresse — an sie geht die Antwort.',
+      art_fehlt: 'Bitte wählen Sie ein Anliegen.',
+      nicht_gespeichert: 'Die Anfrage konnte nicht gespeichert werden.',
+    },
   },
   barriere: {
-    ohne_beschreibung: 'Please describe briefly what did not work.',
-    email_ungueltig: 'Please check the e-mail address — or leave the field empty.',
-    nicht_gespeichert: 'Your report could not be saved. Please try again.',
+    sonst: 'Ihre Meldung konnte nicht angenommen werden. Bitte prüfen Sie Ihre Angaben.',
+    fehler: {
+      bereich_fehlt: 'Bitte wählen Sie einen der Bereiche.',
+      ohne_beschreibung: 'Bitte beschreiben Sie kurz, was nicht funktioniert hat.',
+      email_ungueltig: 'Bitte prüfen Sie die E-Mail-Adresse — oder lassen Sie das Feld leer.',
+      nicht_gespeichert: 'Die Meldung konnte nicht gespeichert werden.',
+    },
+  },
+};
+
+const PFLICHTWEG_FEHLER_EN: PflichtwegTabelle = {
+  anfrage: {
+    sonst: 'Your request could not be accepted. Please check your entries.',
+    fehler: {
+      gesellschaft_fehlt: 'Please choose one of the companies.',
+      name_fehlt: 'Please give your name.',
+      email_ungueltig: 'Please check the e-mail address — our reply goes to it.',
+      art_fehlt: 'Please choose what you would like us to do.',
+      nicht_gespeichert: 'Your request could not be saved. Please try again.',
+    },
+  },
+  barriere: {
     sonst: 'Your report could not be accepted. Please check your entries.',
+    fehler: {
+      bereich_fehlt: 'Please choose one of the divisions.',
+      ohne_beschreibung: 'Please describe briefly what did not work.',
+      email_ungueltig: 'Please check the e-mail address — or leave the field empty.',
+      nicht_gespeichert: 'Your report could not be saved. Please try again.',
+    },
   },
 };
 
 /**
- * Der Satz für die Seite eines Pflichtformulars — deutsch aus dem Dienst,
- * englisch aus der Tabelle oben.
+ * Die Tabelle in der Sprache der Seite (`/` deutsch, `/en/…` englisch). Gelesen
+ * wird sie je Formular als Feld (`PFLICHTWEG_FEHLER_TEXTE[sprache].anfrage`),
+ * nie mit einem Schlüssel zur Laufzeit.
+ */
+export const PFLICHTWEG_FEHLER_TEXTE: Readonly<Record<Sprache, PflichtwegTabelle>> = {
+  de: PFLICHTWEG_FEHLER_DE,
+  en: PFLICHTWEG_FEHLER_EN,
+};
+
+/**
+ * Der Satz, den ein PROGRAMM zu einer Abweisung bekommt (`meldung` im JSON,
+ * D-599) — deutsch der des Dienstes, englisch aus der Tabelle oben. So seit
+ * V-156; eine Seite bekommt seit D-769 keinen Satz mehr, sondern den Grund.
  */
 export function pflichtwegMeldung(
-  weg: 'anfrage' | 'barriere', sprache: Sprache, grund: string, deutsch: string,
+  weg: Pflichtweg, sprache: Sprache, grund: string, deutsch: string,
 ): string {
   if (sprache === 'de') return deutsch;
   const tabelle = PFLICHTWEG_FEHLER_EN[weg];
-  // Nur ein EIGENER Schlüssel (V-159): `tabelle['toString']` wäre eine Funktion.
-  return eigenerEintrag(tabelle, grund) ?? tabelle['sonst'] ?? '';
+  // Nur ein EIGENER Schlüssel (V-159): `tabelle.fehler['toString']` wäre eine Funktion.
+  return eigenerEintrag<string>(tabelle.fehler, grund) ?? tabelle.sonst;
 }
 
 /**
@@ -479,7 +557,61 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
 };
 
 /**
- * Der Sammelsatz über einem abgewiesenen Anfrageformular (V-157, V-160).
+ * Jeder Grund, mit dem `/api/anfrage` eine Abweisung auf das Formular (oder
+ * die Auswahl) zurückschickt — die Namen der Sammelsätze in `API_TEXTE`
+ * (D-769, V-272).
+ *
+ * **Warum der Name des Satzes und kein zweites Wort.** Die Sätze stehen schon
+ * je Sprache in `API_TEXTE`, und die Route antwortet einem Programm damit
+ * (JSON, D-599). Ein zweiter Satz von Namen wäre eine Abbildung mehr, die
+ * auseinanderlaufen kann. Nicht dabei: `unlesbar` — ein Rumpf, der sich nicht
+ * lesen lässt, sagt auch nicht, dass er ein Formular war — und `dank`, das
+ * keine Abweisung ist. `?fehler=dank` ergäbe sonst „Vielen Dank" in einem
+ * Warnkasten.
+ */
+export const ANGEBOT_FEHLER_GRUENDE = [
+  'pruefen', 'datenschutzBestaetigen', 'zuVieleAnfragen', 'keinFormular', 'nichtVerfuegbar',
+  'dateiZuGross', 'dateityp', 'uploadNichtVerbunden', 'nichtGespeichert',
+] as const satisfies readonly (keyof ApiTexte)[];
+export type AngebotFehlerGrund = (typeof ANGEBOT_FEHLER_GRUENDE)[number];
+
+/** Die Sammelsätze einer Sprache — dieselbe Form wie die Rückweg-Tabellen des Portals. */
+export interface AngebotFehlerTexte {
+  /** Für einen Grund, den die Tabelle nicht kennt — nie der Grund selbst. */
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<AngebotFehlerGrund, string>>;
+}
+
+/** Aus `API_TEXTE` gelesen, Satz für Satz — es gibt keinen zweiten Wortlaut. */
+function angebotFehlerTexte(t: ApiTexte): AngebotFehlerTexte {
+  return {
+    sonst: t.nichtGespeichert,
+    fehler: {
+      pruefen: t.pruefen,
+      datenschutzBestaetigen: t.datenschutzBestaetigen,
+      zuVieleAnfragen: t.zuVieleAnfragen,
+      keinFormular: t.keinFormular,
+      nichtVerfuegbar: t.nichtVerfuegbar,
+      dateiZuGross: t.dateiZuGross,
+      dateityp: t.dateityp,
+      uploadNichtVerbunden: t.uploadNichtVerbunden,
+      nichtGespeichert: t.nichtGespeichert,
+    },
+  };
+}
+
+/**
+ * Der Satz über dem Angebotsformular zu einem Grund aus der Adresse — die Seite
+ * schlägt ihn hier nach, nur als eigenen Eintrag (D-728); ein Grund, den die
+ * Tabelle nicht kennt, bekommt `sonst`.
+ */
+export const ANGEBOT_FEHLER_TEXTE: Readonly<Record<Sprache, AngebotFehlerTexte>> = {
+  de: angebotFehlerTexte(API_TEXTE.de),
+  en: angebotFehlerTexte(API_TEXTE.en),
+};
+
+/**
+ * Der Grund zu einem abgewiesenen Anfrageformular (V-157, V-160, D-769).
  *
  * **Über die URSACHE und nicht über `fehler.message`** — und seit V-160 auch
  * nicht mehr über die Felder. Die erste Fassung las die Ursache aus den
@@ -489,11 +621,26 @@ export const API_TEXTE: Readonly<Record<Sprache, ApiTexte>> = {
  * auf Deutsch „Bitte prüfen Sie die markierten Felder." und auf Englisch
  * „Please confirm that you have read the privacy notice". Jetzt trägt der
  * Fehler seinen Grund (`FormularFehler.grund`), gesetzt an derselben Stelle
- * wie der deutsche Satz — beide Sprachen sagen dasselbe.
+ * wie der deutsche Satz — beide Sprachen sagen dasselbe. Ein Grund ohne
+ * eigenen Satz bekommt den allgemeinen, nie den Sammelsatz einer anderen
+ * Ursache.
+ */
+export function formularSammelgrund(fehler: { readonly grund?: string }): AngebotFehlerGrund {
+  switch (fehler.grund ?? 'pruefen') {
+    case 'pruefen': return 'pruefen';
+    case 'datenschutz': return 'datenschutzBestaetigen';
+    case 'zu_viele': return 'zuVieleAnfragen';
+    default: return 'nichtGespeichert';
+  }
+}
+
+/**
+ * Der Sammelsatz, den ein PROGRAMM zu einem abgewiesenen Anfrageformular
+ * bekommt (`meldung` im JSON, D-599).
  *
  * Auf Deutsch bleibt es beim Satz des Dienstes: er IST der Satz zu diesem
- * Grund. Ein Grund ohne eigenen Satz bekommt den allgemeinen, nie den
- * Sammelsatz einer anderen Ursache.
+ * Grund. Englisch der Satz zum Grund aus `formularSammelgrund`. Eine Seite
+ * bekommt seit D-769 keinen Satz mehr, sondern den Grund.
  */
 export function formularSammelmeldung(
   sprache: Sprache,
@@ -504,13 +651,7 @@ export function formularSammelmeldung(
   },
 ): string {
   if (sprache === 'de') return fehler.message;
-  const t = API_TEXTE[sprache];
-  switch (fehler.grund ?? 'pruefen') {
-    case 'pruefen': return t.pruefen;
-    case 'datenschutz': return t.datenschutzBestaetigen;
-    case 'zu_viele': return t.zuVieleAnfragen;
-    default: return t.nichtGespeichert;
-  }
+  return ANGEBOT_FEHLER_TEXTE[sprache].fehler[formularSammelgrund(fehler)];
 }
 
 /**

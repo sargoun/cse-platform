@@ -3,11 +3,13 @@ import { notFound } from 'next/navigation';
 import type postgres from 'postgres';
 import { AnfrageFormular } from '@/components/oeffentlich/AnfrageFormular';
 import { angebotPfad, formularSchluessel } from '@/lib/formular/bereiche';
-import { Felder } from '@/lib/formular/schema';
+import { Felder, type FormularFeld } from '@/lib/formular/schema';
 import { db } from '@/server/db/pool';
 import { withOeffentlich } from '@/server/kontext/oeffentlich';
 import { basisAusAnfrage, herkunftDerAnfrage } from '@/server/inhalt/seiten-daten';
 import { uebersetzeFelder, uebersetzeTitel } from '@/lib/i18n/formular-en';
+import { ANGEBOT_FEHLER_TEXTE } from '@/lib/i18n/texte';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
 
 /**
@@ -55,6 +57,48 @@ export async function angebotMetadaten(
   };
 }
 
+/** Was eine Abweisung auf dem Formular zeigt: den Sammelsatz und die Meldung je Feld. */
+export interface Abweisung {
+  readonly satz: string;
+  /** Feldschlüssel → `fehlermeldung` aus der Definition, in der Sprache der Seite. */
+  readonly felder: Readonly<Record<string, string>>;
+}
+
+/**
+ * Die Abweisung aus der Adresse — ein GRUND und die SCHLÜSSEL der Felder
+ * (`?fehler=<grund>&felder=<k1,k2,…>`, D-769, V-272).
+ *
+ * **Kein Text aus der Adresse.** Hier stand ein JSON-Parser für die
+ * Feldmeldungen, und der Parameter `meldung` trug den Sammelsatz: was jemand in
+ * einen Link schrieb, stand als Warnung über dem Formular und unter jedem
+ * Feld. Jetzt kommt jeder Satz von der Seite selbst — der Sammelsatz aus
+ * `API_TEXTE` (nur als eigener Eintrag, D-728; ein fremder Grund bekommt den
+ * allgemeinen Satz), die Meldung am Feld aus derselben veröffentlichten
+ * Definition, aus der die Seite ihre Felder rendert (`felder` sind die
+ * angezeigten — englisch über `uebersetzeFelder`). Ein Schlüssel, den die
+ * Definition nicht kennt, fällt weg; es gibt keine zweite Liste (D-599).
+ *
+ * **Er steht HIER und nicht in `page.tsx`.** Aus einer `page.tsx` erlaubt
+ * Next.js nur die bekannten Exporte; ein zusaetzlicher schlaegt beim BAU fehl
+ * und nicht bei `npx tsc --noEmit` — die Routentypen entstehen erst dort.
+ * Derselbe Grund, aus dem `AngebotSeiteFuer` in dieser Datei steht.
+ */
+export function abweisungAus(
+  suche: Readonly<Record<string, string | string[] | undefined>>,
+  felder: readonly FormularFeld[], sprache: Sprache,
+): Abweisung | null {
+  const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  if (grund === null) return null;
+  const t = ANGEBOT_FEHLER_TEXTE[sprache];
+  const roh = suche['felder'];
+  const genannt = new Set(typeof roh === 'string' ? roh.split(',') : []);
+  const markiert: Record<string, string> = {};
+  for (const f of felder) {
+    if (genannt.has(f.schluessel)) markiert[f.schluessel] = f.fehlermeldung;
+  }
+  return { satz: eigenerEintrag(t.fehler, grund) ?? t.sonst, felder: markiert };
+}
+
 /**
  * Das Formular in einer Sprache.
  *
@@ -64,45 +108,8 @@ export async function angebotMetadaten(
  * Feldliste, und die englische Seite kann nicht gegen eine andere pruefen als
  * die, die sie gezeigt hat.
  */
-/**
- * Die Feldmeldungen aus der Adresse — als JSON, weil die Feldnamen aus
- * `formular_definition` kommen und nicht im Voraus bekannt sind.
- *
- * **Er steht HIER und nicht in `page.tsx`.** Aus einer `page.tsx` erlaubt
- * Next.js nur die bekannten Exporte; ein zusaetzlicher schlaegt beim BAU fehl
- * („Property 'felderAus' is incompatible with index signature") und nicht bei
- * `npx tsc --noEmit` — die Routentypen entstehen erst dort. Derselbe Grund,
- * aus dem `AngebotSeiteFuer` in dieser Datei steht.
- *
- * **Alles, was nicht passt, wird verworfen.** Der Wert steht in einer Adresse,
- * die jeder bauen kann; was hier durchkommt, landet als Text auf der Seite.
- * Deshalb: nur ein Objekt, nur Zeichenketten, und nur solche in vernuenftiger
- * Laenge. Ein kaputter Parameter gibt `undefined` und keine halbe Anzeige.
- */
-export function felderAus(
-  roh: string | string[] | undefined,
-): Readonly<Record<string, string>> | undefined {
-  if (typeof roh !== 'string' || roh === '') return undefined;
-  try {
-    const gelesen: unknown = JSON.parse(roh);
-    if (gelesen === null || typeof gelesen !== 'object' || Array.isArray(gelesen)) {
-      return undefined;
-    }
-    const sauber: Record<string, string> = {};
-    for (const [schluessel, wert] of Object.entries(gelesen)) {
-      if (typeof wert === 'string' && wert.length > 0 && wert.length <= 300) {
-        sauber[schluessel] = wert;
-      }
-    }
-    return Object.keys(sauber).length === 0 ? undefined : sauber;
-  } catch {
-    return undefined;
-  }
-}
-
 export async function AngebotSeiteFuer(
-  bereich: string, sprache: Sprache = VORGABE_SPRACHE, meldung?: string | undefined,
-  fehler?: Readonly<Record<string, string>> | undefined,
+  bereich: string, sprache: Sprache = VORGABE_SPRACHE,
   suche: Readonly<Record<string, string | string[] | undefined>> = {},
 ) {
   const formular = await ladeFormular(bereich);
@@ -118,6 +125,7 @@ export async function AngebotSeiteFuer(
     ? uebersetzeFelder(schluessel, felder.data) : felder.data;
   const titel = sprache === 'en'
     ? uebersetzeTitel(schluessel, formular.titel) : formular.titel;
+  const abweisung = abweisungAus(suche, felderAnzeige, sprache);
 
   // Die Herkunft DIESES Aufrufs (REQ-07, D-631) — der `Referer` des spaeteren
   // POST ist immer diese Seite und sagt nichts.
@@ -127,8 +135,7 @@ export async function AngebotSeiteFuer(
     <AnfrageFormular
       bereich={bereich} titel={titel} felder={felderAnzeige} sprache={sprache}
       herkunft={herkunft}
-      {...(meldung === undefined ? {} : { meldung })}
-      {...(fehler === undefined ? {} : { fehler })}
+      {...(abweisung === null ? {} : { meldung: abweisung.satz, fehler: abweisung.felder })}
     />
   );
 }

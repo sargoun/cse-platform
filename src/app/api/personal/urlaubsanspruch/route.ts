@@ -7,9 +7,11 @@ import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { MengeFehler, mengeAusEingabe } from '@/server/services/finanz/menge';
+import { grundAufsFormularweg } from '@/app/api/formular-antwort';
 import {
-  eroeffneUrlaubskonto, setzeAnspruch,
+  eroeffneUrlaubskonto, setzeAnspruch, URLAUBSJAHR_GRENZEN,
   UrlaubsanspruchOffenFehler, UrlaubsjahrAbgeschlossenFehler,
 } from '@/server/services/zeit/urlaubskonto';
 
@@ -39,7 +41,21 @@ import {
 export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const DATUM = /^\d{4}-\d{2}-\d{2}$/u;
+/*
+ * Ein Tag ist ein Kalendertag, den es gibt — `istGueltigerKalendertag`, nicht
+ * nur das Muster `JJJJ-MM-TT` (D-771 Nachtrag). Das Muster allein liess
+ * `2025-02-31` bis an ein `::date` durch, und die Datenbank antwortete mit
+ * 22008 — hier eine 500 statt des Grundes, den die Route für ein unlesbares
+ * Datum schon hat.
+ */
+/*
+ * **Ein Formular bekommt auch bei einem frühen Eingabefehler seinen Rückweg**
+ * (D-599, D-766, V-273): `grundAufsFormularweg` führt mit `fehlerweg` (sonst
+ * `zurueck`) und dem Grund als `?fehler=` zurück auf die Seite, die den Satz
+ * dazu kennt. Vorher kam hier JSON — auf einem Formular ohne JavaScript eine
+ * weisse Seite mit geschweiften Klammern. Ein Aufruf ohne beide Felder ist
+ * ein Programm und bekommt weiter `{ fehler }` mit 400.
+ */
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -64,18 +80,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const zusatzRoh = text('zusatz');
 
   if (anstellungId === null || !UUID.test(anstellungId)) {
-    return NextResponse.json({ fehler: 'keine_anstellung' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'keine_anstellung', 400);
   }
   if (jahrRoh === null || !/^\d{4}$/u.test(jahrRoh)) {
-    return NextResponse.json({ fehler: 'kein_jahr' }, { status: 400 });
-  }
-  if (anspruchRoh === null) {
-    return NextResponse.json({ fehler: 'kein_anspruch' }, { status: 400 });
-  }
-  if (verfaelltAm !== null && !DATUM.test(verfaelltAm)) {
-    return NextResponse.json({ fehler: 'kein_datum' }, { status: 400 });
+    return grundAufsFormularweg(anfrage, daten, 'kein_jahr', 400);
   }
   const jahr = Number(jahrRoh);
+  /* Die Grenzen von `uk_jahr_bereich` (0061) — vorher ein 23514 und eine 500. */
+  if (jahr < URLAUBSJAHR_GRENZEN.von || jahr > URLAUBSJAHR_GRENZEN.bis) {
+    return grundAufsFormularweg(anfrage, daten, 'jahr_ausserhalb', 400);
+  }
+  if (anspruchRoh === null) {
+    return grundAufsFormularweg(anfrage, daten, 'kein_anspruch', 400);
+  }
+  if (verfaelltAm !== null && !istGueltigerKalendertag(verfaelltAm)) {
+    return grundAufsFormularweg(anfrage, daten, 'kein_datum', 400);
+  }
 
   const fehlerweg = text('fehlerweg');
   const zurueckAuf = (grund: string): NextResponse | null => {

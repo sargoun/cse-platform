@@ -1,12 +1,13 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import {
+  autorisierungsAntwort, nichtGefundenAntwort, ohneSitzungAntwort,
+} from '@/server/auth/antwort';
 import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import { berlinTagesZeitpunkt } from '@/server/services/zeit/dauer';
 import { CrmFehler } from '@/server/services/crm/anlegen';
@@ -23,6 +24,17 @@ import { AKTIVITAET_TYPEN, halteLeadAktivitaetFest } from '@/server/services/crm
  *
  * `naechste_aktion_*` steht dagegen auf dem Lead und wird ersetzt: das ist
  * eine Absicht ueber die Zukunft, kein Ereignis der Vergangenheit.
+ *
+ * **Anmeldung und Recht zuerst, und das 404 ist das der übrigen Routen**
+ * (AUT-06, D-656 Nr. 2, D-766, D-769 Nr. 7, D-772 Nr. 12). Hier stand der
+ * Zweig für den `CrmFehler` vor der Anmeldung, und ein fehlendes Recht
+ * antwortete `{"fehler":"unbekannt"}` — anders als jede andere schreibende
+ * Route. Jetzt übersetzt `autorisierungsAntwort` zuerst: ein fehlendes Recht
+ * ist `nichtGefundenAntwort()`, ohne Sitzung die Anmeldung, ohne zweiten
+ * Faktor der Faktor-Schritt (für ein Programm JSON wie bisher). Ein Lead, den
+ * es hier nicht gibt — auch der einer anderen Gesellschaft —, antwortet mit
+ * DENSELBEN Bytes: „gibt es nicht" und „darf nicht" waren hier gleich
+ * (beide `unbekannt`) und bleiben es.
  */
 export const dynamic = 'force-dynamic';
 
@@ -108,23 +120,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return z !== undefined;
       })) as Promise<boolean>);
 
-    if (!getroffen) return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
+    if (!getroffen) return nichtGefundenAntwort();
 
     const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
     return NextResponse.redirect(
       new URL(`/portal/${slug}/crm/leads/${leadId}`, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
-    /* Ein Fehler, der als Satz auf dem Leadblatt ankommt, nicht als 500. */
+    /* Anmeldung und Recht zuerst — ein fehlendes Recht ist die byte-gleiche 404. */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
+    /* Ein Fehler, der als Grund auf dem Leadblatt ankommt, nicht als 500. */
     if (fehler instanceof CrmFehler) {
       const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
       return NextResponse.redirect(new URL(
         `/portal/${slug}/crm/leads/${leadId}?fehler=${encodeURIComponent(fehler.grund)}`,
         erwarteterUrsprung(anfrage)), 303);
-    }
-    const anmeldung = anmeldungsAntwort(fehler, anfrage);
-    if (anmeldung !== null) return anmeldung;
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'unbekannt' }, { status: 404 });
     }
     throw fehler;
   }

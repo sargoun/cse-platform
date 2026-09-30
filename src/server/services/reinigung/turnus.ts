@@ -3,6 +3,7 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { rechteImKontext } from '../../auth/kontext-rechte.js';
 import { ladeFeiertage } from '../dienstplan/generator.js';
 import { EINSAETZE_LEBEND_JE_TURNUS } from '../dienstplan/serienliste.js';
+import { SERIE_REGEL_GRUENDE } from '../dienstplan/serie.js';
 import {
   turnusVorschau, type VorschauAusnahme, type VorschauTermin,
 } from './turnusvorschau.js';
@@ -38,9 +39,38 @@ import {
  * `ladePlanfenster.abwesenheitGeprueft`.
  */
 
+/**
+ * Warum eine Ausnahme an einem Turnus NICHT erfasst wurde — als Schlüssel
+ * (V-275, D-773, D-769). `POST /api/reinigung/turnus` schickt ihn als
+ * `?fehler=<grund>` zurück auf das Turnusblatt, und die Seite schlägt ihn
+ * nach (`TURNUS_AUSNAHME_TEXTE`); bis dahin stand der Satz roh in `?fehler=`,
+ * bei einem unbekannten Turnus mit dessen voller Kennung.
+ *
+ * Die ersten beiden stellt die Route fest (das Formular kam unvollständig),
+ * die übrigen `legeAusnahmeAn`.
+ */
+export const TURNUS_AUSNAHME_GRUENDE = [
+  'ausnahme_unvollstaendig', 'art_ungueltig',
+  'datum_ungueltig', 'grund_fehlt', 'ersatzbeginn_ungueltig', 'ersatzbeginn_fehlt',
+  'dauer_ungueltig', 'turnus_unbekannt',
+] as const;
+export type TurnusAusnahmeGrund = (typeof TURNUS_AUSNAHME_GRUENDE)[number];
+
+/**
+ * Warum ein Turnus NICHT angelegt wurde — die zwei Gründe der Route
+ * (unvollständiges Formular, kein Planungsrecht) und alle, die
+ * `legeTurnusSerieAn` werfen kann (V-275). Ein abgewiesener Abrechnungsanker
+ * reist daneben mit seinem eigenen Grund (`LEISTUNGSANKER_GRUENDE`, V-192).
+ */
+export const TURNUS_ANLAGE_GRUENDE = [
+  'turnus_unvollstaendig', 'kein_planungsrecht', ...SERIE_REGEL_GRUENDE,
+] as const;
+export type TurnusAnlageGrund = (typeof TURNUS_ANLAGE_GRUENDE)[number];
+
 export class TurnusNichtGefunden extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  readonly grund = 'turnus_unbekannt' as const satisfies TurnusAusnahmeGrund;
   constructor(id: string) {
     super(`Den Turnus ${id} gibt es in dieser Gesellschaft nicht.`);
     this.name = 'TurnusNichtGefunden';
@@ -50,7 +80,10 @@ export class TurnusNichtGefunden extends Error {
 export class AusnahmeEingabeFehlt extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(
+    nachricht: string,
+    readonly grund: Exclude<TurnusAusnahmeGrund, 'ausnahme_unvollstaendig' | 'turnus_unbekannt'>,
+  ) {
     super(nachricht);
     this.name = 'AusnahmeEingabeFehlt';
   }
@@ -348,25 +381,31 @@ const UHRZEIT = /^([01]\d|2[0-3]):[0-5]\d$/u;
 export async function legeAusnahmeAn(
   kontext: SchreibKontext, e: AusnahmeEingabe,
 ): Promise<{ readonly id: string }> {
-  if (!DATUM.test(e.datum)) throw new AusnahmeEingabeFehlt('Das Datum ist ein Kalendertag.');
+  if (!DATUM.test(e.datum)) {
+    throw new AusnahmeEingabeFehlt('Das Datum ist ein Kalendertag.', 'datum_ungueltig');
+  }
   if (!AUSNAHME_ARTEN.includes(e.art)) {
-    throw new AusnahmeEingabeFehlt('Die Art ist Ausfall, Zusatztermin oder Verschiebung.');
+    throw new AusnahmeEingabeFehlt(
+      'Die Art ist Ausfall, Zusatztermin oder Verschiebung.', 'art_ungueltig');
   }
   if (e.grund.trim() === '') {
     throw new AusnahmeEingabeFehlt(
-      'Eine Ausnahme braucht einen Grund — sonst steht im Plan eine Luecke ohne Erklaerung.');
+      'Eine Ausnahme braucht einen Grund — sonst steht im Plan eine Luecke ohne Erklaerung.',
+      'grund_fehlt');
   }
   const beginn = e.ersatzBeginn === undefined || e.ersatzBeginn === null || e.ersatzBeginn === ''
     ? null : e.ersatzBeginn;
   if (beginn !== null && !UHRZEIT.test(beginn)) {
-    throw new AusnahmeEingabeFehlt('Der Ersatzbeginn ist eine Uhrzeit HH:MM.');
+    throw new AusnahmeEingabeFehlt('Der Ersatzbeginn ist eine Uhrzeit HH:MM.', 'ersatzbeginn_ungueltig');
   }
   if (e.art === 'verschiebung' && beginn === null) {
-    throw new AusnahmeEingabeFehlt('Eine Verschiebung braucht einen Ersatzbeginn.');
+    throw new AusnahmeEingabeFehlt(
+      'Eine Verschiebung braucht einen Ersatzbeginn.', 'ersatzbeginn_fehlt');
   }
   const dauer = e.dauerMinuten === undefined || e.dauerMinuten === null ? null : e.dauerMinuten;
   if (dauer !== null && (!Number.isInteger(dauer) || dauer < 15 || dauer > 24 * 60 - 1)) {
-    throw new AusnahmeEingabeFehlt('Die abweichende Dauer liegt zwischen 15 und 1439 Minuten.');
+    throw new AusnahmeEingabeFehlt(
+      'Die abweichende Dauer liegt zwischen 15 und 1439 Minuten.', 'dauer_ungueltig');
   }
 
   const [zeile] = await kontext.schreibe<{ id: string }>(

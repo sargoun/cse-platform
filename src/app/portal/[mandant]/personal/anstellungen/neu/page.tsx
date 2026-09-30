@@ -11,7 +11,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { sucheKandidaten, type DublettenKandidat } from '@/server/services/personal/dublette';
 import { dublettenProbe, SPRACHEN, statusFuerEintritt } from '@/server/services/personal/einstellung';
 import { berlinHeute } from '@/server/db/heute';
+import { EINSTELLUNG_RUECKWEG } from '@/lib/i18n/verwaltung/personal-rueckweg';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
+import { PersonalAbweisung } from '../../abweisung';
 
 /**
  * `/portal/[mandant]/personal/anstellungen/neu` — einstellen (D-09, EMP-14,
@@ -78,7 +80,6 @@ export default async function NeueAnstellung({
   const nachname = wort(suche, 'nachname');
   const gewaehlt = wort(suche, 'person', 40);
   const modus = wort(suche, 'modus', 12);
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
   const gesucht = vorname !== '' || nachname !== '';
   const begriff = nachname !== '' ? nachname : vorname;
 
@@ -148,11 +149,10 @@ export default async function NeueAnstellung({
         )}
       </nav>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="einstellung-meldung" className="mb-s5 max-w-prose">
-          <strong>Nicht angelegt.</strong> {meldung}
-        </Hinweis>
-      )}
+      {/* Eine Abweisung von `POST /api/personal/anstellungen` kommt als Grund
+          zurück (`?fehler=`, D-771) — nie als Satz aus der Adresse. */}
+      <PersonalAbweisung saetze={EINSTELLUNG_RUECKWEG.de} grund={suche['fehler']}
+                         cse="einstellung-meldung" />
 
       <h2 className="mb-s3 text-h2 text-text">1. Den Menschen finden</h2>
       <form

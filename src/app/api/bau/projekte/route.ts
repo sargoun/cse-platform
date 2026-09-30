@@ -4,9 +4,11 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
+import { grundAufsFormular } from '../../formular-antwort';
 import {
   aendereProjekt, archiviereProjekt, legeProjektAn, ProjektFehler,
 } from '@/server/services/bau/projekt';
@@ -36,15 +38,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const zurueck = String(daten.get('zurueck') ?? '/portal');
+  /* Das Feld, wie das Formular es schickt — fehlt es, fragt ein Programm (D-599). */
+  const zurueckFeld = daten.get('zurueck');
+  const formularZurueck = typeof zurueckFeld === 'string' && zurueckFeld !== ''
+    ? zurueckFeld : undefined;
   const wert = (name: string): string | undefined => {
     const t = String(daten.get(name) ?? '').trim();
     return t === '' ? undefined : t;
   };
   const aktion = String(daten.get('aktion') ?? 'anlegen');
-  const bereich = zurueck.split('/')[2] ?? '';
 
-  let ziel = zurueck;
+  let ziel = '/portal';
   try {
     ziel = await db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -61,6 +65,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           { recht: 'bau.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        /*
+         * **Der Bereich des Ziels kommt aus der SITZUNG** (Invariante 3; V-275
+         * Nachtrag, D-773): der Slug des aktiven Mandanten, wie in
+         * `api/kalkulation`. Er stand vorher in `zurueck` — ein Programm schickt
+         * keines und landete nach dem Speichern auf `/portal//…`. Gelesen wird
+         * VOR dem Schreiben: fehlt der Slug, ist nichts geschrieben (404).
+         */
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        const bereich = aktiv.slug;
 
         if (aktion === 'archivieren') {
           const id = wert('id');
@@ -108,14 +123,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return `/portal/${bereich}/bau/projekte/${neu.id}/lv`;
       }));
   } catch (fehler) {
-    if (fehler instanceof ProjektFehler) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
-    }
+    /*
+     * **Die Anmeldung zuerst** (D-766, D-769 Nr. 7): ein fehlendes Recht ist
+     * die byte-gleiche 404 (AUT-06), ohne zweiten Faktor geht es auf den
+     * Faktor-Schritt — keines davon wird ein Rückweg aufs Formular.
+     */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
+    /*
+     * **Eine Abweisung geht als GRUND zurück aufs Formular** (V-275, D-773,
+     * D-769): `?fehler=<grund>`, nie der Satz des Dienstes; die Seite schlägt
+     * ihn in der Sprache der Sitzung nach (`PROJEKT_FEHLER_TEXTE`). Ohne `zurueck`
+     * fragt ein Programm und bekommt `{ fehler, meldung }` mit Status (D-599).
+     */
+    if (fehler instanceof ProjektFehler) {
+      return grundAufsFormular(anfrage, {
+        json: false, zurueck: formularZurueck, grund: fehler.grund,
+      }) ?? NextResponse.json(
+        { fehler: fehler.grund, meldung: fehler.message }, { status: fehler.status });
+    }
     throw fehler;
   }
 

@@ -51,7 +51,8 @@ export interface AbwesenheitAufnahmeTexte {
    */
   readonly abgewiesen: Readonly<Record<
     'au_bis_vor_von' | 'zeitraum_verkehrt' | 'zeitraum_zu_lang' | 'kein_datum'
-    | 'ungueltige_eingabe', string>>;
+    | 'ungueltige_eingabe' | 'keine_anstellung' | 'keine_art'
+    | 'art_ungeklaert' | 'art_nicht_waehlbar' | 'nicht_gefunden', string>>;
 }
 
 export const ABWESENHEIT_AUFNAHME_TEXTE:
@@ -136,6 +137,18 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       kein_datum: 'Ein Datum ließ sich nicht lesen. Nichts wurde gespeichert.',
       ungueltige_eingabe:
         'Die Angaben passen nicht zusammen. Nichts wurde gespeichert — bitte prüfen Sie sie.',
+      /* Die frühen Eingabefehler der Route, seit V-273 als Rückweg statt JSON (D-771). */
+      keine_anstellung: 'Bitte wählen Sie eine Anstellung. Nichts wurde gespeichert.',
+      keine_art: 'Bitte wählen Sie eine Art. Nichts wurde gespeichert.',
+      /* Die Art und die Anstellung (D-771 Nr. 15) — ohne den Namen der Art. */
+      art_ungeklaert:
+        'Für diese Art ist nicht hinterlegt, ob sie bezahlt wird (O-139). Ohne diese Angabe '
+        + 'entsteht keine Abwesenheit. Nichts wurde gespeichert.',
+      art_nicht_waehlbar:
+        'Diese Art der Abwesenheit gibt es nicht mehr. Nichts wurde gespeichert — bitte '
+        + 'wählen Sie eine andere.',
+      nicht_gefunden:
+        'Diese Anstellung gibt es in dieser Gesellschaft nicht (mehr). Nichts wurde gespeichert.',
     },
   },
 
@@ -216,6 +229,15 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       kein_datum: 'A date could not be read. Nothing was saved.',
       ungueltige_eingabe:
         'The details do not fit together. Nothing was saved — please check them.',
+      keine_anstellung: 'Please choose an Anstellung. Nothing was saved.',
+      keine_art: 'Please choose a type. Nothing was saved.',
+      art_ungeklaert:
+        'It is not recorded whether this type is paid (O-139). Without it no absence is '
+        + 'created. Nothing was saved.',
+      art_nicht_waehlbar:
+        'This type of absence no longer exists. Nothing was saved — please choose another one.',
+      nicht_gefunden:
+        'This Anstellung does not exist (any more) in this Gesellschaft. Nothing was saved.',
     },
   },
 };

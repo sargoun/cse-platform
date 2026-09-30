@@ -6,6 +6,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { Recht } from '@/components/ui/Recht';
+import { Abweisung, einSchluessel } from '@/components/portal/Rueckweg';
+import { KUNDE_NEU_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
 
 /**
  * `/portal/[mandant]/crm/kunden/neu` — einen Kunden anlegen (CRM-01, OPS-01).
@@ -21,6 +23,10 @@ import { Recht } from '@/components/ui/Recht';
  * Grundlage steht in der Liste, lässt sich bebuchen und berechnen — und
  * bekommt keine Werbung. Wer die Grundlage kennt, trägt sie ein; wer sie nicht
  * kennt, soll nicht raten.
+ *
+ * **Eine Abweisung kommt als Grund zurück (`?grund=`), der Satz steht hier**
+ * (D-769, D-772). Hier stand der Satz des Dienstes aus `?meldung=` — und jeder
+ * Text, den ein Verweis mitbrachte, im Warnkasten des Portals.
  */
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +47,7 @@ export default async function KundeNeu(
   const { zugang } = tor;
   const darf = await haeltRechte(zugang.sitzung, 'crm.schreiben', 'crm.lesen');
   const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : null;
+  const grund = einSchluessel(suche['grund']);
 
   return (
     <PortalRahmen
@@ -57,11 +63,7 @@ export default async function KundeNeu(
     >
       <h1 className="mb-s5 mt-0 text-h1 text-text">Neuer Kunde</h1>
 
-      {meldung !== null && (
-        <Hinweis art="warnung" cse="kunde-meldung" className="mb-s5 max-w-prose">
-          {meldung}
-        </Hinweis>
-      )}
+      <Abweisung saetze={KUNDE_NEU_RUECKWEG.de} grund={grund} cse="kunde-meldung" />
 
       {darf['crm.schreiben'] !== true ? (
         <Hinweis art="hinweis" cse="kein-schreibrecht" className="max-w-prose">

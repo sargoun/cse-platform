@@ -233,6 +233,10 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
         'Dieser Mensch hat schon einen Zugang. Ändern Sie die Nummer, statt einen '
         + 'zweiten danebenzustellen — ein Mensch, ein Login (EMP-14).',
       kein_zugang: 'Für diesen Menschen gibt es keinen Zugang. Richten Sie ihn zuerst ein.',
+      unbekannte_handlung: 'Diesen Schritt kennt das Formular nicht. Nichts wurde geändert.',
+      keine_kennung:
+        'Um welchen Menschen es geht, kam nicht an. Nichts wurde geändert — laden Sie die '
+        + 'Seite neu.',
       keine_anstellung:
         'Dieser Mensch ist in dieser Gesellschaft nicht beschäftigt. Ein Zugang hängt '
         + 'am Menschen, eingerichtet wird er von der Gesellschaft, die ihn beschäftigt.',
@@ -381,6 +385,9 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
         'This person already has an access. Change the number instead of putting a '
         + 'second one beside it — one human, one login (EMP-14).',
       kein_zugang: 'There is no access for this person. Set one up first.',
+      unbekannte_handlung: 'The form does not know this step. Nothing was changed.',
+      keine_kennung:
+        'Which person was meant did not arrive. Nothing was changed — reload the page.',
       keine_anstellung:
         'This person is not employed by this Gesellschaft (legal entity). An access '
         + 'belongs to the human; it is set up by the entity employing them.',

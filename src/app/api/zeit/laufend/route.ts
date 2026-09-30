@@ -1,13 +1,13 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { anmeldungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
+import { grundAufsFormular } from '../../formular-antwort';
 import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import {
   LaufenderEintragFehler, LaufenderEintragNichtGefunden,
@@ -36,6 +36,12 @@ import {
  * sie ohne Zone; `new Date(...)` läse sie als Ortszeit des Prozesses, auf
  * Vercel also UTC — aus „17:00" würde 19:00 Berliner Zeit. Aufgelöst wird sie
  * über dieselbe getestete Funktion wie beim Einwand (§7.2).
+ *
+ * **Eine Abweisung geht als GRUND zurück aufs Brett** (V-275, D-773, D-769):
+ * `?fehler=<grund>`, nie der Satz des Dienstes und nie die Kennung des
+ * Eintrags; `/zeiten/live` schlägt ihn in `LAUFEND_FEHLER_TEXTE` nach. Ein
+ * Aufruf ohne `zurueck` ist kein Formular, sondern ein Programm und bekommt
+ * `{ fehler, meldung }` mit Status (D-599).
  */
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +56,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const daten = await anfrage.formData();
   const zurueck = String(daten.get('zurueck') ?? '/portal');
+  /* Das Feld, wie das Formular es schickt — fehlt es, fragt ein Programm (D-599). */
+  const zurueckFeld = daten.get('zurueck');
+  const formularZurueck = typeof zurueckFeld === 'string' && zurueckFeld !== ''
+    ? zurueckFeld : undefined;
   const id = String(daten.get('eintrag') ?? '');
   const aktion = String(daten.get('aktion') ?? '');
   const begruendung = String(daten.get('begruendung') ?? '');
@@ -105,19 +115,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       }));
   } catch (fehler) {
+    /*
+     * **Die Anmeldung zuerst** (D-766, D-769 Nr. 7): ein fehlendes Recht ist
+     * die byte-gleiche 404 — von aussen wie eine fehlende Zeile (AUT-06) —,
+     * ohne zweiten Faktor geht es auf den Faktor-Schritt. Keines davon wird
+     * je ein Rückweg aufs Formular.
+     */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
     if (fehler instanceof LaufenderEintragFehler
       || fehler instanceof LaufenderEintragNichtGefunden) {
-      const trenner = zurueck.includes('?') ? '&' : '?';
-      return NextResponse.redirect(internesZiel(
-        `${zurueck}${trenner}meldung=${encodeURIComponent(fehler.message)}`,
-        '/portal', anfrage), 303);
+      return grundAufsFormular(anfrage, {
+        json: false, zurueck: formularZurueck, grund: fehler.grund,
+      }) ?? NextResponse.json(
+        { fehler: fehler.grund, meldung: fehler.message }, { status: fehler.status });
     }
-    // AUT-06: fehlendes Recht sieht von aussen aus wie eine fehlende Zeile.
-    if (fehler instanceof NichtGefundenFehler) {
-      return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
-    }
-    const anmeldung = anmeldungsAntwort(fehler, anfrage);
-    if (anmeldung !== null) return anmeldung;
     throw fehler;
   }
 

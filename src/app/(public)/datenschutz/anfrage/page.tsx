@@ -13,7 +13,9 @@ export default async function Seite(
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
-  const suche = await searchParams;
-  const meldung = typeof suche['meldung'] === 'string' ? suche['meldung'] : undefined;
-  return AnfrageSeiteFuer(undefined, meldung);
+  /*
+   * Eine Abweisung kommt als GRUND zurück (`?fehler=`, D-769) — `Anfrage.tsx`
+   * schlägt ihn nach. Ein Satz aus der Adresse erscheint nie.
+   */
+  return AnfrageSeiteFuer(undefined, await searchParams);
 }

@@ -237,7 +237,13 @@ describe('Bewerbung: eine Abweisung ist ein Satz auf der Formularseite (V-158)',
     const quelle = readFileSync('src/app/(public)/karriere/Formular.tsx', 'utf8');
     expect(quelle).toContain('name="antwort" value="seite"');
     expect(quelle).toContain('pattern={EMAIL_MUSTER}');
-    expect(quelle).toContain('role="alert"');
+    /*
+     * Der Kasten ist seit der Nachrunde zu V-272 ein `Hinweis` (DESIGN §5
+     * „Notices"): `warnung` mit `rolle="alert"` statt eines nachgebauten
+     * `<p role="alert">` in `--danger` — die Rolle bleibt, gesetzt über den
+     * Baustein. `tests/kern/website-hinweise.test.ts` prüft das gerendert.
+     */
+    expect(quelle).toContain('<Hinweis art="warnung" rolle="alert" cse="bewerbung-meldung">');
     for (const seite of ['src/app/(public)/karriere/[stelle]/bewerbung/page.tsx',
       'src/app/(public)/karriere/initiativbewerbung/page.tsx',
       'src/app/(public)/karriere/page.tsx']) {

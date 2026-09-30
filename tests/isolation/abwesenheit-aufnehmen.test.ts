@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { meldeAbwesenheit } from '../../src/server/services/abwesenheit/index.js';
+import { ZeitraumFehler } from '../../src/server/services/abwesenheit/tage.js';
 
 /**
  * **Die Krankmeldung am Telefon um 05:40** (V-025, EMP-09).
@@ -159,6 +160,18 @@ describe('§2 die Grenzen sind dieselben wie auf dem Weg der Arbeiterin', () => 
     })).catch((x: unknown) => x);
     // 23P01 — die Ausschlussbedingung `abwesenheit_kein_ueberlapp` (0073).
     expect((fehler as { code?: string }).code).toBe('23P01');
+  });
+
+  it('ein Tag, den es nicht gibt, ist ein ZeitraumFehler „kein_datum" — keine 22008 und kein RangeError (D-771 Nachtrag)', async () => {
+    /* Vorher rollte `rechneTage` den 31.02. lautlos auf den März, und die
+       Datenbank wies am `::date` ab; der 13. Monat warf schon in `tagePlus`. */
+    for (const [von, bis] of [['2026-02-31', '2026-03-03'], ['2026-13-01', '2026-13-02']] as const) {
+      const fehler = await imKontext(buero, (k) => meldeAbwesenheit(k, {
+        anstellungId: f.jonasReinigung, abwesenheitsartId: artKrank, von, bis,
+      })).catch((x: unknown) => x);
+      expect(fehler, von).toBeInstanceOf(ZeitraumFehler);
+      expect((fehler as ZeitraumFehler).grund).toBe('kein_datum');
+    }
   });
 
   it('ohne `zeit.abwesenheit_melden` entsteht keine Zeile', async () => {

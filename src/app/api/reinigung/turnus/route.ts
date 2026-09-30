@@ -1,18 +1,19 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { ohneSitzungAntwort } from '@/server/auth/antwort';
+import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
+import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { rechteImKontext } from '@/server/auth/kontext-rechte';
 import { withTenant } from '@/server/kontext/index';
 import { legeTurnusSerieAn, type SerienErgebnis } from '@/server/services/dienstplan/serie';
 import {
   legeAusnahmeAn, type AusnahmeArt, AUSNAHME_ARTEN,
+  type TurnusAnlageGrund, type TurnusAusnahmeGrund,
 } from '@/server/services/reinigung/turnus';
-import { alsAntwort } from '../../sicherheit/antwort';
 import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
 import { MASKE_WERT_HOECHSTENS } from '@/lib/formular/maske';
 
@@ -40,6 +41,15 @@ import { MASKE_WERT_HOECHSTENS } from '@/lib/formular/maske';
  * `reinigung.schreiben`, und der Generator liest sie beim nächsten Lauf. Sie
  * ist deshalb der Weg, der einer Reinigungsleitung ohne Dienstplanrecht
  * offensteht.
+ *
+ * **Eine Abweisung reist als GRUND** (V-275, D-773, D-769): eine Ausnahme
+ * zurück aufs Turnusblatt, ein Turnus zurück auf `/turnus/neu`, beide als
+ * `?fehler=<grund>`; die Seiten schlagen ihn nach. Hier stand vorher der Satz
+ * selbst in `?fehler=` — bei einem unbekannten Turnus mit dessen Kennung —,
+ * und die Weiche ersetzte JEDE Antwort von `alsAntwort` mit Meldung durch den
+ * Rückweg: ein fehlendes Recht wurde „Nicht gefunden" auf der Seite statt der
+ * byte-gleichen 404 (AUT-06), die Umleitung auf den Faktor-Schritt ein Satz
+ * (D-766). Die Anmeldung kommt jetzt zuerst.
  */
 export const dynamic = 'force-dynamic';
 
@@ -51,7 +61,7 @@ function text(daten: FormData, feld: string): string | null {
 class Unvollstaendig extends Error {
   readonly code = 'unvollstaendig';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: TurnusAusnahmeGrund | TurnusAnlageGrund) {
     super(nachricht);
     this.name = 'Unvollstaendig';
   }
@@ -70,6 +80,7 @@ class Unvollstaendig extends Error {
 class KeinPlanungsrecht extends Error {
   readonly code = 'kein_planungsrecht';
   readonly status = 422;
+  readonly grund = 'kein_planungsrecht' as const satisfies TurnusAnlageGrund;
   constructor() {
     super(
       'Ein Turnus ohne Planungsserie erzeugt keine Schicht, und die Serie verlangt '
@@ -91,12 +102,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = (text(daten, 'mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
   const art = text(daten, 'art');
   if (art !== 'turnus' && art !== 'ausnahme') {
     return NextResponse.json({ fehler: 'art_unbekannt' }, { status: 400 });
   }
-  const liste = `/portal/${mandant}/reinigung/turnus`;
+  /*
+   * **Die Liste liegt im Bereich der SITZUNG** (Invariante 3; V-275 Nachtrag,
+   * D-773): der Slug des aktiven Mandanten, gelesen gleich nach dem Tor und
+   * VOR dem Schreiben — er gilt für den Erfolg UND für jede Abweisung danach.
+   * Vorher kam er aus dem Formularfeld `mandant`: ein Programm ohne das Feld
+   * landete auf `/portal//…`, und ein fremder Slug im Feld bestimmte das
+   * Ziel. Vor dem Slug antwortet nur das Tor, und das braucht kein Ziel.
+   */
+  let liste = '/portal';
 
   let ziel: string;
   try {
@@ -106,6 +124,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           sitzung, { recht: 'reinigung.schreiben', schreibend: true },
           rechtepruefer(kontext.abfrage.bind(kontext)),
         );
+        const [aktiv] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
+        liste = `/portal/${aktiv.slug}/reinigung/turnus`;
 
         if (art === 'ausnahme') {
           const turnusId = text(daten, 'turnus');
@@ -113,12 +135,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           const roheArt = text(daten, 'ausnahme_art');
           const grund = text(daten, 'grund');
           if (turnusId === null || datum === null || grund === null) {
-            throw new Unvollstaendig('Turnus, Datum und Grund sind Pflicht.');
+            throw new Unvollstaendig(
+              'Turnus, Datum und Grund sind Pflicht.', 'ausnahme_unvollstaendig');
           }
           const ausnahmeArt: AusnahmeArt | undefined =
             AUSNAHME_ARTEN.find((a) => a === roheArt);
           if (ausnahmeArt === undefined) {
-            throw new Unvollstaendig('Die Art ist ausfall, zusatz oder verschiebung.');
+            throw new Unvollstaendig(
+              'Die Art ist ausfall, zusatz oder verschiebung.', 'art_ungueltig');
           }
           const dauerRoh = text(daten, 'dauer');
           const dauer = dauerRoh === null ? null : Number(dauerRoh);
@@ -155,7 +179,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (revierId === null || leistungId === null || bezeichnung === null
           || beginn === null || gueltigAb === null) {
           throw new Unvollstaendig(
-            'Revier, Leistung, Bezeichnung, Beginn und „Gültig ab" sind Pflicht.');
+            'Revier, Leistung, Bezeichnung, Beginn und „Gültig ab" sind Pflicht.',
+            'turnus_unvollstaendig');
         }
         const dauer = Number(text(daten, 'dauer') ?? '');
         const interval = Number(text(daten, 'interval') ?? '1');
@@ -181,21 +206,35 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          * Was der Generator uebersprungen hat, steht im Ziel — nicht
          * verschwiegen. „0 Schichten erzeugt" ohne den Grund waere die
          * Meldung, nach der jemand eine Stunde sucht.
+         *
+         * `angelegt=1` und nicht die Kennung der Serie (V-275, D-769 Nr. 1):
+         * die Liste fragt nur, OB angelegt wurde; eine Kennung in der Adresse
+         * sagte nichts, was die Seite braucht. `erzeugt` ist eine Anzahl, die
+         * die Liste als Ziffernfolge prüft, `uebersprungen` der Grund des
+         * Generators (ein Schlüssel, kein Satz).
          */
         const uebersprungen = ergebnis.uebersprungen.length > 0
           ? `&uebersprungen=${encodeURIComponent(ergebnis.uebersprungen[0]?.grund ?? '')}`
           : '';
-        return `${liste}?angelegt=${ergebnis.planungsserieId}`
+        return `${liste}?angelegt=1`
           + `&erzeugt=${String(ergebnis.erzeugt)}`
           + `${ergebnis.bestandSchon ? '&bestand=1' : ''}${uebersprungen}`;
       })) as Promise<string>);
   } catch (fehler) {
     /*
+     * **Die Anmeldung zuerst** (D-766, D-769 Nr. 7): ein fehlendes Recht ist
+     * die byte-gleiche 404 (AUT-06), ohne zweiten Faktor geht es auf den
+     * Faktor-Schritt — keines davon wird je ein Rückweg auf eine Seite.
+     */
+    const autorisierung = autorisierungsAntwort(fehler, anfrage);
+    if (autorisierung !== null) return autorisierung;
+    /*
      * **Ein abgewiesener Anker reist als SCHLÜSSEL** (V-192), nicht als
      * deutscher Satz: die Seite schlägt ihn in der Sprache der Sitzung nach.
      * Zurück geht es in die Vorschau, mit allen Eingaben — der Knopf, der
      * anlegt, steht dort wieder unter der Terminliste. Die übrigen Fehler
-     * dieses Wegs reisen weiter als Satz (D-599-Altlast, D-686 Nr. 7).
+     * dieses Wegs reisen seit V-275 ebenfalls als Schlüssel, aber ohne die
+     * Eingaben (D-769 Nr. 5).
      */
     if (fehler instanceof LeistungsankerFehler && art === 'turnus') {
       const suche = new URLSearchParams({ vorschau: '1' });
@@ -210,21 +249,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.redirect(
         internesZiel(`${liste}/neu?${suche.toString()}`, liste, anfrage), 303);
     }
-    const antwort = alsAntwort(fehler, anfrage);
-    if (antwort !== null) {
-      /*
-       * Ein Formular-POST bekommt keine JSON-Antwort ins Gesicht: der Fehler
-       * geht als Text zurueck auf die Seite, von der er kam. Nur ein Fehler
-       * ohne eigene Meldung bleibt JSON.
-       */
-      const meldung = (fehler as { message?: string }).message;
-      if (typeof meldung === 'string' && meldung !== '') {
-        const zurueck = art === 'ausnahme'
-          ? `${liste}/${text(daten, 'turnus') ?? ''}?fehler=${encodeURIComponent(meldung)}`
-          : `${liste}/neu?fehler=${encodeURIComponent(meldung)}`;
-        return NextResponse.redirect(internesZiel(zurueck, liste, anfrage), 303);
-      }
-      return antwort;
+    /*
+     * Ein Formular-POST bekommt keine JSON-Antwort ins Gesicht: der GRUND
+     * geht zurück auf die Seite, von der das Formular kam — die Ausnahme aufs
+     * Turnusblatt, der Turnus auf `/turnus/neu`. Eine Klasse ohne eigenen
+     * Grund reist mit ihrem `code`, und die Seite zeigt dafür ihren
+     * allgemeinen Satz. Alles andere bleibt ein Wurf.
+     */
+    const status = (fehler as { status?: unknown }).status;
+    const code = (fehler as { code?: unknown }).code;
+    if (typeof status === 'number' && typeof code === 'string') {
+      const grund = (fehler as { grund?: unknown }).grund;
+      const ziel = internesZiel(
+        art === 'ausnahme' ? `${liste}/${text(daten, 'turnus') ?? ''}` : `${liste}/neu`,
+        liste, anfrage);
+      ziel.searchParams.set('fehler', typeof grund === 'string' ? grund : code);
+      return NextResponse.redirect(ziel, 303);
     }
     throw fehler;
   }

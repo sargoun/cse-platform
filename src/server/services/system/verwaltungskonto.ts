@@ -49,21 +49,76 @@ export function istEinladbareRolle(wert: string): wert is EinladbareRolle {
   return (EINLADBARE_ROLLEN as readonly string[]).includes(wert);
 }
 
+/**
+ * Warum eine Einladung nicht ausgestellt wurde — als SCHLÜSSEL (D-769, D-774).
+ *
+ * `app.verwaltungskonto_einladen` (0372) gibt bei einer Abweisung einen
+ * deutschen SATZ als `grund` zurück. Der reiste bis D-774 als `?meldung=` auf
+ * die Seite und stand dort roh — deutsch auch unter englischer Sitzung, mit
+ * den Backticks und den Umschreibungen der Migration („gueltige",
+ * „Aendern"). Hier wird er EINMAL auf einen Schlüssel abgebildet; die Seite
+ * hat den Satz in ihrer Sprache. Ein Satz, den diese Liste nicht kennt, wird
+ * `nicht_ausgestellt` — der allgemeine Satz, nie der Text der Datenbank
+ * (D-769 Nr. 8).
+ */
+export type EinladungGrund =
+  | 'gesellschaft_fehlt' | 'email_ungueltig' | 'name_fehlt' | 'rolle_unzulaessig'
+  | 'kundenkonto' | 'schon_eingetragen' | 'nicht_ausgestellt';
+
+/** Warum der Vorgang gar nicht erst in die Datenbank kam oder dort abgewiesen wurde. */
+export type EinladungFehlerGrund = 'anbieter_fremd' | 'nicht_erlaubt';
+
 export class EinladungFehler extends Error {
-  constructor(nachricht: string, readonly grund: string, readonly status = 400) {
-    super(nachricht);
+  constructor(
+    nachricht: string, readonly grund: EinladungFehlerGrund, readonly status = 400,
+    optionen?: ErrorOptions,
+  ) {
+    super(nachricht, optionen);
     this.name = 'EinladungFehler';
   }
 }
 
-export interface EinladungErgebnis {
-  readonly ok: boolean;
-  readonly grund: string;
-  /** Der Klartext — genau einmal, nur bei `ok`. */
-  readonly token: string | null;
-  readonly kontoId: string | null;
-  readonly neuesKonto: boolean;
+/**
+ * Die Sätze aus 0372, Wort für Wort, wie die Datenbank sie liefert (die
+ * Literale der Migration sind aneinandergefügt). `tests/isolation/
+ * verwaltungskonto-einladung.test.ts` fragt die echte Funktion und hält fest,
+ * dass jeder erreichbare Satz hier seinen Schlüssel findet.
+ */
+const DATENBANK_GRUENDE: ReadonlyMap<string, EinladungGrund> = new Map([
+  ['Diese Gesellschaft gibt es nicht.', 'gesellschaft_fehlt'],
+  ['Ohne gueltige E-Mail-Adresse gibt es kein Konto.', 'email_ungueltig'],
+  ['Ein Konto braucht einen Namen — er steht in jeder Freigabe und in jedem '
+    + 'Protokolleintrag.', 'name_fehlt'],
+  ['Ueber diesen Weg werden nur `admin` und `leitung` eingeladen. Mitarbeiter- und '
+    + 'Kundenzugaenge haben eigene Wege; ein Super-Admin entsteht nur ueber die Umgebung '
+    + '(D-617).', 'rolle_unzulaessig'],
+  ['Diese Adresse gehoert einem Kundenkonto. Ein Verwaltungszugang dafuer wuerde die '
+    + 'Trennung der Portale aufheben (K-04).', 'kundenkonto'],
+  ['Dieses Konto ist in dieser Gesellschaft schon eingetragen. Aendern Sie seine Rolle, '
+    + 'statt es erneut einzuladen.', 'schon_eingetragen'],
+]);
+
+/** Der Schlüssel zu einem Satz der Datenbank — ein unbekannter wird `nicht_ausgestellt`. */
+export function einladungsGrund(satz: string): EinladungGrund {
+  return DATENBANK_GRUENDE.get(satz) ?? 'nicht_ausgestellt';
 }
+
+export type EinladungErgebnis =
+  | {
+    readonly ok: true;
+    readonly grund: 'eingeladen';
+    /** Der Klartext — genau einmal. */
+    readonly token: string;
+    readonly kontoId: string | null;
+    readonly neuesKonto: boolean;
+  }
+  | {
+    readonly ok: false;
+    readonly grund: EinladungGrund;
+    readonly token: null;
+    readonly kontoId: string | null;
+    readonly neuesKonto: boolean;
+  };
 
 /**
  * Dieselbe Sperre wie beim Kundenzugang: solange Supabase Auth nicht
@@ -81,12 +136,28 @@ function pruefeAnbieter(): void {
   }
 }
 
+/** Was `app.verwaltungskonto_einladen` zurückgibt. */
+interface EinladungZeile {
+  readonly ok: boolean;
+  readonly grund: string;
+  readonly konto_id: string | null;
+  readonly neues_konto: boolean;
+}
+
 /**
  * Konto, Mitgliedschaft und Einladungstoken in EINEM Vorgang.
  *
  * Alles Weitere steckt in `app.verwaltungskonto_einladen` (0372): Recht,
  * zweiter Faktor, Portaltrennung, Rollenwahl, Token, Protokoll. Diese
  * Funktion bildet den Klartext und gibt ihn zurueck.
+ *
+ * **`42501` wird `nicht_erlaubt`** — wie bei den Kontohandlungen
+ * (`konto/verwaltung.ts`): die Definer-Funktion sagt „darf nicht" und nennt im
+ * Satz, WELCHE Bedingung fehlte (Portal, Gruppenansicht, Recht, zweiter
+ * Faktor). Die Route hat Recht und Faktor vorher schon geprüft; was danach
+ * noch abweist, bekommt einen Satz ohne diese Auskunft (AUT-06). Der Satz der
+ * Datenbank bleibt als `cause` am Fehler — fürs Protokoll, nie für den Schirm.
+ * Jeder andere Datenbankfehler bleibt ein Fehler.
  */
 export async function ladeVerwaltungskontoEin(
   kontext: SchreibKontext,
@@ -99,24 +170,29 @@ export async function ladeVerwaltungskontoEin(
 ): Promise<EinladungErgebnis> {
   pruefeAnbieter();
   const token = neuerToken();
-  const [z] = await kontext.schreibe<{
-    ok: boolean; grund: string; konto_id: string | null; neues_konto: boolean;
-  }>(
-    `select ok, grund, konto_id, neues_konto
-       from app.verwaltungskonto_einladen($1::uuid, $2, $3, $4, $5)`,
-    [eingabe.mandantId, eingabe.email, eingabe.name, eingabe.rolle, tokenHash(token)]);
+  let zeilen: readonly EinladungZeile[];
+  try {
+    zeilen = await kontext.schreibe<EinladungZeile>(
+      `select ok, grund, konto_id, neues_konto
+         from app.verwaltungskonto_einladen($1::uuid, $2, $3, $4, $5)`,
+      [eingabe.mandantId, eingabe.email, eingabe.name, eingabe.rolle, tokenHash(token)]);
+  } catch (fehler: unknown) {
+    if ((fehler as { code?: unknown }).code === '42501') {
+      throw new EinladungFehler(
+        'Die Datenbank hat die Einladung abgewiesen.', 'nicht_erlaubt', 403, { cause: fehler });
+    }
+    throw fehler;
+  }
 
+  const z = zeilen[0];
   if (z === undefined) {
-    return {
-      ok: false, token: null, kontoId: null, neuesKonto: false,
-      grund: 'Die Einladung wurde nicht ausgestellt.',
-    };
+    return { ok: false, grund: 'nicht_ausgestellt', token: null, kontoId: null, neuesKonto: false };
+  }
+  if (z.ok) {
+    return { ok: true, grund: 'eingeladen', token, kontoId: z.konto_id, neuesKonto: z.neues_konto };
   }
   return {
-    ok: z.ok,
-    grund: z.grund,
-    token: z.ok ? token : null,
-    kontoId: z.konto_id,
-    neuesKonto: z.neues_konto,
+    ok: false, grund: einladungsGrund(z.grund), token: null,
+    kontoId: z.konto_id, neuesKonto: z.neues_konto,
   };
 }

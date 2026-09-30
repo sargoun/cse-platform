@@ -81,12 +81,27 @@ export interface Lauflage {
   readonly vergangenheitAnlegen?: true;
 }
 
+/**
+ * Warum der Generator einen Termin NICHT als Schicht geschrieben hat — als
+ * Schlüssel (V-275). Drei kommen aus `planeVorkommnisse`, zwei aus diesem
+ * Lauf. `POST /api/reinigung/turnus` reicht den ersten davon als
+ * `?uebersprungen=` an die Serienliste, und die schlägt ihn nach
+ * (`TURNUS_LISTE_TEXTE`) — nie steht das Wort selbst da.
+ */
+export const GENERATOR_UEBERSPRUNGEN = [
+  'feiertag', 'ausnahme_ausfall', 'ausserhalb_gueltigkeit', 'vergangen_oder_gearbeitet',
+  'objekt_ohne_kunde',
+] as const;
+export type GeneratorUebersprungen = (typeof GENERATOR_UEBERSPRUNGEN)[number];
+
 export interface SerienBericht {
   readonly planungsserieId: string;
   readonly erzeugt: number;
   readonly aktualisiert: number;
   readonly storniert: number;
-  readonly uebersprungen: readonly { readonly quellSchluessel: string; readonly grund: string }[];
+  readonly uebersprungen: readonly {
+    readonly quellSchluessel: string; readonly grund: GeneratorUebersprungen;
+  }[];
   readonly generiertBis: string;
   /**
    * Kalenderjahre im Horizont ohne gepflegten Feiertagskalender (V-178) —
@@ -166,7 +181,7 @@ export async function materialisiereSerie(
   let erzeugt = 0;
   let aktualisiert = 0;
   const geschrieben: string[] = [];
-  const nichtAngewandt: { quellSchluessel: string; grund: string }[] =
+  const nichtAngewandt: { quellSchluessel: string; grund: GeneratorUebersprungen }[] =
     uebersprungen.map((u) => ({ quellSchluessel: u.quellSchluessel, grund: u.grund }));
 
   for (const e of einsaetze) {

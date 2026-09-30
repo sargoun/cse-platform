@@ -26,7 +26,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       const dublette = (rumpf.felder['dublette'] ?? '').trim();
       const fuehrend = (rumpf.felder['fuehrend'] ?? '').trim();
       if (!UUID.test(dublette) || !UUID.test(fuehrend)) {
-        throw new ZusammenfuehrenFehler(
+        throw new ZusammenfuehrenFehler('keine_auswahl',
           'Es müssen zwei Datensätze gewählt sein: der veraltete und der führende.');
       }
       await fuehreZusammen(kontext, {

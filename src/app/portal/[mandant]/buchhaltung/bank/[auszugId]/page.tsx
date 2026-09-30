@@ -212,8 +212,8 @@ export default async function BankAuszug(
    * wird nie gezeigt (`eigenerEintrag`).
    */
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const meldungText = fehler === null && typeof suche['meldung'] === 'string'
-    ? (eigenerEintrag(t.meldungen, suche['meldung']) ?? null) : null;
+  const meldungText = fehler === null && typeof suche['erfolg'] === 'string'
+    ? (eigenerEintrag(t.meldungen, suche['erfolg']) ?? null) : null;
   const fehlerText = fehler === null ? null : (eigenerEintrag(t.fehler, fehler) ?? t.fehlerSonst);
   const wartend = daten.umsaetze.filter((u) => u.zustand === 'offen' || u.zustand === 'in_klaerung');
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';

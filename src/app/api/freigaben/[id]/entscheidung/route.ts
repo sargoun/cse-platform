@@ -15,6 +15,7 @@ import {
 import { AusfuehrungAbgewiesen, fuehreAus, type Ausgefuehrt }
   from '@/server/services/freigabe/ausfuehrung';
 import { armiereRuecknahme } from '@/server/services/freigabe/stapel';
+import type { AusfuehrungFehlerGrund } from '@/lib/i18n/verwaltung/freigabe-ausfuehrung';
 
 /**
  * `POST /api/freigaben/[id]/entscheidung` — genehmigen oder ablehnen (APR-07,
@@ -33,6 +34,12 @@ import { armiereRuecknahme } from '@/server/services/freigabe/stapel';
  * Zwei Antwortformen: ein Formular (die Seite) bekommt 303 zurueck auf die
  * Freigabe, ein JSON-Aufrufer die Kettennummer und den Hash. Abweisungen
  * der Datenbank, die ein Mensch lesen soll, sind 409 — kein 500.
+ *
+ * **Zurück auf die Seite reist nur ein Grund** (D-769, D-774): auch eine
+ * abgewiesene AUSFÜHRUNG als `?fehler=ausfuehrung_<grund>`. Bis dahin reiste
+ * `?fehler=ausfuehrung` mit dem Satz des Dienstes als `?meldung=`, und die
+ * Seite zeigte ihn roh — `AusfuehrungAbgewiesen` trug seinen Grund die ganze
+ * Zeit, geschickt wurde er nur dem Programm.
  */
 export const dynamic = 'force-dynamic';
 
@@ -168,8 +175,8 @@ export async function POST(
           { fehler: 'ausfuehrung', grund: fehler.grund, meldung: fehler.message }, { status: 409 });
       }
       const ziel = new URL(`/portal/${slug}/freigaben/${id}`, erwarteterUrsprung(anfrage));
-      ziel.searchParams.set('fehler', 'ausfuehrung');
-      ziel.searchParams.set('meldung', fehler.message);
+      const grund: AusfuehrungFehlerGrund = `ausfuehrung_${fehler.grund}`;
+      ziel.searchParams.set('fehler', grund);
       return NextResponse.redirect(ziel, 303);
     }
     if (fehler instanceof FreigabeAbgewiesen) {

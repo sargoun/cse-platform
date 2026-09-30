@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { formularSchluessel, angebotPfad } from '@/lib/formular/bereiche';
+import { istLeadnummer } from '@/lib/formular/leadnummer';
 import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
 import { DANK_TEXTE } from '@/lib/i18n/texte';
 import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
@@ -63,7 +64,7 @@ export function DankeSeiteFuer(
         * Die Nummer steht in einem eigenen Kasten und nicht im Fliesstext: sie
         * ist das einzige, was jemand sich aufschreibt.
         */}
-      {nummer !== null && nummer !== '' && (
+      {nummer !== null && istLeadnummer(nummer) && (
         <div data-cse="angebot-vorgangsnummer"
              className="max-w-[48ch] rounded-lg border border-line bg-surface p-s5">
           <p className="m-0 text-micro uppercase tracking-[0.08em] text-text-muted">

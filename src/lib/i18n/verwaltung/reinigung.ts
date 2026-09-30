@@ -20,6 +20,14 @@
  * genau die Verwechslung, die K-16 verhindern soll.
  */
 import type { InternSprache } from '../intern.js';
+import type { RevierGrund } from '../../../server/services/reinigung/revier.js';
+import type {
+  SonderleistungErfolg, SonderleistungGrund,
+} from '../../../server/services/reinigung/sonderleistung.js';
+import type {
+  TurnusAnlageGrund, TurnusAusnahmeGrund,
+} from '../../../server/services/reinigung/turnus.js';
+import type { GeneratorUebersprungen } from '../../../server/services/dienstplan/generator.js';
 
 export interface RevierTexte {
   /* ── Überschriften und Wege ────────────────────────────────────────── */
@@ -207,5 +215,295 @@ export const REVIER_TEXTE: Readonly<Record<InternSprache, RevierTexte>> = {
     aenderungenSpeichern: 'Save changes',
     keinSchreibrechtAnlegen: 'Creating one requires',
     keinSchreibrechtAendern: 'Editing requires',
+  },
+};
+
+/**
+ * Warum ein Revier nicht gespeichert wurde — als SATZ, nachgeschlagen nach
+ * dem GRUND, den `POST /api/reinigung/reviere` als `?fehler=` zurückschickt
+ * (V-275, D-773, D-769).
+ *
+ * Bis dahin reiste der deutsche Satz des Dienstes als `?meldung=` mit und
+ * stand roh über dem Formular — deutsch auch in einer englischen Sitzung, und
+ * jeder präparierte Link schrieb seine eigene Warnung. Die Seite schlägt nur
+ * als eigenen Eintrag nach (D-728); ein Grund, den die Tabelle nicht kennt,
+ * bekommt `sonst`. Kein Satz nennt ein Recht als Schlüssel (D-741).
+ */
+export interface RevierFehlerTexte {
+  /** Die fett gesetzten ersten Worte des Kastens (DESIGN §5 „Notices"). */
+  readonly titel: string;
+  /** Für einen Grund, den die Tabelle nicht kennt. */
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<RevierGrund, string>>;
+}
+
+export const REVIER_FEHLER_TEXTE: Readonly<Record<InternSprache, RevierFehlerTexte>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Das Revier wurde nicht gespeichert. Prüfen Sie die Angaben und versuchen Sie es '
+      + 'noch einmal.',
+    fehler: {
+      id_fehlt: 'Welches Revier gemeint ist, fehlt — öffnen Sie es aus der Liste heraus.',
+      objekt_fehlt: 'Ein Revier gehört zu einem Objekt — bitte eines auswählen.',
+      bezeichnung_fehlt: 'Ein Revier braucht eine Bezeichnung.',
+      sollzeit_ungueltig:
+        'Die Sollzeit ist eine Zahl grösser als null — sie ist die Minutenzahl, aus der die '
+        + 'Einsatzdauer und damit die Besetzung entsteht.',
+      nicht_angelegt:
+        'Das Revier wurde nicht angelegt. Gibt es das gewählte Objekt in dieser Gesellschaft '
+        + 'noch, und darf Ihr Konto hier die Reinigung bearbeiten?',
+      revier_unbekannt:
+        'Dieses Revier gibt es in dieser Gesellschaft nicht mehr, oder es ist archiviert — '
+        + 'die Liste zeigt den aktuellen Stand.',
+    },
+  },
+  en: {
+    titel: 'Not saved.',
+    sonst: 'The Revier was not saved. Check the details and try again.',
+    fehler: {
+      id_fehlt: 'Which Revier is meant is missing — open it from the list.',
+      objekt_fehlt: 'A Revier belongs to an Objekt (site) — please choose one.',
+      bezeichnung_fehlt: 'A Revier needs a name.',
+      sollzeit_ungueltig:
+        'The target minutes are a number greater than zero — they are what shift length and '
+        + 'staffing are derived from.',
+      nicht_angelegt:
+        'The Revier was not created. Does the chosen Objekt still exist in this Gesellschaft '
+        + '(legal entity), and may your account edit cleaning here?',
+      revier_unbekannt:
+        'This Revier no longer exists in this Gesellschaft, or it has been archived — the '
+        + 'list shows the current state.',
+    },
+  },
+};
+
+/**
+ * Was nach einem Schreibversuch auf `/reinigung/sonderleistungen` oben steht —
+ * nachgeschlagen nach dem SCHLÜSSEL aus `?erfolg=` bzw. dem GRUND aus
+ * `?fehler=` (V-275, D-773, D-769).
+ *
+ * Bis dahin schickte `POST /api/reinigung/sonderleistungen` die Sätze selbst
+ * in `?ok=` und `?fehler=`, und die Seite zeigte sie roh. **Nur deutsch, in
+ * derselben Form wie die zweisprachigen Tabellen:** die Seite steht noch auf
+ * der Ausnahmeliste der Übersetzungswache; stellt jemand sie um, kommt hier
+ * nur `en` dazu.
+ *
+ * **Ohne die Werte, die der Satz der Route einsetzte:** „jetzt" und „vorher"
+ * beim Zustandswechsel — der neue Zustand steht in der Liste darunter, und
+ * er ist die Eingabe des Formulars, die nie zurück in die Adresse reist
+ * (D-769 Nr. 5). Ein unbekannter Erfolgsschlüssel zeigt keinen Kasten, ein
+ * unbekannter Grund bekommt `sonst`. Kein Satz nennt ein Recht als
+ * Schlüssel (D-741).
+ */
+export interface SonderleistungTexte {
+  /** Die ersten Worte des Erfolgskastens. */
+  readonly gespeichert: string;
+  readonly erfolg: Readonly<Record<SonderleistungErfolg, string>>;
+  /** Die ersten Worte des Warnkastens. */
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<SonderleistungGrund, string>>;
+}
+
+export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> = {
+  de: {
+    gespeichert: 'Gespeichert.',
+    erfolg: {
+      abruf_erfasst: 'Der Abruf ist erfasst.',
+      status_gesetzt: 'Der Zustand des Abrufs ist geändert — die Liste unten zeigt ihn.',
+      abruf_storniert: 'Der Abruf ist storniert — mit Grund und Urheber, und nicht gelöscht.',
+      zeitwert_gesetzt: 'Der Zeitwert der Katalogzeile ist gesetzt.',
+    },
+    titel: 'Nicht gespeichert.',
+    sonst: 'Es wurde nichts gespeichert. Prüfen Sie die Angaben und versuchen Sie es noch '
+      + 'einmal.',
+    fehler: {
+      position_fehlt: 'Die Katalogposition fehlt.',
+      zustand_unvollstaendig: 'Abruf und Zustand sind Pflicht.',
+      storno_unvollstaendig: 'Abruf und Stornogrund sind Pflicht.',
+      abruf_unvollstaendig:
+        'Objekt, Katalogposition, Bezeichnung und „Beauftragt am" sind Pflicht.',
+      objekt_unbekannt:
+        'Das Objekt gehört nicht zu dieser Gesellschaft, oder Ihrem Konto fehlt das Recht, '
+        + 'Objekte zu lesen — ohne das Objekt ist kein Kunde bekannt.',
+      objekt_ohne_kunde:
+        'An diesem Objekt hängt kein Kunde. Ein Abruf ohne Kunde lässt sich nicht abrechnen — '
+        + 'bitte zuerst den Kunden am Objekt hinterlegen.',
+      bezeichnung_fehlt: 'Ein Abruf braucht eine Bezeichnung.',
+      beauftragt_am_ungueltig: '„Beauftragt am" ist ein Kalendertag.',
+      ausfuehrung_ungueltig: '„Ausführung von" und „Ausführung bis" sind Kalendertage.',
+      ausfuehrung_fenster: 'Das Ausführungsende liegt vor dem Beginn.',
+      menge_ohne_einheit:
+        'Menge und Einheit gehören zusammen — eine Menge ohne Einheit ist keine Menge.',
+      menge_ungueltig: 'Die Menge ist eine Zahl mit höchstens drei Dezimalstellen.',
+      nicht_angelegt:
+        'Der Abruf wurde nicht angelegt — Objekt, Kunde, Revier oder Katalogposition gehört '
+        + 'nicht zu dieser Gesellschaft, oder Ihr Konto darf hier nicht schreiben.',
+      stornogrund_fehlt: 'Ein Storno braucht einen Grund.',
+      zeitwert_ungueltig:
+        'Der Zeitwert ist eine Zahl in Minuten mit höchstens drei Dezimalstellen.',
+      zeitwert_nicht_positiv: 'Der Zeitwert ist grösser als null.',
+      status_unveraendert: 'Der Abruf steht schon in diesem Zustand.',
+      abgerechnet_unveraenderlich:
+        'Ein abgerechneter Abruf ist unveränderlich — er steht in einer festgeschriebenen '
+        + 'Rechnung. Korrigiert wird die Rechnung (Storno), nicht der Abruf.',
+      storniert_endgueltig:
+        'Ein stornierter Abruf wird nicht wiederbelebt. Für eine erneute Beauftragung '
+        + 'entsteht ein neuer Abruf.',
+      abgerechnet_nur_rechnung:
+        'Den Stempel „Abgerechnet" setzt die Rechnungsübernahme und nur sie. Von Hand gesetzt '
+        + 'behauptete er eine Rechnung, die es nicht gibt.',
+      storno_ueber_status:
+        'Ein Storno braucht einen Grund und einen Urheber — es läuft über „Abruf stornieren", '
+        + 'nicht über den Status.',
+      status_beim_erfassen: 'Dieser Zustand lässt sich beim Erfassen nicht setzen.',
+      bereits_storniert: 'Dieser Abruf ist bereits storniert.',
+      abgerechnet_kein_storno:
+        'Ein abgerechneter Abruf lässt sich nicht stornieren — er steht in einer '
+        + 'festgeschriebenen Rechnung. Korrigiert wird durch Storno der Rechnung.',
+      abruf_unbekannt:
+        'Diesen Abruf gibt es in dieser Gesellschaft nicht mehr — die Liste zeigt den '
+        + 'aktuellen Stand.',
+      katalogzeile_unbekannt:
+        'Diese Katalogzeile gibt es in dieser Gesellschaft nicht — die Liste zeigt den '
+        + 'aktuellen Stand.',
+    },
+  },
+};
+
+/**
+ * Warum eine Ausnahme am Turnus nicht erfasst wurde — der Satz zum GRUND, den
+ * `POST /api/reinigung/turnus` (`art=ausnahme`) als `?fehler=` zurück aufs
+ * Turnusblatt schickt (V-275, D-773, D-769).
+ *
+ * **Nur deutsch, in derselben Form wie die zweisprachigen Tabellen:** das
+ * Turnusblatt steht noch auf der Ausnahmeliste der Übersetzungswache. Ein
+ * unbekannter Grund bekommt `sonst`; nie steht, was in der Adresse stand.
+ */
+export interface TurnusAusnahmeTexte {
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<TurnusAusnahmeGrund, string>>;
+}
+
+export const TURNUS_AUSNAHME_TEXTE: Readonly<Record<'de', TurnusAusnahmeTexte>> = {
+  de: {
+    titel: 'Nicht gespeichert.',
+    sonst: 'Die Ausnahme wurde nicht erfasst. Prüfen Sie die Angaben und versuchen Sie es '
+      + 'noch einmal.',
+    fehler: {
+      ausnahme_unvollstaendig: 'Datum und Grund sind Pflicht.',
+      art_ungueltig: 'Die Art ist Ausfall, Zusatztermin oder Verschiebung.',
+      datum_ungueltig: 'Das Datum ist ein Kalendertag.',
+      grund_fehlt:
+        'Eine Ausnahme braucht einen Grund — sonst steht im Plan eine Lücke ohne Erklärung.',
+      ersatzbeginn_ungueltig: 'Der Ersatzbeginn ist eine Uhrzeit (Stunde und Minute).',
+      ersatzbeginn_fehlt: 'Eine Verschiebung braucht einen Ersatzbeginn.',
+      dauer_ungueltig: 'Die abweichende Dauer liegt zwischen 15 und 1439 Minuten.',
+      turnus_unbekannt:
+        'Diesen Turnus gibt es in dieser Gesellschaft nicht mehr — die Liste der Turnusse '
+        + 'zeigt den aktuellen Stand.',
+    },
+  },
+};
+
+/**
+ * Warum ein Turnus nicht angelegt wurde — der Satz zum GRUND, den
+ * `POST /api/reinigung/turnus` (`art=turnus`) als `?fehler=` zurück auf
+ * `/reinigung/turnus/neu` schickt (V-275, D-773, D-769). Ein abgewiesener
+ * Abrechnungsanker hat seine eigenen Sätze (`LEISTUNGSANKER_TEXTE`, V-192).
+ *
+ * **Nur deutsch** wie die Seite (Ausnahmeliste der Übersetzungswache). Die
+ * Sätze wiederholen keine Eingabe — der Wochentag, der kein Wochentag war,
+ * steht in der Vorschau, nicht in der Adresse. `sonst` ist der Satz, den die
+ * Seite schon vor V-275 für jede Abweisung zeigte.
+ */
+export interface TurnusAnlageTexte {
+  readonly titel: string;
+  readonly sonst: string;
+  readonly fehler: Readonly<Record<TurnusAnlageGrund, string>>;
+  /**
+   * Unter „Die Regel wurde abgewiesen" in der Vorschau, wenn die Vorschau
+   * selbst an einer Angabe scheitert (Beginn, Dauer, Gültigkeit) — dort gibt
+   * es keinen Grund, und der Satz des Dienstes wiederholte die Angabe aus der
+   * Adresse (V-275).
+   */
+  readonly vorschauSonst: string;
+}
+
+export const TURNUS_ANLAGE_TEXTE: Readonly<Record<'de', TurnusAnlageTexte>> = {
+  de: {
+    titel: 'Nicht angelegt.',
+    sonst: 'Prüfen Sie die Angaben in der Vorschau und legen Sie die Serie von dort noch '
+      + 'einmal an.',
+    fehler: {
+      turnus_unvollstaendig:
+        'Revier, Leistung, Bezeichnung, Beginn und „Gültig ab" sind Pflicht.',
+      kein_planungsrecht:
+        'Ein Turnus ohne Planungsserie erzeugt keine Schicht, und die Serie verlangt das Recht, '
+        + 'den Dienstplan zu bearbeiten. Es wurde deshalb nichts angelegt — auch der Turnus '
+        + 'nicht. Eine Ausnahme für einen einzelnen Tag ist ohne dieses Recht möglich.',
+      wochentag_unbekannt: 'Ein gewählter Wochentag ist keiner — erlaubt sind Montag bis Sonntag.',
+      wochentag_fehlt: 'Ein wöchentlicher Turnus braucht mindestens einen Wochentag.',
+      monatstag_unbekannt: 'Ein gewählter Monatstag ist keiner — erlaubt sind 1 bis 31.',
+      monatstag_fehlt: 'Ein monatlicher Turnus braucht mindestens einen Monatstag.',
+      intervall_ungueltig: 'Das Intervall ist eine ganze Zahl zwischen 1 und 52.',
+      bezeichnung_fehlt: 'Ein Turnus braucht eine Bezeichnung.',
+      beginn_ungueltig: 'Der Beginn ist eine Uhrzeit (Stunde und Minute).',
+      dauer_ungueltig:
+        'Die Dauer liegt zwischen 15 Minuten und knapp einem Tag — eine Schicht ist kürzer '
+        + 'als 24 Stunden.',
+      gueltig_ab_ungueltig: '„Gültig ab" ist ein Datum.',
+      gueltig_bis_ungueltig: '„Gültig bis" ist ein Datum nach „Gültig ab".',
+      feiertagsregel_ungueltig:
+        'An Feiertagen fällt der Termin aus oder bleibt unverändert — eines von beiden.',
+      turnus_nicht_angelegt:
+        'Der Turnus wurde nicht angelegt — das Revier oder die Leistung gehört nicht zu dieser '
+        + 'Gesellschaft.',
+      bundesland_ungueltig: 'Das Bundesland der Feiertage ist ein Kürzel wie BE.',
+      horizont_ungueltig: 'Der Planungshorizont liegt zwischen 1 und 400 Tagen.',
+      serie_nicht_angelegt:
+        'Die Planungsserie wurde nicht angelegt — der Turnus gehört nicht zu dieser '
+        + 'Gesellschaft, oder Ihr Konto darf hier nicht schreiben.',
+    },
+    vorschauSonst:
+      'Beginn, Dauer oder Gültigkeit passen nicht — bitte die Angaben oben prüfen und die '
+      + 'Vorschau neu erstellen.',
+  },
+};
+
+/**
+ * Was der Generator beim Anlegen eines Turnus übersprungen hat — der Satz zum
+ * SCHLÜSSEL, den `POST /api/reinigung/turnus` als `?uebersprungen=` an die
+ * Serienliste reicht (V-275, D-773).
+ *
+ * Bis dahin stand das Wort selbst auf der Liste („Übersprungen:
+ * objekt_ohne_kunde"), und jeder Text aus einem präparierten Link ebenso. Die
+ * Liste schlägt nur als eigenen Eintrag nach (D-728); ein Wort, das die
+ * Tabelle nicht kennt, bekommt `sonst`. Mitgeschickt wird nur der ERSTE Grund
+ * — deshalb sagt jeder Satz „mindestens ein Termin". **Nur deutsch**, wie die
+ * Serienliste (Ausnahmeliste der Übersetzungswache).
+ */
+export interface TurnusListeTexte {
+  readonly sonst: string;
+  readonly gruende: Readonly<Record<GeneratorUebersprungen, string>>;
+}
+
+export const TURNUS_LISTE_TEXTE: Readonly<Record<'de', TurnusListeTexte>> = {
+  de: {
+    sonst: 'Der Generator hat mindestens einen Termin übersprungen.',
+    gruende: {
+      feiertag:
+        'Mindestens ein Termin fällt auf einen Feiertag und nach der Feiertagsregel aus.',
+      ausnahme_ausfall: 'Mindestens ein Termin fällt wegen einer eingetragenen Ausnahme aus.',
+      ausserhalb_gueltigkeit:
+        'Mindestens ein Termin liegt ausserhalb der Gültigkeit des Turnus.',
+      vergangen_oder_gearbeitet:
+        'Mindestens eine Schicht liegt schon in der Vergangenheit oder ist gearbeitet — sie '
+        + 'wird nicht neu geschrieben.',
+      objekt_ohne_kunde:
+        'Am Objekt dieses Reviers hängt kein Kunde — ohne Kunden schreibt der Generator keine '
+        + 'Schicht. Bitte zuerst den Kunden am Objekt hinterlegen.',
+    },
   },
 };

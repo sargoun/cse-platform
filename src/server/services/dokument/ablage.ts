@@ -37,10 +37,25 @@ import { ladeHoch } from './upload.js';
  * Recht; ein Kaestchen, das aus ist, bis jemand es anhakt, ist genau das.
  */
 
+/**
+ * Warum eine Ablage an ihren Feldern scheitert — der Schlüssel, mit dem das
+ * Formular zurückkommt (D-769, D-774). Der Satz daneben bleibt der des
+ * Protokolls und der Programme (`{ fehler, meldung }`, D-599); den Satz auf
+ * dem Schirm hat die Seite (`UPLOAD_RUECKWEG_TEXTE`).
+ *
+ * Eine Kennung, die schon an der Form scheitert, und eine, die diese Sitzung
+ * nicht sieht (`BezugUnbekannt`), tragen denselben Grund: für den Menschen,
+ * der aus der Liste gewählt hat, ist es derselbe Fall.
+ */
+export type AblageGrund =
+  | 'titel_fehlt' | 'titel_zu_lang' | 'kategorie_unbekannt' | 'beschreibung_zu_lang'
+  | 'kunde_unbekannt' | 'objekt_unbekannt' | 'auftrag_unbekannt'
+  | 'datei_leer' | 'datei_zu_gross';
+
 export class AblageFehler extends Error {
   readonly code = 'ungueltige_eingabe';
   readonly status = 400;
-  constructor(nachricht: string) {
+  constructor(nachricht: string, readonly grund: AblageGrund) {
     super(nachricht);
     this.name = 'AblageFehler';
   }
@@ -49,6 +64,8 @@ export class AblageFehler extends Error {
 export class BezugUnbekannt extends Error {
   readonly code = 'nicht_gefunden';
   readonly status = 404;
+  /** Der Schlüssel für das Formular — derselbe wie bei einer Kennung, die schon an der Form scheitert. */
+  readonly grund: 'kunde_unbekannt' | 'objekt_unbekannt' | 'auftrag_unbekannt';
   constructor(was: 'kunde' | 'objekt' | 'auftrag') {
     super(
       was === 'kunde'
@@ -58,6 +75,7 @@ export class BezugUnbekannt extends Error {
           : 'Diesen Auftrag gibt es in dieser Gesellschaft nicht — oder diese Sitzung sieht ihn nicht.',
     );
     this.name = 'BezugUnbekannt';
+    this.grund = `${was}_unbekannt`;
   }
 }
 
@@ -142,33 +160,41 @@ export function pruefeFelder(eingabe: AblageEingabe): GeprueftAblage {
   if (titel === '') {
     throw new AblageFehler(
       'Der Titel ist Pflicht. Ein Dokument ohne Titel findet in der Ablage '
-      + 'niemand wieder — auch nicht mit der Volltextsuche, denn die sucht darin.');
+      + 'niemand wieder — auch nicht mit der Volltextsuche, denn die sucht darin.', 'titel_fehlt');
   }
   if (titel.length > 200) {
-    throw new AblageFehler('Der Titel fasst 200 Zeichen.');
+    throw new AblageFehler('Der Titel fasst 200 Zeichen.', 'titel_zu_lang');
   }
   const kategorie = eingabe.kategorie.trim();
   if (!istKategorie(kategorie)) {
     throw new AblageFehler(
       'Unbekannte Kategorie. DOC-01 nennt genau neun, und die Aufbewahrungsfrist '
-      + 'hängt an ihr — eine zehnte zu erfinden hiesse, eine Frist zu erfinden.');
+      + 'hängt an ihr — eine zehnte zu erfinden hiesse, eine Frist zu erfinden.',
+      'kategorie_unbekannt');
   }
   const beschreibung = eingabe.beschreibung.trim();
   if (beschreibung.length > 2000) {
-    throw new AblageFehler('Die Beschreibung fasst 2000 Zeichen.');
+    throw new AblageFehler('Die Beschreibung fasst 2000 Zeichen.', 'beschreibung_zu_lang');
   }
   const kunde = eingabe.kundeId.trim();
   const objekt = eingabe.objektId.trim();
   const auftrag = (eingabe.auftragId ?? '').trim();
-  if (kunde !== '' && !UUID.test(kunde)) throw new AblageFehler('Unbekannter Kunde.');
-  if (objekt !== '' && !UUID.test(objekt)) throw new AblageFehler('Unbekanntes Objekt.');
-  if (auftrag !== '' && !UUID.test(auftrag)) throw new AblageFehler('Unbekannter Auftrag.');
+  if (kunde !== '' && !UUID.test(kunde)) {
+    throw new AblageFehler('Unbekannter Kunde.', 'kunde_unbekannt');
+  }
+  if (objekt !== '' && !UUID.test(objekt)) {
+    throw new AblageFehler('Unbekanntes Objekt.', 'objekt_unbekannt');
+  }
+  if (auftrag !== '' && !UUID.test(auftrag)) {
+    throw new AblageFehler('Unbekannter Auftrag.', 'auftrag_unbekannt');
+  }
   if (eingabe.daten.length === 0) {
-    throw new AblageFehler('Es war keine Datei dabei.');
+    throw new AblageFehler('Es war keine Datei dabei.', 'datei_leer');
   }
   if (eingabe.daten.length > MAX_BYTES) {
     throw new AblageFehler(
-      `Die Datei ist grösser als ${String(Math.trunc(MAX_BYTES / (1024 * 1024)))} MB.`);
+      `Die Datei ist grösser als ${String(Math.trunc(MAX_BYTES / (1024 * 1024)))} MB.`,
+      'datei_zu_gross');
   }
   return {
     kategorie,
@@ -423,7 +449,8 @@ export async function legeFassungAn(
   if (roh.daten.length === 0) throw new FassungFehler('Es war keine Datei dabei.', 'leer');
   if (roh.daten.length > MAX_BYTES) {
     throw new AblageFehler(
-      `Die Datei ist grösser als ${String(Math.trunc(MAX_BYTES / (1024 * 1024)))} MB.`);
+      `Die Datei ist grösser als ${String(Math.trunc(MAX_BYTES / (1024 * 1024)))} MB.`,
+      'datei_zu_gross');
   }
   if (!speicher.verbunden) throw new NichtVerbundenFehler('Supabase Storage');
 
