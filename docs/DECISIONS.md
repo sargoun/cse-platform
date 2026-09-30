@@ -23283,7 +23283,9 @@ Diese Parameter stehen nirgends mehr roh auf dem Schirm. Dazu prüft
 `src/server` eine Adresse mit `meldung=` baut und dass kein Satz per
 `encodeURIComponent` in `fehler`, `erfolg`, `ok` oder `grund` geht.
 
-| Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-276 |
+**Nachsatz (Zusammenführung der fünf Teile).** (1) `fehlerAufsFormular` ist entfernt; es hatte seit D-753 keinen Aufrufer. (2) Die Wache ist hart: `tests/kern/rueckweg-schluessel.test.ts` (keine Adresse mit `meldung=`, keine Seite liest `meldung`, kein kodierter Satz in `fehler`/`erfolg`/`ok`/`grund`/`hinweis`) und in `adressparameter.test.ts` der Fall „keine Rückmeldung steht roh“ für `meldung`, `erfolg`, `ok`, `hinweis`. Für `hinweis` steht ein Bestand von elf Pflegeseiten (V-277, offen), der nur abgebaut wird. (3) Der Kontoauszug schickt seine Rückmeldung als `?erfolg=` statt `?meldung=` (dieselben Schlüssel). (4) `istGueltigerKalendertag` weist das Jahr 0000 ab — Postgres kennt es nicht (22008); gefunden im CRM-Teil. (5) Aus dem unabhängigen Review übernommen: die Dankseite zeigt `?nr=` nur in der Form von `leadnummerAus` (D-770), die Turnus-Vorschau hält ein Fenster jenseits von 9999 aus, und die Kästen der Nacherfassung sind Hinweise (D-773). Die Reviews der fünf Teile liefen nur teilweise (Nutzungslimit); ihre übrigen, nicht gegengeprüften Punkte stehen im PR.
+
+| Betrifft | AUT-06, D-599, D-728, D-741, D-753, D-766, V-272–V-277, `tests/kern/rueckweg-schluessel.test.ts`, `tests/kern/adressparameter.test.ts`, `src/app/api/formular-antwort.ts`, `src/lib/datum/kalendertag.ts` |
 |---|---|
 
 ### D-771 · Die sechs Personalformulare kommen mit einem Grund zurück — das Recht vor der Abweisung, kein Satz, keine Kennung und keine Eingabe in der Adresse (V-273, Teil „personal" von D-769)

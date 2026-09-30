@@ -93,7 +93,7 @@ describe('Route und Blatt: Schlüssel statt Satz in der Adresse', () => {
   });
 
   it('das Blatt schlägt Meldung und Fehler über eigenerEintrag nach und zeigt nie den Rohwert', () => {
-    expect(blatt).toMatch(/eigenerEintrag\(t\.meldungen, suche\['meldung'\]\)/u);
+    expect(blatt).toMatch(/eigenerEintrag\(t\.meldungen, suche\['erfolg'\]\)/u);
     expect(blatt).toMatch(/eigenerEintrag\(t\.fehler, fehler\) \?\? t\.fehlerSonst/u);
     expect(blatt).not.toMatch(/\?\? meldung\}/u);
   });

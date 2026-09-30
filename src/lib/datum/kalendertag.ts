@@ -40,6 +40,13 @@ export function montag(datum: string): string {
  */
 export function istGueltigerKalendertag(wert: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(wert)) return false;
+  /*
+   * Das Jahr 0000 besteht die Form und rechnet in JavaScript, aber Postgres
+   * kennt es nicht: `'0000-01-01'::date` wirft 22008 — eine 500 hinter jeder
+   * Prüfung, die sich auf diese Funktion verlässt (Befund im CRM-Teil von
+   * D-769, dort zunächst lokal abgefangen).
+   */
+  if (wert.startsWith('0000')) return false;
   const t = Date.parse(`${wert}T00:00:00Z`);
   return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === wert;
 }

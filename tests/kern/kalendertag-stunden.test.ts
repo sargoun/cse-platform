@@ -64,6 +64,9 @@ describe('Kalendertag', () => {
   it('erkennt einen Tag, den es gibt — das Muster allein genügt nicht (V-217)', () => {
     expect(istGueltigerKalendertag('2026-02-28')).toBe(true);
     expect(istGueltigerKalendertag('2028-02-29')).toBe(true);
+    // Postgres kennt kein Jahr 0000 (22008) — die Prüfung auch nicht.
+    expect(istGueltigerKalendertag('0000-01-01')).toBe(false);
+    expect(istGueltigerKalendertag('0001-01-01')).toBe(true);
     // Das Muster passt, den Tag gibt es nicht: vorher 22008 aus der Datenbank.
     expect(istGueltigerKalendertag('2026-02-31')).toBe(false);
     expect(istGueltigerKalendertag('2026-02-29')).toBe(false);
