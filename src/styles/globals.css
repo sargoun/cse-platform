@@ -97,6 +97,7 @@
   --fast: 150ms;
   --base: 220ms;
   --slow: 400ms;
+  --entrance: 1200ms;
 }
 
 html {
@@ -310,6 +311,35 @@ body {
 }
 .cse-auftritt-2 { --verzug: 60ms; }
 .cse-auftritt-3 { --verzug: 120ms; }
+
+/**
+ * §7 „Beim ersten Sichtkontakt" (D-776). Ein Abschnitt UNTER der Falz traegt
+ * `data-auftritt`. Der Client-Baustein `Auftritt` (in der oeffentlichen Huelle)
+ * verbirgt ihn beim Start und gibt ihm `.cse-auftritt`, sobald er in den
+ * Sichtbereich rollt — genau einmal. Was beim Start schon im Bild steht, wird
+ * nicht angefasst: es war sichtbar, und ein Abschnitt, der sichtbar war und
+ * dann noch einmal einblendet, blinkt.
+ *
+ * Ohne Skript gibt es kein `.cse-verborgen`: die Seite steht so da, wie der
+ * Server sie gerendert hat. Und nur die Deckkraft, kein `visibility`: der
+ * Abschnitt bleibt fuer Tastatur und Screenreader da, und ein Fokus darin
+ * rollt ihn in den Sichtbereich, womit der Beobachter ihn zeigt.
+ */
+.cse-verborgen { opacity: 0; }
+
+/**
+ * §7 Hero-Auftritt: das Bild kommt einmal aus `scale(1.06)` zur Ruhe, ueber
+ * `--entrance`. Nur die Form, nie die Deckkraft — ein Bild, das mit Deckkraft
+ * 0 beginnt, zaehlt fuer den LCP erst, wenn es sichtbar wird, und der
+ * Leistungswert der Startseite (lighthouserc: 0,9) haengt an genau diesem
+ * Bild. Bei `prefers-reduced-motion` faellt die Form weg (Regel oben), und
+ * es bleibt nichts, was sich bewegt.
+ */
+@keyframes cse-hero-bild {
+  from { transform: scale(1.06); }
+  to   { transform: none; }
+}
+.cse-hero-bild { animation: cse-hero-bild var(--entrance) var(--ease) both; }
 
 /*
  * Bei `prefers-reduced-motion` bleibt die Deckkraft, der Versatz faellt weg —

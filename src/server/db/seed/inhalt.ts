@@ -21,7 +21,7 @@
  */
 
 export interface InhaltsAbschnitt {
-  readonly art: 'hero' | 'text' | 'markenkarten' | 'leistungen';
+  readonly art: 'hero' | 'text' | 'markenkarten' | 'leistungen' | 'kontakt';
   readonly ueberschrift: string | null;
   readonly text: string | null;
   /** Fuer `leistungen`: die Liste. Fuer `text`: optionale Fragen und Antworten. */
@@ -58,7 +58,14 @@ export const SEITEN: readonly SeitenInhalt[] = [
           + 'Gesellschaften, die zusammenarbeiten, wenn ein Auftrag mehr als '
           + 'ein Gewerk braucht — und einzeln arbeiten, wenn nicht.',
       },
-      { art: 'markenkarten', ueberschrift: null, text: null },
+      {
+        art: 'markenkarten',
+        ueberschrift: 'Vier Gesellschaften, ein Haus',
+        text:
+          'Jede steht für ein Gewerk, mit eigenem Team und eigener '
+          + 'Verantwortung. Zusammen decken sie ab, was ein Gebäude im Betrieb '
+          + 'braucht — vom Rohbau bis zur täglichen Reinigung.',
+      },
       {
         art: 'text',
         ueberschrift: 'Warum vier Gesellschaften',
@@ -68,6 +75,13 @@ export const SEITEN: readonly SeitenInhalt[] = [
           + 'Getrennte Gesellschaften halten diese Regeln sauber auseinander. '
           + 'Für Sie ändert das nichts: Sie sprechen mit einer Ansprechpartnerin, '
           + 'auch wenn zwei Bereiche beteiligt sind.',
+      },
+      {
+        art: 'kontakt',
+        ueberschrift: 'Ein Objekt, mehrere Gewerke? Ein Gespräch genügt.',
+        text:
+          'Schildern Sie uns, was ansteht — wir sagen Ihnen, welche Gesellschaft '
+          + 'übernimmt und wer Ihre Ansprechpartnerin ist.',
       },
     ],
   },

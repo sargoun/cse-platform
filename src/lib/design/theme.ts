@@ -222,6 +222,8 @@ export const BEWEGUNG = {
   fast: '150ms',
   base: '220ms',
   slow: '400ms',
+  /** Der eine Auftritt des Heldenbilds beim Laden (§7, D-776) — nur die Form, nie die Deckkraft. */
+  entrance: '1200ms',
 } as const;
 
 /** §8 Breakpoints. */

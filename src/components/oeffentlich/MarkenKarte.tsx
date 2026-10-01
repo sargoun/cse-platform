@@ -14,7 +14,15 @@ import { VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
  *     das Foto an dieser Stelle zufaellig ist. Genau der Wert aus §4.4, nicht
  *     ein aehnlicher.
  *  2. **Der Identitaets-Hue als 3px-Oberkante.** Er sagt, um welche
- *     Gesellschaft es geht, bevor jemand die Ueberschrift liest.
+ *     Gesellschaft es geht, bevor jemand die Ueberschrift liest. Und zwar als
+ *     GERADE Linie: der Radius sitzt nur an den unteren Ecken. Mit `rounded-lg`
+ *     rundum lief die Kante um die Ecke und wurde dort duenner — ein Bogen,
+ *     der wie ein Darstellungsfehler aussah (D-776).
+ *
+ * Das Zeichen steht oben links ueber dem Bild, wie §4 es beschreibt; unten
+ * stehen Name, Anspruch und der rote Verweis. Beim Zeigen hebt sich die Karte
+ * um 2px (§5 Cards), das Bild waechst um 3 % (§4.7), und die Unterstreichung
+ * des Verweises zeichnet von links.
  */
 /** Der Pflicht-Overlay aus DESIGN §4.4 — als CSS-Variable, nicht als Literal. */
 export const KARTEN_GRADIENT = 'var(--bild-overlay)';
@@ -48,14 +56,15 @@ export function MarkenKarte({
       href={href}
       data-cse="marken-karte"
       data-bereich={bereich}
-      className="group relative flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-lg"
+      className="group relative flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-b-lg
+                 transition-transform duration-base ease-brand hover:-translate-y-0.5"
       style={{ borderTop: `3px solid var(--area-${bereich})` }}
     >
       <Image
         src={bild.pfad}
         alt={bild.alt}
         fill
-        sizes="(max-width: 768px) 100vw, 25vw"
+        sizes="(max-width: 768px) 100vw, 50vw"
         className="object-cover transition-transform duration-slow ease-brand group-hover:scale-[1.03]"
       />
       {/* PFLICHT (§4.4). Ohne ihn steht der Text auf dem, was das Foto gerade hergibt. */}
@@ -65,8 +74,11 @@ export function MarkenKarte({
         className="absolute inset-0"
         style={{ background: KARTEN_GRADIENT }}
       />
-      <span className="relative flex flex-col gap-s1 p-s4">
-        <Marke art={bereich} groesse="md" className="mb-s2" bild={avatar} />
+      {/* §4: das Zeichen oben links ueber dem Bild — `--s5` von beiden Kanten, wie die Kartenfuellung. */}
+      <span className="absolute left-s5 top-s5">
+        <Marke art={bereich} groesse="md" bild={avatar} />
+      </span>
+      <span className="relative flex flex-col gap-s1 p-s5">
         <span className="text-h3 text-white">{titel}</span>
         {/*
           * Zwei Zeilen, immer — auch wenn der Anspruch nur eine braucht.
@@ -79,7 +91,14 @@ export function MarkenKarte({
           * lange Variante ebenfalls bei zwei.
           */}
         <span className="line-clamp-2 min-h-[3em] text-sm text-white/80">{anspruch}</span>
-        <span className="mt-s2 text-sm font-semibold text-brand">{t.mehrErfahren}</span>
+        <span
+          className="relative mt-s2 self-start text-sm font-semibold text-brand
+                     after:absolute after:inset-x-0 after:-bottom-s1 after:h-px after:origin-left
+                     after:scale-x-0 after:bg-brand after:transition-transform after:duration-base
+                     after:ease-brand group-hover:after:scale-x-100"
+        >
+          {t.mehrErfahren}
+        </span>
       </span>
       {bild.platzhalter && (
         <span

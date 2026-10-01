@@ -24333,3 +24333,74 @@ steht als V-278 offen.
 
 | Betrifft | D-769, D-741, V-277, V-278, `src/server/rueckmeldung/hinweis-keks.ts`, die elf Routen unter `src/app/api/{stammdaten,einstellungen,finanzen/mahnungen}`, die elf Seiten unter `src/app/portal/[mandant]/{stammdaten,einstellungen,finanzen/mahnungen}`, `tests/kern/{hinweis-keks,adressparameter}.test.ts` |
 |---|---|
+
+### D-776 · Die Startseite als Bühne: Markenkarten zwei mal zwei, redaktioneller Textabschnitt, Abschluss-Band und Auftritt beim ersten Sichtkontakt
+
+**Der Befund** (Rückmeldung des Eigentümers, 30.09.2026): „ein Bild, und
+darunter vier Bilder, die nicht geordnet wirken“ — so las sich die Startseite,
+und die Messung gibt ihm recht:
+
+1. Vier Markenkarten in EINER Reihe: bei 1280px je 296px breit. Vier
+   verschiedene Fotos in dieser Grösse lesen sich als Kacheln, nicht als
+   Fotografie — und DESIGN §4 sagt, das Bild trägt die Seite.
+2. Die 3px-Oberkante in der Bereichsfarbe lief am `rounded-lg` um die Ecke
+   und wurde dort dünner: ein Bogen, der wie ein Darstellungsfehler aussah.
+   Und das Zeichen stand unten beim Text, obwohl §4 es oben links verlangt.
+3. Alle Abschnitte erschienen beim Laden auf einmal: unter der Falz lief die
+   Bewegung ins Leere, und wer rollte, sah eine Seite, die längst fertig
+   dastand.
+4. „Warum vier Gesellschaften“ war Überschrift plus Absatz in voller Breite;
+   danach kam der Fussbereich, ohne einen Weg zum Angebot unterhalb des Heros.
+
+**Die Entscheidung.**
+
+1. **Markenkarten zwei mal zwei ab `md`**, Format 4:3 bleibt. Das Zeichen oben
+   links, die Oberkante als GERADE Linie (Radius nur an den unteren Ecken),
+   beim Zeigen hebt sich die Karte um 2px, das Bild wächst um 3 %, und die
+   Unterstreichung von „Mehr erfahren →“ zeichnet von links. Der Abschnitt
+   trägt eine Vorzeile (`gruppeNav` aus den Hüllentexten), `h2` und Leitsatz
+   aus seiner Abschnittszeile (`markenkarten.ueberschrift/text`, bisher
+   `null`).
+2. **Der Textabschnitt wird redaktionell:** `h2` links, Leitsatz rechts auf
+   5/7 ab `lg`, wenn beides da ist; sonst gestapelt. Gilt für jede `text`-Zeile
+   der Website, auch die Rechtsseiten — dort mit `--s8` statt `--s9`, weil
+   zwölf Abschnitte mit 96px Luft ein Korridor sind (DESIGN §3).
+3. **Ein Abschluss-Band** als Abschnittsart `kontakt` (der Aufzählungstyp
+   kannte sie seit 0014, gerendert hat sie niemand): `--surface`, Linie oben,
+   Vorzeile „Kontakt“, `h2`, Leitsatz, rechts der SEKUNDÄRE Knopf „Angebot
+   anfragen“ und der Textverweis „Kontakt →“ in `--text`. Sekundär, weil der
+   klebende Kopf den einen roten Knopf der Ansicht schon trägt (DESIGN §1,
+   §5). Der Verweis war zuerst rot, wie §1 es für Pfeile nennt — axe meldete
+   auf `/` genau diesen einen Kontrastverstoss: `--red` auf `--surface` misst
+   bei 14px 3,86:1 (§9 verlangt 4,5:1). Rot bleibt dort, wo es auf dem
+   Bildverlauf steht („Mehr erfahren →“ der Karten), nicht auf `--surface`.
+4. **Auftritt beim ersten Sichtkontakt** für alles unter der Falz:
+   `data-auftritt` + `Auftritt` (IntersectionObserver, einmal, dann
+   abbestellt). Was beim Start im ersten Bild steht, bleibt unangetastet —
+   sonst blinkt es. Ohne Skript wird nichts verborgen. Die Begründung gegen
+   `animation-timeline: view()` aus `globals.css` bleibt: ein Abschnitt, der
+   im Fehlerfall bei `from` stehen bleibt, ist unsichtbarer Text.
+5. **Hero-Auftritt** nur über die Form (`scale(1.06)` → Ruhe, `--entrance`
+   1200ms, neues Token in §7), nie über die Deckkraft: der LCP der Startseite
+   ist dieses Bild, und ein Bild mit Deckkraft 0 zählt erst, wenn es sichtbar
+   wird (`lighthouserc.json`: Leistung ≥ 0,9). Die Überschrift bricht auf
+   `18ch` — zwei Zeilen am Schreibtisch, wie ein Plakat, nie drei.
+6. **Kein Parallax, kein Video, keine Partikel** — DESIGN §7 und §12 gelten
+   unverändert; „modern“ kommt hier aus Grösse, Rhythmus und einer Bewegung
+   je Element, nicht aus Effekten.
+7. **Die zwei neuen Texte** (Leitsatz der Markenkarten, das Abschluss-Band)
+   sind Entwürfe wie alle Seed-Texte (O-207) und kommen mit `content:import`
+   in die Datenbank; sie behaupten keine Zahl und keine Zulassung. Der Import
+   ordnet nach `reihenfolge`, deshalb steht das Band am ENDE der Startseite
+   und nicht dazwischen: ein Abschnitt in der Mitte verschöbe die Arten der
+   Zeilen dahinter, und `art` schreibt der Import nicht nach.
+8. **Die Wachen:** `tests/e2e/website.spec.ts` prüft weiter Oberkante,
+   Gradient, Format und Akzentwort — und neu, dass nach dem Rollen ans
+   Seitenende KEIN `data-auftritt` verborgen bleibt und dass ohne JavaScript
+   nichts verborgen ist. Die axe-Runde rollt vor jeder Prüfung ans Seitenende,
+   damit sie keinen Abschnitt überspringt, der noch verborgen ist.
+   `tests/kern/startseite-auftritt.test.ts` rendert die Abschnitte und hält
+   Aufbau, Reihenfolge und Beschriftung in beiden Sprachen fest.
+
+| Betrifft | DESIGN §2, §3, §4, §5, §7; `src/components/oeffentlich/{Abschnitte,Hero,MarkenKarte,Auftritt,OeffentlicheShell}.tsx`, `src/styles/globals.css`, `src/lib/design/theme.ts` (`--entrance`), `src/server/db/seed/{inhalt,inhalt-en}.ts`, `tests/kern/startseite-auftritt.test.ts`, `tests/e2e/{website,a11y}.spec.ts`, O-207 |
+|---|---|

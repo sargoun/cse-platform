@@ -178,4 +178,68 @@ test.describe('/ — die oeffentliche Startseite', () => {
     // Die Wahl sitzt im Kopf, nicht im Fuss — hier stehen Textlinks.
     await expect(page.locator('footer [data-cse="gesellschaftswahl"]')).toHaveCount(0);
   });
+
+  /**
+   * **Der Auftritt beim ersten Sichtkontakt laesst nichts verborgen** (DESIGN
+   * §7, D-776). Der Beobachter verbirgt, was unter der Falz liegt, und zeigt
+   * es beim Hereinrollen — ein Beobachter, der nie feuert, waere unsichtbarer
+   * Text auf einer Verkaufsseite. Gerollt wird schrittweise, wie ein Mensch:
+   * ein Sprung ans Ende liesse die Abschnitte in der Mitte aus.
+   */
+  test('nach dem Rollen ans Ende ist kein Abschnitt mehr verborgen (§7)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const alle = page.locator('[data-auftritt]');
+    expect(await alle.count(), 'die Startseite hat Abschnitte mit Auftritt').toBeGreaterThan(4);
+
+    await page.evaluate(async () => {
+      const schritt = Math.floor(window.innerHeight * 0.8);
+      for (let y = 0; y < document.documentElement.scrollHeight; y += schritt) {
+        window.scrollTo(0, y);
+        await new Promise((fertig) => { setTimeout(fertig, 120); });
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await expect(page.locator('[data-auftritt].cse-verborgen')).toHaveCount(0);
+    // Der Auftritt selbst dauert `--base`; danach steht jeder Abschnitt voll da.
+    await page.waitForTimeout(600);
+    const deckkraft = await alle.evaluateAll((es) => es.map((e) => getComputedStyle(e).opacity));
+    expect(deckkraft.every((o) => o === '1'), `Deckkraft je Abschnitt: ${deckkraft.join(', ')}`)
+      .toBe(true);
+  });
+
+  test('das Abschluss-Band fuehrt ins Angebot und zum Kontakt — in beiden Sprachen', async ({ page }) => {
+    await page.goto('/');
+    const band = page.locator('[data-cse="abschluss"]');
+    await expect(band).toHaveCount(1);
+    await expect(band.locator('[data-cse="abschluss-angebot"]')).toHaveAttribute('href', '/angebot');
+    await expect(band.locator('[data-cse="abschluss-kontakt"]')).toHaveAttribute('href', '/kontakt');
+    // Der Kopf traegt den einen roten Knopf der Ansicht; das Band bleibt
+    // sekundaer (DESIGN §1 „Red is scarce", §5 „one primary button per view").
+    const grund = await band.locator('[data-cse="abschluss-angebot"]')
+      .evaluate((e) => getComputedStyle(e).backgroundColor);
+    expect(grund).toBe('rgba(0, 0, 0, 0)');
+
+    await page.goto('/en');
+    await expect(page.locator('[data-cse="abschluss-angebot"]')).toHaveAttribute('href', '/en/angebot');
+    await expect(page.locator('[data-cse="abschluss-kontakt"]')).toHaveAttribute('href', '/en/kontakt');
+  });
+
+  /**
+   * **Ohne JavaScript wird nichts verborgen** (§7): die Klasse, die verbirgt,
+   * setzt allein der Beobachter. Faellt er aus, steht die Seite so da, wie der
+   * Server sie gerendert hat — mit allen vier Karten im Bild.
+   */
+  test.describe('ohne JavaScript', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('ist nichts verborgen — die Seite steht, wie der Server sie rendert', async ({ page }) => {
+      await page.goto('/');
+      expect(await page.locator('[data-auftritt]').count()).toBeGreaterThan(4);
+      await expect(page.locator('.cse-verborgen')).toHaveCount(0);
+      const karten = page.locator('[data-cse="marken-karte"]');
+      await expect(karten).toHaveCount(4);
+      for (let i = 0; i < 4; i += 1) await expect(karten.nth(i)).toBeVisible();
+    });
+  });
 });

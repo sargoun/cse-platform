@@ -24,6 +24,24 @@ test.describe('(1) axe meldet NULL AA-Verstösse auf jeder öffentlichen Route',
       // Seite, die es nicht gibt.
       expect(antwort?.status(), `${pfad} antwortet nicht mit 200`).toBe(200);
 
+      /*
+       * **Erst ans Ende rollen, dann pruefen** (DESIGN §7, D-776). Die
+       * Abschnitte unter der Falz sind bis zum ersten Sichtkontakt verborgen
+       * (`.cse-verborgen`, Deckkraft 0), und axe ueberspringt, was es nicht
+       * sieht — eine Kontrastpruefung, die den halben Inhalt auslaesst, ist
+       * gruen und wertlos. Schrittweise wie ein Mensch, damit kein Abschnitt
+       * in der Mitte ausgelassen wird; danach darf nichts mehr verborgen sein.
+       */
+      await page.evaluate(async () => {
+        const schritt = Math.floor(window.innerHeight * 0.8);
+        for (let y = 0; y < document.documentElement.scrollHeight; y += schritt) {
+          window.scrollTo(0, y);
+          await new Promise((fertig) => { setTimeout(fertig, 80); });
+        }
+        window.scrollTo(0, 0);
+      });
+      await expect(page.locator('.cse-verborgen')).toHaveCount(0);
+
       const ergebnis = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();

@@ -177,6 +177,10 @@ cosmetic one (§9, BFSG).
 
 Mobile: `display` → 36/40, `h1` → 30/36, `h2` → 24/30.
 
+**Hero headline measure `18ch`** (`max-w-[18ch]`, D-776): two lines on a
+desktop, like a poster — never three, and never one line running the width of
+the picture.
+
 **Headline rule:** one accent word in red per headline, no more.
 *Eine Gruppe.* **Vier** *starke Marken.*
 
@@ -198,6 +202,10 @@ Never in the portal. Never on a button. It is a signature, not a font choice.
 
 Section padding: `--s9` desktop, `--s7` mobile. Card padding: `--s5`.
 Grid gap: `--s4` compact, `--s5` default.
+
+**Text sections take `--s8` on a desktop, not `--s9`** (D-776): a legal page
+carries a dozen of them, and twelve sections with 96px of air each are a
+corridor, not a page. Image-led sections and the closing band keep `--s9`.
 
 **Elevation on dark comes from borders and surface steps, not shadow.**
 Shadow only on genuinely floating layers:
@@ -339,9 +347,27 @@ the images right and the design carries itself.
 6. Always `next/image`, always `alt`, `priority` on the hero only.
 7. Subtle scale on hover for interactive images: `scale(1.03)`, 400ms.
 
-**Brand-card composition** (the four cards on the home page): logo top-left over
-the image, image filling the card, gradient bottom, title + one-line claim,
-`Mehr erfahren →` in red at the base. Identity hue as a 3px top border.
+**Brand-card composition** (the four cards on the home page and on
+`/unternehmen`, D-776): **two by two from `md`**, each card `4:3` — at
+`1280px` that is a 616px photograph, and the photograph carries the card. Four
+in a row was 296px each: too small to read as photography, and the four
+identity edges bent along the corner radius and read as a fault, not a mark.
+
+Composition: the mark **top-left** over the image (`marke-md`, `--s5` in from
+both edges), the image filling the card, the §4.4 gradient at the foot, name
+(`h3`) + one-line claim (two lines reserved), `Mehr erfahren →` in red at the
+base with an underline that draws from the left on hover. The identity hue is
+a **straight 3px top edge**: radius only on the two bottom corners
+(`rounded-b-lg`), so the edge is a line and not an arc. Hover: image
+`scale(1.03)` over `--slow`, card `translateY(-2px)` over `--base` (§5 Cards).
+
+The section around them carries an eyebrow (the group's own label from the
+shell texts), an `h2` and a lead from the section row — left and right on a
+5/7 grid from `lg` — and every card enters on first view (§7), the second
+column 60ms after the first.
+
+**Hero entrance:** the hero image settles from `scale(1.06)` to rest over
+`--entrance`, once, on load (§7).
 
 ---
 
@@ -381,6 +407,28 @@ new asset. On hover it inherits the card's transition and moves with it.
 
 Non-interactive cards carry no arrow — the absence is the other half of the
 signal, and it is only readable if the presence is consistent.
+
+### Editorial text section
+
+The `text` section of the public site (D-776). With a heading AND a body it
+sits on a **5/7 grid from `lg`**: the `h2` left, the lead (`lg`, `--text-muted`,
+`max-w-prose`) right — a statement and its explanation side by side, not a
+heading with a paragraph under it. Without one of the two it stacks, and the
+body is `base`. A FAQ list stays full width below. Padding `--s7` / `--s8`
+(§3), and the section enters on first view (§7).
+
+### Closing band
+
+The last section of a page that leads somewhere (`kontakt` section, D-776):
+`--surface` background, `1px solid --border` on top, padding `--s7` / `--s9`.
+Left on a 7/5 grid from `lg`: eyebrow (`Kontakt`, micro uppercase
+`--text-subtle`), `h2` (`max-w-[24ch]`) and lead; right, bottom-aligned: the
+**secondary** button `Angebot anfragen` and the text link `Kontakt →` in
+`--text`. Secondary and not primary on purpose: the sticky header already
+carries the one red button of the view (§1 „Red is scarce", §5 „one primary
+button per view"), and a red button at the foot would be the second one. The
+link is not red either: `--red` on `--surface` measures **3.86:1** at `sm` and
+fails AA (§9) — axe reported it on `/`. The arrow is the signal, not the hue.
 
 ### Icons
 
@@ -967,16 +1015,39 @@ a dropdown of their own.
 
 ```css
 --ease: cubic-bezier(0.22, 1, 0.36, 1);
---fast: 150ms;   --base: 220ms;   --slow: 400ms;
+--fast: 150ms;   --base: 220ms;   --slow: 400ms;   --entrance: 1200ms;
 ```
 
-Hover `--fast` · dropdowns and modals `--base` · image scale `--slow`.
-Page sections: fade + `translateY(12px→0)`, once, on first view only.
+Hover `--fast` · dropdowns and modals `--base` · image scale `--slow` · the
+hero image's one entrance `--entrance`.
+
+**Page sections: fade + `translateY(12px→0)`, once, on first view.** What
+stands in the first screen enters on load (`.cse-auftritt`, staggered by
+`--verzug` 0/60/120ms — the hero's eyebrow, headline, text and buttons). What
+stands **below the fold** carries `data-auftritt`: the client piece `Auftritt`
+in the public shell hides it at start (`.cse-verborgen`, opacity only) and
+gives it `.cse-auftritt` the moment it scrolls into view (IntersectionObserver,
+10 % in), once, then stops watching it. Whatever is already in the first
+screen at start is left alone — it was visible, and a visible thing that fades
+in again blinks. **Without JavaScript nothing is hidden**: the server renders
+every section visible, and the class that hides is only ever set by the
+observer. Cards in a grid stagger by column (`.cse-auftritt-2` on the second),
+never by index across the whole grid: more than three steps reads as waiting
+(D-776).
+
+**Hero entrance:** the image settles from `scale(1.06)` to rest over
+`--entrance`, once, on load (`.cse-hero-bild`). Only the transform — never the
+opacity: an image that starts at opacity 0 counts for LCP only when it becomes
+visible, and the home page's performance score hangs on exactly that image.
 
 **Never:** parallax, autoplay carousels, looping background video, particles,
-typewriter text, counters that re-animate on every scroll.
+typewriter text, counters that re-animate on every scroll, scroll-linked
+animation (`animation-timeline`) — where it is unsupported or the view never
+resolves, the section stays at `from`, and invisible text on a sales page is
+not worth any effect.
 
 **Always:** honour `prefers-reduced-motion` — disable transforms, keep opacity.
+The reveal then switches instantly, and the hero image stands still.
 
 ---
 
