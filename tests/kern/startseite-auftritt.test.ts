@@ -91,8 +91,9 @@ describe('die Startseite in ihrer Reihenfolge', () => {
     const reihe = ['data-cse="hero"', 'data-cse="marken-abschnitt"', 'data-cse="textabschnitt"', 'data-cse="abschluss"']
       .map((m) => stelle(h, m));
     expect([...reihe].sort((a, b) => a - b)).toEqual(reihe);
-    // Ohne Skript wird nichts verborgen: die Klasse setzt allein der Beobachter (§7).
-    expect(h).not.toContain('cse-verborgen');
+    // Ohne Skript bewegt sich nichts: die Klasse setzt allein der Beobachter (§7).
+    expect(h).not.toContain('cse-wartet');
+    expect(h).not.toContain('cse-sichtkontakt');
     // Genau EIN rotes Akzentwort (DESIGN §2).
     expect(h.match(/data-cse="akzent-wort"/gu)).toHaveLength(1);
   });
@@ -216,12 +217,15 @@ describe('der Auftritt beim ersten Sichtkontakt', () => {
     expect(beobachter).toContain("usePathname } from 'next/navigation'");
     expect(beobachter).toMatch(/\}, \[pfad\]\);/u);
     const css = lies('src/styles/globals.css');
-    expect(css).toContain('.cse-verborgen { opacity: 0; }');
+    // Nur die Form, nie die Deckkraft: axe misst Kontrast mitten im Fade (§7).
+    expect(css).toContain('.cse-wartet { transform: translateY(var(--s5)); }');
+    expect(css).toMatch(/\.cse-sichtkontakt \{\s*animation: cse-sichtkontakt var\(--slow\)/u);
+    expect(css).not.toContain('cse-verborgen');
     expect(css).toMatch(/\.cse-hero-bild \{ animation: cse-hero-bild var\(--entrance\)/u);
     expect(BEWEGUNG.entrance).toBe('1200ms');
     expect(css).toContain('--entrance: 1200ms;');
     const design = lies('docs/DESIGN.md');
-    for (const wort of ['--entrance: 1200ms', 'data-auftritt', '.cse-verborgen', 'rounded-b-lg', '18ch']) {
+    for (const wort of ['--entrance: 1200ms', 'data-auftritt', '.cse-wartet', 'rounded-b-lg', '18ch']) {
       expect(design, wort).toContain(wort);
     }
   });

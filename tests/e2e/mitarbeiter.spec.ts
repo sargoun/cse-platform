@@ -572,7 +572,18 @@ test.describe('(6) Arabisch: `dir="rtl"` und null axe-Verstöße', () => {
     await page.goto('/portal/mein/zeiten');
     // Eine Uhrzeit in Europe/Berlin, mit deutschem Datumsformat — in jeder
     // Sprache dieselbe, weil sie im MiLoG-Nachweis genauso steht.
-    await expect(page.locator('main')).toContainText(/\d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2}/u);
+    const uhrzeit = /\d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2}/u;
+    if (!uhrzeit.test(await page.locator('main').innerText())) {
+      /*
+       * Am Ersten eines Monats hat der laufende Monat noch keinen Eintrag
+       * (V-280, D-777): die Seed-Zeiten reichen bis gestern. Die Aussage —
+       * deutsches Datum in arabischer Oberflaeche — gilt genauso fuer den
+       * Vormonat, also dorthin, ueber den Monatswechsler der Seite.
+       */
+      await page.locator('main a[href*="monat="]').first().click();
+      await page.waitForLoadState('domcontentloaded');
+    }
+    await expect(page.locator('main')).toContainText(uhrzeit);
   });
 
   for (const pfad of SEITEN) {

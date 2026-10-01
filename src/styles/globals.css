@@ -315,17 +315,31 @@ body {
 /**
  * §7 „Beim ersten Sichtkontakt" (D-776). Ein Abschnitt UNTER der Falz traegt
  * `data-auftritt`. Der Client-Baustein `Auftritt` (in der oeffentlichen Huelle)
- * verbirgt ihn beim Start und gibt ihm `.cse-auftritt`, sobald er in den
- * Sichtbereich rollt — genau einmal. Was beim Start schon im Bild steht, wird
- * nicht angefasst: es war sichtbar, und ein Abschnitt, der sichtbar war und
- * dann noch einmal einblendet, blinkt.
+ * setzt ihn beim Start um `--s5` nach unten (`.cse-wartet`) und laesst ihn
+ * zur Ruhe kommen, sobald er in den Sichtbereich rollt (`.cse-sichtkontakt`)
+ * — genau einmal. Was beim Start schon im Bild steht, wird nicht angefasst:
+ * es war an seinem Platz, und ein Abschnitt, der da war und dann noch einmal
+ * einrueckt, blinkt.
  *
- * Ohne Skript gibt es kein `.cse-verborgen`: die Seite steht so da, wie der
- * Server sie gerendert hat. Und nur die Deckkraft, kein `visibility`: der
- * Abschnitt bleibt fuer Tastatur und Screenreader da, und ein Fokus darin
- * rollt ihn in den Sichtbereich, womit der Beobachter ihn zeigt.
+ * **Nur die Form, nie die Deckkraft — und das ist gemessen.** Die erste
+ * Fassung blendete von Deckkraft 0 ein. axe rollt jedes Element fuer die
+ * Kontrastmessung in den Sichtbereich, der Beobachter startete damit die
+ * Einblendung, und axe mass den Text mitten im Fade: `color-contrast` auf
+ * `/en`, einmal rot, einmal gruen — ein Wuerfel, der auch Lighthouse
+ * (Barrierefreiheit muss 1,0 sein) treffen kann. Ein Versatz aendert keine
+ * Farbe. Ausserdem ist so ohne Skript und mit Skript dasselbe sichtbar: der
+ * Text steht, nur sein Platz bewegt sich.
  */
-.cse-verborgen { opacity: 0; }
+.cse-wartet { transform: translateY(var(--s5)); }
+
+@keyframes cse-sichtkontakt {
+  from { transform: translateY(var(--s5)); }
+  to   { transform: none; }
+}
+.cse-sichtkontakt {
+  animation: cse-sichtkontakt var(--slow) var(--ease) both;
+  animation-delay: var(--verzug, 0ms);
+}
 
 /**
  * §7 Hero-Auftritt: das Bild kommt einmal aus `scale(1.06)` zur Ruhe, ueber

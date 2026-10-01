@@ -1021,19 +1021,26 @@ a dropdown of their own.
 Hover `--fast` · dropdowns and modals `--base` · image scale `--slow` · the
 hero image's one entrance `--entrance`.
 
-**Page sections: fade + `translateY(12px→0)`, once, on first view.** What
-stands in the first screen enters on load (`.cse-auftritt`, staggered by
+**Page sections, once.** What stands in the first screen enters on load:
+fade + `translateY(12px→0)` over `--base` (`.cse-auftritt`, staggered by
 `--verzug` 0/60/120ms — the hero's eyebrow, headline, text and buttons). What
-stands **below the fold** carries `data-auftritt`: the client piece `Auftritt`
-in the public shell hides it at start (`.cse-verborgen`, opacity only) and
-gives it `.cse-auftritt` the moment it scrolls into view (IntersectionObserver,
-10 % in), once, then stops watching it. Whatever is already in the first
-screen at start is left alone — it was visible, and a visible thing that fades
-in again blinks. **Without JavaScript nothing is hidden**: the server renders
-every section visible, and the class that hides is only ever set by the
-observer. Cards in a grid stagger by column (`.cse-auftritt-2` on the second),
-never by index across the whole grid: more than three steps reads as waiting
-(D-776).
+stands **below the fold** carries `data-auftritt` and enters **on first view**:
+the client piece `Auftritt` in the public shell sets it `--s5` down at start
+(`.cse-wartet`) and lets it settle (`.cse-sichtkontakt`, `translateY(--s5→0)`
+over `--slow`) the moment it scrolls into view (IntersectionObserver, 10 % in),
+once, then stops watching it. Whatever is already in the first screen at start
+is left alone — it was in place, and a thing in place that moves again blinks.
+
+**The scroll entrance moves, it never fades — and that is measured.** The
+first cut faded from opacity 0. axe scrolls every element into view to measure
+contrast, the observer started the fade on that scroll, and axe measured text
+mid-fade: `color-contrast` on `/en`, red once, green once — a coin toss that
+would hit Lighthouse (accessibility must score 1.0) just the same. A transform
+changes no colour. It also keeps the page identical with and without
+JavaScript: **nothing is ever hidden**; the server renders every section in
+place, and the class that offsets is only ever set by the observer. Cards in a
+grid stagger by column (`.cse-auftritt-2` on the second), never by index across
+the whole grid: more than three steps reads as waiting (D-776).
 
 **Hero entrance:** the image settles from `scale(1.06)` to rest over
 `--entrance`, once, on load (`.cse-hero-bild`). Only the transform — never the

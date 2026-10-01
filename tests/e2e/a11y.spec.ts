@@ -26,11 +26,12 @@ test.describe('(1) axe meldet NULL AA-Verstösse auf jeder öffentlichen Route',
 
       /*
        * **Erst ans Ende rollen, dann pruefen** (DESIGN §7, D-776). Die
-       * Abschnitte unter der Falz sind bis zum ersten Sichtkontakt verborgen
-       * (`.cse-verborgen`, Deckkraft 0), und axe ueberspringt, was es nicht
-       * sieht — eine Kontrastpruefung, die den halben Inhalt auslaesst, ist
-       * gruen und wertlos. Schrittweise wie ein Mensch, damit kein Abschnitt
-       * in der Mitte ausgelassen wird; danach darf nichts mehr verborgen sein.
+       * Abschnitte unter der Falz stehen bis zum ersten Sichtkontakt um
+       * `--s5` versetzt (`.cse-wartet`) — nur die Form, nie die Deckkraft,
+       * damit axe nie mitten in einem Fade misst. Gerollt wird trotzdem,
+       * schrittweise wie ein Mensch: so prueft axe die Seite in der Lage, in
+       * der ein Besucher sie liest, und ein Beobachter, der nicht feuert,
+       * faellt hier auf.
        */
       await page.evaluate(async () => {
         const schritt = Math.floor(window.innerHeight * 0.8);
@@ -40,15 +41,13 @@ test.describe('(1) axe meldet NULL AA-Verstösse auf jeder öffentlichen Route',
         }
         window.scrollTo(0, 0);
       });
-      await expect(page.locator('.cse-verborgen')).toHaveCount(0);
-      /*
-       * Und den Auftritt selbst abwarten: nach dem Zeigen laeuft die
-       * Einblendung noch `--base` plus Staffelung, und axe misst Kontrast
-       * mit der Deckkraft des Augenblicks. Erst wenn jeder Abschnitt bei 1
-       * steht, prueft axe das, was ein Mensch sieht.
-       */
+      await expect(page.locator('.cse-wartet')).toHaveCount(0);
+      // Und den Auftritt selbst abwarten: `--slow` plus Staffelung, bis jeder
+      // Abschnitt in der Ruhelage steht.
+      // Nach einer Transform-Animation meldet der Browser die Ruhelage als
+      // Einheitsmatrix, nicht als `none` — beides ist dieselbe Lage.
       await page.waitForFunction(() => [...document.querySelectorAll('[data-auftritt]')]
-        .every((e) => getComputedStyle(e).opacity === '1'));
+        .every((e) => ['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(getComputedStyle(e).transform)));
 
       const ergebnis = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

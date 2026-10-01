@@ -180,13 +180,14 @@ test.describe('/ — die oeffentliche Startseite', () => {
   });
 
   /**
-   * **Der Auftritt beim ersten Sichtkontakt laesst nichts verborgen** (DESIGN
-   * §7, D-776). Der Beobachter verbirgt, was unter der Falz liegt, und zeigt
-   * es beim Hereinrollen — ein Beobachter, der nie feuert, waere unsichtbarer
-   * Text auf einer Verkaufsseite. Gerollt wird schrittweise, wie ein Mensch:
-   * ein Sprung ans Ende liesse die Abschnitte in der Mitte aus.
+   * **Der Auftritt beim ersten Sichtkontakt laesst nichts versetzt stehen**
+   * (DESIGN §7, D-776). Der Beobachter setzt, was unter der Falz liegt, um
+   * `--s5` nach unten und laesst es beim Hereinrollen zur Ruhe kommen — ein
+   * Beobachter, der nie feuert, liesse jeden Abschnitt verschoben stehen.
+   * Gerollt wird schrittweise, wie ein Mensch: ein Sprung ans Ende liesse die
+   * Abschnitte in der Mitte aus.
    */
-  test('nach dem Rollen ans Ende ist kein Abschnitt mehr verborgen (§7)', async ({ page }) => {
+  test('nach dem Rollen ans Ende steht jeder Abschnitt an seinem Platz (§7)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     const alle = page.locator('[data-auftritt]');
@@ -200,14 +201,19 @@ test.describe('/ — die oeffentliche Startseite', () => {
       }
       window.scrollTo(0, document.documentElement.scrollHeight);
     });
-    await expect(page.locator('[data-auftritt].cse-verborgen')).toHaveCount(0);
-    // Der Auftritt selbst dauert `--base` plus Staffelung; gewartet wird auf
-    // die Deckkraft, nicht auf eine Zahl von Millisekunden.
-    await page.waitForFunction(() => [...document.querySelectorAll('[data-auftritt]')]
-      .every((e) => getComputedStyle(e).opacity === '1'));
+    await expect(page.locator('[data-auftritt].cse-wartet')).toHaveCount(0);
+    // Der Auftritt selbst dauert `--slow` plus Staffelung; gewartet wird auf
+    // die Ruhelage, nicht auf eine Zahl von Millisekunden.
+    // Nach einer Transform-Animation meldet der Browser die Ruhelage als
+    // Einheitsmatrix, nicht als `none` — beides ist dieselbe Lage.
+    const RUHE = ['none', 'matrix(1, 0, 0, 1, 0, 0)'];
+    await page.waitForFunction((ruhe) => [...document.querySelectorAll('[data-auftritt]')]
+      .every((e) => ruhe.includes(getComputedStyle(e).transform)), RUHE);
+    const lage = await alle.evaluateAll((es) => es.map((e) => getComputedStyle(e).transform));
+    expect(lage.every((l) => RUHE.includes(l)), `Lage je Abschnitt: ${lage.join(', ')}`).toBe(true);
+    // Und die Deckkraft war nie im Spiel: Kontrast wird mit Deckkraft 1 gemessen.
     const deckkraft = await alle.evaluateAll((es) => es.map((e) => getComputedStyle(e).opacity));
-    expect(deckkraft.every((o) => o === '1'), `Deckkraft je Abschnitt: ${deckkraft.join(', ')}`)
-      .toBe(true);
+    expect(deckkraft.every((o) => o === '1')).toBe(true);
   });
 
   test('das Abschluss-Band fuehrt ins Angebot und zum Kontakt — in beiden Sprachen', async ({ page }) => {
@@ -228,17 +234,18 @@ test.describe('/ — die oeffentliche Startseite', () => {
   });
 
   /**
-   * **Ohne JavaScript wird nichts verborgen** (§7): die Klasse, die verbirgt,
+   * **Ohne JavaScript bewegt sich nichts** (§7): die Klasse, die versetzt,
    * setzt allein der Beobachter. Faellt er aus, steht die Seite so da, wie der
    * Server sie gerendert hat — mit allen vier Karten im Bild.
    */
   test.describe('ohne JavaScript', () => {
     test.use({ javaScriptEnabled: false });
 
-    test('ist nichts verborgen — die Seite steht, wie der Server sie rendert', async ({ page }) => {
+    test('ist nichts versetzt — die Seite steht, wie der Server sie rendert', async ({ page }) => {
       await page.goto('/');
       expect(await page.locator('[data-auftritt]').count()).toBeGreaterThan(4);
-      await expect(page.locator('.cse-verborgen')).toHaveCount(0);
+      await expect(page.locator('.cse-wartet')).toHaveCount(0);
+      await expect(page.locator('.cse-sichtkontakt')).toHaveCount(0);
       const karten = page.locator('[data-cse="marken-karte"]');
       await expect(karten).toHaveCount(4);
       for (let i = 0; i < 4; i += 1) await expect(karten.nth(i)).toBeVisible();

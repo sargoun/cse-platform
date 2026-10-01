@@ -124,6 +124,32 @@ async function seedKontenEinesBereichs(
      order by 2, 3, 1`;
   if (monate.length === 0) return { ...leer(), freigegeben: befreit.length };
 
+  /*
+   * **Der laufende Monat ist immer dabei** (V-280, D-777). Die Anteile reichen
+   * bis gestern; am Ersten eines Monats gab es deshalb kein Konto fuer den
+   * laufenden Monat, und `/portal/mein/stundenkonto` stand leer — genau die
+   * Luecke, die `job:konten_rollover` taeglich um 00:30 schliesst. In der
+   * Pruefdatenbank laeuft kein Lauf, also tut der Seed hier, was der Lauf
+   * taete: fuer jede Beschaeftigung, die im Rueckblick ein Konto hat, auch das
+   * Konto des laufenden Monats eroeffnen — Soll 0, also „nicht hinterlegt"
+   * (O-18), und noch ohne Buchung.
+   */
+  const [laufend] = await sql<{ jahr: number; monat: number }[]>`
+    select extract(year  from (now() at time zone 'Europe/Berlin'))::int as jahr,
+           extract(month from (now() at time zone 'Europe/Berlin'))::int as monat`;
+  const alleMonate = [...monate];
+  if (laufend !== undefined) {
+    for (const anstellungId of new Set(monate.map((m) => m.anstellung_id))) {
+      const schonDa = monate.some((m) => m.anstellung_id === anstellungId
+        && Number(m.jahr) === Number(laufend.jahr) && Number(m.monat) === Number(laufend.monat));
+      if (!schonDa) {
+        alleMonate.push({
+          anstellung_id: anstellungId, jahr: Number(laufend.jahr), monat: Number(laufend.monat),
+        });
+      }
+    }
+  }
+
   let konten = 0;
   let buchungen = 0;
   let minuten = 0;
@@ -147,7 +173,7 @@ async function seedKontenEinesBereichs(
    * abgeschlossener Monat IST fertig. Ihn erneut zu buchen waere der Fehler,
    * den die Sperre verhindert.
    */
-  for (const m of monate) {
+  for (const m of alleMonate) {
     const [zustand] = await sql<{ status: string | null }[]>`
       select status::text as status
         from stundenkonto

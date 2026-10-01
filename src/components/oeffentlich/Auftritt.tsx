@@ -6,23 +6,24 @@ import { useEffect } from 'react';
 /**
  * Der Auftritt beim ersten Sichtkontakt (DESIGN §7, D-776).
  *
- * Ein Abschnitt unter der Falz traegt `data-auftritt`. Beim Start wird er
- * verborgen (`.cse-verborgen`, nur die Deckkraft) und bekommt `.cse-auftritt`,
- * sobald er in den Sichtbereich rollt — genau einmal, dann hoert der
- * Beobachter auf, ihn anzusehen.
+ * Ein Abschnitt unter der Falz traegt `data-auftritt`. Beim Start wird er um
+ * `--s5` nach unten gesetzt (`.cse-wartet`) und kommt zur Ruhe
+ * (`.cse-sichtkontakt`), sobald er in den Sichtbereich rollt — genau einmal,
+ * dann hoert der Beobachter auf, ihn anzusehen.
  *
  * Drei Dinge sind hier Absicht und nicht Zufall:
  *
  *  1. **Was beim Start schon im Bild steht, bleibt unangetastet.** Der Server
- *     hat es sichtbar gerendert, und ein Abschnitt, der sichtbar war und dann
- *     noch einmal einblendet, blinkt. Verborgen wird nur, was unter der Falz
+ *     hat es an seinem Platz gerendert, und ein Abschnitt, der da war und dann
+ *     noch einmal einrueckt, blinkt. Versetzt wird nur, was unter der Falz
  *     liegt — dort sieht den Wechsel niemand.
- *  2. **Ohne Skript wird nichts verborgen.** Die Klasse, die verbirgt, setzt
+ *  2. **Ohne Skript bewegt sich nichts.** Die Klasse, die versetzt, setzt
  *     allein dieser Baustein. Faellt er aus, steht die Seite so da, wie sie
  *     ankam.
- *  3. **Nur die Deckkraft.** Der Abschnitt bleibt fuer Tastatur und
- *     Screenreader da; ein Fokus darin rollt ihn in den Sichtbereich, und der
- *     Beobachter zeigt ihn.
+ *  3. **Nur die Form, nie die Deckkraft.** axe rollt Elemente fuer die
+ *     Kontrastmessung in den Sichtbereich und misst, was es dann vorfindet;
+ *     ein Text mitten im Fade fiel so auf `/en` durch AA — einmal ja, einmal
+ *     nein. Ein Versatz aendert keine Farbe (`globals.css`, §7).
  *
  * **Je Pfad, nicht je Einhaengen.** Der Baustein steht in der oeffentlichen
  * Huelle, und die bleibt bei einem Wechsel ueber `<Link>` stehen, waehrend die
@@ -48,8 +49,8 @@ export function Auftritt(): null {
     if (unten.length === 0) return undefined;
 
     const zeige = (e: Element): void => {
-      e.classList.remove('cse-verborgen');
-      e.classList.add('cse-auftritt');
+      e.classList.remove('cse-wartet');
+      e.classList.add('cse-sichtkontakt');
     };
     const beobachter = new IntersectionObserver((eintraege) => {
       for (const eintrag of eintraege) {
@@ -60,12 +61,12 @@ export function Auftritt(): null {
     }, { rootMargin: RAND });
 
     for (const e of unten) {
-      e.classList.add('cse-verborgen');
+      e.classList.add('cse-wartet');
       beobachter.observe(e);
     }
     return () => {
       beobachter.disconnect();
-      for (const e of unten) e.classList.remove('cse-verborgen');
+      for (const e of unten) e.classList.remove('cse-wartet');
     };
   }, [pfad]);
   return null;
