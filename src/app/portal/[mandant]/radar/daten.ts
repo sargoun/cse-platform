@@ -146,6 +146,49 @@ export async function leseRadarZeile(
   return zeilen.map(alsZeile);
 }
 
+/**
+ * Der Kopf einer Bekanntmachung OHNE Bewertung (V-279).
+ *
+ * `ZEILEN_SQL` beginnt bei der Bewertung, und der Lauf bewertet nur, was
+ * `aktiv` ist. Eine aufgehobene Bekanntmachung hat deshalb keine Zeile mehr —
+ * ihr Vorgang, ihre Aufgabe und ihr Lead aber bleiben, und alle drei fuehren
+ * auf ihr Blatt. Das Blatt antwortete 404, weil die Punkte fehlten: genau in
+ * dem Moment, in dem jemand wissen will, was aus dem Vorgang wird, stand da
+ * „Diese Seite gibt es hier nicht". Hier kommt derselbe Kopf ohne die
+ * Bewertungsspalten: keine Punkte (`bewertungId` leer, `ausgeschlossen`),
+ * kein Profil — und die Seite sagt, dass nicht bewertet wurde, statt eine
+ * Zahl zu erfinden.
+ */
+export async function leseRadarKopfOhneBewertung(
+  kontext: LeseKontext, ausschreibungId: string,
+): Promise<RadarZeile | null> {
+  const [z] = await kontext.abfrage<Record<string, unknown>>(
+    `select '' as bewertung_id, a.id as ausschreibung_id, a.titel,
+            a.vergabestelle_name, a.vergabestelle_ort, a.cpv_haupt,
+            a.quelle::text as quelle, a.quell_status::text as quell_status,
+            a.wert_geschaetzt_cent::text as wert_cent, a.waehrung, a.frist_angebot,
+            case when a.frist_angebot is null then null
+                 else floor(extract(epoch from (a.frist_angebot - now())) / 86400)::int end as rest_tage,
+            0 as punkte, 0 as skala_max, true as ausgeschlossen, 'keine' as wert_kriterium,
+            '' as begruendung, '' as profil_name, '' as profil_id, false as ist_platzhalter,
+            vp.name as plattform_name, a.plattform_hinweis,
+            mpr.status::text as registrierung,
+            ${freischaltungSql('vp', 'mpr')} as freigeschaltet,
+            ${registrierungAbgelaufenSql('mpr')} as registrierung_abgelaufen,
+            mpr.gueltig_bis::text as registrierung_gueltig_bis,
+            v.status::text as vorgang_status
+       from ausschreibung a
+       left join vergabeplattform vp on vp.id = a.vergabeplattform_id
+       left join mandant_plattform_registrierung mpr
+              on mpr.vergabeplattform_id = a.vergabeplattform_id and mpr.geloescht_am is null
+             and mpr.mandant_id = app.aktiver_mandant()
+       left join ausschreibung_vorgang v
+              on v.ausschreibung_id = a.id and v.geloescht_am is null
+      where a.id = $1::uuid
+      limit 1`, [ausschreibungId]);
+  return z === undefined ? null : alsZeile(z);
+}
+
 export interface RadarKennzahlen {
   readonly bekanntmachungen: number;
   readonly offeneFristen: number;

@@ -5578,6 +5578,7 @@ niemand ihn suchen.
 | O-596 | **Welche Recherchequelle soll für die Akquise beauftragt werden — oder keine?** §12 der Auftragsbeschreibung wünscht einen Agenten, der selbstständig nach möglichen Auftraggebern sucht. Der naheliegende Weg — Firmenverzeichnisse und Portale automatisiert auslesen — ist ausgeschlossen: er verletzt deren Nutzungsbedingungen (CLAUDE.md, „Out of scope") und erzeugt nach **Art. 14 DSGVO** für jeden erfassten Ansprechpartner eine Informationspflicht binnen eines Monats. Eine Liste mit 5.000 Namen wäre also 5.000 Briefe, bevor überhaupt jemand angerufen wurde. **Heute gebaut:** die Schnittstelle (`services/akquise/quelle.ts`) mit vier Quellenarten — `manuell`, `register` (amtliches Handelsregister), `dienstleister` (Datenanbieter mit AV-Vertrag) und `vergabe_radar` (die Plattform hat ihn ohnehin). **Keine ist verbunden**, `KeinRechercheur` wirft, statt eine leere Liste zu geben, und ein Lauf ohne Quelle wird als `uebersprungen` MIT Grund protokolliert — nicht als „0 Treffer". `akquise_ziel` speichert ausserdem **keine Personendaten**; das erzwingt schon der Typ `Fund`, durch den ein Name gar nicht passt. Die Frage ist kaufmännisch und juristisch, nicht technisch: welche Quelle wird beauftragt, und deckt ihr Vertrag die Verwendung zur Ansprache? | §12, `services/akquise/quelle.ts`, `drizzle/0172`, Art. 14 DSGVO, O-34 |
 | O-548 | **Zählt eine Projektschau zu den „Neuigkeiten" einer Gesellschaft?** `04-SEITENKARTE.md` §2.2 führt `/unternehmen/<bereich>/beitraege` und `/unternehmen/<bereich>/news` als zwei Adressen, und `beitrag_art` (SOC-02) kennt vier Arten: `beitrag`, `projektschau`, `neuigkeit`, `aktualisierung`. Die Karte sagt nicht, welche Art in welcher Liste steht. **Heute gewählt:** `/news` zeigt `neuigkeit` und `aktualisierung` — das, was eine Gesellschaft ankündigt —, `/beitraege` zeigt alles Veröffentlichte, und eine `projektschau` hat mit `/projekte` ohnehin ihre eigene Liste. Die Trennung steht an EINER Konstante (`NEUIGKEITS_ARTEN`), nicht an einer zweiten Spalte, die jemand pflegen müsste; sie umzustellen ist eine Zeile. Die Frage ist redaktionell und nicht technisch: wenn die Gruppe eine Projektschau als Neuigkeit versteht, gehört sie in beide Listen. | SOC-02, SOC-05, PRO-04, SEITENKARTE §2.2, `services/social/dienst.ts` |
 | O-502 | **Welche Kostenarten gehören in die Projektmarge (REP-05)?** Heute: Lohn (freigegebene Zeiteinträge zum internen Stundensatz aus `anstellung.stundensatz_intern`) plus Fremdleistung (Eingangsrechnungen mit Projektbezug). Nicht enthalten: Material ohne Rechnungsbezug, Gerätestunden und ein Gemeinkostensatz — und ob es einen geben soll, ist die eigentliche Frage: ein Zuschlag je Gesellschaft, ein Satz je Gewerk, oder gar keiner (dann ist die Zahl ein Deckungsbeitrag und keine Marge, und sollte so heissen). Bis zur Antwort nennt die Seite die Zahl „Kosten (Näherung)" und sagt unter der Tabelle, was fehlt — eine Marge, die so tut, als wäre sie die Nachkalkulation, wird in ein Angebot übernommen. | REP-05, `bericht/kennzahlen.ts`, D-506 |
+| O-927 | **Darf das Portal am Monatsersten das Konto des neuen Monats selbst eröffnen, bevor `job:konten_rollover` (00:30 Uhr) läuft** — oder soll bis dahin der Vormonat stehen, mit dem Hinweis, dass der neue Monat noch nicht eröffnet ist? Ein Konto, das beim Lesen entsteht, ist eine Schreibung im Lesepfad (Invariante 10 im Geist); ein leeres Blatt ist die heutige Lage (V-280). Bis zur Antwort schließt der Seed die Lücke in der Prüfdatenbank, nicht das Portal. | `services/mitarbeiter/stunden.ts` (`leseStundenkonten`), `jobs/kontenRollover.ts`, `/portal/mein/stundenkonto`, V-280 |
 
 ### Vier Befunde, die ausserhalb dieser Datei liegen
 
@@ -24332,4 +24333,134 @@ statt aus der Sitzung — das betrifft 24 Routen, nicht nur diese elf, und
 steht als V-278 offen.
 
 | Betrifft | D-769, D-741, V-277, V-278, `src/server/rueckmeldung/hinweis-keks.ts`, die elf Routen unter `src/app/api/{stammdaten,einstellungen,finanzen/mahnungen}`, die elf Seiten unter `src/app/portal/[mandant]/{stammdaten,einstellungen,finanzen/mahnungen}`, `tests/kern/{hinweis-keks,adressparameter}.test.ts` |
+|---|---|
+
+### D-776 · Die Startseite als Bühne: Markenkarten zwei mal zwei, redaktioneller Textabschnitt, Abschluss-Band und Auftritt beim ersten Sichtkontakt
+
+**Der Befund** (Rückmeldung des Eigentümers, 30.09.2026): „ein Bild, und
+darunter vier Bilder, die nicht geordnet wirken“ — so las sich die Startseite,
+und die Messung gibt ihm recht:
+
+1. Vier Markenkarten in EINER Reihe: bei 1280px je 296px breit. Vier
+   verschiedene Fotos in dieser Grösse lesen sich als Kacheln, nicht als
+   Fotografie — und DESIGN §4 sagt, das Bild trägt die Seite.
+2. Die 3px-Oberkante in der Bereichsfarbe lief am `rounded-lg` um die Ecke
+   und wurde dort dünner: ein Bogen, der wie ein Darstellungsfehler aussah.
+   Und das Zeichen stand unten beim Text, obwohl §4 es oben links verlangt.
+3. Alle Abschnitte erschienen beim Laden auf einmal: unter der Falz lief die
+   Bewegung ins Leere, und wer rollte, sah eine Seite, die längst fertig
+   dastand.
+4. „Warum vier Gesellschaften“ war Überschrift plus Absatz in voller Breite;
+   danach kam der Fussbereich, ohne einen Weg zum Angebot unterhalb des Heros.
+
+**Die Entscheidung.**
+
+1. **Markenkarten zwei mal zwei ab `md`**, Format 4:3 bleibt. Das Zeichen oben
+   links, die Oberkante als GERADE Linie (Radius nur an den unteren Ecken),
+   beim Zeigen hebt sich die Karte um 2px, das Bild wächst um 3 %, und die
+   Unterstreichung von „Mehr erfahren →“ zeichnet von links. Der Abschnitt
+   trägt eine Vorzeile (`gruppeNav` aus den Hüllentexten), `h2` und Leitsatz
+   aus seiner Abschnittszeile (`markenkarten.ueberschrift/text`, bisher
+   `null`).
+2. **Der Textabschnitt wird redaktionell:** `h2` links, Leitsatz rechts auf
+   5/7 ab `lg`, wenn beides da ist; sonst gestapelt. Gilt für jede `text`-Zeile
+   der Website, auch die Rechtsseiten — dort mit `--s8` statt `--s9`, weil
+   zwölf Abschnitte mit 96px Luft ein Korridor sind (DESIGN §3).
+3. **Ein Abschluss-Band** als Abschnittsart `kontakt` (der Aufzählungstyp
+   kannte sie seit 0014, gerendert hat sie niemand): `--surface`, Linie oben,
+   Vorzeile „Kontakt“, `h2`, Leitsatz, rechts der SEKUNDÄRE Knopf „Angebot
+   anfragen“ und der Textverweis „Kontakt →“ in `--text`. Sekundär, weil der
+   klebende Kopf den einen roten Knopf der Ansicht schon trägt (DESIGN §1,
+   §5). Der Verweis war zuerst rot, wie §1 es für Pfeile nennt — axe meldete
+   auf `/` genau diesen einen Kontrastverstoss: `--red` auf `--surface` misst
+   bei 14px 3,86:1 (§9 verlangt 4,5:1). Rot bleibt dort, wo es auf dem
+   Bildverlauf steht („Mehr erfahren →“ der Karten), nicht auf `--surface`.
+4. **Auftritt beim ersten Sichtkontakt** für alles unter der Falz:
+   `data-auftritt` + `Auftritt` (IntersectionObserver, einmal, dann
+   abbestellt; je Pfad, weil die Hülle bei `<Link>`-Wechseln stehen bleibt).
+   Was beim Start im ersten Bild steht, bleibt unangetastet — sonst blinkt
+   es. **Nur die Form (`translateY(--s5→0)` über `--slow`), nie die
+   Deckkraft — gemessen:** die erste Fassung blendete von Deckkraft 0 ein,
+   axe rollt jedes Element für die Kontrastmessung in den Sichtbereich, der
+   Beobachter startete damit den Fade, und axe mass Text mitten darin —
+   `color-contrast` auf `/en`, einmal rot, einmal grün; Lighthouse
+   (Barrierefreiheit 1,0) hätte denselben Würfel. Ein Versatz ändert keine
+   Farbe, und ohne Skript ist dieselbe Seite zu sehen: nichts wird je
+   verborgen. Die Begründung gegen `animation-timeline: view()` aus
+   `globals.css` bleibt: ein Abschnitt, der im Fehlerfall bei `from` stehen
+   bleibt, stünde dauerhaft versetzt — deshalb versetzt die Klasse nur um
+   `--s5` und nie aus dem Bild.
+5. **Hero-Auftritt** nur über die Form (`scale(1.06)` → Ruhe, `--entrance`
+   1200ms, neues Token in §7), nie über die Deckkraft: der LCP der Startseite
+   ist dieses Bild, und ein Bild mit Deckkraft 0 zählt erst, wenn es sichtbar
+   wird (`lighthouserc.json`: Leistung ≥ 0,9). Die Überschrift bricht auf
+   `18ch` — zwei Zeilen am Schreibtisch, wie ein Plakat, nie drei.
+6. **Kein Parallax, kein Video, keine Partikel** — DESIGN §7 und §12 gelten
+   unverändert; „modern“ kommt hier aus Grösse, Rhythmus und einer Bewegung
+   je Element, nicht aus Effekten.
+7. **Die zwei neuen Texte** (Leitsatz der Markenkarten, das Abschluss-Band)
+   sind Entwürfe wie alle Seed-Texte (O-207) und kommen mit `content:import`
+   in die Datenbank; sie behaupten keine Zahl und keine Zulassung. Der Import
+   ordnet nach `reihenfolge`, deshalb steht das Band am ENDE der Startseite
+   und nicht dazwischen: ein Abschnitt in der Mitte verschöbe die Arten der
+   Zeilen dahinter, und `art` schreibt der Import nicht nach.
+8. **Die Wachen:** `tests/e2e/website.spec.ts` prüft weiter Oberkante,
+   Gradient, Format und Akzentwort — und neu, dass nach dem Rollen ans
+   Seitenende KEIN `data-auftritt` versetzt bleibt (Ruhelage, Deckkraft 1)
+   und dass ohne JavaScript nichts versetzt ist. Die axe-Runde rollt vor
+   jeder Prüfung ans Seitenende und wartet die Ruhelage ab: so prüft sie die
+   Seite in der Lage, in der ein Besucher sie liest.
+   `tests/kern/startseite-auftritt.test.ts` rendert die Abschnitte und hält
+   Aufbau, Reihenfolge und Beschriftung in beiden Sprachen fest.
+
+| Betrifft | DESIGN §2, §3, §4, §5, §7; `src/components/oeffentlich/{Abschnitte,Hero,MarkenKarte,Auftritt,OeffentlicheShell}.tsx`, `src/styles/globals.css`, `src/lib/design/theme.ts` (`--entrance`), `src/server/db/seed/{inhalt,inhalt-en}.ts`, `tests/kern/startseite-auftritt.test.ts`, `tests/e2e/{website,a11y}.spec.ts`, O-207 |
+|---|---|
+
+### D-777 · Zwei Befunde vom Monatsersten: das Radar-Blatt ohne Bewertung antwortet nicht mehr 404, und der Seed eröffnet den laufenden Monat (V-279, V-280)
+
+**Der Befund.** Die Prüfrunde auf PR 27 (Startseite, D-776) lief als erste
+nach Mitternacht am 1. Oktober und wurde an zwei Stellen rot, die der Diff
+nicht berührt — beide reproduziert gegen den PR-Stand mit einem frischen
+Seed vom selben Tag:
+
+1. **`verweise.spec.ts`:** `/portal/bau/radar/<id>` → 404 für die aufgehobene
+   Bekanntmachung `demo-2026-0007`. `ZEILEN_SQL` beginnt bei der Bewertung
+   (`from aktuell k join ausschreibung a`), und `bewerteLauf` bewertet nur
+   `quell_status = 'aktiv'`. Eine aufgehobene Bekanntmachung hat also keine
+   Zeile, das Blatt warf `notFound()` — während ihr Vorgang (Bau, Security),
+   ihre Aufgabe und ihr Lead weiter darauf führen. Dass der Fall erst am
+   1. Oktober auffiel, liegt an der Wache, nicht am Tag: der Kriecher besucht
+   je Routenform wenige Vertreter, und welcher Vertreter von
+   `/aufgaben/[id]` an die Reihe kommt, hängt an der Reihenfolge der Liste —
+   und die an den Fristen.
+2. **`mitarbeiter.spec.ts`:** `/portal/mein/stundenkonto` ohne ein Konto. Der
+   Seed eröffnet Konten nur für Monate mit Zeitanteilen, und die reichen bis
+   gestern; am Ersten gibt es den laufenden Monat nicht. Im Betrieb schliesst
+   `job:konten_rollover` die Lücke täglich um 00:30 — in der Prüfdatenbank
+   läuft kein Lauf.
+
+**Die Entscheidung.**
+
+1. **Ein Blatt, das es gibt, antwortet nicht 404, weil die Punkte fehlen.**
+   `leseRadarKopfOhneBewertung` liefert denselben Kopf ohne Bewertungsspalten
+   (`bewertungId` leer, `ausgeschlossen`, kein Profil). Die Seite sagt dann
+   „nicht bewertet — der Lauf bewertet nur aktive Bekanntmachungen“ statt
+   einer Zahl, zeigt Stand, Fristen, Vorgang und Mappe, und blendet das
+   Stand-Formular aus: es trägt eine Bewertungskennung, und eine leere wäre
+   eine Eingabe, die die Route nicht prüfen kann. Dasselbe gilt für die
+   Statusseite `/radar/[id]/status`, auf die das Blatt verweist — der zweite
+   Lauf des Kriechers fand dort den nächsten 404.
+2. **Der Seed eröffnet den laufenden Monat** für jede Beschäftigung, die im
+   Rückblick ein Konto hat — Soll 0 („nicht hinterlegt“, O-18), ohne Buchung,
+   wie der Lauf es täte. Das Portal selbst eröffnet beim Lesen nichts: ob es
+   das dürfte, ist O-927. Die Prüfung „Zahlen, Geld und Zeit bleiben in der
+   gesetzlichen Form“ (`mitarbeiter.spec.ts`) sucht eine Uhrzeit auf
+   `/portal/mein/zeiten`; am Ersten hat der laufende Monat noch keinen
+   Eintrag, also nimmt sie dann den Vormonat — die Aussage (deutsches Datum in
+   arabischer Oberfläche) bleibt dieselbe.
+3. **Nicht geändert:** `ZEILEN_SQL` bleibt bei der Bewertung — die Liste
+   zeigt weiter nur Bewertetes, eine unbewertete aktive Bekanntmachung bleibt
+   dort unsichtbar, bis der Lauf lief (das ist der Lauf, nicht die Liste).
+
+| Betrifft | V-279, V-280, O-927, `src/app/portal/[mandant]/radar/daten.ts` (`leseRadarKopfOhneBewertung`), `src/app/portal/[mandant]/radar/[id]/page.tsx`, `src/server/db/seed/konto.ts`, `tests/kern/radar-ohne-bewertung.test.ts`, `tests/e2e/{verweise,mitarbeiter}.spec.ts` |
 |---|---|

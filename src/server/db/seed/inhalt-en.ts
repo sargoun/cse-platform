@@ -40,7 +40,14 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
           + 'companies that work together when a job needs more than one trade — '
           + 'and separately when it does not.',
       },
-      { art: 'markenkarten', ueberschrift: null, text: null },
+      {
+        art: 'markenkarten',
+        ueberschrift: 'Four companies, one house',
+        text:
+          'Each stands for one trade, with its own team and its own '
+          + 'responsibility. Together they cover what a building needs in '
+          + 'operation — from the shell to the daily clean.',
+      },
       {
         art: 'text',
         ueberschrift: 'Why four companies',
@@ -50,6 +57,13 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
           + 'Separate companies keep those rules cleanly apart. For you nothing '
           + 'changes: you talk to one contact, even when two divisions are '
           + 'involved.',
+      },
+      {
+        art: 'kontakt',
+        ueberschrift: 'One site, several trades? One conversation is enough.',
+        text:
+          'Tell us what needs doing — we will tell you which company takes it '
+          + 'on and who your contact is.',
       },
     ],
   },
@@ -536,7 +550,7 @@ export const LEISTUNGSSEITEN_EN: readonly {
   readonly titel: string;
   readonly beschreibung: string;
   readonly abschnitte: readonly {
-    readonly art: 'hero' | 'text' | 'markenkarten' | 'leistungen';
+    readonly art: 'hero' | 'text' | 'markenkarten' | 'leistungen' | 'kontakt';
     readonly ueberschrift: string | null;
     readonly text: string | null;
     readonly daten?: Record<string, unknown>;

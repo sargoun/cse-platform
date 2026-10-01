@@ -1,5 +1,6 @@
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { shellTexte } from '@/lib/i18n/texte';
+import { Auftritt } from './Auftritt';
 import { GesellschaftsWahl } from './GesellschaftsWahl';
 import { Logo, Marke } from '@/components/marke/Marke';
 import { EIGENNAME, SPRACHEN, gibtEsIn, mitSprache, type Sprache } from '@/lib/sprache';
@@ -508,7 +509,11 @@ export function OeffentlicheShell(
         </nav>
       </header>
 
-      <main className="flex-1">{children}</main>
+      {/* §7: die Abschnitte unter der Falz treten beim ersten Sichtkontakt auf (D-776). */}
+      <main className="flex-1">
+        {children}
+        <Auftritt />
+      </main>
 
       {/*
         * Die Gesellschaftswahl steht im KOPF (PUB-14, DESIGN §6, D-381) und

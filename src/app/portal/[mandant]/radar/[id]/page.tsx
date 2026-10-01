@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
-import { leseRadarZeile, type RadarZeile } from '../daten';
+import { leseRadarKopfOhneBewertung, leseRadarZeile, type RadarZeile } from '../daten';
 import { kennungOder404 } from '../../../kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
@@ -108,7 +108,15 @@ export default async function Bekanntmachung(
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
-      const zeilen = await leseRadarZeile(kontext, id);
+      const bewertet = await leseRadarZeile(kontext, id);
+      /*
+       * **Ohne Bewertung kein 404** (V-279, D-777). Eine aufgehobene
+       * Bekanntmachung bewertet der Lauf nicht mehr; Vorgang, Aufgabe und
+       * Lead fuehren trotzdem hierher. Dann traegt der Kopf keine Punkte —
+       * und die Seite sagt das, statt „Diese Seite gibt es hier nicht".
+       */
+      const ersatz = bewertet.length === 0 ? await leseRadarKopfOhneBewertung(kontext, id) : null;
+      const zeilen = ersatz === null ? bewertet : [ersatz];
       const [d] = await kontext.abfrage<Record<string, unknown>>(
         `select a.quelle::text as quelle, a.quell_id, a.quell_url, a.beschreibung,
                 a.verfahrensart_roh, a.veroeffentlicht_am, a.frist_fragen, a.frist_teilnahme,
@@ -194,6 +202,8 @@ export default async function Bekanntmachung(
   if (daten === null) notFound();
   const kopf = daten.zeilen[0];
   if (kopf === undefined) notFound();
+  /* Leer heisst: kein Lauf hat diese Bekanntmachung bewertet (V-279). */
+  const ohneBewertung = kopf.bewertungId === '';
   const d = daten.detail;
   const darfStatus = daten.darfStatus;
 
@@ -334,16 +344,25 @@ export default async function Bekanntmachung(
       )}
 
       <section className="mb-s6">
-        <h2 className="mb-s2 text-h2 text-text">Warum diese Punktzahl</h2>
-        <p className="mb-s3 max-w-prose text-sm text-text-muted">
-          {kopf.ausgeschlossen
-            ? 'Ausgeschlossen — die Regel steht unten.'
-            : `${String(kopf.punkte)} von ${String(kopf.skalaMax)} Punkten für das Profil „${kopf.profilName}".`}{' '}
-          Gerechnet hat das Code, kein Sprachmodell (RAD-05).
-          {kopf.istPlatzhalterProfil
-            ? ' Die Gewichte dieses Profils sind noch Platzhalter (offene Frage O-15).'
-            : ''}
-        </p>
+        <h2 className="mb-s2 text-h2 text-text">
+          {ohneBewertung ? 'Keine Punktzahl' : 'Warum diese Punktzahl'}
+        </h2>
+        {ohneBewertung ? (
+          <p data-cse="radar-nicht-bewertet" className="mb-s3 max-w-prose text-sm text-text-muted">
+            Nicht bewertet: der Lauf bewertet nur aktive Bekanntmachungen, und diese steht auf
+            „{kopf.quellStatus}". Vorgang, Aufgabe und Mappe bleiben, wie sie sind.
+          </p>
+        ) : (
+          <p className="mb-s3 max-w-prose text-sm text-text-muted">
+            {kopf.ausgeschlossen
+              ? 'Ausgeschlossen — die Regel steht unten.'
+              : `${String(kopf.punkte)} von ${String(kopf.skalaMax)} Punkten für das Profil „${kopf.profilName}".`}{' '}
+            Gerechnet hat das Code, kein Sprachmodell (RAD-05).
+            {kopf.istPlatzhalterProfil
+              ? ' Die Gewichte dieses Profils sind noch Platzhalter (offene Frage O-15).'
+              : ''}
+          </p>
+        )}
         <ul data-cse="radar-aufschluesselung" className="flex flex-col gap-s2">
           {d.aufschluesselung.map((a) => (
             <li key={a.regel} data-cse="radar-regel" data-regel={a.regel}
@@ -469,32 +488,40 @@ export default async function Bekanntmachung(
               {' '}— mit Fristlage, Quellstand und dem Protokoll der bisher gesetzten Stände.
             </span>
           </p>
-          <form method="post" action="/api/radar/vorgang" data-cse="radar-status-formular"
-                className="flex flex-col gap-s3">
-            {/* Kein verstecktes `mandant`-Feld: den Bereich nimmt die Route
-                aus `app.aktiver_mandant()` (Invariante 3). Ein Feld, das der
-                Server nicht liest, sieht wie eine Stellschraube aus und ist
-                keine. */}
-            <input type="hidden" name="ausschreibung" value={id} />
-            <input type="hidden" name="profil" value={kopf.profilId} />
-            <input type="hidden" name="bewertung" value={kopf.bewertungId} />
-            <label className="flex flex-col gap-s2 text-xs text-text-muted">
-              Grund (bei „verworfen" verpflichtend)
-              <input type="text" name="grund" maxLength={500}
-                     className="min-h-11 rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text" />
-            </label>
-            <div className="flex flex-wrap gap-s2">
-              <Button type="submit" name="status" value="geprueft" variante="secondary" data-cse="radar-geprueft">
-                Geprüft
-              </Button>
-              <Button type="submit" name="status" value="in_bearbeitung" variante="primary" data-cse="radar-in-bearbeitung">
-                In Bearbeitung
-              </Button>
-              <Button type="submit" name="status" value="verworfen" variante="danger" data-cse="radar-verworfen">
-                Verwerfen
-              </Button>
-            </div>
-          </form>
+          {ohneBewertung ? (
+            <p data-cse="radar-stand-ohne-bewertung" className="text-sm text-text-muted">
+              Ohne Bewertung lässt sich hier kein Stand setzen: das Formular trägt die
+              Bewertungskennung, und eine leere wäre eine Eingabe, die die Route nicht prüfen
+              kann. Der Stand steht auf der eigenen Seite oben.
+            </p>
+          ) : (
+            <form method="post" action="/api/radar/vorgang" data-cse="radar-status-formular"
+                  className="flex flex-col gap-s3">
+              {/* Kein verstecktes `mandant`-Feld: den Bereich nimmt die Route
+                  aus `app.aktiver_mandant()` (Invariante 3). Ein Feld, das der
+                  Server nicht liest, sieht wie eine Stellschraube aus und ist
+                  keine. */}
+              <input type="hidden" name="ausschreibung" value={id} />
+              <input type="hidden" name="profil" value={kopf.profilId} />
+              <input type="hidden" name="bewertung" value={kopf.bewertungId} />
+              <label className="flex flex-col gap-s2 text-xs text-text-muted">
+                Grund (bei „verworfen" verpflichtend)
+                <input type="text" name="grund" maxLength={500}
+                       className="min-h-11 rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text" />
+              </label>
+              <div className="flex flex-wrap gap-s2">
+                <Button type="submit" name="status" value="geprueft" variante="secondary" data-cse="radar-geprueft">
+                  Geprüft
+                </Button>
+                <Button type="submit" name="status" value="in_bearbeitung" variante="primary" data-cse="radar-in-bearbeitung">
+                  In Bearbeitung
+                </Button>
+                <Button type="submit" name="status" value="verworfen" variante="danger" data-cse="radar-verworfen">
+                  Verwerfen
+                </Button>
+              </div>
+            </form>
+          )}
         </section>
       ) : (
         <p className="max-w-prose text-xs text-text-muted">

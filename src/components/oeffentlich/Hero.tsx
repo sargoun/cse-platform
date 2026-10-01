@@ -59,7 +59,8 @@ export function Hero({
         // `priority` NUR hier (§4.6): auf jedem Bild gesetzt heisst es nichts.
         priority
         sizes="100vw"
-        className="object-cover"
+        /* §7 Hero-Auftritt: einmal aus `scale(1.06)` zur Ruhe — nur die Form, nie die Deckkraft (LCP). */
+        className="object-cover cse-hero-bild"
       />
       <span aria-hidden="true" className="absolute inset-0" style={{ background: KARTEN_GRADIENT }} />
       {/*
@@ -71,17 +72,24 @@ export function Hero({
         * koennen. DESIGN §3 nennt die Breite (`1280px`); wo sie steht, sagt
         * erst die Zentrierung.
         */}
+      {/*
+        * §7: Vorzeile, Ueberschrift, Text und Knoepfe treten gestaffelt auf
+        * (`--verzug` 0/60/120ms) — jedes Element traegt seinen eigenen
+        * Auftritt, nicht der Rahmen fuer alle. Der Hero steht immer im ersten
+        * Bild, deshalb beim Laden und nicht beim ersten Sichtkontakt.
+        */}
       <div className="relative mx-auto flex w-full max-w-content flex-col gap-s3
-                      px-s5 py-s6 cse-auftritt">
+                      px-s5 py-s6">
         {/*
           * `text-display`, nicht `text-h1`: DESIGN §2 nennt die 56/60-Stufe
           * ausdruecklich fuer die Hero-Ueberschrift, und auf dem Telefon faellt
           * sie ueber die §2-Mobilskala auf 36/40 (globals.css). Mit `h1` stand
           * der Hero am Schreibtisch eine Stufe zu klein und am Telefon eine zu
-          * gross.
+          * gross. `max-w-[18ch]` (§2): zwei Zeilen am Schreibtisch, wie ein
+          * Plakat — nie drei.
           */}
         {marke !== null && (
-          <p data-cse="hero-marke" className="m-0 flex items-center gap-s2 text-sm font-semibold text-white/85">
+          <p data-cse="hero-marke" className="cse-auftritt m-0 flex items-center gap-s2 text-sm font-semibold text-white/85">
             {marke.logo !== null && marke.logo !== undefined ? (
               <MarkenLogo bild={marke.logo} groesse="lg" />
             ) : (
@@ -92,7 +100,7 @@ export function Hero({
             )}
           </p>
         )}
-        <h1 className="text-display text-white">
+        <h1 className="cse-auftritt cse-auftritt-2 max-w-[18ch] text-display text-white">
           {ueberschrift}
           {akzentWort !== null && akzentWort !== undefined && akzentWort !== '' && (
             <>
@@ -102,10 +110,10 @@ export function Hero({
           )}
         </h1>
         {text !== null && text !== undefined && text !== '' && (
-          <p className="max-w-prose text-lg text-white/85">{text}</p>
+          <p className="cse-auftritt cse-auftritt-3 max-w-prose text-lg text-white/85">{text}</p>
         )}
         {aufrufe.length > 0 && (
-          <div data-cse="hero-aufrufe" className="mt-s3 flex flex-wrap gap-s3">
+          <div data-cse="hero-aufrufe" className="cse-auftritt cse-auftritt-3 mt-s3 flex flex-wrap gap-s3">
             {aufrufe.map((a) => (
               <a
                 key={a.href}

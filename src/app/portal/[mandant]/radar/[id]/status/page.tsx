@@ -14,7 +14,7 @@ import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { haeltRechte } from '../../../../rechte';
 import { kennungOder404 } from '../../../../kennung';
 import {
-  leseRadarZeile, leseStandHistorie, leseVorgang,
+  leseRadarKopfOhneBewertung, leseRadarZeile, leseStandHistorie, leseVorgang,
   type RadarZeile, type StandEreignis, type VorgangBlick,
 } from '../../daten';
 import { fristKlasse, fristText, istKnapp } from '../../frist';
@@ -135,7 +135,10 @@ export default async function Standseite(
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
-      const zeilen = await leseRadarZeile(kontext, id);
+      const bewertet = await leseRadarZeile(kontext, id);
+      /* Ohne Bewertung kein 404 (V-279, D-777) — wie auf dem Blatt selbst. */
+      const ersatz = bewertet.length === 0 ? await leseRadarKopfOhneBewertung(kontext, id) : null;
+      const zeilen = ersatz === null ? bewertet : [ersatz];
       if (zeilen[0] === undefined) return null;
       const vorgang = await leseVorgang(kontext, id);
       return {
@@ -153,6 +156,8 @@ export default async function Standseite(
   if (daten === null) notFound();
   const kopf = daten.zeilen[0];
   if (kopf === undefined) notFound();
+  /* Leer heisst: kein Lauf hat diese Bekanntmachung bewertet (V-279). */
+  const ohneBewertung = kopf.bewertungId === '';
   const { vorgang, historie } = daten;
   const stand = vorgang?.status ?? 'neu';
   const darfMappe = darf['vergabe.schreiben'] === true;
@@ -308,48 +313,56 @@ export default async function Standseite(
           })}
         </ul>
 
-        <form method="post" action="/api/radar/vorgang" data-cse="status-formular"
-              className="flex flex-col gap-s3">
-          {/*
-            * `zurueck` bringt Absagen HIERHER zurück statt auf die
-            * Detailseite — der Fehlerblock oben wertet `?fehler=grund` und
-            * `?fehler=mappe_recht` aus, und ohne dieses Feld erreichte ihn
-            * nichts. Der Name wird in der Route über eine Karte aufgelöst
-            * (`FORMULARSEITE`), nie als Pfad eingesetzt.
-            *
-            * Kein verstecktes `mandant`-Feld: den Bereich nimmt die Route aus
-            * `app.aktiver_mandant()` (Invariante 3).
-            */}
-          <input type="hidden" name="zurueck" value="status" />
-          <input type="hidden" name="ausschreibung" value={id} />
-          <input type="hidden" name="profil" value={kopf.profilId} />
-          <input type="hidden" name="bewertung" value={kopf.bewertungId} />
-          <label className="flex flex-col gap-s2 text-xs text-text-muted" htmlFor="grund">
-            Grund (bei „verworfen" verpflichtend, mindestens 5 Zeichen)
-            <input id="grund" type="text" name="grund" maxLength={500} className={feld}
-                   data-cse="status-grund" />
-          </label>
-          <div className="flex flex-wrap gap-s2">
-            <Button type="submit" name="status" value="geprueft" variante="secondary"
-                    data-cse="status-geprueft">
-              Geprüft
-            </Button>
-            {darfMappe ? (
-              <Button type="submit" name="status" value="in_bearbeitung" variante="primary"
-                      data-cse="status-in-bearbeitung">
-                In Bearbeitung
-              </Button>
-            ) : null}
-            <Button type="submit" name="status" value="verworfen" variante="danger"
-                    data-cse="status-verworfen">
-              Verwerfen
-            </Button>
-          </div>
-          <p className="text-xs text-text-subtle">
-            Nach dem Setzen führt der Weg auf die Bekanntmachung zurück — dort steht der
-            Stand im Zusammenhang mit Punktzahl, Frist und Plattformstand.
+        {ohneBewertung ? (
+          <p data-cse="status-ohne-bewertung" className="max-w-prose text-sm text-text-muted">
+            Ohne Bewertung lässt sich kein Stand setzen: der Lauf bewertet nur aktive
+            Bekanntmachungen, und diese steht auf „{kopf.quellStatus}". Das Formular trägt die
+            Bewertungskennung, und eine leere wäre eine Eingabe, die die Route nicht prüfen kann.
           </p>
-        </form>
+        ) : (
+          <form method="post" action="/api/radar/vorgang" data-cse="status-formular"
+                className="flex flex-col gap-s3">
+            {/*
+              * `zurueck` bringt Absagen HIERHER zurück statt auf die
+              * Detailseite — der Fehlerblock oben wertet `?fehler=grund` und
+              * `?fehler=mappe_recht` aus, und ohne dieses Feld erreichte ihn
+              * nichts. Der Name wird in der Route über eine Karte aufgelöst
+              * (`FORMULARSEITE`), nie als Pfad eingesetzt.
+              *
+              * Kein verstecktes `mandant`-Feld: den Bereich nimmt die Route aus
+              * `app.aktiver_mandant()` (Invariante 3).
+              */}
+            <input type="hidden" name="zurueck" value="status" />
+            <input type="hidden" name="ausschreibung" value={id} />
+            <input type="hidden" name="profil" value={kopf.profilId} />
+            <input type="hidden" name="bewertung" value={kopf.bewertungId} />
+            <label className="flex flex-col gap-s2 text-xs text-text-muted" htmlFor="grund">
+              Grund (bei „verworfen" verpflichtend, mindestens 5 Zeichen)
+              <input id="grund" type="text" name="grund" maxLength={500} className={feld}
+                     data-cse="status-grund" />
+            </label>
+            <div className="flex flex-wrap gap-s2">
+              <Button type="submit" name="status" value="geprueft" variante="secondary"
+                      data-cse="status-geprueft">
+                Geprüft
+              </Button>
+              {darfMappe ? (
+                <Button type="submit" name="status" value="in_bearbeitung" variante="primary"
+                        data-cse="status-in-bearbeitung">
+                  In Bearbeitung
+                </Button>
+              ) : null}
+              <Button type="submit" name="status" value="verworfen" variante="danger"
+                      data-cse="status-verworfen">
+                Verwerfen
+              </Button>
+            </div>
+            <p className="text-xs text-text-subtle">
+              Nach dem Setzen führt der Weg auf die Bekanntmachung zurück — dort steht der
+              Stand im Zusammenhang mit Punktzahl, Frist und Plattformstand.
+            </p>
+          </form>
+        )}
       </section>
 
       {/* ------------------------------------------ Die Plattformprüfung (V-175) */}

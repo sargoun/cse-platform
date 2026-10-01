@@ -51,18 +51,46 @@ function bildVon(a: Abschnitt, motiv: PlatzhalterMotiv = 'gruppe') {
     : { pfad: a.medium.pfad, alt: a.medium.alt, platzhalter: a.medium.platzhalter };
 }
 
+/**
+ * Der redaktionelle Textabschnitt (DESIGN §5 „Editorial text section", D-776).
+ *
+ * Mit Ueberschrift UND Text steht er ab `lg` auf 5/7: die Aussage links, die
+ * Erklaerung rechts — nicht eine Ueberschrift mit einem Absatz darunter.
+ * Fehlt eines von beiden, stapelt er. Eine Fragenliste bleibt darunter in
+ * voller Breite. `--s8` statt `--s9` am Schreibtisch (§3): die Rechtsseiten
+ * tragen ein Dutzend davon, und zwoelf Abschnitte mit 96px Luft sind ein
+ * Korridor. Beim ersten Sichtkontakt tritt er auf (`data-auftritt`, §7).
+ */
 function Text({ a }: { readonly a: Abschnitt }) {
   const faq = faqAus(a.daten);
+  const zweispaltig = a.ueberschrift !== null && a.text !== null;
   return (
-    <section className="mx-auto flex max-w-content flex-col gap-s3 px-s5 py-s6 cse-auftritt">
-      {a.ueberschrift !== null && <h2 className="text-h2 text-text">{a.ueberschrift}</h2>}
-      {a.text !== null && <p className="text-base text-text-muted">{a.text}</p>}
+    <section
+      data-auftritt=""
+      /* Nicht `text-abschnitt`: die Wache `tailwind-farbe` liest jedes `text-…` als Schriftklasse. */
+      data-cse="textabschnitt"
+      className="mx-auto flex max-w-content flex-col gap-s5 px-s5 py-s7 lg:py-s8"
+    >
+      <div className={zweispaltig ? 'grid gap-s4 lg:grid-cols-12 lg:gap-s7' : 'flex flex-col gap-s3'}>
+        {a.ueberschrift !== null && (
+          <h2 className={`m-0 text-h2 text-text ${zweispaltig ? 'lg:col-span-5' : ''}`}>
+            {a.ueberschrift}
+          </h2>
+        )}
+        {a.text !== null && (
+          <p className={`m-0 max-w-prose text-text-muted ${
+            zweispaltig ? 'text-lg lg:col-span-7' : 'text-base'}`}
+          >
+            {a.text}
+          </p>
+        )}
+      </div>
       {faq.length > 0 && (
-        <dl className="flex flex-col gap-s4">
+        <dl className="m-0 flex flex-col gap-s4">
           {faq.map((f) => (
             <div key={f.frage} className="flex flex-col gap-s2">
               <dt className="text-h3 text-text">{f.frage}</dt>
-              <dd className="text-base text-text-muted">{f.antwort}</dd>
+              <dd className="m-0 text-base text-text-muted">{f.antwort}</dd>
             </div>
           ))}
         </dl>
@@ -71,10 +99,124 @@ function Text({ a }: { readonly a: Abschnitt }) {
   );
 }
 
+/**
+ * Die Markenkarten als Abschnitt (DESIGN §4 „Brand-card composition", D-776).
+ *
+ * Zwei mal zwei ab `md`: bei 1280px ist jede Karte 616px breit, und das Foto
+ * traegt sie. Vier in einer Reihe waren 296px — Kacheln, keine Fotografie.
+ * Darueber, wenn die Zeile es hergibt, Vorzeile, `h2` und Leitsatz auf 5/7;
+ * jede Karte tritt beim ersten Sichtkontakt auf, die zweite Spalte 60ms nach
+ * der ersten — gestaffelt nach Spalte, nicht nach Index: mehr als drei Stufen
+ * liest sich als Warten (§7).
+ */
+function Markenkarten({ a, bereiche, ansprueche, sprache }: {
+  readonly a: Abschnitt;
+  readonly bereiche: readonly ShellBereich[];
+  readonly ansprueche: Readonly<Record<string, string>>;
+  readonly sprache: Sprache;
+}) {
+  const t = shellTexte(sprache);
+  const kopf = a.ueberschrift !== null || a.text !== null;
+  return (
+    <section data-cse="marken-abschnitt" className="mx-auto max-w-content px-s5 py-s7 lg:py-s9">
+      {kopf && (
+        <div
+          data-auftritt=""
+          data-cse="marken-kopf"
+          className="mb-s6 grid gap-s4 lg:mb-s7 lg:grid-cols-12 lg:items-end lg:gap-s7"
+        >
+          <div className="flex flex-col gap-s3 lg:col-span-5">
+            <p className="m-0 text-micro uppercase tracking-[0.08em] text-text-subtle">{t.gruppeNav}</p>
+            {a.ueberschrift !== null && <h2 className="m-0 text-h2 text-text">{a.ueberschrift}</h2>}
+          </div>
+          {a.text !== null && (
+            <p className="m-0 max-w-prose text-lg text-text-muted lg:col-span-7">{a.text}</p>
+          )}
+        </div>
+      )}
+      <ul className="m-0 grid list-none grid-cols-1 gap-s4 p-0 md:grid-cols-2 md:gap-s5">
+        {bereiche.map((b, i) => (
+          <li key={b.slug} data-auftritt="" className={i % 2 === 1 ? 'cse-auftritt-2' : undefined}>
+            <MarkenKarte
+              bereich={b.bereich}
+              titel={b.name}
+              anspruch={ansprueche[b.slug] ?? ''}
+              href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
+              bild={titelbild(b) ?? bildFuerMotiv(motivFuerBereich(b.bereich))}
+              avatar={b.marke.avatar}
+              sprache={sprache}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Das Abschluss-Band (DESIGN §5 „Closing band", D-776) — die Abschnittsart
+ * `kontakt`, die der Aufzaehlungstyp seit 0014 kennt und die niemand
+ * gerendert hat.
+ *
+ * Der Knopf ist SEKUNDAER, nicht rot: der klebende Kopf traegt den einen
+ * roten Knopf der Ansicht schon (§1 „Red is scarce", §5 „one primary button
+ * per view"). Rot bleibt dem Textverweis daneben — dem Pfeil, wie §1 es
+ * nennt.
+ */
+function Abschluss({ a, sprache }: { readonly a: Abschnitt; readonly sprache: Sprache }) {
+  const t = shellTexte(sprache);
+  return (
+    <section data-cse="abschluss" className="border-t border-line bg-surface">
+      <div
+        data-auftritt=""
+        className="mx-auto grid max-w-content gap-s5 px-s5 py-s7 lg:grid-cols-12 lg:items-end
+                   lg:gap-s7 lg:py-s9"
+      >
+        <div className="flex flex-col gap-s3 lg:col-span-7">
+          <p className="m-0 text-micro uppercase tracking-[0.08em] text-text-subtle">
+            {t.navigation.kontakt}
+          </p>
+          {a.ueberschrift !== null && (
+            <h2 className="m-0 max-w-[24ch] text-h2 text-text">{a.ueberschrift}</h2>
+          )}
+          {a.text !== null && <p className="m-0 max-w-prose text-lg text-text-muted">{a.text}</p>}
+        </div>
+        <div className="flex flex-wrap gap-s3 lg:col-span-5 lg:justify-end">
+          <a
+            href={mitSprache('/angebot', sprache)}
+            data-cse="abschluss-angebot"
+            className="inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5
+                       text-sm font-semibold text-text transition-colors duration-fast ease-brand
+                       hover:bg-surface-2"
+          >
+            {t.angebotAnfragen}
+          </a>
+          {/*
+            * In `--text`, nicht in Rot: Rot auf `--surface` misst bei 14px
+            * 3,86:1 und faellt durch AA (§9) — axe hat es auf `/` gemeldet.
+            * Der Pfeil bleibt das Zeichen, die Farbe traegt es nicht allein.
+            */}
+          <a
+            href={mitSprache('/kontakt', sprache)}
+            data-cse="abschluss-kontakt"
+            className="inline-flex min-h-11 items-center rounded-md px-s4 text-sm font-semibold
+                       text-text transition-colors duration-fast ease-brand hover:bg-surface-2"
+          >
+            {t.navigation.kontakt} →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Leistungen({ a }: { readonly a: Abschnitt }) {
   const leistungen = leistungenAus(a.daten);
   return (
-    <section className="mx-auto flex max-w-content flex-col gap-s4 px-s5 py-s6 cse-auftritt">
+    <section
+      data-auftritt=""
+      className="mx-auto flex max-w-content flex-col gap-s4 px-s5 py-s7 lg:py-s8"
+    >
       {a.ueberschrift !== null && <h2 className="text-h2 text-text">{a.ueberschrift}</h2>}
       <ul className="grid grid-cols-1 gap-s4 sm:grid-cols-2 xl:grid-cols-3">
         {leistungen.map((l) => (
@@ -202,26 +344,18 @@ export function Abschnitte(
             );
           case 'markenkarten':
             return (
-              <section
+              <Markenkarten
                 key={a.id}
-                className="mx-auto grid max-w-content grid-cols-1 gap-s4 p-s6 sm:grid-cols-2 xl:grid-cols-4"
-              >
-                {bereiche.map((b) => (
-                  <MarkenKarte
-                    key={b.slug}
-                    bereich={b.bereich}
-                    titel={b.name}
-                    anspruch={ansprueche[b.slug] ?? ''}
-                    href={mitSprache(`/unternehmen/${b.slug}`, sprache)}
-                    bild={titelbild(b) ?? bildFuerMotiv(motivFuerBereich(b.bereich))}
-                    avatar={b.marke.avatar}
-                    sprache={sprache}
-                  />
-                ))}
-              </section>
+                a={a}
+                bereiche={bereiche}
+                ansprueche={ansprueche}
+                sprache={sprache}
+              />
             );
           case 'leistungen':
             return <Leistungen key={a.id} a={a} />;
+          case 'kontakt':
+            return <Abschluss key={a.id} a={a} sprache={sprache} />;
           default:
             return <Text key={a.id} a={a} />;
         }

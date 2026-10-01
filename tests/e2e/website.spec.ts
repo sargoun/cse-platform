@@ -178,4 +178,77 @@ test.describe('/ — die oeffentliche Startseite', () => {
     // Die Wahl sitzt im Kopf, nicht im Fuss — hier stehen Textlinks.
     await expect(page.locator('footer [data-cse="gesellschaftswahl"]')).toHaveCount(0);
   });
+
+  /**
+   * **Der Auftritt beim ersten Sichtkontakt laesst nichts versetzt stehen**
+   * (DESIGN §7, D-776). Der Beobachter setzt, was unter der Falz liegt, um
+   * `--s5` nach unten und laesst es beim Hereinrollen zur Ruhe kommen — ein
+   * Beobachter, der nie feuert, liesse jeden Abschnitt verschoben stehen.
+   * Gerollt wird schrittweise, wie ein Mensch: ein Sprung ans Ende liesse die
+   * Abschnitte in der Mitte aus.
+   */
+  test('nach dem Rollen ans Ende steht jeder Abschnitt an seinem Platz (§7)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const alle = page.locator('[data-auftritt]');
+    expect(await alle.count(), 'die Startseite hat Abschnitte mit Auftritt').toBeGreaterThan(4);
+
+    await page.evaluate(async () => {
+      const schritt = Math.floor(window.innerHeight * 0.8);
+      for (let y = 0; y < document.documentElement.scrollHeight; y += schritt) {
+        window.scrollTo(0, y);
+        await new Promise((fertig) => { setTimeout(fertig, 120); });
+      }
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await expect(page.locator('[data-auftritt].cse-wartet')).toHaveCount(0);
+    // Der Auftritt selbst dauert `--slow` plus Staffelung; gewartet wird auf
+    // die Ruhelage, nicht auf eine Zahl von Millisekunden.
+    // Nach einer Transform-Animation meldet der Browser die Ruhelage als
+    // Einheitsmatrix, nicht als `none` — beides ist dieselbe Lage.
+    const RUHE = ['none', 'matrix(1, 0, 0, 1, 0, 0)'];
+    await page.waitForFunction((ruhe) => [...document.querySelectorAll('[data-auftritt]')]
+      .every((e) => ruhe.includes(getComputedStyle(e).transform)), RUHE);
+    const lage = await alle.evaluateAll((es) => es.map((e) => getComputedStyle(e).transform));
+    expect(lage.every((l) => RUHE.includes(l)), `Lage je Abschnitt: ${lage.join(', ')}`).toBe(true);
+    // Und die Deckkraft war nie im Spiel: Kontrast wird mit Deckkraft 1 gemessen.
+    const deckkraft = await alle.evaluateAll((es) => es.map((e) => getComputedStyle(e).opacity));
+    expect(deckkraft.every((o) => o === '1')).toBe(true);
+  });
+
+  test('das Abschluss-Band fuehrt ins Angebot und zum Kontakt — in beiden Sprachen', async ({ page }) => {
+    await page.goto('/');
+    const band = page.locator('[data-cse="abschluss"]');
+    await expect(band).toHaveCount(1);
+    await expect(band.locator('[data-cse="abschluss-angebot"]')).toHaveAttribute('href', '/angebot');
+    await expect(band.locator('[data-cse="abschluss-kontakt"]')).toHaveAttribute('href', '/kontakt');
+    // Der Kopf traegt den einen roten Knopf der Ansicht; das Band bleibt
+    // sekundaer (DESIGN §1 „Red is scarce", §5 „one primary button per view").
+    const grund = await band.locator('[data-cse="abschluss-angebot"]')
+      .evaluate((e) => getComputedStyle(e).backgroundColor);
+    expect(grund).toBe('rgba(0, 0, 0, 0)');
+
+    await page.goto('/en');
+    await expect(page.locator('[data-cse="abschluss-angebot"]')).toHaveAttribute('href', '/en/angebot');
+    await expect(page.locator('[data-cse="abschluss-kontakt"]')).toHaveAttribute('href', '/en/kontakt');
+  });
+
+  /**
+   * **Ohne JavaScript bewegt sich nichts** (§7): die Klasse, die versetzt,
+   * setzt allein der Beobachter. Faellt er aus, steht die Seite so da, wie der
+   * Server sie gerendert hat — mit allen vier Karten im Bild.
+   */
+  test.describe('ohne JavaScript', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('ist nichts versetzt — die Seite steht, wie der Server sie rendert', async ({ page }) => {
+      await page.goto('/');
+      expect(await page.locator('[data-auftritt]').count()).toBeGreaterThan(4);
+      await expect(page.locator('.cse-wartet')).toHaveCount(0);
+      await expect(page.locator('.cse-sichtkontakt')).toHaveCount(0);
+      const karten = page.locator('[data-cse="marken-karte"]');
+      await expect(karten).toHaveCount(4);
+      for (let i = 0; i < 4; i += 1) await expect(karten.nth(i)).toBeVisible();
+    });
+  });
 });
