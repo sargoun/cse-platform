@@ -211,6 +211,10 @@ describe('der Auftritt beim ersten Sichtkontakt', () => {
 
   it('die Huelle traegt den Beobachter, das Stylesheet die Klassen, das Token steht ueberall', () => {
     expect(lies('src/components/oeffentlich/OeffentlicheShell.tsx')).toContain('<Auftritt />');
+    // Je Pfad, nicht je Einhaengen: die Huelle bleibt bei `<Link>`-Wechseln stehen.
+    const beobachter = lies('src/components/oeffentlich/Auftritt.tsx');
+    expect(beobachter).toContain("usePathname } from 'next/navigation'");
+    expect(beobachter).toMatch(/\}, \[pfad\]\);/u);
     const css = lies('src/styles/globals.css');
     expect(css).toContain('.cse-verborgen { opacity: 0; }');
     expect(css).toMatch(/\.cse-hero-bild \{ animation: cse-hero-bild var\(--entrance\)/u);

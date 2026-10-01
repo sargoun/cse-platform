@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
 /**
@@ -22,6 +23,12 @@ import { useEffect } from 'react';
  *  3. **Nur die Deckkraft.** Der Abschnitt bleibt fuer Tastatur und
  *     Screenreader da; ein Fokus darin rollt ihn in den Sichtbereich, und der
  *     Beobachter zeigt ihn.
+ *
+ * **Je Pfad, nicht je Einhaengen.** Der Baustein steht in der oeffentlichen
+ * Huelle, und die bleibt bei einem Wechsel ueber `<Link>` stehen, waehrend die
+ * Seite darunter ausgetauscht wird. Liefe der Aufbau nur beim Einhaengen,
+ * bekaeme die zweite Seite keinen Auftritt mehr — nichts waere verborgen,
+ * aber auch nichts bewegt. Deshalb haengt der Effekt am Pfad.
  */
 
 /** Liegt ein Element beim Start unter der Falz? Nur dann wird es verborgen. */
@@ -33,6 +40,7 @@ export function unterDerFalz(oberkante: number, fensterHoehe: number): boolean {
 const RAND = '0px 0px -10% 0px';
 
 export function Auftritt(): null {
+  const pfad = usePathname();
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return undefined;
     const unten = [...document.querySelectorAll<HTMLElement>('[data-auftritt]')]
@@ -59,6 +67,6 @@ export function Auftritt(): null {
       beobachter.disconnect();
       for (const e of unten) e.classList.remove('cse-verborgen');
     };
-  }, []);
+  }, [pfad]);
   return null;
 }

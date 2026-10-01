@@ -41,6 +41,14 @@ test.describe('(1) axe meldet NULL AA-Verstösse auf jeder öffentlichen Route',
         window.scrollTo(0, 0);
       });
       await expect(page.locator('.cse-verborgen')).toHaveCount(0);
+      /*
+       * Und den Auftritt selbst abwarten: nach dem Zeigen laeuft die
+       * Einblendung noch `--base` plus Staffelung, und axe misst Kontrast
+       * mit der Deckkraft des Augenblicks. Erst wenn jeder Abschnitt bei 1
+       * steht, prueft axe das, was ein Mensch sieht.
+       */
+      await page.waitForFunction(() => [...document.querySelectorAll('[data-auftritt]')]
+        .every((e) => getComputedStyle(e).opacity === '1'));
 
       const ergebnis = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

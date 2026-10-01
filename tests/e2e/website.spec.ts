@@ -201,8 +201,10 @@ test.describe('/ — die oeffentliche Startseite', () => {
       window.scrollTo(0, document.documentElement.scrollHeight);
     });
     await expect(page.locator('[data-auftritt].cse-verborgen')).toHaveCount(0);
-    // Der Auftritt selbst dauert `--base`; danach steht jeder Abschnitt voll da.
-    await page.waitForTimeout(600);
+    // Der Auftritt selbst dauert `--base` plus Staffelung; gewartet wird auf
+    // die Deckkraft, nicht auf eine Zahl von Millisekunden.
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-auftritt]')]
+      .every((e) => getComputedStyle(e).opacity === '1'));
     const deckkraft = await alle.evaluateAll((es) => es.map((e) => getComputedStyle(e).opacity));
     expect(deckkraft.every((o) => o === '1'), `Deckkraft je Abschnitt: ${deckkraft.join(', ')}`)
       .toBe(true);
