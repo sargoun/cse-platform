@@ -272,9 +272,9 @@ export function kleinbetragLage(eingabe: PruefEingabe): KleinbetragLage {
   if (g.istPlatzhalter) {
     return {
       ...basis, greift: false,
-      grund: 'Die Kleinbetragsgrenze ist ein unbestätigter Wert (O-175) — solange '
-        + 'niemand entschieden hat, ob die Gruppe Kleinbetragsrechnungen ausstellt, '
-        + 'gelten die vollen Pflichtangaben.',
+      grund: 'Die Kleinbetragsgrenze (250 €, § 33 UStDV) steht als Voreinstellung (O-175): '
+        + 'die Gruppe nutzt die Erleichterung nicht, auch Kleinbeträge tragen die vollen '
+        + 'Pflichtangaben.',
     };
   }
   /**
@@ -450,9 +450,9 @@ export const REGELN: readonly Regel[] = [
       }
       const befunde: string[] = [];
       if (e.kreis.istPlatzhalter) {
-        befunde.push(`Der Nummernkreis „${e.kreis.bezeichnung ?? ''}" ist noch ein `
-          + 'unbestätigter Platzhalter — Maske und Rücksetzung hat niemand '
-          + 'bestätigt (O-134). Eine Nummer aus ihm wäre eine erfundene.');
+        befunde.push(`Der Nummernkreis „${e.kreis.bezeichnung ?? ''}" ist noch nicht `
+          + 'freigegeben (O-134). Bis zur Freigabe durch die Administration vergibt '
+          + 'er keine Nummer.');
       }
       if (!e.kreis.lueckenlos) {
         befunde.push(`Der Nummernkreis „${e.kreis.bezeichnung ?? ''}" ist nicht als `
@@ -655,7 +655,7 @@ export const REGELN: readonly Regel[] = [
         + 'mit einem Grundstück, verlangt §14 Abs. 4 Nr. 9 UStG den Hinweis auf die '
         + 'zweijährige Aufbewahrungspflicht (§14b Abs. 1 S. 5 UStG). Ob eine '
         + 'Leistung grundstücksbezogen ist, führt die Plattform nicht (O-300) — '
-        + 'der Hinweis gehört bis zur Klärung von Hand in den Fußtext.']
+        + 'Voreinstellung: der Hinweis gehört von Hand in den Fußtext.']
       : leer,
   },
   {
@@ -672,8 +672,8 @@ export const REGELN: readonly Regel[] = [
     pruefe: (e) => e.zahlungszielTage === null
       ? ['Es ist kein Zahlungsziel hinterlegt. Ohne Fälligkeit geht kein Beleg '
         + 'hinaus; zu setzen im Kopf dieses Entwurfs. Bleibt das Feld dort leer, '
-        + 'gilt die Kondition des Kunden oder die Vorgabe der Gesellschaft für das '
-        + 'Zahlungsziel (O-66).']
+        + 'gilt die Kondition des Kunden, sonst die Vorgabe der Gesellschaft, sonst '
+        + 'die Voreinstellung 14 Tage (O-66).']
       : leer,
   },
   {
@@ -814,8 +814,8 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
    */
   { regel: 'FIN-08, OPS-05 — Abschlaege folgen dem vereinbarten Zahlungsplan',
     grund: 'Der ABZUG wird geprueft (Regel abschlag.abzug). Der PLAN nicht: '
-      + 'abschlagsplan gibt es noch nicht, und nach welchen Bedingungen '
-      + 'Abschlaege gestellt werden, ist offen (O-20).',
+      + 'abschlagsplan gibt es noch nicht; Voreinstellung (O-20): Abschlaege nach '
+      + '§ 16 Abs. 1 VOB/B in Hoehe der nachgewiesenen Leistung.',
     solangeOhne: ['abschlagsplan'] },
   /**
    * **Der Einbehalt wird seit PR 51 gerechnet** (`estg48/abzug.ts`, gegen die
@@ -829,8 +829,8 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
    */
   { regel: 'FIN-10, LEG-06 — §48 EStG Bagatellgrenze',
     grund: 'Der Einbehalt wird gerechnet (PR 51). Die Bagatellgrenze nicht: '
-      + 'bauabzugsteuer_freigrenze gibt es nicht, und welche Grenze zu welchem '
-      + 'Stichtag gilt, ist offen (O-21).',
+      + 'bauabzugsteuer_freigrenze gibt es nicht; Voreinstellung (O-21): 5.000 € je '
+      + 'Leistendem und Jahr, Stichtag Leistungsende, nicht automatisch angewandt.',
     solangeOhne: ['bauabzugsteuer_freigrenze'] },
   /**
    * **Die Pflichtfelder werden seit PR 52 geprueft** (Regel

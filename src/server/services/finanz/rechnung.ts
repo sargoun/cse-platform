@@ -204,8 +204,23 @@ export async function ermittleZahlungsziel(
   const [e] = await db.abfrage<{ tage: number | null }>(
     `select (app.einstellung('finanzen.zahlungsziel_tage_standard') #>> '{}')::integer as tage`,
   );
-  return e?.tage ?? null;
+  if (e?.tage != null) return e.tage;
+  /*
+   * Voreinstellung (D-779): 14 Tage netto, öffentliche Auftraggeber 30 Tage
+   * (§ 271a Abs. 2 BGB erlaubt ihnen höchstens 30). Sie greift erst, wenn
+   * weder der Kunde noch die Gesellschaft ein Ziel trägt.
+   * TODO(client, O-66): Voreinstellung 14 Tage, öffentliche Auftraggeber 30.
+   */
+  const [k] = await db.abfrage<{ oeffentlich: boolean }>(
+    'select ist_oeffentlicher_auftraggeber as oeffentlich from kunde where id = $1::uuid',
+    [kundeId]);
+  return k?.oeffentlich === true ? ZAHLUNGSZIEL_OEFFENTLICH_TAGE : ZAHLUNGSZIEL_VOREINSTELLUNG_TAGE;
 }
+
+/** Voreinstellung des Zahlungsziels (O-66, D-779) — gilt ohne Kunden- und Gesellschaftswert. */
+export const ZAHLUNGSZIEL_VOREINSTELLUNG_TAGE = 14;
+/** Öffentliche Auftraggeber: 30 Tage, die Obergrenze des § 271a Abs. 2 BGB (O-66). */
+export const ZAHLUNGSZIEL_OEFFENTLICH_TAGE = 30;
 
 /**
  * **Ein Auftrag gehört zu DIESEM Kunden, oder er gehört nicht auf den Beleg**

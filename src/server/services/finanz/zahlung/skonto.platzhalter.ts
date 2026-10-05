@@ -29,7 +29,7 @@ export interface SkontoRegel {
 export const SKONTO_PLATZHALTER: SkontoRegel = {
   toleranzCent: cent(0n),
   herkunft:
-    'Nicht entschieden (O-177). Jede Unterzahlung bleibt ein offener Rest, bis '
-    + 'ein Mensch sie ausdruecklich als Skonto bucht.',
+    'Voreinstellung (O-177): kein Skonto. Jede Unterzahlung bleibt ein offener Rest, '
+    + 'bis ein Mensch sie ausdruecklich als Skonto bucht.',
   istPlatzhalter: true,
 };

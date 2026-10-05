@@ -275,7 +275,8 @@ describe('§2 der Kopf eines Entwurfs ist änderbar (V-204)', () => {
   it('die Sackgasse: ohne Zeitraum und Zahlungsziel sperrt die Festschreibung — '
     + 'der Kopf behebt beides, ohne eine Zeile neu zu erfassen', async () => {
     const id = await entwurf({ von: null, bis: null, ziel: null });
-    expect((await kopf(id)).zahlungsziel_tage).toBeNull();
+    /* Ohne Kunden- und Gesellschaftswert gilt die Voreinstellung 14 Tage (O-66, D-779). */
+    expect((await kopf(id)).zahlungsziel_tage).toBe(14);
     const gesperrt = await fehlerVon(festschreiben(id));
     expect(gesperrt).not.toBeNull();
 

@@ -209,9 +209,9 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         entwuerfe.push({
           bezeichnung: `Monatspauschale ${monatsName(abschnitt)}`,
           beschreibung: voll
-            ? 'Voller Kalendermonat — provisorisch (O-04)'
+            ? 'Voller Kalendermonat — Voreinstellung (O-04)'
             : `Angebrochener Monat, volle Pauschale nach Vereinbarung `
-              + `(teilmonat = keine) — provisorisch (O-04)`,
+              + `(teilmonat = keine) — Voreinstellung (O-04)`,
           menge,
           einheit: 'monat',
           preisBasismenge: basis,
@@ -232,7 +232,8 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
       if (modus !== 'kalendertage') {
         throw new AbrechnungFehler(
           `Ein angebrochener Monat (${abschnitt.von} bis ${abschnitt.bis}) wird nach `
-          + `„${modus}" berechnet; die dafür nötige Arbeitstagsdefinition ist offen (O-04).`,
+          + `„${modus}" berechnet; Voreinstellung ist „kalendertage" — die Arbeitstagsdefinition `
+          + 'für diesen Modus ist noch nicht hinterlegt (O-04, V-281). Bitte im Vertrag „kalendertage" wählen.',
           'parameter_offen',
         );
       }
@@ -246,7 +247,7 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         beschreibung:
           `${String(tage)} von ${String(tageImMonat(jahr, monat))} Kalendertagen `
           + `(${alsTag(jahr, monat, zerlegeTag(abschnitt.von).tag)} bis ${abschnitt.bis}) `
-          + '— provisorisch (O-04)',
+          + '— Voreinstellung (O-04)',
         menge,
         einheit: 'tag',
         preisBasismenge: basis,

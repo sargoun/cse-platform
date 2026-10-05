@@ -360,7 +360,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
 
     leistungsort: 'Leistungsort',
     zahlungsziel: 'Zahlungsziel',
-    zahlungszielFehlt: 'nicht hinterlegt (O-66)',
+    zahlungszielFehlt: 'nicht hinterlegt (O-66 · Voreinstellung 14 Tage)',
     tage: 'Tage',
 
     verworfenLabel: 'Verworfen:',
@@ -375,7 +375,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + '(§14 Abs. 4 Nr. 5 UStG).',
     tabellePositionen: 'Positionen der Rechnung mit Menge, Einzelpreis und Steuersatz',
     codeOffen: 'offen',
-    unbestaetigterWert: 'Unbestätigter Wert (O-174)',
+    unbestaetigterWert: 'Voreinstellung (O-174)',
 
     herkunftTitel: 'Herkunft der Positionen',
     anspruchErloschen: 'Anspruch erloschen',
@@ -467,7 +467,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     stornoRechtFehltVor:
       'Eine festgeschriebene Rechnung wird nicht geändert, sondern durch eine '
       + 'Stornobuchung aufgehoben. Dieses Konto hält das Recht',
-    stornoRechtFehltNach: 'nicht — wer es hält, ist noch offen (O-77).',
+    stornoRechtFehltNach: 'nicht — Voreinstellung (O-77): Buchhaltung und Geschäftsführung halten es.',
     korrigieren: 'Korrigieren',
     korrigierenErklaerung:
       'Eine festgeschriebene Rechnung wird nicht geändert. Die stornierende '
@@ -628,8 +628,8 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       '— sie wird nicht automatisch festgeschrieben und hält keine Nummer.',
     stornoFussVor:
       'Der Storno zieht seine eigene Nummer aus demselben Kreis und hängt sich '
-      + 'an dieselbe Hashkette. Wer darf stornieren, ist noch offen (O-77) — bis '
-      + 'dahin gilt die Katalogvorgabe für',
+      + 'an dieselbe Hashkette. Stornieren dürfen in der Voreinstellung Buchhaltung '
+      + 'und Geschäftsführung (O-77) — es gilt die Katalogvorgabe für',
 
     positionsartNamen: {
       leistung: 'Leistung', textzeile: 'Textzeile', zwischensumme: 'Zwischensumme',
@@ -731,7 +731,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
 
     leistungsort: 'Place of supply',
     zahlungsziel: 'Payment terms',
-    zahlungszielFehlt: 'not recorded (O-66)',
+    zahlungszielFehlt: 'not recorded (O-66 · default 14 days)',
     tage: 'days',
 
     verworfenLabel: 'Discarded:',
@@ -746,7 +746,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + '(§14 (4) no. 5 UStG).',
     tabellePositionen: 'Invoice line items with quantity, unit price and tax rate',
     codeOffen: 'open',
-    unbestaetigterWert: 'Unconfirmed value (O-174)',
+    unbestaetigterWert: 'Default (O-174)',
 
     herkunftTitel: 'Origin of the line items',
     anspruchErloschen: 'claim extinguished',
@@ -848,7 +848,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     stornoRechtFehltVor:
       'A festgeschriebene (finalised) invoice is not amended; it is lifted by a '
       + 'Storno (reversing entry). This account does not hold the right',
-    stornoRechtFehltNach: '— who does hold it is still open (O-77).',
+    stornoRechtFehltNach: '— default (O-77): accounting and management hold it.',
     korrigieren: 'Correct',
     korrigierenErklaerung:
       'A festgeschriebene (finalised) invoice is not amended. The reversing '
@@ -1015,8 +1015,8 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       '— it is not finalised automatically and holds no number.',
     stornoFussVor:
       'The Storno draws a number of its own from the same Nummernkreis and '
-      + 'attaches itself to the same hash chain. Who may reverse an invoice is '
-      + 'still open (O-77) — until then the catalogue default applies for',
+      + 'attaches itself to the same hash chain. By default accounting and '
+      + 'management may reverse an invoice (O-77) — the catalogue default applies for',
 
     positionsartNamen: {
       leistung: 'Leistung (line of supply)', textzeile: 'Text line',

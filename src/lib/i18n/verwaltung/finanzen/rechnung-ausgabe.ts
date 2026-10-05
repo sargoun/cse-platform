@@ -287,18 +287,18 @@ const DE: RechnungAusgabeTexte = {
   abzugAufDemBeleg: 'Abzug, wie er auf dem Beleg steht',
   zahlbetragKunde: 'Zahlbetrag des Kunden',
   sicherheitseinbehalt: 'Sicherheitseinbehalt (VOB/B §17)',
-  offenO20: ' — offen (O-20)',
+  offenO20: ' — Voreinstellung: keiner ohne Vereinbarung (O-20)',
   imAuftragHinterlegt: 'Im Auftrag hinterlegt: ',
   bzw: 'bzw.',
   nichtsAbgezogenSolangeOffen:
-    '. Abgezogen wird davon nichts, solange die Regel dazu offen ist.',
+    '. Abgezogen wird davon nichts, solange der Auftrag keinen Einbehalt vereinbart (VOB/B § 17 Abs. 1).',
   zweiAngabenVor: 'Es stehen ',
   zweiBetont: 'zwei',
   zweiAngabenNach:
-    ' Angaben im Auftrag — ein Prozentsatz und ein Betrag. Welche gilt, wenn '
-    + 'sie sich widersprechen, ist nicht entschieden: es steht in derselben '
-    + 'offenen Frage wie die Einbehaltsregel selbst (O-20). Beide werden '
-    + 'deshalb gezeigt und keine verschwiegen.',
+    ' Angaben im Auftrag — ein Prozentsatz und ein Betrag. Widersprechen sie '
+    + 'sich, hält der Abschluss mit einem Hinweis an — Voreinstellung (O-20): '
+    + 'nur eine Angabe im Auftrag führen, bevorzugt den Prozentsatz. Beide werden '
+    + 'gezeigt und keine verschwiegen.',
   verbleibenderZahlbetrag: 'Verbleibender Zahlbetrag',
   abweichungErklaerung:
     'Der berechnete Abzug und der Abzug auf dem Beleg weichen ab. Auf einem '
@@ -341,7 +341,7 @@ const DE: RechnungAusgabeTexte = {
   greift: 'greift',
   greiftNicht: 'greift nicht',
   grenze: 'Grenze',
-  unbestaetigterWertO175: ' — unbestätigter Wert (O-175)',
+  unbestaetigterWertO175: ' — Voreinstellung 250 € (O-175)',
   bruttoDiesesBelegs: 'Brutto dieses Belegs',
   begruendung: 'Begründung',
   nochNichtGeprueft: 'Was diese Prüfung noch nicht prüft',
@@ -357,9 +357,9 @@ const DE: RechnungAusgabeTexte = {
     'Versand nicht verbunden (O-36) — die Datei lässt sich herunterladen und '
     + 'von Hand versenden.',
   nichtVerbundenText:
-    ' Es ist nicht entschieden, welcher EU-gehostete Transaktionsmailer unter '
-    + 'welchem Auftragsverarbeitungsvertrag ausliefert, und kein '
-    + 'Peppol-Zugangspunkt ist eingerichtet (O-22). Es gibt deshalb keinen '
+    ' Voreinstellung ist ein EU-gehosteter Transaktionsmailer mit '
+    + 'Auftragsverarbeitungsvertrag, dessen Zugangsdaten der Betreiber einträgt (O-36); '
+    + 'ein Peppol-Zugangspunkt ist nicht eingerichtet (O-22). Es gibt deshalb keinen '
     + 'Sendeknopf — und keinen vorgetäuschten Erfolg: ein Protokolleintrag '
     + '„gesendet" ohne Versand ist die Auskunft, dass eine Rechnung draussen '
     + 'sei, die es nicht ist.',
@@ -565,7 +565,7 @@ const EN: RechnungAusgabeTexte = {
   zahlbetragKunde: 'Amount payable by the customer',
   sicherheitseinbehalt:
     'Sicherheitseinbehalt (retention, VOB/B §17)',
-  offenO20: ' — open (O-20)',
+  offenO20: ' — default: none unless agreed (O-20)',
   imAuftragHinterlegt: 'Held on the Auftrag: ',
   bzw: 'or',
   nichtsAbgezogenSolangeOffen:
@@ -574,8 +574,8 @@ const EN: RechnungAusgabeTexte = {
   zweiBetont: 'two',
   zweiAngabenNach:
     ' figures — a percentage and an amount. Which one applies if they '
-    + 'contradict each other has not been decided: it sits in the same open '
-    + 'question as the retention rule itself (O-20). Both are therefore shown '
+    + 'contradict each other the closing stops with a note — default (O-20): '
+    + 'keep only one figure on the order, preferably the percentage. Both are shown '
     + 'and neither is withheld.',
   verbleibenderZahlbetrag: 'Remaining amount payable',
   abweichungErklaerung:
@@ -619,7 +619,7 @@ const EN: RechnungAusgabeTexte = {
   greift: 'applies',
   greiftNicht: 'does not apply',
   grenze: 'Threshold',
-  unbestaetigterWertO175: ' — unconfirmed value (O-175)',
+  unbestaetigterWertO175: ' — default 250 € (O-175)',
   bruttoDiesesBelegs: 'Gross of this document',
   begruendung: 'Reasoning',
   nochNichtGeprueft: 'What this check does not yet check',
@@ -635,8 +635,8 @@ const EN: RechnungAusgabeTexte = {
     'Dispatch not connected (O-36) — the file can be downloaded and sent by '
     + 'hand.',
   nichtVerbundenText:
-    ' It has not been decided which EU-hosted transactional mailer delivers '
-    + 'under which data-processing agreement, and no Peppol access point is '
+    ' The default is an EU-hosted transactional mailer under a data-processing '
+    + 'agreement whose credentials the operator enters (O-36); no Peppol access point is '
     + 'set up (O-22). There is therefore no send button — and no pretended '
     + 'success: a log entry reading "sent" without a dispatch is the statement '
     + 'that an invoice is out of the house when it is not.',

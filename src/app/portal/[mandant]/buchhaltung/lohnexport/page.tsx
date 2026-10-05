@@ -92,8 +92,9 @@ export default async function LohnexportSeite(
       </p>
 
       <Hinweis art="warnung" cse="lohnexport-format" className="mb-s5 max-w-prose">
-        <strong>Format: {e.format.bezeichnung} — Platzhalter.</strong> Das Lohnsystem und sein Importformat sind
-        nicht festgelegt (O-27); dieser Export ist nicht mit ihm abgestimmt und nicht verbunden. Zielsystem:{' '}
+        <strong>Format: {e.format.bezeichnung} — Voreinstellung.</strong> Das Lohnsystem und sein Importformat sind
+        nicht festgelegt (O-27; Voreinstellung: generische CSV je Gesellschaft, bis der Betreiber das
+        Lohnsystem einträgt); dieser Export ist nicht mit ihm abgestimmt und nicht verbunden. Zielsystem:{' '}
         {e.format.zielsystem ?? 'nicht festgelegt'}.
       </Hinweis>
 

@@ -453,7 +453,7 @@ export function extrahiereERechnung(xml: string): ERechnungExtrakt {
     befunde: [waehrungRoh === 'EUR' ? ok('formatpruefung')
       : nein('formatpruefung', waehrungRoh === null
         ? 'Die Datei nennt keine Währung'
-        : `Rechnung in ${waehrungRoh} — diese Plattform bucht nur EUR (O-05)`)],
+        : `Rechnung in ${waehrungRoh} — diese Plattform bucht nur EUR (Voreinstellung O-189)`)],
   });
 
   /* Lieferant */

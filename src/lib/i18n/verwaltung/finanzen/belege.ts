@@ -305,15 +305,15 @@ const DE: BelegeTexte = {
   quelle: 'Quelle',
   belegeImArchiv: 'Belege im Archiv',
   mitLoeschsperre: 'mit Löschsperre',
-  fristOffen: 'Frist offen (O-46)',
+  fristOffen: 'ohne Frist (O-46)',
   jeTyp: 'Je Typ:',
   einBelegOhneFrist: 'Ein Beleg trägt keine Aufbewahrungsfrist.',
   belegeOhneFrist: ' Belege tragen keine Aufbewahrungsfrist.',
   fristOffenErklaerung:
-    'Für ihre Klasse ist nicht entschieden, wie lange aufbewahrt wird (O-46). '
-    + 'Sie bleiben gesperrt — ausgesondert wird nichts, wofür keine Frist '
-    + 'feststeht. §147 AO nennt zehn Jahre für Buchungsbelege und sechs für '
-    + 'Handelsbriefe; welche Klasse welche Frist trägt, bestätigt der Mandant.',
+    'Sie entstanden, bevor ihre Klasse eine Frist trug (O-46). Sie bleiben gesperrt '
+    + '— ausgesondert wird nichts, wofür kein Datum steht. Neue Belege erhalten die '
+    + 'Voreinstellung ihrer Klasse: zehn Jahre für Buchungsbelege (§ 147 AO), sechs '
+    + 'für Handelsbriefe (§ 257 HGB); die Buchhaltung kann die Regel je Klasse ändern.',
   keinBelegZumFilter: 'Kein Beleg passt zu diesem Filter.',
   keinBelegImArchiv:
     'Es liegt kein Beleg im Archiv. Belege entstehen mit einer '
@@ -396,16 +396,16 @@ const DE: BelegeTexte = {
   loeschsperreAktiv: ' · Löschsperre aktiv',
   keineLoeschsperre: ' · keine Löschsperre',
   fristOffenLang:
-    'Frist offen (O-46). Für diese Belegklasse ist nicht entschieden, wie lange '
-    + 'aufbewahrt wird — §147 AO nennt zehn Jahre für Buchungsbelege und sechs '
-    + 'für Handelsbriefe, und welche Klasse dieser Plattform welche Frist trägt, '
-    + 'bestätigt der Mandant. Bis dahin wird nichts ausgesondert; das ist die '
+    'Ohne Frist (O-46). Dieser Beleg entstand, bevor seine Klasse eine Frist trug '
+    + '— neue Belege erhalten die Voreinstellung ihrer Klasse: zehn Jahre für '
+    + 'Buchungsbelege (§ 147 AO), sechs für Handelsbriefe (§ 257 HGB); die '
+    + 'Buchhaltung kann die Regel je Klasse ändern. Er wird nicht ausgesondert; das ist die '
     + 'Richtung, die nicht haftet.',
   aufzubewahrenBis: 'Aufzubewahren bis',
   jahreAbBelegdatum: 'Jahre ab Belegdatum',
   regelUnbestaetigt:
-    'Die zugrunde liegende Regel ist unbestätigt (O-46) — das Datum steht, die '
-    + 'Begründung dafür noch nicht.',
+    'Die zugrunde liegende Regel ist eine Voreinstellung (O-46) — Frist und '
+    + 'Grundlage gelten, bis die Buchhaltung sie bestätigt oder ändert.',
   woranDieserBelegHaengt: 'Woran dieser Beleg hängt',
   keineVerwendung:
     'Keine Zeile beruft sich auf diesen Beleg. Er liegt im Archiv, aber keine '
@@ -453,20 +453,22 @@ const DE: BelegeTexte = {
     'Das kann als Daten nicht entstehen — die Datenbank verlangt vor der '
     + 'Freigabe einen Beleg (ACC-03). Steht es hier, ist die Zeile älter als die '
     + 'Regel oder beschädigt; beides gehört gemeldet.',
-  belegfreiNichtVorgesehen: 'Belegfrei buchen ist nicht vorgesehen (O-185).',
+  belegfreiNichtVorgesehen:
+    'Belegfrei buchen ist nicht vorgesehen — Voreinstellung (O-185): jede Ausgabe '
+    + 'braucht einen Beleg, ein Eigenbeleg wird als Dokument hochgeladen.',
   tseOffen:
-    'Ob eine elektronische Registrierkasse mit TSE nach §146a AO im Einsatz ist '
-    + 'oder ausschliesslich eine offene Ladenkasse mit Kassenbuch, ist ebenfalls '
-    + 'offen (O-186). Eine Barausgabe verlangt hier deshalb eine Kasse und trägt '
+    'Voreinstellung (O-186): keine elektronische Registrierkasse mit TSE nach '
+    + '§146a AO, sondern eine offene Ladenkasse mit Kassenbuch. Eine Barausgabe '
+    + 'verlangt hier deshalb eine Kasse und trägt '
     + 'keine TSE-Angaben — die Plattform behauptet keine Sicherungseinrichtung, '
     + 'die sie nicht hat.',
   kategoriePlatzhalterVor: 'Einige Zeilen hängen an einer',
-  kategoriePlatzhalterBetont: 'unbestätigten Kategorie',
+  kategoriePlatzhalterBetont: 'Kategorie in Voreinstellung',
   kategoriePlatzhalterNach:
-    '(O-05). Welche Aufwandskategorien der Steuerberater erwartet und wie sie '
-    + 'auf SKR-Konten abbilden, ist nicht entschieden — bis dahin entsteht aus '
-    + 'einer solchen Kategorie eine Buchung OHNE Konto und mit Prüfhinweis, nie '
-    + 'eine auf ein geratenes Konto.',
+    '(O-05). Kategorien und SKR03-Konten sind Voreinstellungen nach dem '
+    + 'Standardkontenrahmen; fehlt einer Kategorie die Kontenzuordnung, entsteht '
+    + 'eine Buchung OHNE Konto und mit Prüfhinweis, nie eine auf ein geratenes '
+    + 'Konto. Der Steuerberater bestätigt oder ändert die Zuordnung.',
   keineAusgabeZumFilter: 'Keine Ausgabe passt zu diesem Filter.',
   keineAusgabeErfasst:
     'Es ist keine Ausgabe erfasst. Eine Ausgabe ist der Aufwand dieser '
@@ -474,7 +476,7 @@ const DE: BelegeTexte = {
     + 'Material für einen Auftrag, eine Auslagenerstattung. Sie braucht vor der '
     + 'Freigabe ihren Beleg (ACC-03).',
   tabelleAusgaben: 'Ausgaben mit Datum, Kategorie, Betrag, Beleg und Zustand',
-  unbestaetigtO05: 'unbestätigt (O-05)',
+  unbestaetigtO05: 'Voreinstellung (O-05)',
   auftrag: 'Auftrag',
   belegFehltDarfNichtSein: 'fehlt — darf nicht sein',
   nochKeiner: 'noch keiner',
@@ -518,7 +520,7 @@ const DE: BelegeTexte = {
 
   ausgabeTitel: 'Ausgabe',
   ausgabedatum: 'Ausgabedatum',
-  unbestaetigtStrich: ' — unbestätigt (O-05)',
+  unbestaetigtStrich: ' — Voreinstellung (O-05)',
   bezahltMit: 'Bezahlt mit',
   umsatzsteuer: 'Umsatzsteuer',
   weiterberechenbar: 'Weiterberechenbar',
@@ -631,13 +633,14 @@ const EN: BelegeTexte = {
   quelle: 'Source',
   belegeImArchiv: 'Belege in the archive',
   mitLoeschsperre: 'with a deletion lock',
-  fristOffen: 'Retention period open (O-46)',
+  fristOffen: 'no retention period (O-46)',
   jeTyp: 'By type:',
   einBelegOhneFrist: 'One Beleg carries no retention period.',
   belegeOhneFrist: ' Belege carry no retention period.',
   fristOffenErklaerung:
-    'For their class it has not been decided how long they are kept (O-46). '
-    + 'They stay locked — nothing is disposed of for which no period is settled. '
+    'They arose before their class carried a period (O-46). They stay locked — '
+    + 'nothing is disposed of for which no date stands; new Belege receive the '
+    + 'default of their class, which accounting can change. '
     + '§147 AO names ten years for Buchungsbelege (accounting records) and six '
     + 'for Handelsbriefe (commercial letters); which class carries which period '
     + 'is confirmed by the Mandant.',
@@ -723,8 +726,8 @@ const EN: BelegeTexte = {
   loeschsperreAktiv: ' · deletion lock active',
   keineLoeschsperre: ' · no deletion lock',
   fristOffenLang:
-    'Retention period open (O-46). For this Beleg class it has not been decided '
-    + 'how long it is kept — §147 AO names ten years for Buchungsbelege '
+    'No retention period (O-46). This Beleg arose before its class carried a '
+    + 'period — new Belege receive the default of their class: §147 AO names ten years for Buchungsbelege '
     + '(accounting records) and six for Handelsbriefe (commercial letters), and '
     + 'which class on this platform carries which period is confirmed by the '
     + 'Mandant. Until then nothing is disposed of; that is the direction that '
@@ -732,8 +735,8 @@ const EN: BelegeTexte = {
   aufzubewahrenBis: 'To be kept until',
   jahreAbBelegdatum: 'years from the Beleg date',
   regelUnbestaetigt:
-    'The underlying rule is unconfirmed (O-46) — the date stands, the reason '
-    + 'for it does not yet.',
+    'The underlying rule is a default (O-46) — period and basis apply until '
+    + 'accounting confirms or changes them.',
   woranDieserBelegHaengt: 'What this Beleg is attached to',
   keineVerwendung:
     'No row relies on this Beleg. It sits in the archive, but no journal entry, '
@@ -781,19 +784,20 @@ const EN: BelegeTexte = {
     + '(supporting document) before approval (ACC-03). If it stands here, the '
     + 'row is older than the rule or damaged; either belongs in a report.',
   belegfreiNichtVorgesehen:
-    'Booking without a Beleg is not provided for (O-185).',
+    'Booking without a Beleg is not provided for — default (O-185): every expense '
+    + 'needs a Beleg; a self-made receipt (Eigenbeleg) is uploaded as a document.',
   tseOffen:
-    'Whether an electronic till with a TSE under §146a AO is in use, or only an '
-    + 'open cash drawer with a Kassenbuch (cash book), is likewise open (O-186). '
+    'Default (O-186): no electronic till with a TSE under §146a AO, but an open '
+    + 'cash drawer with a Kassenbuch (cash book). '
     + 'A cash expense therefore requires a Kasse (cash box) here and carries no '
     + 'TSE data — the platform claims no security device it does not have.',
   kategoriePlatzhalterVor: 'Some rows hang on an',
-  kategoriePlatzhalterBetont: 'unconfirmed category',
+  kategoriePlatzhalterBetont: 'category in default state',
   kategoriePlatzhalterNach:
-    '(O-05). Which expense categories the tax adviser expects, and how they map '
-    + 'onto SKR accounts, is not decided — until then such a category yields a '
-    + 'journal entry WITHOUT an account and with a check note, never one on a '
-    + 'guessed account.',
+    '(O-05). Categories and SKR03 accounts are defaults following the standard '
+    + 'chart of accounts; a category without an account mapping yields a journal '
+    + 'entry WITHOUT an account and with a check note, never one on a guessed '
+    + 'account. The tax adviser confirms or changes the mapping.',
   keineAusgabeZumFilter: 'No expense matches this filter.',
   keineAusgabeErfasst:
     'No expense has been recorded. An expense is this company’s cost that is '
@@ -802,7 +806,7 @@ const EN: BelegeTexte = {
     + 'document) before approval (ACC-03).',
   tabelleAusgaben:
     'Expenses with date, category, amount, Beleg and state',
-  unbestaetigtO05: 'unconfirmed (O-05)',
+  unbestaetigtO05: 'default (O-05)',
   auftrag: 'Order',
   belegFehltDarfNichtSein: 'missing — must not be',
   nochKeiner: 'none yet',
@@ -846,7 +850,7 @@ const EN: BelegeTexte = {
 
   ausgabeTitel: 'Expense',
   ausgabedatum: 'Expense date',
-  unbestaetigtStrich: ' — unconfirmed (O-05)',
+  unbestaetigtStrich: ' — default (O-05)',
   bezahltMit: 'Paid by',
   umsatzsteuer: 'Umsatzsteuer (VAT)',
   weiterberechenbar: 'Rechargeable',

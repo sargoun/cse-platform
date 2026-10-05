@@ -599,7 +599,7 @@ export const TABELLEN: readonly TabellenSpezifikation[] = [
       { name: 'prioritaet', typ: 'zahl', text: 'Priorität bei mehreren Treffern' },
       { name: 'gueltig_von', typ: 'datum', text: 'Gültig ab' },
       { name: 'gueltig_bis', typ: 'datum', text: 'Gültig bis' },
-      { name: 'ist_platzhalter', typ: 'text', text: 'ja/nein — noch nicht vom Steuerberater bestätigt (O-05)' },
+      { name: 'ist_platzhalter', typ: 'text', text: 'ja/nein — Voreinstellung, vom Steuerberater noch nicht bestätigt (O-05)' },
     ],
   },
   {
@@ -831,9 +831,9 @@ function liesmichText(p: {
     `  USt-IdNr.: ${m.ust_id ?? '—'} · Steuernummer: ${m.steuernummer ?? '—'} · Finanzamt: ${m.finanzamt ?? '—'}`,
     `  Handelsregister: ${[m.handelsregister_gericht, m.handelsregister_nummer].filter((x) => x !== null).join(' ') || '—'}`,
     `  Kontenrahmen: ${m.kontenrahmen ?? 'nicht festgelegt'}${m.sachkontenlaenge === null ? '' : `, Sachkontenlänge ${String(m.sachkontenlaenge)}`}`
-      + `${m.konfig_platzhalter === true ? ' — PLATZHALTER, vom Steuerberater noch nicht bestätigt (O-05)' : ''}`,
+      + `${m.konfig_platzhalter === true ? ' — VOREINSTELLUNG, vom Steuerberater noch nicht bestätigt (O-05)' : ''}`,
     `  Wirtschaftsjahr beginnt am ${String(p.wj.beginnTag)}.${String(p.wj.beginnMonat)}.`
-      + `${p.wj.istPlatzhalter ? ' — angenommen (Kalenderjahr, O-05)' : ''}`,
+      + `${p.wj.istPlatzhalter ? ' — Voreinstellung (Kalenderjahr, O-05)' : ''}`,
     '',
     'INHALT',
     '  index.xml       Strukturbeschreibung nach dem Beschreibungsstandard für die Datenträgerüberlassung',

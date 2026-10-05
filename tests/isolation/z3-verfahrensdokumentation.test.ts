@@ -276,7 +276,7 @@ describe('(1) das Z3-Paket', () => {
     const liesmich = utf8.decode(dateien.get(LIESMICH_NAME)!);
     expect(liesmich).toContain(`ohne Beleg oder ohne Konto: ${String(offen!.n)}`);
     expect(liesmich).toContain('keine Berechnung von Steuern oder Löhnen (D-06)');
-    expect(liesmich).toContain('PLATZHALTER');
+    expect(liesmich).toContain('VOREINSTELLUNG');
 
     /* Der Lieferantenstamm ohne IBAN; der Kundenstamm mit dem Kunden. */
     expect(csvZeilen(dateien.get('lieferanten.csv')!)[0]).not.toContain('iban');

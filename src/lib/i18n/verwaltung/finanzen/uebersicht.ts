@@ -507,9 +507,9 @@ const DE: UebersichtTexte = {
   erwartet: 'erwartet',
   gefunden: 'gefunden',
   kettenmeldungOffen:
-    'Wer die Kettenmeldung bekommt und auf welchem Weg, ist noch offen '
-    + '(O-357). Bis dahin steht der Befund hier und im Betriebsbericht — er '
-    + 'wird nicht zugestellt.',
+    'Voreinstellung (O-357): die Kettenmeldung geht an Buchhaltung und '
+    + 'Geschäftsführung über die E-Mail-Benachrichtigungen (O-202) — solange kein '
+    + 'Mailer verbunden ist, steht der Befund hier und im Betriebsbericht.',
 
   nummernkreiseTitel: 'Nummernkreise',
   nummernkreiseUeberschrift: 'Nummernkreise',
@@ -521,11 +521,10 @@ const DE: UebersichtTexte = {
   einPlatzhalter: 'Ein Kreis ist ein Platzhalter.',
   platzhalterNach: 'Kreise sind Platzhalter.',
   platzhalterErklaerung:
-    'Maske und Rücksetzungsregel sind unbestätigt (O-134) — offen ist, ob es '
-    + 'einen Kreis je Gesellschaft oder je Gesellschaft und Belegart gibt, ob '
-    + 'die Nummer über Jahre weiterläuft oder am 1. Januar zurückspringt, und '
-    + 'wie die Maske genau lautet.',
-  nichtFestgeschrieben: 'In einem Platzhalterkreis wird nicht festgeschrieben',
+    'Der Kreis ist noch nicht freigegeben (O-134). Voreinstellung: ein Kreis je '
+    + 'Gesellschaft und Belegart, Maske RE-{jahr}-{nr:5}, Neustart am 1. Januar — '
+    + 'die Administration gibt ihn frei oder ändert Maske und Rücksetzung vorher.',
+  nichtFestgeschrieben: 'In einem nicht freigegebenen Kreis wird nicht festgeschrieben',
   erfundeneNummer: '— eine Nummer daraus wäre eine erfundene.',
   einWiderspruch:
     'Ein Kreis behauptet in seiner Bezeichnung eine unbestätigte Maske, ist '
@@ -536,15 +535,16 @@ const DE: UebersichtTexte = {
   widerspruch:
     'Damit greift der Platzhalterschutz nicht: für Rechnungs- und '
     + 'Gutschriftenkreise sitzt er ausschliesslich in der Funktion der Datenbank, '
-    + 'die die Nummer zieht, und die prüft genau diese Kennzeichnung. Ob der Kreis '
-    + 'als Platzhalter gekennzeichnet gehört, ist eine Datenentscheidung mit '
-    + 'Wirkung auf bereits festgeschriebene Belege — sie wird hier benannt und '
-    + 'nicht getroffen (O-606).',
+    + 'die die Nummer zieht, und die prüft genau diese Kennzeichnung. Voreinstellung '
+    + '(O-606): der Kreis der Demodaten ist freigegeben und als Voreinstellung '
+    + 'bezeichnet; die Kennzeichnung wirkt nur auf künftige Nummern, nie auf bereits '
+    + 'festgeschriebene Belege.',
   keinNummernkreis:
     'Für diese Gesellschaft ist kein Nummernkreis eingerichtet. Ohne Kreis '
     + 'entsteht keine Nummer und damit keine Rechnung, kein Angebot und kein '
-    + 'Leistungsnachweis. Wer einen Kreis eröffnet, ist offen (O-352) — es '
-    + 'gibt hier deshalb keinen Knopf dafür.',
+    + 'Leistungsnachweis. Einen Kreis eröffnet in der Voreinstellung die '
+    + 'Administration mit dem Recht, Nummernkreise zu verwalten (O-352); der Knopf '
+    + 'dafür folgt (V-284).',
   tabelleKreise: 'Nummernkreise mit Maske, Zähler, Kettenlage und Zustand',
   maskeKopf: 'Maske und Rücksetzung',
   naechsteNummerKopf: 'Nächste Nummer (Ansicht)',
@@ -581,12 +581,11 @@ const DE: UebersichtTexte = {
   schrittVorgaenger:
     'Beim Nachfolger den Vorgänger eintragen, damit die Prüfung den Übergang '
     + 'nachrechnen kann (§5.7 Schritt 3b).',
-  keinKnopfDafuer: 'Es gibt hier keinen Knopf dafür (O-352).',
-  keinKnopfWer: 'Wer',
+  keinKnopfDafuer: 'Der Knopf dafür folgt (V-284).',
+  keinKnopfWer: 'Voreinstellung (O-352): den Jahreswechsel führt die Administration aus; das Recht',
   keinKnopfNach:
-    'in den drei Gesellschaften hält und wer den Jahreswechsel ausführt, ist '
-    + 'nicht entschieden — und ein Knopf würde die Rolle erfinden, die ihn '
-    + 'auslöst.',
+    'hält sie in den drei Gesellschaften — die Geschäftsführung kann es sich '
+    + 'zuweisen lassen.',
   rechtGehalten: 'Dieses Konto hält das Recht.',
   rechtFehlt: 'Diesem Konto fehlt das Recht.',
   auchMitRecht: 'Auch mit dem Recht gibt es den Vorgang noch nicht.',
@@ -603,9 +602,8 @@ const DE: UebersichtTexte = {
   keinBefund:
     'Kein Befund. Kein abgeschlossener Auftrag ohne erfasste Minute, kein '
     + 'abgeschlossener Auftrag ohne Rechnung, keine Entwurfszeile ohne '
-    + 'Herkunft. Das heisst nicht, dass alles geprüft ist — welche weiteren '
-    + 'Vorab-Prüfungen diese Liste führen soll, ist offen (O-601), und sie '
-    + 'steht unten.',
+    + 'Herkunft. Das heisst nicht, dass alles geprüft ist — die Liste der '
+    + 'Vorab-Prüfungen ist die Voreinstellung (O-601) und steht unten.',
   tabellePruefungen: 'Befunde vor der Rechnungsstellung, mit Regel und Sprungziel',
   regelKopf: 'Regel',
   auftragBelegKopf: 'Auftrag / Beleg',
@@ -882,9 +880,9 @@ const EN: UebersichtTexte = {
   erwartet: 'expected',
   gefunden: 'found',
   kettenmeldungOffen:
-    'Who receives the chain message, and by which route, is still open '
-    + '(O-357). Until then the finding stands here and in the operations '
-    + 'report — it is not delivered.',
+    'Default (O-357): the chain message goes to accounting and management via '
+    + 'the e-mail notifications (O-202) — while no mailer is connected, the finding '
+    + 'stands here and in the operations report.',
 
   nummernkreiseTitel: 'Nummernkreise',
   nummernkreiseUeberschrift: 'Nummernkreise (number ranges)',
@@ -896,11 +894,10 @@ const EN: UebersichtTexte = {
   einPlatzhalter: 'One Nummernkreis is a placeholder.',
   platzhalterNach: 'Nummernkreise are placeholders.',
   platzhalterErklaerung:
-    'Mask and reset rule are unconfirmed (O-134) — open is whether there is '
-    + 'one Nummernkreis per company or per company and document type, whether '
-    + 'the number runs on across the years or jumps back on 1 January, and how '
-    + 'the mask reads exactly.',
-  nichtFestgeschrieben: 'In a placeholder Nummernkreis nothing is finalised',
+    'The Nummernkreis is not released yet (O-134). Default: one range per company '
+    + 'and document type, mask RE-{jahr}-{nr:5}, restart on 1 January — the '
+    + 'administration releases it or changes mask and reset beforehand.',
+  nichtFestgeschrieben: 'In a Nummernkreis not yet released nothing is finalised',
   erfundeneNummer: '— a number out of it would be an invented one.',
   einWiderspruch:
     'One Nummernkreis claims an unconfirmed mask in its label but is not '
@@ -912,14 +909,14 @@ const EN: UebersichtTexte = {
     'The placeholder protection therefore does not bite: for invoice and '
     + 'Gutschrift (credit note) Nummernkreise it sits solely in the database '
     + 'function that draws the number, and that checks exactly this marking. '
-    + 'Whether the Nummernkreis ought to be marked as a placeholder is a data '
-    + 'decision with effect on Belege already finalised (festgeschrieben) — it is '
-    + 'named here and not taken (O-606).',
+    + 'Default (O-606): the demo-data range is released and labelled as a default; '
+    + 'the marking affects only future numbers, never Belege already finalised '
+    + '(festgeschrieben).',
   keinNummernkreis:
     'No Nummernkreis is set up for this company. Without one no number arises '
     + 'and hence no invoice, no quotation and no Leistungsnachweis (proof of '
-    + 'service performed). Who opens a Nummernkreis is open (O-352) — there is '
-    + 'therefore no button for it here.',
+    + 'service performed). By default the administration opens a Nummernkreis '
+    + 'with the right to manage number ranges (O-352); the button for it follows (V-284).',
   tabelleKreise: 'Nummernkreise with mask, counter, chain state and state',
   maskeKopf: 'Mask and reset',
   naechsteNummerKopf: 'Next number (view)',
@@ -956,11 +953,10 @@ const EN: UebersichtTexte = {
   schrittVorgaenger:
     'Record the predecessor on the successor, so that the check can recompute '
     + 'the transition (§5.7 step 3b).',
-  keinKnopfDafuer: 'There is no button for it here (O-352).',
-  keinKnopfWer: 'Who holds',
+  keinKnopfDafuer: 'The button for it follows (V-284).',
+  keinKnopfWer: 'Default (O-352): the administration carries out the turn of the year; the right',
   keinKnopfNach:
-    'in the three companies, and who carries out the turn of the year, is not '
-    + 'decided — and a button would invent the role that triggers it.',
+    'is held by it in the three companies — management can have it assigned.',
   rechtGehalten: 'This account holds the right.',
   rechtFehlt: 'This account lacks the right.',
   auchMitRecht: 'Even with the right the procedure does not exist yet.',
@@ -977,8 +973,8 @@ const EN: UebersichtTexte = {
   keinBefund:
     'No finding. No completed Auftrag (order) without a recorded minute, no '
     + 'completed Auftrag without an invoice, no draft line without an origin. '
-    + 'That does not mean everything is checked — which further pre-invoice '
-    + 'checks this list is to carry is open (O-601), and it stands below.',
+    + 'That does not mean everything is checked — the list of pre-invoice '
+    + 'checks is the default (O-601) and stands below.',
   tabellePruefungen: 'Findings before invoicing, with rule and jump target',
   regelKopf: 'Rule',
   auftragBelegKopf: 'Auftrag / Beleg',

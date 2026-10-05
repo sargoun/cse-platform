@@ -243,8 +243,8 @@ export async function gibAusgabeFrei(db: Abfrage, id: string): Promise<void> {
   if (z.beleg_id === null) {
     throw new AusgabeFehler(
       'Ohne Beleg keine Freigabe (ACC-03). Hängen Sie die Quittung an, dann geht es '
-      + 'weiter — ob es Ausgaben gibt, für die belegfrei gebucht werden darf, ist '
-      + 'nicht entschieden (O-185).', 'kein_beleg');
+      + 'weiter — Voreinstellung (O-185): belegfrei wird nicht gebucht, ein Eigenbeleg '
+      + 'wird als Dokument hochgeladen.', 'kein_beleg');
   }
   await setzeStatus(db, id, 'erfasst', 'freigegeben');
 }

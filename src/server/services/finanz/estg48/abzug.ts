@@ -106,8 +106,8 @@ export function abzugLage(e: AbzugEingabe): AbzugLage {
       .map((b) => `Die Freistellungsbescheinigung ${b.nummer} endet am ${b.gueltigBis} `
         + `und damit INNERHALB des Leistungszeitraums ${e.leistungVon!} bis `
         + `${e.leistungBis!}. Welches Datum für §48 EStG maßgeblich ist — `
-        + 'Leistungsende, Zahlung, oder eine geteilte Abrechnung —, ist offen '
-        + '(O-21). Geprüft wurde am ' + e.stichtag + '.')
+        + 'Leistungsende, Zahlung, oder eine geteilte Abrechnung —, ist die '
+        + 'Voreinstellung Leistungsende (O-21, O-176). Geprüft wurde am ' + e.stichtag + '.')
       .join(' ') || null
     : null;
 

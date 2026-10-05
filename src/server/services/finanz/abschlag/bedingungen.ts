@@ -53,11 +53,10 @@ export interface AbschlagsBedingungen {
 export class EinbehaltNichtEntschiedenFehler extends Error {
   constructor() {
     super(
-      'Ein Sicherheitseinbehalt ist nicht entschieden (O-20). Die Plattform '
-      + 'zieht deshalb NICHTS ein — weder vom Abschlag noch von der '
-      + 'Schlussrechnung. Offen: behält die Gruppe einen Einbehalt ein, in '
-      + 'welcher Höhe, auf welche Grundlage, über welche Frist, und darf eine '
-      + 'Bürgschaft ihn ablösen?',
+      'Dieser Auftrag vereinbart keinen Sicherheitseinbehalt — Voreinstellung '
+      + '(O-20): keiner ohne Vereinbarung. Die Plattform zieht deshalb NICHTS ein '
+      + '— weder vom Abschlag noch von der Schlussrechnung. Im Auftrag zu '
+      + 'vereinbaren: Höhe, Grundlage, Frist und ob eine Bürgschaft ihn ablöst.',
     );
     this.name = 'EinbehaltNichtEntschiedenFehler';
   }

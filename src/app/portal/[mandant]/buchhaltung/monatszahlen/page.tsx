@@ -107,7 +107,7 @@ export default async function MonatszahlenSeite(
         Rechnungsdatum und Betriebsausgaben nach Belegdatum (netto), Ergebnis die Differenz. Personal, Abschreibungen, Abgrenzungen und Steuern fehlen — die
         Betriebswirtschaftliche Auswertung erstellt der Steuerberater aus dem DATEV-Export.
         Wirtschaftsjahr ab {String(z.wirtschaftsjahr.beginnTag)}.{String(z.wirtschaftsjahr.beginnMonat)}.
-        {z.wirtschaftsjahr.istPlatzhalter ? ' — angenommen (O-05).' : '.'}
+        {z.wirtschaftsjahr.istPlatzhalter ? ' — Voreinstellung Kalenderjahr (O-05).' : '.'}
       </Hinweis>
 
       <ul data-cse="monatszahlen-summen" className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-3">

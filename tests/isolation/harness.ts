@@ -139,9 +139,9 @@ const AUFBEWAHRUNG_VORGABE: readonly (readonly [string, number | null, boolean, 
   ['vertrag', 10, true, '§ 257 HGB — mit Rechnungsbezug 10 Jahre', false],
   ['angebot', 6, false, '§ 257 HGB — 6 Jahre', false],
   ['kunde', 6, false, '§ 257 HGB — 6 Jahre', false],
-  ['mitarbeiter', null, true, 'offen (O-25)', true],
-  ['projekt', null, true, 'offen (O-25)', true],
-  ['unternehmen', null, true, 'offen (O-25)', true],
+  ['mitarbeiter', 6, true, 'Voreinstellung — § 41 EStG Lohnunterlagen, § 28f SGB IV: 6 Jahre (O-25)', true],
+  ['projekt', 10, true, 'Voreinstellung — § 147 AO Abrechnungsunterlagen, VOB/B § 13 Gewährleistung: 10 Jahre (O-25)', true],
+  ['unternehmen', 10, true, 'Voreinstellung — § 257 HGB Gesellschaftsunterlagen: 10 Jahre (O-25)', true],
 ];
 
 /** Die Abwesenheitsarten aus `0073` §6.22 — Schlüssel, Label, drei Flaggen. */

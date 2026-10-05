@@ -59,7 +59,7 @@ describe('Ausgabe — Zustände', () => {
   });
 });
 
-describe('Eigenbeleg — O-185 bleibt eine Frage', () => {
+describe('Eigenbeleg — O-185 steht als Voreinstellung (D-779)', () => {
   it('trägt keine Grenze und sagt das', () => {
     expect(EIGENBELEG_PLATZHALTER.grenzeCent).toBeNull();
     expect(EIGENBELEG_PLATZHALTER.istPlatzhalter).toBe(true);
@@ -67,7 +67,7 @@ describe('Eigenbeleg — O-185 bleibt eine Frage', () => {
 
   it('nennt die O-Nummer in der Herkunft, die die Oberfläche wörtlich zeigt', () => {
     expect(EIGENBELEG_PLATZHALTER.herkunft).toContain('O-185');
-    expect(EIGENBELEG_PLATZHALTER.herkunft).toMatch(/nicht entschieden/iu);
+    expect(EIGENBELEG_PLATZHALTER.herkunft).toMatch(/Voreinstellung/u);
   });
 });
 

@@ -108,8 +108,9 @@ export default async function Konten({ params }: { params: Promise<{ mandant: st
       <h1 className="mb-s3 text-h1 text-text">Kontenrahmen und Zuordnungen</h1>
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Welcher Kontenrahmen gilt und welches Konto eine Leistung, ein Kunde, eine Steuergruppe
-        trägt, ist Sache des Steuerberaters (O-05). Bis zur Bestätigung ist jede Zeile ein
-        Platzhalter — und der DATEV-Export sagt das in jeder Datei.
+        trägt, folgt in der Voreinstellung dem Standardkontenrahmen SKR03 (O-05). Der
+        Steuerberater bestätigt oder ändert jede Zeile — bis dahin sagt der DATEV-Export in
+        jeder Datei, dass die Zuordnung eine Voreinstellung ist.
       </p>
 
       <Hinweis art={daten.konfig === null || daten.konfig.ist_platzhalter ? 'warnung' : 'hinweis'}
@@ -120,9 +121,9 @@ export default async function Konten({ params }: { params: Promise<{ mandant: st
           : `Sachkontenlänge ${daten.konfig.sachkontenlaenge === null ? '—' : String(daten.konfig.sachkontenlaenge)}, `
             + `Wirtschaftsjahr ab ${daten.konfig.wj_beginn_tag === null ? '1' : String(daten.konfig.wj_beginn_tag)}.`
             + `${daten.konfig.wj_beginn_monat === null ? '1' : String(daten.konfig.wj_beginn_monat)}., `
-            + `${daten.konfig.versteuerungsart ?? 'Versteuerungsart offen'}, `
+            + `${daten.konfig.versteuerungsart ?? 'Versteuerungsart nicht gesetzt'}, `
             + `${daten.konfig.berater ? 'Berater- und Mandantennummer hinterlegt' : 'Berater- und Mandantennummer fehlen'}`
-            + `${daten.konfig.ist_platzhalter ? ' — Platzhalter, nicht bestätigt (O-05).' : ' — bestätigt.'}`}
+            + `${daten.konfig.ist_platzhalter ? ' — Voreinstellung, vom Steuerberater nicht bestätigt (O-05).' : ' — bestätigt.'}`}
       </Hinweis>
 
       <ul data-cse="konten-kennzahlen" className="mb-s6 grid grid-cols-1 gap-s4 sm:grid-cols-3">

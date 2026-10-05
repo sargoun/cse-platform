@@ -235,7 +235,8 @@ export async function bucheRechnung(
      */
     hinweis: debitor.pruefhinweis
       ?? (einbehalt > 0n
-        ? 'Bauabzugsteuer §48 EStG einbehalten — die Buchung des Einbehalts ist offen (O-05)'
+        ? 'Bauabzugsteuer §48 EStG einbehalten — Voreinstellung (O-05): Buchung auf das '
+          + 'Verbindlichkeitskonto der Kontenzuordnung, bis der Steuerberater die Zuordnung bestätigt'
         : null),
   });
 

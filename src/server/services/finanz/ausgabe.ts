@@ -59,9 +59,9 @@ export interface EigenbelegLage {
 export const EIGENBELEG_PLATZHALTER: EigenbelegLage = {
   grenzeCent: null,
   herkunft:
-    'Nicht entschieden (O-185). Solange keine Grenze für Eigenbelege feststeht, '
-    + 'verlangt die Datenbank vor jeder Freigabe einen Beleg — „keine Buchung '
-    + 'ohne Beleg" (ACC-03). Das ist die haftungsfreie Richtung und keine Antwort.',
+    'Voreinstellung (O-185): keine Buchung ohne Beleg (ACC-03) — ein Eigenbeleg wird '
+    + 'als Dokument hochgeladen und wie ein Beleg geführt; eine belegfreie Grenze gibt '
+    + 'es nicht.',
   istPlatzhalter: true,
 };
 

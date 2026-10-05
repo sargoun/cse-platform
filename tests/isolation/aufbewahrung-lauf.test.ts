@@ -237,8 +237,14 @@ describe('§2 und sonst gar nichts', () => {
    * einer Löschung wäre.
    */
   it('ohne gesetzte Frist ist nichts fällig', async () => {
+    /* Seit 0489 trägt jede Plattformklasse eine Voreinstellung (O-25, D-779);
+       eine Regel ohne Frist gibt es nur noch als Vorgabe der Gesellschaft. */
+    await sql.unsafe(
+      `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
+       values ($1, 'projekt', null, true, 'Probe: Frist der Gesellschaft offen', true)
+       on conflict (mandant_id, kategorie) do update set jahre = null`, [f.reinigung]);
     const id = await dokument(f.reinigung, { entstanden: '2015-06-01', kategorie: 'projekt' });
-    expect((await frist(id)).bis, 'die offene Klasse hat kein Datum').toBeNull();
+    expect((await frist(id)).bis, 'die Klasse ohne Frist hat kein Datum').toBeNull();
     const zeilen = await alsJob(f.reinigung, false, (tx) =>
       tx.unsafe(LOESCHEN, [id, GRUND])) as unknown as unknown[];
     expect(zeilen.length).toBe(0);

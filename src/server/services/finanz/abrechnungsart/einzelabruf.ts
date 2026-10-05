@@ -226,7 +226,7 @@ export const EINZELABRUF: Abrechnungsart = {
           + (mindest !== null && erfasst < mindest
             ? ` (Mindestabnahme nach Vertrag angewandt)`
             : '')
-          + ' — provisorisch (O-04)',
+          + ' — Voreinstellung (O-04)',
         menge,
         einheit,
         preisBasismenge: basis,
