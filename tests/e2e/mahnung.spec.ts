@@ -184,9 +184,10 @@ test.describe('Mahnwesen (FIN-15)', () => {
 
     await expect(page.locator('[data-cse="stufen-hinweis"]')).toContainText('bestätigt');
     /* Die abgelöste Fassung bleibt stehen — gelöscht wird nichts. Genau EINE,
-       denn der Seed legt je Stufe eine an, und abgelöst wird nur Stufe 1. */
+       denn der Seed legt je Stufe eine an (seit D-779 als „Voreinstellung"),
+       und abgelöst wird nur Stufe 1. */
     await expect(
-      page.getByRole('row').filter({ hasText: 'Zahlungserinnerung (unbestätigt)' }),
+      page.getByRole('row').filter({ hasText: 'Zahlungserinnerung (Voreinstellung)' }),
     ).toHaveCount(1);
     await expect(page.getByRole('row').filter({ hasText: 'Zahlungserinnerung' }).first())
       .toContainText('5,00');

@@ -261,15 +261,16 @@ test.describe('Das Rechnungsausgangsbuch (FIN-16)', () => {
 });
 
 test.describe('Der Entwurf (FIN-01)', () => {
-  test('das Formular füllt kein Zahlungsziel vor — §4.2 kennt keinen Vorgabewert', async ({ page }) => {
+  test('das Formular füllt kein Zahlungsziel vor — die Voreinstellung greift erst beim Anlegen (D-779)', async ({ page }) => {
     await anmelden(page);
     await page.goto(`/portal/${MANDANT}/finanzen/rechnungen/neu`);
     const ziel = page.getByLabel('Zahlungsziel (Tage)');
     await expect(ziel).toBeVisible();
-    // Leer, nicht `14`. Ein vorausgefüllter Wert setzte `faellig_am` auf jeder
-    // Rechnung und triebe den Mahnlauf.
+    // Leer, nicht `14`: die Kette Kunde → Gesellschaft → Voreinstellung läuft
+    // beim Anlegen des Entwurfs (ermittleZahlungsziel), nicht im Formular —
+    // und der Hinweis nennt sie.
     await expect(ziel).toHaveValue('');
-    await expect(page.getByText(/Es gibt keinen Vorgabewert/u)).toBeVisible();
+    await expect(page.getByText(/Voreinstellung 14 Tage/u)).toBeVisible();
   });
 
   test('ein Entwurf entsteht, bekommt aber keine Nummer', async ({ page }) => {

@@ -172,8 +172,8 @@ export async function ermittleVorschlaege(db: Abfrage): Promise<Lauflage> {
       uebergangen.push({
         offenerPostenId: z.offener_posten_id,
         rechnungsnummer: z.rechnungsnummer, kundeName: z.kunde_name,
-        grund: `Mahnstufe „${stufe.bezeichnung}" ist noch nicht freigegeben — es wird nicht gemahnt `
-          + '(O-19; Voreinstellung unter Einstellungen › Mahnwesen übernehmen).',
+        grund: `Mahnstufe „${stufe.bezeichnung}" ist unbestätigt — es wird nicht gemahnt `
+          + '(O-19; die Voreinstellung unter Einstellungen › Mahnwesen bestätigen).',
       });
       continue;
     }
