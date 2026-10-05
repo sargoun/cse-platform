@@ -1013,13 +1013,17 @@ async function main(): Promise<void> {
         + 'ausgeglichen. Geht der Gesamtbetrag nicht bis zum genannten Datum ein, übergeben wir '
         + 'die Forderung ohne weitere Ankündigung zum Inkasso bzw. beantragen einen Mahnbescheid.'],
     ] as const) {
+      /* `mahnstufe_zins_braucht_methode`: wer Zins rechnet, nennt die Methode —
+         act/365 wie `bestaetigeStufe` (stufen.ts). */
+      const zinsMethode = zins === 'keine' ? null : 'act_365';
       await sql`
         insert into mahnstufe
           (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
-           zinsberechnung, textbaustein, ist_platzhalter, gueltig_ab,
+           zinsberechnung, zins_methode, textbaustein, ist_platzhalter, gueltig_ab,
            erstellt_von_art, erstellt_von_dienst)
         values (${ids.get(b.slug)!}, ${stufe}, ${bez}, ${tage}, ${gebuehr},
-                ${zins}, ${mahntext}, ${!demodaten}, ${heute}, 'system', 'job:seed')
+                ${zins}, ${zinsMethode}, ${mahntext}, ${!demodaten}, ${heute},
+                'system', 'job:seed')
         on conflict do nothing`;
     }
   }
