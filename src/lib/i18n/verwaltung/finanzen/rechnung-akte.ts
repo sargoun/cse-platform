@@ -467,7 +467,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     stornoRechtFehltVor:
       'Eine festgeschriebene Rechnung wird nicht geändert, sondern durch eine '
       + 'Stornobuchung aufgehoben. Dieses Konto hält das Recht',
-    stornoRechtFehltNach: 'nicht — Voreinstellung (O-77): Buchhaltung und Geschäftsführung halten es.',
+    stornoRechtFehltNach:
+      'nicht — Voreinstellung (O-77): der Super-Admin weist es der Buchhaltung und der '
+      + 'Geschäftsführung ausdrücklich zu; ohne Zuweisung hält es niemand sonst.',
     korrigieren: 'Korrigieren',
     korrigierenErklaerung:
       'Eine festgeschriebene Rechnung wird nicht geändert. Die stornierende '
@@ -628,8 +630,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       '— sie wird nicht automatisch festgeschrieben und hält keine Nummer.',
     stornoFussVor:
       'Der Storno zieht seine eigene Nummer aus demselben Kreis und hängt sich '
-      + 'an dieselbe Hashkette. Stornieren dürfen in der Voreinstellung Buchhaltung '
-      + 'und Geschäftsführung (O-77) — es gilt die Katalogvorgabe für',
+      + 'an dieselbe Hashkette. Stornieren darf, wem der Super-Admin das Recht zuweist '
+      + '— Voreinstellung (O-77): Buchhaltung und Geschäftsführung, nie der Ersteller '
+      + 'allein; es gilt die Katalogvorgabe für',
 
     positionsartNamen: {
       leistung: 'Leistung', textzeile: 'Textzeile', zwischensumme: 'Zwischensumme',
@@ -848,7 +851,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     stornoRechtFehltVor:
       'A festgeschriebene (finalised) invoice is not amended; it is lifted by a '
       + 'Storno (reversing entry). This account does not hold the right',
-    stornoRechtFehltNach: '— default (O-77): accounting and management hold it.',
+    stornoRechtFehltNach:
+      '— default (O-77): the super admin grants it explicitly to accounting and '
+      + 'management; without a grant nobody else holds it.',
     korrigieren: 'Correct',
     korrigierenErklaerung:
       'A festgeschriebene (finalised) invoice is not amended. The reversing '
@@ -1015,8 +1020,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       '— it is not finalised automatically and holds no number.',
     stornoFussVor:
       'The Storno draws a number of its own from the same Nummernkreis and '
-      + 'attaches itself to the same hash chain. By default accounting and '
-      + 'management may reverse an invoice (O-77) — the catalogue default applies for',
+      + 'attaches itself to the same hash chain. Reversal is for whoever the super '
+      + 'admin grants the right to — default (O-77): accounting and management, never '
+      + 'the creator alone; the catalogue default applies for',
 
     positionsartNamen: {
       leistung: 'Leistung (line of supply)', textzeile: 'Text line',

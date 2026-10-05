@@ -157,9 +157,10 @@ export interface EntwurfAnlegen {
 }
 
 /**
- * `zahlungsziel_tage` hat KEINEN Default (§4.2) — ein `14` waere ein
- * Produktionswert, der auf jeder Rechnung `faellig_am` setzt und damit den
- * Mahnlauf und die §288-BGB-Zinsen treibt.
+ * `zahlungsziel_tage` hat seit D-779 eine VOREINSTELLUNG (14 Tage, oeffentliche
+ * Auftraggeber 30) — sie greift erst, wenn weder Vertrag, Kunde noch
+ * Gesellschaft ein Ziel tragen. Sie setzt `faellig_am` und treibt damit den
+ * Mahnlauf; deshalb steht sie hier benannt und in D-779, nicht still im Code.
  *
  * Aufgeloest wird in der Reihenfolge des §4.2, und jede Stufe, die es nicht
  * gibt, ist hier benannt statt weggelassen:
@@ -174,9 +175,15 @@ export interface EntwurfAnlegen {
  *     schuetzt die Kondition, es soll nicht das Fakturieren verhindern.
  *  3. `app.einstellung('finanzen.zahlungsziel_tage_standard')` — gesaet als
  *     NULL (O-66).
+ *  4. Die Voreinstellung (D-779): 14 Tage, oeffentliche Auftraggeber 30 Tage
+ *     (§ 271a Abs. 2 BGB). Ob der Kunde oeffentlich ist, liest
+ *     `app.kunde_ist_oeffentlich` (0490) mandantengebunden mit
+ *     `finanzen.schreiben` — unabhaengig vom CRM-Leserecht, damit ein
+ *     unsichtbarer Kunde nicht als „nicht oeffentlich" gilt.
  *
- * Sind alle drei NULL, gibt diese Funktion NULL zurueck und die
- * Festschreibung weist mit benanntem Grund ab. Geraten wird nichts.
+ * NULL kommt hier nicht mehr heraus; die Festschreibung prueft das Feld des
+ * Entwurfs trotzdem weiter und weist einen Entwurf ohne Ziel mit benanntem
+ * Grund ab (zweite Linie, `ustg14.ts`).
  */
 export async function ermittleZahlungsziel(
   db: Abfrage, kundeId: string,
@@ -211,9 +218,8 @@ export async function ermittleZahlungsziel(
    * weder der Kunde noch die Gesellschaft ein Ziel trägt.
    * TODO(client, O-66): Voreinstellung 14 Tage, öffentliche Auftraggeber 30.
    */
-  const [k] = await db.abfrage<{ oeffentlich: boolean }>(
-    'select ist_oeffentlicher_auftraggeber as oeffentlich from kunde where id = $1::uuid',
-    [kundeId]);
+  const [k] = await db.abfrage<{ oeffentlich: boolean | null }>(
+    'select app.kunde_ist_oeffentlich($1::uuid) as oeffentlich', [kundeId]);
   return k?.oeffentlich === true ? ZAHLUNGSZIEL_OEFFENTLICH_TAGE : ZAHLUNGSZIEL_VOREINSTELLUNG_TAGE;
 }
 

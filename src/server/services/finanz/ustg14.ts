@@ -672,8 +672,8 @@ export const REGELN: readonly Regel[] = [
     pruefe: (e) => e.zahlungszielTage === null
       ? ['Es ist kein Zahlungsziel hinterlegt. Ohne Fälligkeit geht kein Beleg '
         + 'hinaus; zu setzen im Kopf dieses Entwurfs. Bleibt das Feld dort leer, '
-        + 'gilt die Kondition des Kunden, sonst die Vorgabe der Gesellschaft, sonst '
-        + 'die Voreinstellung 14 Tage (O-66).']
+        + 'gilt die Kondition des Kunden, sonst die Vorgabe der Gesellschaft für das '
+        + 'Zahlungsziel, sonst die Voreinstellung 14 Tage (O-66).']
       : leer,
   },
   {

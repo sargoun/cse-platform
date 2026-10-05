@@ -45,7 +45,8 @@ export const MAHNREGEL_PLATZHALTER: MahnRegel = {
   zinsMethode: null,
   herkunft:
     'Voreinstellung (O-19, D-779): drei Stufen ab 7 Tagen Überfälligkeit im Abstand '
-    + 'von 14 Tagen, Gebühren 0 / 5 / 10 €, gesetzlicher Verzugszins ab der ersten '
-    + 'Mahnung. Wo eine Stufe ohne Zinsart steht, nennt der Brief nur die Hauptforderung.',
+    + 'von 14 Tagen, Gebühren 0 / 5 / 10 €; die Zinsart (B2B oder Verbraucher, § 288 BGB) '
+    + 'wählt die Buchhaltung je Stufe. Wo eine Stufe ohne Zinsart steht, nennt der Brief '
+    + 'nur die Hauptforderung.',
   istPlatzhalter: true,
 };

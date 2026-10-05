@@ -162,6 +162,8 @@ interface Mangelfall {
   readonly feld: string;
   /** Der Defekt wird VOR dem Entwurf hergestellt (Stammdaten) … */
   readonly vorbereiten?: () => Promise<void>;
+  /** Nach dem Anlegen, vor der Prüfung — für Mängel, die das Anlegen selbst heilt. */
+  readonly nachEntwurf?: (tx: postgres.TransactionSql, id: string) => Promise<void>;
   /** … oder der Entwurf selbst traegt ihn. */
   readonly wunsch?: EntwurfWunsch;
 }
@@ -225,6 +227,11 @@ const MAENGEL: readonly Mangelfall[] = [
     angabe: 'Fälligkeit (§4.2, O-66)',
     feld: 'zahlungsziel',
     wunsch: { zahlungszielTage: null },
+    /* D-779: das Anlegen setzt die Voreinstellung 14 Tage. Die Sperre gilt dem
+       Entwurf OHNE Ziel — also wird das Feld ausdrücklich geleert. */
+    nachEntwurf: async (tx, id) => {
+      await tx.unsafe('update rechnung set zahlungsziel_tage = null where id = $1', [id]);
+    },
   },
   {
     angabe: 'fortlaufende Nummer aus einem bestätigten Kreis (§14 Abs. 4 Nr. 4)',
@@ -244,6 +251,7 @@ describe('Abnahme 1 — §14 Abs. 4 UStG, Feld für Feld auf Deutsch', () => {
 
       const abgewiesen = await inSitzung(f.reinigung, async (tx) => {
         const id = await entwurf(tx, fall.wunsch ?? {});
+        if (fall.nachEntwurf !== undefined) await fall.nachEntwurf(tx, id);
         const bericht = await pruefeRechnung(alsDienst(tx), id);
         let meldung = '';
         try {

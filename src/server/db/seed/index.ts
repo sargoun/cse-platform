@@ -989,41 +989,53 @@ async function main(): Promise<void> {
      */
     /*
      * Voreinstellung (D-779, O-19/O-44): drei Stufen ab 7 Tagen Überfälligkeit
-     * im Abstand von 14 Tagen, Gebühren 0 / 5 / 10 €, gesetzlicher Verzugszins
-     * (§ 288 BGB, B2B) ab der ersten Mahnung. Der Lauf mahnt nur mit einer
-     * freigegebenen Stufe (`ist_platzhalter = false`, `lauf.ts`): die Demodaten
-     * geben die Voreinstellung frei, damit der Mahnlauf sich ausprobieren
-     * lässt; im Betrieb übernimmt sie die Buchhaltung unter Einstellungen ›
-     * Mahnwesen mit einem Klick (`bestaetigeStufe`) — ein Mahnvorschlag ist
+     * im Abstand von 14 Tagen, Gebühren 0 / 5 / 10 €. Verzugszins fordert die
+     * Voreinstellung NICHT: der Zuschlag nach § 288 BGB hängt am Kundentyp
+     * (9 Punkte B2B, 5 Punkte Verbraucher), und die Stufe kennt den Kunden
+     * nicht — die Buchhaltung wählt die Zinsart je Stufe beim Bestätigen.
+     * Der Lauf mahnt nur mit einer freigegebenen Stufe (`lauf.ts`): die
+     * Demodaten geben die Voreinstellung frei, damit der Mahnlauf sich
+     * ausprobieren lässt; im Betrieb übernimmt sie die Buchhaltung unter
+     * Einstellungen › Mahnwesen (`bestaetigeStufe`) — ein Mahnvorschlag ist
      * ohnehin ein Entwurf, den ein Mensch freigibt (Invariante 7).
-     * TODO(client, O-19): Voreinstellung 7/21/35 Tage, 0/5/10 €, § 288 BGB.
+     *
+     * Ein Bestand mit den alten Seed-Platzhaltern (14/28/42 Tage, 0 €,
+     * „PLATZHALTER (O-19) …") bekommt die Voreinstellung durch das UPDATE:
+     * es trifft nur unberührte Seed-Zeilen (`job:seed`, Platzhalter, offenes
+     * Ende, alter Text) — eine bestätigte oder von Hand geänderte Stufe bleibt,
+     * und `mahnstufe_kein_ueberlapp` liesse eine neue Zeile daneben nicht zu.
+     * TODO(client, O-19): Voreinstellung 7/21/35 Tage, 0/5/10 €, Zinsart je Stufe.
      */
-    for (const [stufe, bez, tage, gebuehr, zins, mahntext] of [
-      [1, 'Zahlungserinnerung (Voreinstellung)', 7, 0, 'keine',
+    for (const [stufe, bez, tage, gebuehr, mahntext] of [
+      [1, 'Zahlungserinnerung (Voreinstellung)', 7, 0,
         'Sicher ist es Ihrer Aufmerksamkeit entgangen: Für die unten genannte Rechnung konnten '
         + 'wir noch keinen Zahlungseingang feststellen. Bitte gleichen Sie den offenen Betrag '
         + 'bis zum genannten Datum aus. Sollte die Zahlung bereits unterwegs sein, betrachten '
         + 'Sie dieses Schreiben als gegenstandslos.'],
-      [2, 'Erste Mahnung (Voreinstellung)', 21, 500, 'gesetzlich_b2b',
+      [2, 'Erste Mahnung (Voreinstellung)', 21, 500,
         'Trotz unserer Zahlungserinnerung ist die unten genannte Rechnung weiterhin offen. '
-        + 'Wir bitten Sie, den Gesamtbetrag einschliesslich Mahngebühr und Verzugszinsen bis '
-        + 'zum genannten Datum zu überweisen.'],
-      [3, 'Letzte Mahnung (Voreinstellung)', 35, 1000, 'gesetzlich_b2b',
+        + 'Wir bitten Sie, den Gesamtbetrag einschliesslich Mahngebühr bis zum genannten '
+        + 'Datum zu überweisen.'],
+      [3, 'Letzte Mahnung (Voreinstellung)', 35, 1000,
         'Die unten genannte Rechnung ist trotz Zahlungserinnerung und erster Mahnung nicht '
         + 'ausgeglichen. Geht der Gesamtbetrag nicht bis zum genannten Datum ein, übergeben wir '
         + 'die Forderung ohne weitere Ankündigung zum Inkasso bzw. beantragen einen Mahnbescheid.'],
     ] as const) {
-      /* `mahnstufe_zins_braucht_methode`: wer Zins rechnet, nennt die Methode —
-         act/365 wie `bestaetigeStufe` (stufen.ts). */
-      const zinsMethode = zins === 'keine' ? null : 'act_365';
+      await sql`
+        update mahnstufe
+           set bezeichnung = ${bez}, tage_nach_faelligkeit = ${tage},
+               gebuehr_cent = ${gebuehr}, textbaustein = ${mahntext},
+               ist_platzhalter = ${!demodaten}
+         where mandant_id = ${ids.get(b.slug)!} and stufe = ${stufe}
+           and erstellt_von_dienst = 'job:seed' and ist_platzhalter
+           and gueltig_bis is null and textbaustein like 'PLATZHALTER (O-19)%'`;
       await sql`
         insert into mahnstufe
           (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
-           zinsberechnung, zins_methode, textbaustein, ist_platzhalter, gueltig_ab,
+           zinsberechnung, textbaustein, ist_platzhalter, gueltig_ab,
            erstellt_von_art, erstellt_von_dienst)
         values (${ids.get(b.slug)!}, ${stufe}, ${bez}, ${tage}, ${gebuehr},
-                ${zins}, ${zinsMethode}, ${mahntext}, ${!demodaten}, ${heute},
-                'system', 'job:seed')
+                'keine', ${mahntext}, ${!demodaten}, ${heute}, 'system', 'job:seed')
         on conflict do nothing`;
     }
   }
@@ -1068,9 +1080,24 @@ async function main(): Promise<void> {
    * `ist_platzhalter = true` = Voreinstellung, vom Steuerberater noch nicht
    * bestätigt; die Datei entsteht erst nach der Bestätigung unter Buchhaltung ›
    * DATEV (`app.datev_stammdaten` sperrt bis dahin) — ein Klick, kein Formular.
+   * Ein Bestand mit der alten leeren Seed-Zeile bekommt die Voreinstellung
+   * durch das UPDATE — nur, wenn die Zeile unberührt ist (`job:seed`,
+   * Platzhalter, alle Felder leer); eingetragene Berater- und Mandantennummern
+   * bleiben (`coalesce`), die Bestätigungspflicht bleibt.
    * TODO(client, O-05): Voreinstellung SKR03/4/KJ/Soll.
    */
   for (const [i, b] of BEREICHE.entries()) {
+    await sql`
+      update datev_konfiguration
+         set kontenrahmen = 'skr03', sachkontenlaenge = 4,
+             wj_beginn_monat = 1, wj_beginn_tag = 1,
+             versteuerungsart = 'soll', extf_version = '700',
+             berater_nummer = coalesce(berater_nummer, ${demodaten ? '1000001' : null}),
+             mandanten_nummer = coalesce(mandanten_nummer, ${demodaten ? `1000${String(i + 1)}` : null})
+       where mandant_id = ${ids.get(b.slug)!} and ist_platzhalter
+         and erstellt_von_dienst = 'job:seed'
+         and kontenrahmen is null and sachkontenlaenge is null
+         and versteuerungsart is null and extf_version is null`;
     await sql`
       insert into datev_konfiguration
         (mandant_id, berater_nummer, mandanten_nummer, kontenrahmen, sachkontenlaenge,

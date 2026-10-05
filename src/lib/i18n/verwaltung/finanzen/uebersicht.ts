@@ -507,9 +507,9 @@ const DE: UebersichtTexte = {
   erwartet: 'erwartet',
   gefunden: 'gefunden',
   kettenmeldungOffen:
-    'Voreinstellung (O-357): die Kettenmeldung geht an Buchhaltung und '
-    + 'Geschäftsführung über die E-Mail-Benachrichtigungen (O-202) — solange kein '
-    + 'Mailer verbunden ist, steht der Befund hier und im Betriebsbericht.',
+    'Voreinstellung (O-357): Empfänger der Kettenmeldung sind Buchhaltung und '
+    + 'Geschäftsführung. Die Zustellung ist noch nicht gebaut (V-286) — der Befund '
+    + 'steht hier und im Betriebsbericht und wird nicht zugestellt.',
 
   nummernkreiseTitel: 'Nummernkreise',
   nummernkreiseUeberschrift: 'Nummernkreise',
@@ -880,9 +880,9 @@ const EN: UebersichtTexte = {
   erwartet: 'expected',
   gefunden: 'found',
   kettenmeldungOffen:
-    'Default (O-357): the chain message goes to accounting and management via '
-    + 'the e-mail notifications (O-202) — while no mailer is connected, the finding '
-    + 'stands here and in the operations report.',
+    'Default (O-357): the recipients of the chain message are accounting and '
+    + 'management. Delivery is not built yet (V-286) — the finding stands here and in '
+    + 'the operations report and is not delivered.',
 
   nummernkreiseTitel: 'Nummernkreise',
   nummernkreiseUeberschrift: 'Nummernkreise (number ranges)',

@@ -317,9 +317,9 @@ export function zielHerkunft(kondition: Kondition | null): {
   }
   return {
     stufe: 'keine',
-    text: 'Nicht gesetzt — und es wird nichts geraten. Ohne Zahlungsziel schreibt die '
-      + 'Faktura kein Fälligkeitsdatum, und die Festschreibung weist die Rechnung mit '
-      + 'genau diesem Grund ab. Ein stilles „14 Tage" wäre eine Geschäftsregel, die '
-      + 'niemand getroffen hat (O-66).',
+    text: 'Nicht gesetzt — dann gilt die Einstellung der Gesellschaft, sonst die '
+      + 'Voreinstellung 14 Tage, bei öffentlichen Auftraggebern 30 Tage (§ 271a BGB). '
+      + 'Die Faktura schreibt damit das Fälligkeitsdatum; ein eigenes Ziel an diesem '
+      + 'Kunden geht vor (O-66, D-779).',
   };
 }
