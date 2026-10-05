@@ -143,15 +143,20 @@ SPEC §10.
 
 ## Working rules
 
-**Never invent a business rule.** Where the spec is genuinely open — the exact
-five billing types, DATEV account mapping, tariff rates — do this:
+**Business rules: set a default, label it, record it (D-778).** The owner decided
+on 2026-10-05 that the platform ships complete with sensible defaults instead of
+open questions. Where the spec is open — billing types, DATEV mapping, tariff
+rates — do this:
 
-1. Implement behind an interface so the unknown is swappable
-2. Use a clearly-labelled placeholder
-3. `// TODO(client): <the exact question>`
-4. Record it in `docs/DECISIONS.md` under "Open"
+1. Implement behind an interface so the value is swappable
+2. Choose the standard German-industry default and make it changeable in
+   settings or a catalogue
+3. `// TODO(client, O-nn): <what the default is>` at the point of use
+4. Record the default in `docs/DECISIONS.md` (register row + D-778 table)
 
-Never silently pick a plausible value for a legal or financial rule.
+The UI calls it „Voreinstellung“, never „offene Frage“. Never present a default
+as a confirmed fact; only operator data (tax IDs, bank details, credentials)
+stays to be entered by the owner.
 
 **No fake integrations.** If DATEV, Instagram, LinkedIn or a job board has no
 credentials configured, build the interface, mark it clearly in the UI as
