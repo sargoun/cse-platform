@@ -348,6 +348,12 @@ describe('(3) die Aufbewahrung einer Fassung — die längere gilt', () => {
   });
 
   it('eine offene Frist bleibt offen, und die Löschsperre bleibt', async () => {
+    /* Seit 0489 trägt jede Plattformklasse eine Voreinstellung (O-25, D-779);
+       eine Regel ohne Frist gibt es nur noch als Vorgabe der Gesellschaft. */
+    await sql.unsafe(
+      `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
+       values ($1, 'projekt', null, true, 'Probe: Frist der Gesellschaft offen', true)
+       on conflict (mandant_id, kategorie) do update set jahre = null`, [f.reinigung]);
     const speicher = new LokalerSpeicher();
     const id = await vertrag(speicher, 'projekt');
     expect(await frist(id)).toMatchObject({ bis: null, sperre: true });

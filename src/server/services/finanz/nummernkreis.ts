@@ -203,8 +203,8 @@ export async function vergebeNummer(
   }
   if (offen.ist_platzhalter) {
     throw new NummernkreisFehler(
-      `Nummernkreis ${wo} ist noch nicht freigegeben — bis zur Freigabe durch die `
-      + 'Administration vergibt er keine Nummer (O-134).',
+      `Nummernkreis ${wo} ist noch ein Platzhalter — nicht freigegeben; bis zur `
+      + 'Freigabe durch die Administration vergibt er keine Nummer (O-134).',
       'platzhalter',
     );
   }

@@ -348,7 +348,7 @@ export async function erstelleVerfahrensdokumentation(
         + 'geschlossen. Beim endgültigen Schluss werden die Monatszahlen eingefroren.',
         `Kontenrahmen: ${kontenrahmen}${konfig?.sachkontenlaenge === null || konfig?.sachkontenlaenge === undefined ? '' : `, Sachkontenlänge ${String(konfig.sachkontenlaenge)}`}`
         + `${konfig?.versteuerungsart === null || konfig?.versteuerungsart === undefined ? '' : `, Versteuerungsart ${konfig.versteuerungsart}`}`
-        + `${konfig === undefined || konfig.ist_platzhalter ? ' — Voreinstellung, vom Steuerberater nicht bestätigt (O-05)' : ''}. `
+        + `${konfig === undefined || konfig.ist_platzhalter ? ' — Voreinstellung: Platzhalter (O-05), vom Steuerberater nicht bestätigt' : ''}. `
         + `Wirtschaftsjahr beginnt am ${String(wj.beginnTag)}.${String(wj.beginnMonat)}.${wj.istPlatzhalter ? ' (Voreinstellung Kalenderjahr, O-05)' : ''}.`,
         `Gültige Kontenzuordnungen: ${zuordnungen.length === 0 ? 'keine' : zuordnungen.map((z) => `${z.schluessel} ${String(z.n)}`).join(', ')}`
         + `; davon Platzhalter: ${String(zuordnungPlatzhalter?.n ?? 0)}.`,

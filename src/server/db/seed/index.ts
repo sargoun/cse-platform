@@ -879,11 +879,11 @@ async function main(): Promise<void> {
       values (${ids.get(b.slug)!}, 'ausgangsrechnung', 2026,
               ${demodaten
                 ? 'Ausgangsrechnungen (Demo — Voreinstellung, O-134)'
-                : 'Ausgangsrechnungen (Voreinstellung RE-{jahr}-{nr:5}, O-134)'},
+                : 'Ausgangsrechnungen (Voreinstellung RE-{jahr}-{nr:5} — zur Freigabe, O-134)'},
               true,
               ${demodaten ? 'DEMO-{jahr}-{nr:5}' : 'RE-{jahr}-{nr:5}'},
               'jaehrlich', ${heute},
-              false, 'system', 'job:seed')
+              ${!demodaten}, 'system', 'job:seed')
       on conflict (mandant_id, kreis_typ, kontext_id, jahr) do update
         set bezeichnung   = excluded.bezeichnung,
             format_maske  = excluded.format_maske,
@@ -1040,7 +1040,8 @@ async function main(): Promise<void> {
     }
   }
   process.stdout.write(
-    '  Nummernkreise: Rechnung als Voreinstellung {jahr}-{nr:5}, jährlich (O-134, D-779); '
+    '  Nummernkreise: Rechnung als Voreinstellung {jahr}-{nr:5}, jährlich (O-134, D-779)'
+    + (demodaten ? ' — Demo-Kreis freigegeben; ' : ' — im Betrieb zur Freigabe durch die Administration; ')
     + 'Nachweis, Angebot und Auftrag bestätigt\n',
   );
   /**
