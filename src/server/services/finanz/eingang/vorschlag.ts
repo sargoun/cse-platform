@@ -75,6 +75,8 @@ interface LieferantTreffer {
   readonly id: string;
   readonly name: string;
   readonly ust_id: string | null;
+  /** `lieferant.leistungsart` — entscheidet bei § 13b zwischen den zwei Gruppen (O-363). */
+  readonly leistungsart: string | null;
 }
 
 interface GruppeTreffer {
@@ -131,7 +133,7 @@ async function findeLieferant(
 ): Promise<{ treffer: LieferantTreffer | null; befund: Befund; ueber: string }> {
   const suche = async (sql: string, wert: string): Promise<readonly LieferantTreffer[]> =>
     kontext.abfrage<LieferantTreffer>(
-      `select id, name, ust_id from lieferant
+      `select id, name, ust_id, leistungsart::text as leistungsart from lieferant
         where archiviert_am is null and ${sql} limit 2`, [wert]);
 
   if (l.ustId !== null) {
@@ -173,15 +175,37 @@ async function pruefeBankverbindung(
 }
 
 /**
+ * Die § 13b-Gruppe je Gewerk des Lieferanten — die **Voreinstellung** (O-363,
+ * D-787). § 13b Abs. 2 Nr. 4 UStG (Bauleistung) und Nr. 8 (Gebäudereinigung)
+ * tragen beide 0 % / AE; welche gilt, sagt das Gewerk des LIEFERANTEN, das der
+ * Stamm als `lieferant.leistungsart` führt. Ohne Gewerk im Stamm entscheidet
+ * weiter ein Mensch — eine geratene Gruppe wäre eine Steueraussage.
+ */
+export const GRUPPE_JE_LEISTUNGSART: Readonly<Record<string, string>> = {
+  bau: 'ust_0_13b_bau',
+  gebaeudereinigung: 'ust_0_13b_reinigung',
+};
+
+// TODO(client, O-363): Voreinstellung — bei zwei passenden Gruppen entscheidet das Gewerk des Lieferanten (`lieferant.leistungsart`); ohne Gewerk wählt ein Mensch.
+export function waehleGruppeNachLeistungsart(
+  treffer: readonly { readonly schluessel: string }[], leistungsart: string | null,
+): string | null {
+  if (leistungsart === null) return null;
+  const gesucht = GRUPPE_JE_LEISTUNGSART[leistungsart];
+  if (gesucht === undefined) return null;
+  return treffer.some((g) => g.schluessel === gesucht) ? gesucht : null;
+}
+
+/**
  * Die Steuersatzgruppe zu Satz und Kategorie — genau eine, sonst Befund.
  *
- * TODO(client, O-363): §13b mit 0 % und Kategorie AE gibt es zweimal
- * (`ust_0_13b_bau`, `ust_0_13b_reinigung`); welche eine Eingangsrechnung
- * traegt, haengt vom Gewerk des LIEFERANTEN ab, nicht von unserem. Bis zur
- * Antwort bleibt das Feld unsicher, und ein Mensch waehlt.
+ * Zwei Treffer gibt es nur bei § 13b (0 %, AE); dann entscheidet das Gewerk
+ * des Lieferanten (`waehleGruppeNachLeistungsart`), und der Befund sagt, dass
+ * es die Voreinstellung war. Ohne Gewerk bleibt das Feld unsicher, und ein
+ * Mensch wählt — wie vor D-787.
  */
 async function findeGruppe(
-  kontext: SchreibKontext, satzBp: number, kategorie: string,
+  kontext: SchreibKontext, satzBp: number, kategorie: string, leistungsart: string | null,
 ): Promise<{ schluessel: string | null; befund: Befund }> {
   const t = await kontext.abfrage<GruppeTreffer>(
     `select schluessel, bezeichnung from steuersatz_gruppe
@@ -194,8 +218,13 @@ async function findeGruppe(
     return { schluessel: null, befund: { pruefung: 'katalogabgleich', bestanden: false,
       hinweis: `Keine Steuersatzgruppe für ${(satzBp / 100).toFixed(2).replace('.', ',')} % / ${kategorie} im Katalog` } };
   }
+  const nachGewerk = waehleGruppeNachLeistungsart(t, leistungsart);
+  if (nachGewerk !== null) {
+    return { schluessel: nachGewerk, befund: { pruefung: 'katalogabgleich', bestanden: true,
+      hinweis: `Steuersatzgruppe nach dem Gewerk des Lieferanten (${leistungsart ?? ''}) — Voreinstellung O-363` } };
+  }
   return { schluessel: null, befund: { pruefung: 'katalogabgleich', bestanden: false,
-    hinweis: `Mehrere Steuersatzgruppen für ${(satzBp / 100).toFixed(2).replace('.', ',')} % / ${kategorie} — ein Mensch wählt (O-363)` } };
+    hinweis: `Mehrere Steuersatzgruppen für ${(satzBp / 100).toFixed(2).replace('.', ',')} % / ${kategorie} — ohne Gewerk im Lieferantenstamm wählt ein Mensch (O-363)` } };
 }
 
 function alsExtrahiert(
@@ -248,7 +277,8 @@ export async function legeEingangsVorschlagAn(
     rechnungsdatum: n.rechnungsdatum,
   });
   /* Katalog: je Steuerzeile eine Gruppe */
-  const gruppen = await Promise.all(n.steuerzeilen.map((z) => findeGruppe(kontext, z.satzBp, z.kategorie)));
+  const gruppen = await Promise.all(n.steuerzeilen.map((z) =>
+    findeGruppe(kontext, z.satzBp, z.kategorie, lieferant.treffer?.leistungsart ?? null)));
 
   const felder: ExtrahiertesFeld[] = [];
   for (const f of extrakt.felder) {

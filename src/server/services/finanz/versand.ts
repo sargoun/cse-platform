@@ -148,7 +148,14 @@ export interface VersandZeile {
   readonly gesendetAm: string | null;
   readonly zugangAm: string | null;
   readonly zugangGrundlage: string | null;
-  /** Der Nachweis, WELCHE Fassung hinausging. */
+  /**
+   * Der Nachweis, WELCHE Fassung hinausging.
+   *
+   * TODO(client, O-600): Voreinstellung — der Hash genügt als Nachweis der
+   * Fassung; die XRechnung entsteht aus dem festgeschriebenen Payload wieder
+   * (`xrechnung/aus-snapshot.ts`), das PDF wird nicht archiviert —
+   * `rechnung_dokument` fehlt (V-317, D-787).
+   */
   readonly nutzlastSha256: string;
 }
 
@@ -323,4 +330,4 @@ export async function empfaengerlage(
   };
 }
 
-// TODO(client, O-603): Welcher EU-gehostete Transaktionsmailer liefert den Rechnungsversand aus, und unter welchem Auftragsverarbeitungsvertrag? Ohne Antwort bleibt `versand.email.verbunden` false und die Rechnung wird von Hand versendet. (Fortschreibung von O-36 auf den Rechnungsversand.)
+// TODO(client, O-603): Betreiberdaten — den EU-gehosteten Transaktionsmailer und seinen Auftragsverarbeitungsvertrag trägt der Betreiber ein (Einstellungen › Integrationen); bis dahin bleibt `versand.email.verbunden` false und die Rechnung wird von Hand versendet. (Fortschreibung von O-36 auf den Rechnungsversand.)

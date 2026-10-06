@@ -1957,6 +1957,9 @@ export interface KorrekturErgebnis {
  * Die Umkehrlesarten werden NICHT gespeichert: „was hat mich storniert" ist
  * eine Abfrage ueber `zu_rechnung_id`, und eine zweite Zeile waere eine
  * zweite Kopie derselben Tatsache (§4.8).
+ *
+ * TODO(client, O-178): Voreinstellung — kein Teilstorno; jede Korrektur ist der
+ * Storno des ganzen Belegs plus Neuausstellung, wie hier gebaut (D-787).
  */
 export async function korrigiere(
   db: Abfrage, rechnungId: string, grund: string,

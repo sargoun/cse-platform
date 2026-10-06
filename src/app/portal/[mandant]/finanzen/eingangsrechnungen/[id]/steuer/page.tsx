@@ -687,4 +687,4 @@ export default async function Steuerblatt(
 }
 
 // TODO(client, O-604): Welches Recht öffnet die Pflege der §48b-Freistellungsbescheinigung — `abrechnung.freistellung_pflegen` (so das Routenregister), `finanzen.schreiben` (so die Policy auf `freistellungsbescheinigung`) oder `eingang.lesen` (so der Beleg daneben)? Bis zur Antwort pflegt diese Seite nichts und nennt bei fehlendem `finanzen.lesen` den Ausgang ausdrücklich „nicht bewertbar" statt „Einbehalt".
-// TODO(client, O-605): Ist der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin als Zeitreihe zu führen (wie `kunde_bauleistender_status` für die Ausgangsseite) — und ab wann gilt eine Änderung? Bis zur Antwort zeigt die Seite den auf dem BELEG gespeicherten Stand und bewertet nicht tagesaktuell neu.
+// TODO(client, O-605): Voreinstellung — der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin wird am Beleg gespeichert und nicht tagesaktuell neu bewertet; als Zeitreihe (wie `kunde_bauleistender_status`) ist er nicht gebaut (V-318). Die Bescheinigung USt 1 TG trägt der Betreiber ein (D-787).

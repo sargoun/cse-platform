@@ -960,6 +960,8 @@ export interface MeinTexte {
   readonly nichtVerbunden: string;
 
   readonly keineEintraege: string;
+  /** Mein › Stundenkonto ohne Konto im Monat — der Nachtlauf eröffnet, nicht das Portal (O-982). */
+  readonly stundenkontoNichtEroeffnet: string;
   readonly pflichtfeld: string;
   readonly sprache: string;
   readonly drucken: string;
@@ -1469,6 +1471,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'Bewacherregister',
     nichtVerbunden: 'nicht verbunden',
     keineEintraege: 'Keine Einträge.',
+    stundenkontoNichtEroeffnet: 'Für diesen Monat ist kein Stundenkonto eröffnet. Der Nachtlauf eröffnet '
+      + 'den laufenden Monat am Monatsersten um 00:30 Uhr; das Portal legt keines an '
+      + '(Voreinstellung O-982).',
     pflichtfeld: 'Pflichtfeld',
     sprache: 'Sprache',
     drucken: 'Drucken',
@@ -1859,6 +1864,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'Guard register',
     nichtVerbunden: 'not connected',
     keineEintraege: 'No entries.',
+    stundenkontoNichtEroeffnet: 'No hours account is open for this month. The nightly job opens the '
+      + 'current month on the 1st at 00:30; the portal does not create one (default O-982).',
     pflichtfeld: 'Required',
     sprache: 'Language',
     drucken: 'Print',
@@ -2241,6 +2248,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'سجل الحراسة',
     nichtVerbunden: 'غير متصل',
     keineEintraege: 'لا توجد إدخالات.',
+    stundenkontoNichtEroeffnet: 'لا يوجد حساب ساعات مفتوح لهذا الشهر. تفتح المهمة الليلية الشهر الجاري في '
+      + 'اليوم الأول عند الساعة 00:30؛ البوابة لا تنشئ حسابًا بنفسها (الإعداد الافتراضي O-982).',
     pflichtfeld: 'إلزامي',
     sprache: 'اللغة',
     drucken: 'طباعة',
@@ -2609,6 +2618,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'Güvenlik sicili',
     nichtVerbunden: 'bağlı değil',
     keineEintraege: 'Kayıt yok.',
+    stundenkontoNichtEroeffnet: 'Bu ay için açılmış bir saat hesabı yok. Gece işi, içinde bulunulan ayı '
+      + "ayın birinde 00:30'da açar; portal kendisi hesap oluşturmaz (varsayılan O-982).",
     pflichtfeld: 'Zorunlu alan',
     sprache: 'Dil',
     drucken: 'Yazdır',

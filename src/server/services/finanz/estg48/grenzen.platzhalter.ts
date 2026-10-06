@@ -1,13 +1,13 @@
 import 'server-only';
 
 /**
- * **Die Bagatellgrenzen des §48 Abs. 2 EStG — als PLATZHALTER.**
+ * **Die Bagatellgrenzen des §48 Abs. 2 EStG — Voreinstellung: nicht
+ * automatisch angewandt (O-21, D-779).**
  *
- * // TODO(client, O-21): §48 EStG knüpft im Gesetzeswortlaut an die
- * Gegenleistung (Zahlung) an, SPEC FIN-10 an das Leistungsdatum — welchen
- * Stichtag muss die Plattform anwenden? Und gelten die Bagatellgrenzen des
- * §48 Abs. 2 EStG (5.000 € bzw. 15.000 € je Leistungsempfänger und Kalenderjahr)
- * für diese Gruppe, und wer zählt als Leistungsempfänger im Sinne der Norm?
+ * // TODO(client, O-21): Voreinstellung (D-779) — die Bagatellgrenze wird nicht
+ * automatisch angewandt: ohne gültige Freistellungsbescheinigung wird
+ * einbehalten, die Jahressumme steht zur Prüfung; Stichtag ist das
+ * Leistungsende (`STICHTAG_QUELLE`).
  *
  * **`grenzeCent: null` ist die einzige Belegung, die hier stehen darf.** Die
  * Zahlen des Gesetzes sind bekannt; was NICHT bekannt ist, ist, ob und wie die
@@ -41,7 +41,7 @@ export const BAGATELLGRENZE_PLATZHALTER: Bagatellgrenze = {
 /**
  * Der Stichtag, an dem §48 EStG und §13b UStG bewertet werden.
  *
- * **Bis O-21 beantwortet ist: `leistung_bis`.** Das ist die Fassung, die
+ * **Voreinstellung (O-21, D-779): `leistung_bis`.** Das ist die Fassung, die
  * `02-datenmodell/05-FINANZEN.md` §4.1 festhält, und sie ist EIN injizierter
  * Parameter — die Antwort ist eine Zeile hier plus ein Test, kein Umbau. Der
  * gewählte Wert wird auf der Rechnung gespeichert

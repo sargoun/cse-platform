@@ -79,6 +79,11 @@ interface ZeitZeile {
  * zone …` — der nackte `($1::date) at time zone` waehlt die falsche
  * Ueberladung und schoebe das Fenster im Sommer um zwei Stunden, also genau um
  * die Nachtschicht.
+ *
+ * TODO(client, O-179): Voreinstellung — ein Zeiteintrag gehört in den
+ * Abrechnungszeitraum, in dem seine Schicht BEGINNT (Berliner Kalendertag von
+ * `beginn_zeitpunkt`); eine Nachtschicht über die Monatsgrenze wird nicht
+ * geteilt, ihre ganze Nettodauer fällt in den Monat des Beginns (D-787).
  */
 async function ladeMinuten(
   db: Abfrage, auftragId: string, auftragLeistungId: string | null,

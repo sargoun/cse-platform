@@ -659,11 +659,10 @@ const DE: EingangsrechnungenTexte = {
     + 'beim Empfänger ein Ausfall.',
   hinweistextLautet: 'Der feste Hinweistext auf dem Beleg lautet:',
   status13b:
-    'Der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin '
-    + 'ist nirgends als Zeitreihe hinterlegt — die Stammdaten der Gesellschaft '
-    + 'tragen kein entsprechendes Feld, und der Status als Bauleistender am '
-    + 'Kunden beschreibt die Ausgangsseite. Was hier steht, ist deshalb der auf '
-    + 'dem BELEG gespeicherte Stand und keine tagesaktuelle Neubewertung (O-605).',
+    'Der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin wird am Beleg '
+    + 'gespeichert — Voreinstellung (O-605): keine tagesaktuelle Neubewertung und keine '
+    + 'Zeitreihe in den Stammdaten; die Bescheinigung USt 1 TG trägt der Betreiber ein. '
+    + 'Was hier steht, ist der auf dem BELEG gespeicherte Stand.',
   titel48: '§48 EStG — Bauabzugsteuer, drei Ausgänge',
   ausgangNichtBewertbarVor: 'Nicht bewertbar —',
   ausgangNichtBewertbarNach: 'fehlt',
@@ -1090,11 +1089,10 @@ const EN: EingangsrechnungenTexte = {
     + 'liability shifted without justification is a loss at the recipient.',
   hinweistextLautet: 'The fixed note on the document reads:',
   status13b:
-    'The §13b status of this company’s OWN position as recipient of the supply '
-    + 'is recorded nowhere as a time series — the company’s master data carry no '
-    + 'field for it, and the construction-service status on the customer '
-    + 'describes the outgoing side. What stands here is therefore the state '
-    + 'stored on the DOCUMENT and not a re-assessment as at today (O-605).',
+    'The §13b status of this company’s OWN position as recipient of the supply is '
+    + 'stored on the document — default (O-605): no re-assessment as at today and no '
+    + 'time series in the master data; the operator enters the USt 1 TG certificate. '
+    + 'What stands here is the state stored on the DOCUMENT.',
   titel48:
     '§48 EStG — Bauabzugsteuer (construction withholding tax), three outcomes',
   ausgangNichtBewertbarVor: 'Not assessable —',

@@ -135,7 +135,8 @@ export default async function Z3Export(
       )}
       <Hinweis art="hinweis" cse="z3-grenzen" className="mb-s5 max-w-prose">
         <strong>Was das Paket nicht enthält.</strong> Die DTD des Beschreibungsstandards liegt nicht bei
-        (<code className="font-mono text-xs">index.xml</code> nennt sie; O-365). Bankverbindungen sowie Kreditoren- und
+        (<code className="font-mono text-xs">index.xml</code> nennt sie; Voreinstellung O-365: Version 1.0 des
+        Standards, Abnahme durch Probeimport). Bankverbindungen sowie Kreditoren- und
         Debitorennummern sind der Anwendungsrolle entzogen und fehlen im Stamm; die Kontonummern stehen in{' '}
         <code className="font-mono text-xs">konten.csv</code>. Die CSV-Dateien sind Windows-1252; ersetzte Zeichen:{' '}
         {String(z.ersetzteZeichen)}.

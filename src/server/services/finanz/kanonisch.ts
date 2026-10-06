@@ -83,6 +83,10 @@ export const SCHEMA_VERSION_V1 = 'cse.rechnung.v1' as const;
  * entwertet**, und keine Rechnung muss storniert werden.
  *
  * Wer v2 einmal wie v1 behandelt, erzwingt Stornos, die niemand braucht.
+ *
+ * TODO(client, O-621): Voreinstellung — wie gebaut: `rechnung_fuss` wird bei der
+ * Festschreibung in `leistender.fusszeile` kopiert (v3); `rechnung.fusstext`
+ * bleibt der freie Text der Eingabe (D-787).
  */
 export const SCHEMA_VERSION_V2 = 'cse.rechnung.v2' as const;
 

@@ -9,6 +9,11 @@ import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
  * Die Mahnstufen als Einstellung — der Ort, an dem O-19 beantwortet wird
  * (FIN-15, `04-SEITENKARTE` §5.24).
  *
+ * TODO(client, O-181): Voreinstellung — Inkasso-Übergabe und Mahnbescheid sind
+ * die Folgeaktion der letzten Stufe, ohne Betragsgrenze, gesetzt von wer
+ * `mahnung.schreiben` hält; die Plattform vermerkt sie und löst sie nicht aus
+ * (V-313, D-787).
+ *
  * **Hier wird nichts gerechnet und nichts vorgeschlagen.** Der Dienst legt
  * die Werte ab, die ein Mensch eingegeben hat, und löst die vorherige Fassung
  * über `gueltig_bis` ab — gelöscht wird nichts (Invariante 8). Was gestern
