@@ -671,7 +671,7 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
     return z!.id;
   }
 
-  it('das Formular kennt die Arten — und zeigt die ungeklaerte als ungeklaert (O-139)', async () => {
+  it('das Formular kennt die Arten — mit der Lohnfrage der Voreinstellung (O-139, D-781)', async () => {
     const gelesen = await alsPerson(async (k) => ({
       antrag: await leseAntragsarten(k, 'de'),
       abwesenheit: await leseAbwesenheitsarten(k, 'de'),
@@ -679,13 +679,19 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
     expect(gelesen.antrag.map((a) => a.schluessel).sort())
       .toEqual(['krankmeldung', 'schichttausch', 'urlaub']);
     /**
-     * `bezahlt` bleibt im Seed NULL (O-139). Die Art verschwindet deshalb
-     * NICHT aus dem Formular — eine fehlende Auswahl erzeugt einen Anruf, eine
-     * sichtbar ungeklaerte eine Rueckfrage an der richtigen Stelle.
+     * Seit `0491` tragen die sieben Plattformarten eine Antwort auf
+     * `bezahlt` (D-781) — und alle sieben stehen im Formular: eine fehlende
+     * Auswahl erzeugte einen Anruf, eine sichtbar unbezahlte eine Rueckfrage
+     * an der richtigen Stelle.
      */
+    const schluessel = gelesen.abwesenheit.map((a) => a.schluessel);
+    for (const s of ['urlaub', 'krankheit', 'kind_krank', 'unbezahlt', 'fortbildung',
+      'freizeitausgleich', 'sonstige']) {
+      expect(schluessel, s).toContain(s);
+    }
     const krank = gelesen.abwesenheit.find((a) => a.schluessel === 'krankheit');
-    expect(krank).toBeDefined();
-    expect(krank?.bezahlt).toBeNull();
+    expect(krank?.bezahlt).toBe(true);
+    expect(gelesen.abwesenheit.find((a) => a.schluessel === 'unbezahlt')?.bezahlt).toBe(false);
   });
 
   it('ein Antrag entsteht in DER Gesellschaft, deren Beschaeftigung gewaehlt wurde', async () => {
@@ -722,17 +728,26 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
   it('eine Abwesenheitsmeldung entsteht — und ohne geklaerte Lohnwirkung nicht', async () => {
     const krank = await artId('abwesenheitsart', 'krankheit');
 
-    // O-139: der Dienst verweigert, solange `bezahlt` NULL ist, und nennt den
-    // Grund. Das ist die ausgelieferte Lage.
+    /*
+     * O-139: der Dienst verweigert, solange `bezahlt` NULL ist, und nennt den
+     * Grund. Seit 0491 (D-781) tragen die Plattformarten die Voreinstellung —
+     * und `kern.abwesenheitsart_schutz` laesst eine Antwort nicht wieder auf
+     * NULL fallen. Ungeklaert bleibt deshalb nur eine EIGENE Art der
+     * Gesellschaft, deren Lohnfrage die Buchhaltung noch nicht eingeordnet hat;
+     * die Person sieht sie ueber ihre Beschaeftigung (`t_katalog`).
+     */
+    const [eigene] = await sql.unsafe<{ id: string }[]>(
+      `insert into abwesenheitsart (mandant_id, schluessel, bezeichnung, bezeichnung_i18n)
+       values ($1, 'sonderurlaub_test', 'Sonderurlaub (Lohnfrage offen)',
+               '{"de":"Sonderurlaub (Lohnfrage offen)"}'::jsonb)
+       returning id`, [f.reinigung]);
     await expect(alsPersonImMandanten(f.fatimaReinigung, async (k) =>
       meldeAbwesenheit(k, {
-        anstellungId: f.fatimaReinigung, abwesenheitsartId: krank,
+        anstellungId: f.fatimaReinigung, abwesenheitsartId: eigene!.id,
         von: '2026-03-02', bis: '2026-03-04',
       }))).rejects.toThrow(ArtUngeklaertFehler);
 
-    // Mit beantworteter Frage geht derselbe Weg durch.
-    await sql.unsafe(
-      `update abwesenheitsart set bezahlt = true where id = $1`, [krank]);
+    // Krankheit traegt die Voreinstellung (bezahlt, § 3 EFZG): derselbe Weg geht durch.
     const gemeldet = await alsPersonImMandanten(f.fatimaReinigung, async (k) =>
       meldeAbwesenheit(k, {
         anstellungId: f.fatimaReinigung, abwesenheitsartId: krank,

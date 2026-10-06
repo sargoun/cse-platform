@@ -240,8 +240,9 @@ export async function setzeRollenrechte(
     // TODO(client, O-904): Gegen welche Rechteliste wird eine Rolle gebunden, die es nur in EINER Gesellschaft gibt?
     throw new RollenrechtFehler(
       'Diese Rolle gehört nur dieser Gesellschaft und steht in keiner Spalte der '
-      + 'Rechtematrix. Wogegen ihre Rechte zu binden sind, ist offen (O-904) — und '
-      + 'wird hier nicht geraten.', 'rolle_nicht_editierbar', 409);
+      + 'Rechtematrix. Voreinstellung (O-904): ihre Rechte werden einzeln aus dem Katalog '
+      + 'gebunden, nur für diese Gesellschaft — dieser Weg ist noch nicht gebaut (V-290); '
+      + 'hier wird nichts geraten.', 'rolle_nicht_editierbar', 409);
   }
 
   if (!EDITIERBARE_ROLLEN.includes(rolle.schluessel)) {

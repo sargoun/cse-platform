@@ -152,7 +152,7 @@ export function pruefeArtEingabe(
   if (!['ja', 'nein', 'offen'].includes(bezahltRoh)) {
     throw new StammdatenFehler('ungueltig',
       'Bezahlt: „ja", „nein" oder „offen" — und „offen" heisst ungeklärt (O-139), '
-      + 'nicht „nein".');
+      + 'nicht „nein"; die Plattformarten tragen die Voreinstellung aus 0491.');
   }
   const tage = (lies('nachweisAbTagen') ?? '').trim();
   // Neun Stellen = die Kapazitaet von `integer`, nicht eine hier erfundene

@@ -145,7 +145,8 @@ export default async function Zusammenfuehren({
           Kein Treffer. Das ist eine Aussage über diese Gesellschaft, nicht über
           die Gruppe: eine Dublette, deren zweite Beschäftigung bei einer
           Schwestergesellschaft liegt, ist von hier aus nicht sichtbar — und
-          dürfte von hier aus auch nicht zusammengeführt werden (offen, O-611).
+          dürfte von hier aus auch nicht zusammengeführt werden (Voreinstellung O-611: nur die
+          Gesellschaft, die beide Beschäftigungen führt).
         </p>
       ) : (
         <div className="mb-s6">
@@ -315,14 +316,10 @@ export default async function Zusammenfuehren({
       )}
 
       <Hinweis art="hinweis" cse="merge-offen" className="mt-s6 max-w-prose">
-        <strong>Was hier nicht entschieden ist (O-611).</strong> Welche Angaben
-        bei Widerspruch gewinnen, welcher Portalzugang überlebt, wenn beide
-        Zeilen einen haben, ob eine Zusammenführung rückgängig gemacht werden
-        kann, und ob eine Gesellschaft eine Dublette zusammenführen darf, deren
-        zweite Beschäftigung bei einer Schwestergesellschaft liegt und die sie
-        deshalb nicht sehen kann. Ausgeliefert ist die engste Annahme: beide
-        Zeilen müssen in dieser Gesellschaft beschäftigt sein, kein Feld wird
-        übernommen, kein Zugang widerrufen. Was die Zusammenführung heute leistet,
+        <strong>Voreinstellung (O-611): die engste Annahme.</strong> Kein Feld wird
+        übernommen — die führende Zeile behält ihre Angaben —, kein Zugang widerrufen
+        (beide bleiben, bis das Büro einen entzieht), nichts wird rückgängig gemacht, und
+        zusammengeführt wird nur, was beide Beschäftigungen in dieser Gesellschaft hat. Was die Zusammenführung heute leistet,
         ist die Identität: die Prüfung der Arbeitszeitgrenzen und der Nachtlauf zählen
         beide Zeilen als einen Menschen, und die Gruppen­auslastung fasst sie unter der
         führenden Zeile zusammen — Arbeitszeitgrenzen gelten damit je Mensch und nicht

@@ -200,9 +200,10 @@ const NACHWEISE: readonly NachweisVorgabe[] = [
  * `beantragt` da: erfasst, aber ohne hinterlegte Urkunde — und damit als
  * das, was sie sind.
  *
- * // TODO(client, O-343): Sollen die Urkunden zu §34a und Bewacherausweis in
- * der Plattform liegen (dann braucht es den Objektspeicher), oder genuegt die
- * Personalakte auf Papier und die Plattform fuehrt nur Nummer und Frist?
+ * // TODO(client, O-343): Voreinstellung (D-781) — die drei gesetzlichen
+ * Nachweise (§ 34a Sachkunde und Unterrichtung, Bewacherausweis) verlangen die
+ * Urkunde als Datei (`erfordert_dokument`), die DGUV-Unterweisung nicht;
+ * „Papierakte genuegt" ist je Qualifikation ein Schalter.
  */
 function status(n: NachweisVorgabe, dokumentpflichtig: boolean): string {
   if (n.tageBisAblauf !== null && n.tageBisAblauf < 0) return 'abgelaufen';

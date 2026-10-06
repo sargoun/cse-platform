@@ -144,16 +144,22 @@ const AUFBEWAHRUNG_VORGABE: readonly (readonly [string, number | null, boolean, 
   ['unternehmen', 10, true, 'Voreinstellung — § 257 HGB Gesellschaftsunterlagen: 10 Jahre (O-25)', true],
 ];
 
-/** Die Abwesenheitsarten aus `0073` §6.22 — Schlüssel, Label, drei Flaggen. */
+/**
+ * Die Abwesenheitsarten aus `0073` §6.22 — Schlüssel, Label, drei Flaggen —
+ * mit der Voreinstellung aus `0491` (O-139, D-781): bezahlt, Lohnartenschlüssel,
+ * Nachweispflicht ab Tag n. Die Fixtur spiegelt den MIGRIERTEN Stand, nicht die
+ * Rohform von 0073: ein Test gegen Plattformarten ohne Lohnantwort prüfte eine
+ * Plattform, die seit 0491 nicht mehr ausgeliefert wird.
+ */
 const ABWESENHEITSARTEN:
-readonly (readonly [string, string, boolean, boolean, boolean])[] = [
-  ['urlaub', 'Urlaub', true, true, false],
-  ['krankheit', 'Krankheit', false, true, true],
-  ['kind_krank', 'Kind krank', false, true, true],
-  ['unbezahlt', 'Unbezahlte Freistellung', false, false, false],
-  ['fortbildung', 'Fortbildung', false, true, false],
-  ['freizeitausgleich', 'Freizeitausgleich', false, false, false],
-  ['sonstige', 'Sonstige', false, false, false],
+readonly (readonly [string, string, boolean, boolean, boolean, boolean, string, number | null])[] = [
+  ['urlaub', 'Urlaub', true, true, false, true, 'URLAUB', null],
+  ['krankheit', 'Krankheit', false, true, true, true, 'KRANK', 4],
+  ['kind_krank', 'Kind krank', false, true, true, false, 'KINDKRANK', 1],
+  ['unbezahlt', 'Unbezahlte Freistellung', false, false, false, false, 'UNBEZAHLT', null],
+  ['fortbildung', 'Fortbildung', false, true, false, true, 'FORTBILDUNG', null],
+  ['freizeitausgleich', 'Freizeitausgleich', false, false, false, true, 'FZA', null],
+  ['sonstige', 'Sonstige', false, false, false, false, 'SONSTIGE', null],
 ];
 
 /** Die drei Antragsarten aus `0074` §6.28, die EMP-10 nennt. */
@@ -411,18 +417,21 @@ export async function seed(): Promise<Fixtur> {
      * Schleife scheitert jeder Abwesenheitstest an einem Fremdschlüssel — und
      * zwar mit einer Meldung, die nach einem Fehler im Dienst aussieht.
      *
-     * `bezahlt` bleibt NULL, wie ausgeliefert (O-139): ein Test, der die
-     * Lohnfrage beantwortet bekommt, ohne sie zu stellen, prüft eine Plattform,
-     * die es nicht gibt.
+     * `bezahlt`, Lohnart und Nachweispflicht tragen die Voreinstellung aus
+     * `0491` (O-139, D-781), wie ausgeliefert; eine EIGENE Art einer
+     * Gesellschaft ohne Antwort legt der Test an, der sie braucht
+     * (`abwesenheit.test.ts`, `jahrespaket-lohnexport.test.ts`).
      */
-    for (const [schluessel, bezeichnung, urlaub, stunden, gesundheit] of ABWESENHEITSARTEN) {
+    for (const [schluessel, bezeichnung, urlaub, stunden, gesundheit, bezahlt, lohnart, nachweis]
+      of ABWESENHEITSARTEN) {
       await tx.unsafe(
         `insert into abwesenheitsart (mandant_id, schluessel, bezeichnung,
                                       zaehlt_auf_urlaubskonto,
                                       erzeugt_stundenkonto_bewegung,
-                                      ist_gesundheitsbezogen)
-         values (null, $1, $2, $3, $4, $5)`,
-        [schluessel, bezeichnung, urlaub, stunden, gesundheit] as never[],
+                                      ist_gesundheitsbezogen,
+                                      bezahlt, lohnart_schluessel, nachweis_pflicht_ab_tagen)
+         values (null, $1, $2, $3, $4, $5, $6, $7, $8)`,
+        [schluessel, bezeichnung, urlaub, stunden, gesundheit, bezahlt, lohnart, nachweis] as never[],
       );
     }
     for (const [schluessel, bezeichnung, zeitraum, art, einsatz, partner, erzeugt]

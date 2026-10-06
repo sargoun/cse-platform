@@ -9,8 +9,9 @@
  *     Speicher fehlen die Dateien und das LIESMICH sagt es; im Manifestlauf
  *     wird nichts geholt und nichts gepackt.
  *  2. Der Lohnexport: je Beschaeftigung das Konto des Monats mit Korrektur,
- *     die Abwesenheit mit „unklar" statt geratenem „bezahlt", drei Tabellen,
- *     Platzhalter benannt (O-27); die Beschaeftigung der anderen
+ *     eine eigene Abwesenheitsart ohne Lohnantwort mit „unklar" statt geratenem
+ *     „bezahlt" (die Plattformarten tragen seit 0491 die Voreinstellung,
+ *     D-781), drei Tabellen, Voreinstellung benannt (O-27); die Beschaeftigung der anderen
  *     Gesellschaft (D-09: dieselbe Person, zwei Anstellungen) steht nicht
  *     darin.
  */
@@ -299,19 +300,29 @@ describe('(2) der Lohnexport', () => {
     return { monat: z!.monat, jahr: Number(z!.monat.slice(0, 4)), m: Number(z!.monat.slice(5, 7)), personalnummer: z!.personalnummer };
   }
 
-  it('Konto mit Korrektur, Abwesenheit (Fortbildung) mit „unklar", drei Tabellen, Platzhalter benannt — reproduzierbar', async () => {
+  it('Konto mit Korrektur, eigene Abwesenheitsart mit „unklar", drei Tabellen, Voreinstellung benannt — reproduzierbar', async () => {
     const { monat, jahr, m, personalnummer } = await monatVon(f.jonasReinigung);
     await alsApp(sitzung(), async (tx) => {
       const k = kontextAus(tx);
       await eroeffneKonto(k, { anstellungId: f.jonasReinigung, jahr, monat: m, sollMinuten: 9360 });
       await bucheKorrektur(k, { anstellungId: f.jonasReinigung, jahr, monat: m, minuten: 120, begruendung: 'Nachtrag aus dem Test' });
     });
+    /*
+     * Die Plattformarten tragen seit 0491 die Voreinstellung (D-781); „unklar"
+     * gibt es nur noch bei einer EIGENEN Art der Gesellschaft, deren Lohnfrage
+     * die Buchhaltung noch nicht eingeordnet hat — genau die steht hier.
+     */
+    const [eigene] = await sql.unsafe<{ id: string }[]>(
+      `insert into abwesenheitsart (mandant_id, schluessel, bezeichnung, bezeichnung_i18n)
+       values ($1, 'sonderurlaub_test', 'Sonderurlaub (Lohnfrage offen)',
+               '{"de":"Sonderurlaub (Lohnfrage offen)"}'::jsonb)
+       returning id`, [f.reinigung]);
     await sql.unsafe(
       `insert into abwesenheit (mandant_id, anstellung_id, abwesenheitsart_id, von, bis, status,
                                 tage_angerechnet, genehmigt_von, genehmigt_am)
-       values ($1, $2, (select id from abwesenheitsart where schluessel = 'fortbildung' and mandant_id is null),
-               ($3 || '-10')::date, ($3 || '-11')::date, 'genehmigt', 2, $4, now())`,
-      [f.reinigung, f.jonasReinigung, monat, benutzer]);
+       values ($1, $2, $3,
+               ($4 || '-10')::date, ($4 || '-11')::date, 'genehmigt', 2, $5, now())`,
+      [f.reinigung, f.jonasReinigung, eigene!.id, monat, benutzer]);
 
     const a = await alsApp(sitzung(), (tx) => erstelleLohnexport(kontextAus(tx), monat));
     const b = await alsApp(sitzung(), (tx) => erstelleLohnexport(kontextAus(tx), monat));
@@ -327,7 +338,7 @@ describe('(2) der Lohnexport', () => {
     expect(jonas!.korrekturMinuten).toBe(120);
     expect(jonas!.bewegungen.korrektur).toBe(120);
     const urlaub = a.abwesenheiten.find((x) => x.anstellungId === f.jonasReinigung);
-    expect(urlaub?.art).toBe('fortbildung');
+    expect(urlaub?.art).toBe('sonderurlaub_test');
     expect(urlaub?.bezahlt).toBeNull();
     expect(urlaub?.lohnart).toBeNull();
     expect(urlaub?.tageAngerechnet).toBe('2,000');
@@ -341,9 +352,10 @@ describe('(2) der Lohnexport', () => {
     const monate = utf8.decode(dateien.get('monate.csv')!);
     expect(monate).toContain(`"${personalnummer}"`);
     expect(monate).toContain(';"offen";9360;"156,00";');
-    expect(utf8.decode(dateien.get('abwesenheiten.csv')!)).toContain('"fortbildung";"Fortbildung"');
+    expect(utf8.decode(dateien.get('abwesenheiten.csv')!))
+      .toContain('"sonderurlaub_test";"Sonderurlaub (Lohnfrage offen)"');
     const liesmich = utf8.decode(dateien.get('LIESMICH.txt')!);
-    expect(liesmich).toContain('PLATZHALTER');
+    expect(liesmich).toContain('VOREINSTELLUNG');
     expect(liesmich).toContain('(O-27)');
     expect(liesmich).toContain('(D-06)');
     for (const zeile of utf8.decode(dateien.get('pruefsummen.txt')!).trim().split('\n')) {

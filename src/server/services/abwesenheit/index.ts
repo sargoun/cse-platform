@@ -72,7 +72,8 @@ export class ArtUngeklaertFehler extends Error {
   constructor(bezeichnung: string) {
     super(
       `Für die Abwesenheitsart „${bezeichnung}" ist nicht hinterlegt, ob sie `
-      + 'bezahlt ist (O-139). Ohne diese Angabe entsteht keine Abwesenheit — '
+      + 'bezahlt ist (O-139; die Plattformarten tragen die Voreinstellung, eigene Arten '
+      + 'ordnet die Buchhaltung ein). Ohne diese Angabe entsteht keine Abwesenheit — '
       + 'die Lohnwirkung wäre offen und fiele erst in der Abrechnung auf.',
     );
     this.name = 'ArtUngeklaertFehler';

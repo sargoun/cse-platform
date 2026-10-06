@@ -256,11 +256,10 @@ export default async function Vertragsblatt({
 
       <p className="max-w-prose text-sm text-text-muted">
         Das Vokabular des Arbeitszeitmodells ist{' '}
-        <strong className="text-text">nicht entschieden</strong>: welche
-        Beschäftigungs- und SV-Kategorien die Gruppe führt und ob sie den Codes
-        des Lohnsystems entsprechen müssen, ist offen (O-18). Bis zur Antwort
-        ist es ein freies Feld auf der Kondition — eine Auswahlliste hier wäre
-        eine erfundene Entscheidung mit Lohnwirkung.
+        <strong className="text-text">Voreinstellung (O-18)</strong>: Vollzeit,
+            Teilzeit, geringfügig (Minijob), kurzfristig/Aushilfe, Werkstudent — je mit
+            SV-Kategorie; die Codes des Lohnsystems trägt die Buchhaltung nach. Bis dahin
+            ist es ein freies Feld auf der Kondition.
       </p>
     </PortalRahmen>
   );

@@ -167,9 +167,9 @@ export default async function OffeneSchichten(
         Eine Schicht steht hier, wenn ihr Leute fehlen — nach einer der beiden
         Zählungen, die es gibt: <strong>eingeteilt</strong> sind die lebenden
         Zuordnungen, <strong>zugesagt</strong> sind die, die morgens tatsächlich
-        erscheinen. Ob eine Absage die Besetzung sofort mindert, ist{' '}
-        <strong>offen (O-170)</strong>; deshalb stehen beide Zahlen da und nicht
-        eine. Eine Nachtschicht steht an dem Abend, an dem sie beginnt.
+        erscheinen. Voreinstellung (O-170): eine Absage zählt sofort als Lücke — die Schicht steht{' '}
+          hier, sobald eine der beiden Zählungen unter der Besetzung liegt; deshalb stehen
+          beide Zahlen da und nicht eine. Eine Nachtschicht steht an dem Abend, an dem sie beginnt.
       </p>
 
       <form
@@ -337,10 +337,9 @@ export default async function OffeneSchichten(
         <strong>Was diese Seite nicht tut.</strong> Sie leitet keinen
         Personalbedarf ab. Aus einer Zahl unbesetzter Schichten folgt keine Zahl
         an Einzustellenden — dafür bräuchte es Vertragsmodelle, Ausfallquoten und
-        ArbZG-Grenzen je Person. Bei einer Veranstaltung ist ausserdem{' '}
-        <strong>offen (O-210)</strong>, ob die vereinbarte Stärke zugleich die
-        Mindestbesetzung ist; die Dringlichkeit oben kommt deshalb nur aus dem
-        gespeicherten Mindestwert.
+        ArbZG-Grenzen je Person. Bei einer Veranstaltung gilt die Voreinstellung (O-210):{' '}
+          die vereinbarte Stärke ist nicht zugleich die Mindestbesetzung; die
+          Dringlichkeit oben kommt deshalb aus dem gespeicherten Mindestwert.
       </p>
     </PortalRahmen>
   );

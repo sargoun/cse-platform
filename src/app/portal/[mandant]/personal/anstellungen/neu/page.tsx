@@ -199,10 +199,10 @@ export default async function NeueAnstellung({
                   ausserhalb dieser Gesellschaft.
                 </strong>{' '}
                 Mehr steht hier nicht — kein Name, keine Kennung, keine Gesellschaft.
-                Ob eine Gesellschaft mehr sehen darf und ob sie eine vorhandene
-                Personenzeile übernehmen darf, statt eine zweite anzulegen, ist
-                offen (O-860): es sind getrennte Verantwortliche, und wo ein Mensch
-                sonst arbeitet, ist sein Datum und nicht das der Gruppe.
+                Voreinstellung (O-860): eine Gesellschaft sieht nur die Zahl, nicht Name
+          oder Kennung, und legt ihre eigene Personenzeile an — es sind getrennte
+          Verantwortliche, und wo ein Mensch sonst arbeitet, ist sein Datum und nicht das
+          der Gruppe.
                 <br />
                 <span className="text-text">
                   Legen Sie trotzdem an, wenn es ein anderer Mensch ist. Ist es

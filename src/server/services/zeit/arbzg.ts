@@ -268,7 +268,7 @@ export function pruefeArbzg(
           `${netto} min Arbeitszeit über der Regelgrenze von ${ACHT_STUNDEN} min (§3 Satz 1 ArbZG)` +
           (ausnahme
             ? ' — Verlängerung nach §3 Satz 2 konfiguriert, ausgleichspflichtig'
-            : ' — keine Verlängerung nach §3 Satz 2 konfiguriert (O-18)') +
+            : ' — keine Verlängerung nach §3 Satz 2 konfiguriert (Voreinstellung: 8 Stunden, O-18)') +
           ` — ${quelle}`,
       });
     }

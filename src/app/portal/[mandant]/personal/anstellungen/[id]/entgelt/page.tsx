@@ -362,19 +362,18 @@ export default async function Entgeltblatt({
             Arbeitszeitmodell
             <input name="arbeitszeitmodell" placeholder="unbekannt" className={feld} />
             <span className="text-xs text-text-subtle">
-              Freies Feld: welche Beschäftigungs- und SV-Kategorien die Gruppe
-              führt, ist <strong className="text-text">offen (O-18)</strong>. Eine
-              Auswahlliste hier wäre eine erfundene Entscheidung mit Lohnwirkung.
+              Freies Feld — Voreinstellung (O-18): Vollzeit, Teilzeit, geringfügig,
+                kurzfristig, Werkstudent; die Codes des Lohnsystems trägt die Buchhaltung nach.
             </span>
           </label>
           <label className="flex flex-col gap-s2 text-sm text-text">
             Tarifgruppe
             <input name="tarifgruppe" className={feld} data-cse="entgelt-tarifgruppe" />
             <span className="text-xs text-text-subtle">
-              Freies Feld und <strong className="text-text">offen (O-610)</strong>:
-              welcher Branchentarif je Gesellschaft gilt — Gebäudereinigung RTV,
-              Sicherheitsgewerbe Berlin, Bau — und welche Gruppen er führt, ist
-              nicht entschieden. Diese Plattform rechnet keine Tariflöhne.
+              Freies Feld — <strong className="text-text">Voreinstellung (O-610)</strong>:
+              Gebäudereinigung RTV, Sicherheitsgewerbe Berlin und Bau sind die Tarifwerke der
+              drei Gesellschaften; die Tarifgruppe führt das Lohnsystem, hier steht sie als
+              Text. Diese Plattform rechnet keine Tariflöhne.
             </span>
           </label>
           <label className="flex flex-col gap-s2 text-sm text-text">
@@ -402,12 +401,11 @@ export default async function Entgeltblatt({
       )}
 
       <p className="mt-s5 max-w-prose text-sm text-text-muted">
-        <strong className="text-text">Offen (O-614):</strong> welche
-        Anmeldestufe diese Seite verlangt. 05-API-KARTE führt die Entgeltseite
-        als „Sitzung + 2FA", das Verzeichnis der Seiten führt sie ohne zweiten
-        Faktor. Ausgeliefert ist der Stand des Verzeichnisses; welcher gilt, ist
-        eine Entscheidung über die Zugangssicherheit und nicht über diese Seite.
-        {/* TODO(client, O-614): Verlangt der Zugriff auf Entgeltdaten eine zweite Anmeldestufe (05-API-KARTE: „sitzung+2fa") oder genuegt die Sitzung mit dem Recht (Routen-Manifest: aal2 false)? */}
+        <strong className="text-text">Voreinstellung (O-614): Sitzung ohne zweiten Faktor im Moment der Handlung — die 2FA-Pflicht der Rolle genügt.</strong> So
+        führt das Verzeichnis der Seiten die Entgeltseite, und so ist sie ausgeliefert;
+        05-API-KARTE nennt „Sitzung + 2FA" als strengere Stufe, die der Betreiber wählen
+        kann — eine Entscheidung über die Zugangssicherheit, nicht über diese Seite.
+        {/* TODO(client, O-614): Voreinstellung — die Sitzung mit dem Recht genuegt (Routen-Manifest: aal2 false); eine zweite Anmeldestufe je Handlung erst, wenn der Betreiber sie verlangt (05-API-KARTE: „sitzung+2fa"). */}
       </p>
     </PortalRahmen>
   );

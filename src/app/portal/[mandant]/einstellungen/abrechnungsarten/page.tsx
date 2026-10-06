@@ -70,8 +70,8 @@ export default async function Abrechnungsarten(
         * sind, bevor er sie einem Vertrag zuordnet.
         */}
       <p className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-        Unbestätigter Wert: die fünf Namen stammen aus der Leistungs­beschreibung,
-        ihre Regeln sind noch nicht bestätigt (O-04). Jede Art rechnet erst,
+        Voreinstellung (O-04): die fünf Arten stammen aus der Leistungs­beschreibung, ihre
+        Regeln sind die Voreinstellung (D-779). Jede Art rechnet erst,
         wenn der zugehörige Parameter im Vertrag hinterlegt ist — bis dahin
         weist die Abrechnung mit benanntem Grund ab und rät nichts.
       </p>
@@ -92,7 +92,7 @@ export default async function Abrechnungsarten(
               {art.istProvisorisch ? (
                 <span className="flex items-center gap-s2">
                   <StatusPill zustand="Entwurf" />
-                  <span className="text-xs text-warning">provisorisch (O-04)</span>
+                  <span className="text-xs text-warning">Voreinstellung (O-04)</span>
                 </span>
               ) : null}
             </div>

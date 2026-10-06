@@ -52,7 +52,8 @@ export class SollstundenOffenFehler extends Error {
   constructor(eingabe: SollstundenEingabe) {
     super(
       `Die Sollzeit fuer ${String(eingabe.jahr)}-${String(eingabe.monat).padStart(2, '0')} `
-      + 'ist nicht hinterlegt (O-18).',
+      + 'ist nicht hinterlegt (O-18) — die Sollzeitregel der Voreinstellung (40 h in 5 Tagen) '
+      + 'ist noch nicht gebaut (V-289).',
     );
     this.name = 'SollstundenOffenFehler';
   }

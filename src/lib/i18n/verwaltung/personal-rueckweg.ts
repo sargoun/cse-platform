@@ -270,8 +270,9 @@ NurDeutsch<PersonalRueckwegTexte<ZusammenfuehrenSeitenGrund>> = {
       /* Die Abweisungen der Datenbank (0194), als Satz statt als 500 (D-771 Nachtrag). */
       nicht_beide_hier:
         'Beide Datensätze müssen in dieser Gesellschaft beschäftigt sein. Liegt die zweite '
-        + 'Beschäftigung bei einer Schwestergesellschaft, ist die Zusammenführung offen '
-        + '(O-611) — sie entschiede über einen Menschen, den diese Gesellschaft nicht führt.',
+        + 'Beschäftigung bei einer Schwestergesellschaft, bleiben es zwei Datensätze '
+        + '(Voreinstellung O-611): zusammenführen darf nur eine Gesellschaft, die beide '
+        + 'Beschäftigungen führt — sie entschiede sonst über einen Menschen, den sie nicht führt.',
       bereits_zusammengefuehrt:
         'Der veraltete Datensatz ist inzwischen schon zusammengeführt — eine Zusammenführung '
         + 'wird nicht überschrieben (Invariante 8). Die Seite zeigt den aktuellen Stand.',

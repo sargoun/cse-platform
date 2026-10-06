@@ -190,10 +190,17 @@ describe('(1) Ein genehmigter Antrag schreibt die Abwesenheit', () => {
   });
 
   it('eine Art mit ungeklärter Lohnfrage wird verweigert (O-139)', async () => {
-    // `fortbildung` wird hier bewusst NICHT beantwortet — so wird die
-    // Plattform ausgeliefert.
+    /*
+     * Seit `0491` tragen die sieben Plattformarten eine Voreinstellung
+     * (D-781); ungeklaert bleibt eine EIGENE Art der Gesellschaft, deren
+     * Lohnfrage niemand beantwortet hat — genau die darf keine Abwesenheit
+     * erzeugen.
+     */
     const [roh] = await sql.unsafe<{ id: string }[]>(
-      `select id from abwesenheitsart where schluessel = 'fortbildung' and mandant_id is null`);
+      `insert into abwesenheitsart (mandant_id, schluessel, bezeichnung, bezeichnung_i18n)
+       values ($1, 'sonderurlaub_test', 'Sonderurlaub (Lohnfrage offen)',
+               '{"de":"Sonderurlaub (Lohnfrage offen)"}'::jsonb)
+       returning id`, [f.reinigung]);
     const offen = roh!.id;
 
     await expect(alsRolle(chef, f.reinigung, (k) =>

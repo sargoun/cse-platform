@@ -155,12 +155,34 @@ describe('die beiden Sitzungen dieser Datei', () => {
 // ---------------------------------------------------------------------------
 
 describe('der Abwesenheitskatalog', () => {
-  it('liegt plattformweit vor, und bezahlt ist bei jeder Art ungeklärt (O-139)', async () => {
+  it('liegt plattformweit vor, und bezahlt trägt bei jeder Art die Voreinstellung (O-139, D-781)', async () => {
     const arten = await alsAdmin((k) => ladeAbwesenheitsarten(k));
     expect(arten).toHaveLength(7);
     expect(arten.every((a) => a.istPlattform)).toBe(true);
-    // NULL heisst ungeklaert und nicht „nein" — ohne Default, mit Absicht.
-    expect(arten.every((a) => a.bezahlt === null)).toBe(true);
+    /*
+     * `0491` beantwortet die Lohnfrage der sieben Plattformarten als
+     * Voreinstellung — keine Art steht mehr auf NULL. Die Spalte selbst hat
+     * weiter KEINEN Default: eine eigene Art ohne Antwort bleibt ungeklaert
+     * (siehe unten, „eine eigene Art entsteht").
+     */
+    expect(arten.every((a) => a.bezahlt !== null)).toBe(true);
+    const je = new Map(arten.map((a) => [a.schluessel, a]));
+    for (const s of ['urlaub', 'krankheit', 'fortbildung', 'freizeitausgleich']) {
+      expect(je.get(s)?.bezahlt, s).toBe(true);
+    }
+    for (const s of ['unbezahlt', 'kind_krank', 'sonstige']) {
+      expect(je.get(s)?.bezahlt, s).toBe(false);
+    }
+    expect(je.get('krankheit')?.nachweisPflichtAbTagen).toBe(4);
+    expect(je.get('kind_krank')?.nachweisPflichtAbTagen).toBe(1);
+    /* Die Lohnartenschlüssel gehen in den Export (ACC-12): die genaue Zuordnung, nicht nur „nicht leer". */
+    expect(Object.fromEntries(arten.map((a) => [a.schluessel, a.lohnartSchluessel]))).toEqual({
+      urlaub: 'URLAUB', krankheit: 'KRANK', kind_krank: 'KINDKRANK', unbezahlt: 'UNBEZAHLT',
+      fortbildung: 'FORTBILDUNG', freizeitausgleich: 'FZA', sonstige: 'SONSTIGE',
+    });
+    for (const s of ['urlaub', 'unbezahlt', 'fortbildung', 'freizeitausgleich', 'sonstige']) {
+      expect(je.get(s)?.nachweisPflichtAbTagen, s).toBeNull();
+    }
   });
 
   it('lässt sich vom Mandanten-Admin NICHT ändern', async () => {

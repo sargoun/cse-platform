@@ -216,8 +216,8 @@ const ABWESENHEIT_SPALTEN: readonly Spalte[] = [
   { name: 'von_halbtags', typ: 'text', text: 'ja/nein' },
   { name: 'bis_halbtags', typ: 'text', text: 'ja/nein' },
   { name: 'tage_angerechnet', typ: 'text', text: 'Angerechnete Tage' },
-  { name: 'bezahlt', typ: 'text', text: 'ja, nein oder unklar (O-139)' },
-  { name: 'lohnart', typ: 'text', text: 'Lohnartenschlüssel (leer: O-139)' },
+  { name: 'bezahlt', typ: 'text', text: 'ja, nein oder unklar (Voreinstellung je Art, O-139)' },
+  { name: 'lohnart', typ: 'text', text: 'Lohnartenschlüssel (Starttabelle, O-139)' },
   { name: 'status', typ: 'text', text: 'genehmigt oder erfasst' },
   { name: 'gesundheitsbezogen', typ: 'text', text: 'ja/nein' },
 ];
@@ -330,7 +330,7 @@ function liesmichText(e: Lohnexport): string {
     `Lohnexport — ${e.firma} — Monat ${e.monat} (${e.von} bis ${e.bis})`,
     '',
     'FORMAT',
-    `  ${e.format.bezeichnung}${e.format.istPlatzhalter ? ' — PLATZHALTER: das Lohnsystem und sein Importformat sind nicht festgelegt (O-27).' : ''}`,
+    `  ${e.format.bezeichnung}${e.format.istPlatzhalter ? ' — VOREINSTELLUNG generische CSV: das Lohnsystem und sein Importformat trägt der Betreiber ein (O-27).' : ''}`,
     `  Zielsystem: ${e.format.zielsystem ?? 'nicht festgelegt — nicht verbunden'}`,
     '  CSV: Trennzeichen ";", Textfelder in Anführungszeichen, Zeilenende CRLF, erste Zeile Spaltennamen, UTF-8.',
     '  Minuten sind ganze Zahlen; Dezimalstunden sind kaufmännisch auf zwei Stellen gerundet und stehen daneben.',
@@ -475,7 +475,7 @@ export async function erstelleLohnexport(
   };
   const hinweise: string[] = [];
   if (format.istPlatzhalter) {
-    hinweise.push('Das Format ist ein Platzhalter; bis das Lohnsystem feststeht (O-27), ist dieser Export nicht mit ihm abgestimmt.');
+    hinweise.push('Das Format ist die Voreinstellung (generische CSV); bis der Betreiber das Lohnsystem einträgt (O-27), ist dieser Export nicht mit ihm abgestimmt.');
   }
   if (zahlen.vorlaeufig > 0) {
     hinweise.push(`${String(zahlen.vorlaeufig)} Konto/Konten sind nicht gesperrt — ihre Zahlen sind vorläufig, bis der Monat abgeschlossen ist.`);
@@ -484,7 +484,7 @@ export async function erstelleLohnexport(
     hinweise.push(`${String(zahlen.unfreigegeben)} Zeiteintrag/-einträge sind nicht freigegeben und deshalb nicht im Konto gebucht.`);
   }
   if (zahlen.abwesenheitenOhneLohnart > 0 || zahlen.abwesenheitenBezahltUnklar > 0) {
-    hinweise.push('Abwesenheitsarten ohne Lohnart oder ohne bezahlt/unbezahlt stehen so drin (leer, „unklar") — die Zuordnung ist offen (O-139), nicht geraten.');
+    hinweise.push('Abwesenheitsarten ohne Lohnart oder ohne bezahlt/unbezahlt stehen so drin (leer, „unklar") — die Plattformarten tragen die Voreinstellung (O-139), eigene Arten ordnet die Buchhaltung ein.');
   }
   if (zeilen.length === 0) hinweise.push('Keine Beschäftigung mit Eintritt vor Monatsende und ohne Austritt vor Monatsbeginn.');
 

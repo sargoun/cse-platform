@@ -236,8 +236,8 @@ export default async function Abwesenheitsblatt({
         <p className="mb-0 mt-s4 text-xs text-text-subtle">
           Alle Zeitpunkte in Europe/Berlin; gespeichert sind sie UTC
           (Invariante 2). Die angerechneten Tage rechnet ein getesteter Dienst
-          ohne Wochenenden und Berliner Feiertage — welche Wochentage als
-          Arbeitstage gelten, ist noch nicht entschieden (O-18).
+          ohne Wochenenden und Berliner Feiertage — Voreinstellung (O-18): Montag bis
+          Freitag sind Arbeitstage.
         </p>
       </section>
 
@@ -252,7 +252,8 @@ export default async function Abwesenheitsblatt({
       ) : konto === null ? (
         <p data-cse="urlaub-keines" className="mb-s6 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Für {zeile.von.slice(0, 4)} ist kein Urlaubsanspruch hinterlegt. Ein
-          Urlaubsantrag wird ohne ihn nicht genehmigt (O-18) — sonst stünde der
+          Urlaubsantrag wird ohne ihn nicht genehmigt (O-18; Voreinstellung der Gruppe:
+          30 Tage bei Vollzeit) — sonst stünde der
           Resturlaub im Minus, ohne dass jemand das entschieden hätte.
         </p>
       ) : (

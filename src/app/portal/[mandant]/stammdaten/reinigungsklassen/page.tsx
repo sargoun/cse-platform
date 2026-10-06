@@ -101,9 +101,10 @@ export default async function Reinigungsklassen(
         {offen === 0
           ? 'Jede laufende Klasse ist bestätigt.'
           : `${String(offen)} von ${String(laufend.length)} laufenden Klassen sind `
-            + 'unbestätigt (O-55): welche Reinigungsklassen verwendet die Gruppe — '
-            + 'DIN 77400, ein eigenes Schema oder eine Liste je Kunde? Und steuern sie '
-            + 'Frequenz, Preis, beides oder nichts?'}
+            + 'Voreinstellung (O-55): ein eigenes Schema als Katalog — RK1 Büro und '
+            + 'Besprechung, RK2 Verkehrsfläche, RK3 Sanitär, RK4 Technik und Lager; die Klasse '
+            + 'beschreibt den Raum und steuert heute weder Frequenz noch Preis. Die '
+            + 'Bereichsleitung bestätigt sie hier.'}
         {' '}Heute steuern sie nichts davon: sie beschreiben, was zu tun ist.
       </p>
 
@@ -187,7 +188,7 @@ export default async function Reinigungsklassen(
                       ? (
                         <span className="flex items-center gap-s2">
                           <StatusPill zustand="Entwurf" />
-                          <span className="text-xs text-warning">unbestätigt (O-55)</span>
+                          <span className="text-xs text-warning">Voreinstellung (O-55)</span>
                         </span>
                       )
                       : <StatusPill zustand="Aktiv" />),
