@@ -33,8 +33,9 @@ export const FEIERTAG_TEXTE: Readonly<Record<InternSprache, FeiertagTexte>> = {
       `Für ${bundesland} ${liste(jahre, 'und')} steht kein Feiertag im Kalender. Die `
       + 'Vorschau und der Dienstplan kennen dort keinen Feiertag — ein Turnus, der an '
       + 'Feiertagen ausfällt, fiele dort nicht aus. Die Berliner Feiertage trägt der '
-      + 'nächtliche Kalenderlauf ein; andere Bundesländer rechnet die Plattform noch '
-      + 'nicht (O-167).',
+      + 'nächtliche Kalenderlauf ein; Voreinstellung (O-167): Berlin für alle Objekte, '
+      + 'Brandenburg für Objekte dort folgt mit dem Land am Objekt — andere Bundesländer '
+      + 'rechnet die Plattform noch nicht.',
   },
   en: {
     kalenderFehltTitel: 'Holiday calendar not maintained',
@@ -42,7 +43,8 @@ export const FEIERTAG_TEXTE: Readonly<Record<InternSprache, FeiertagTexte>> = {
       `No public holiday is recorded for ${bundesland} ${liste(jahre, 'and')}. The `
       + 'preview and the Dienstplan know no holiday there — a Turnus that is skipped on '
       + 'public holidays would not be skipped. The nightly calendar run records the '
-      + 'Berlin holidays; the platform does not yet compute other federal states '
-      + '(O-167).',
+      + 'Berlin holidays; default (O-167): Berlin for all sites, Brandenburg for sites '
+      + 'there follows with the state on the site — the platform does not yet compute '
+      + 'other federal states.',
   },
 };

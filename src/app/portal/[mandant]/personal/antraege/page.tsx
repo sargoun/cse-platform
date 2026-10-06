@@ -148,8 +148,7 @@ export default async function Antragseingang(
       <p className="mt-s5 max-w-prose text-sm text-text-muted">
         Eine Genehmigung schreibt die Abwesenheit, rechnet die Arbeitstage ohne
         Wochenenden und Berliner Feiertage und bucht sie auf das Urlaubskonto
-        des Jahres. Welche Wochentage als Arbeitstage gelten, ist noch nicht
-        entschieden — ausgeliefert ist Montag bis Freitag (O-18).
+        des Jahres. Arbeitstage sind in der Voreinstellung Montag bis Freitag (O-18).
       </p>
       {/* Rechtegeprueft (AUT-06): ohne `stammdaten.verwalten` fuehrte der
         * Verweis auf 404. Welche Felder ein Antrag verlangt und ob seine

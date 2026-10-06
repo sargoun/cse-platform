@@ -22,12 +22,13 @@ import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
  * jede Krankmeldung und jeder Urlaubsantrag beruft (EMP-05, EMP-10, K-17,
  * O-139; SEITENKARTE §5.13).
  *
- * **Diese Seite ist der Ort, an dem O-139 beantwortet wird.** Sieben Arten
- * stehen im Bestand, und bei allen sieben ist `bezahlt` NULL — ungeklaert, mit
- * Absicht und ohne Default (0073). Der Abwesenheitsdienst weist die Verwendung
- * einer ungeklaerten Art ab (`ArtUngeklaertFehler`); bis die Frage beantwortet
- * ist, kann also niemand Urlaub melden. Deshalb steht die Frage VOR der Liste
- * und nicht als Fussnote.
+ * **Diese Seite ist der Ort, an dem O-139 gepflegt wird.** Sieben Arten
+ * stehen im Bestand; seit `0491` tragen sie eine Voreinstellung fuer
+ * `bezahlt`, Lohnart und Nachweis (D-781) — die Spalte selbst hat weiter
+ * keinen Default (0073), eine eigene Art ohne Antwort bleibt ungeklaert. Der
+ * Abwesenheitsdienst weist die Verwendung einer ungeklaerten Art ab
+ * (`ArtUngeklaertFehler`); deshalb steht der Stand VOR der Liste und nicht
+ * als Fussnote.
  *
  * **„bezahlt" hat drei Zustaende, nie zwei.** Ja, nein, ungeklaert. Eine
  * Oberflaeche mit Haekchen haette zwei, und das fehlende Haekchen hiesse
@@ -121,9 +122,9 @@ export default async function Abwesenheitsarten(
       <p data-cse="arten-offen" data-offen={String(offen)}
          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
         {offen === 0
-          ? 'Für jede laufende Art ist beantwortet, ob sie bezahlt ist (O-139).'
-          : `Bei ${String(offen)} laufenden Art(en) ist ungeklärt, ob sie bezahlt `
-            + 'sind (O-139). „Ungeklärt" ist nicht „nein": solange die Angabe fehlt, '
+          ? 'Für jede laufende Art ist hinterlegt, ob sie bezahlt ist — die Plattformarten als Voreinstellung (O-139).'
+          : `Bei ${String(offen)} laufenden Art(en) ist nicht eingeordnet, ob sie bezahlt `
+            + 'sind (O-139). „Nicht eingeordnet" ist nicht „nein": solange die Angabe fehlt, '
             + 'weist die Abwesenheitsmeldung diese Art mit benanntem Grund ab und '
             + 'rät nichts. Zur Antwort gehören ausserdem der Nachweis ab Tag N und '
             + 'der Lohnartenschlüssel je Art (ACC-12).'}
@@ -182,7 +183,7 @@ export default async function Abwesenheitsarten(
                     ? (
                       <span className="flex items-center gap-s2" data-cse="art-bezahlt" data-wert="offen">
                         <StatusPill zustand="Offen" />
-                        <span className="text-xs text-warning">ungeklärt (O-139)</span>
+                        <span className="text-xs text-warning">nicht eingeordnet (O-139)</span>
                       </span>
                     )
                     : (
@@ -207,13 +208,13 @@ export default async function Abwesenheitsarten(
                 {
                   schluessel: 'nachweis', kopf: 'Nachweis ab Tag', numerisch: true,
                   zelle: (a) => (a.nachweisPflichtAbTagen === null
-                    ? <span className="text-xs text-warning">offen (O-139)</span>
+                    ? <span className="text-xs text-text-subtle">keiner (O-139)</span>
                     : String(a.nachweisPflichtAbTagen)),
                 },
                 {
                   schluessel: 'lohnart', kopf: 'Lohnart',
                   zelle: (a) => (a.lohnartSchluessel === null
-                    ? <span className="text-xs text-warning">offen (O-139)</span>
+                    ? <span className="text-xs text-warning">nicht hinterlegt (O-139)</span>
                     : <code className="text-xs text-text">{a.lohnartSchluessel}</code>),
                 },
                 {
@@ -276,7 +277,7 @@ export default async function Abwesenheitsarten(
                                   defaultValue={a.bezahlt === null ? 'offen' : a.bezahlt ? 'ja' : 'nein'}>
                             <option value="ja">ja</option>
                             <option value="nein">nein</option>
-                            <option value="offen">ungeklärt (O-139)</option>
+                            <option value="offen">nicht eingeordnet (O-139)</option>
                           </select>
                           <label className="flex items-center gap-s2 text-xs text-text">
                             <input type="checkbox" name="zaehltAufUrlaubskonto" value="ja"
@@ -383,7 +384,7 @@ export default async function Abwesenheitsarten(
           <select id="neu-bezahlt" name="bezahlt" required className={feld} defaultValue="offen">
             <option value="ja">ja</option>
             <option value="nein">nein</option>
-            <option value="offen">ungeklärt (O-139)</option>
+            <option value="offen">nicht eingeordnet (O-139)</option>
           </select>
 
           <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">

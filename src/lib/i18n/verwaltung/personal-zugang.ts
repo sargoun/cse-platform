@@ -197,8 +197,8 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
     aendernWarnung:
       'Wer die Nummer hat, bekommt den Code — eine Änderung ist fachlich eine Übergabe '
       + 'des Kontos. Sie steht mit alter und neuer Nummer im Protokoll (AUT-08). Ob '
-      + 'dafür ein zweites Augenpaar verlangt wird, ist nicht entschieden (O-86) und '
-      + 'wird hier nicht erfunden. Ein bereits ausgestellter Code bleibt bis zu seinem '
+      + 'dafür ein zweites Augenpaar verlangt wird: Voreinstellung (O-86) nein — das '
+      + 'Protokoll genügt. Ein bereits ausgestellter Code bleibt bis zu seinem '
       + 'Ablauf gültig — auch für die neue Nummer.',
     aendern: 'Nummer ändern',
 
@@ -351,8 +351,8 @@ export const ZUGANG_TEXTE: Readonly<Record<InternSprache, ZugangTexte>> = {
     aendernWarnung:
       'Whoever holds the number receives the code — changing it is, in substance, '
       + 'handing over the account. It is recorded with the old and the new number '
-      + '(AUT-08). Whether a second pair of eyes is required for this is not decided '
-      + '(O-86) and is not invented here. A code already issued stays valid until it '
+      + '(AUT-08). Whether a second pair of eyes is required for this: default (O-86) '
+      + 'no — the log suffices. A code already issued stays valid until it '
       + 'expires — for the new number too.',
     aendern: 'Change number',
 

@@ -133,7 +133,7 @@ export class UrlaubskontoFehlt extends Error {
   readonly grund = 'urlaubskonto_fehlt';
   constructor(jahr: number) {
     super(
-      `Für ${String(jahr)} ist kein Urlaubsanspruch hinterlegt (O-18). `
+      `Für ${String(jahr)} ist kein Urlaubsanspruch hinterlegt (O-18; Voreinstellung der Gruppe: 30 Tage bei Vollzeit). `
       + 'Er wird eingetragen, bevor Urlaub genehmigt wird — sonst stünde der '
       + 'Resturlaub im Minus, ohne dass jemand das entschieden hätte.',
     );

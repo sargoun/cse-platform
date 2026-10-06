@@ -75,7 +75,8 @@ export class UrlaubsanspruchOffenFehler extends Error {
   readonly code = 'nicht_konfiguriert';
   readonly status = 409;
   constructor(jahr: number) {
-    super(`Der Urlaubsanspruch fuer ${String(jahr)} ist nicht hinterlegt (O-18).`);
+    super(`Der Urlaubsanspruch fuer ${String(jahr)} ist nicht hinterlegt (O-18; Voreinstellung `
+      + 'der Gruppe: 30 Tage bei Vollzeit, anteilig bei Teilzeit — eintragen unter Urlaubskonten).');
     this.name = 'UrlaubsanspruchOffenFehler';
   }
 }

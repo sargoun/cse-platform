@@ -1255,11 +1255,11 @@ async function main(): Promise<void> {
    * laufende. Damit laeuft der Anzeigepfad fuer die Ablösung — und nicht nur
    * der Leerzustand.
    *
-   * **Beide sind PLATZHALTER** (`ist_platzhalter = true`, `sollzeitregel =
-   * 'offen'`). O-18 ist unbeantwortet: wie viele Arbeitstage die Woche hat,
-   * ob ein Feiertag Sollzeit senkt, wie das Konto rechnet. Eine bestaetigte
-   * Demozeile behauptete, die Frage sei beantwortet — und die Sollzeitregel
-   * antwortet weiterhin `null`, wie sie soll.
+   * **Beide sind VOREINSTELLUNGEN** (`ist_platzhalter = true`, `sollzeitregel =
+   * 'offen'`): Vollzeit 40 Stunden in 5 Tagen (D-781, O-18). Die Sollzeitregel
+   * „Wochenstunden ÷ 5 × Arbeitstage, Feiertage senken das Soll" ist noch nicht
+   * gebaut (V-289) — das Konto fuehrt bis dahin die erfasste Zeit ohne Soll,
+   * und die Seite sagt es.
    *
    * Die Vorfassung beginnt 2020: genau der Altbestand, den
    * `/einstellungen/import` uebernimmt — und der Grund, warum es hier keine
@@ -1270,10 +1270,10 @@ async function main(): Promise<void> {
       insert into arbeitszeitmodell
         (mandant_id, schluessel, bezeichnung, wochenstunden, arbeitstage_woche,
          ist_platzhalter, gueltig_ab, gueltig_bis)
-      values (${ids.get(b.slug)!}, 'vollzeit', 'Vollzeit (Platzhalter, O-18)',
-              39.000, 5.000, true, '2020-01-01', '2024-12-31'),
-             (${ids.get(b.slug)!}, 'vollzeit', 'Vollzeit (Platzhalter, O-18)',
-              39.000, 5.000, true, '2025-01-01', null)
+      values (${ids.get(b.slug)!}, 'vollzeit', 'Vollzeit (Voreinstellung, O-18)',
+              40.000, 5.000, true, '2020-01-01', '2024-12-31'),
+             (${ids.get(b.slug)!}, 'vollzeit', 'Vollzeit (Voreinstellung, O-18)',
+              40.000, 5.000, true, '2025-01-01', null)
       on conflict do nothing`;
   }
 
@@ -1297,7 +1297,7 @@ async function main(): Promise<void> {
     on conflict do nothing`;
   process.stdout.write(
     `  ${String(BEREICHE.length * 2)} Arbeitszeitmodell-Fassungen (je Bereich eine `
-    + 'abgeloeste und eine laufende, beide PLATZHALTER — O-18) und 1 Tarifregel '
+    + 'abgeloeste und eine laufende, Voreinstellung 40 h in 5 Tagen — O-18, D-781) und 1 Tarifregel '
     + 'fuer reinigung, strenger als das Gesetz (O-50)\n',
   );
 

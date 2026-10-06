@@ -388,8 +388,9 @@ export default async function MeinLeistungsnachweis(
                   {/*
                     Die Nummer steht im Abzug und geht ueber `baueSchnappschuss`
                     in die Pruefsumme, die der Kunde unterschreibt. Fehlt sie,
-                    SAGT die Seite es — ob Leistungsnachweise ueberhaupt
-                    fortlaufend nummeriert werden, ist offen (O-147).
+                    SAGT die Seite es — Voreinstellung (O-147): Leistungsnachweise
+            werden je Gesellschaft fortlaufend nummeriert, die Nummer entsteht bei der Vorlage,
+            sofern der Nummernkreis freigegeben ist.
                   */}
                   <Feld label={t.nummer}>
                     {vorschau.kopf.nummer ?? '—'}

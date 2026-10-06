@@ -410,7 +410,7 @@ export default async function GruppenKalender({ searchParams }: {
             <h2 id="personenfilter"
                 className="mb-s2 text-micro uppercase tracking-[0.08em] text-text-subtle">
               Person <span className="normal-case tracking-normal text-text-subtle">
-                · Regel offen (O-872)
+                · Voreinstellung: beide Leserechte (O-872)
               </span>
             </h2>
             <div className="flex flex-wrap gap-s2">

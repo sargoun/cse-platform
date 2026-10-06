@@ -104,9 +104,10 @@ export default async function Antragsarten(
 
       <p data-cse="antragsarten-offen" data-pflegbar={String(pflegbare)}
          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-        Unbeantwortete Frage: welche weiteren Antragsarten führt die Gruppe —
-        unbezahlte Freistellung, Freizeitausgleich, Schichtabgabe,
-        Stammdatenänderung (O-142)? Die drei vorhandenen Arten stammen aus der
+        Voreinstellung (O-142): die drei Systemarten genügen — jede Abwesenheit (Urlaub,
+        unbezahlte Freistellung, Freizeitausgleich) läuft über den Abwesenheitsantrag mit
+        gewählter Art; Schichtabgabe und Stammdatenänderung legt die Gesellschaft hier als
+        eigene Art an, deren Genehmigung protokolliert (O-616). Die drei Systemarten stammen aus der
         Leistungsbeschreibung (EMP-10) und sind Systemzeilen; geändert werden sie
         nicht.
         {pflegbare === 0

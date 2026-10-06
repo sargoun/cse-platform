@@ -309,7 +309,8 @@ export default async function Antragsblatt({
         <Hinweis art="warnung" cse="antrag-konto-fehlt" className="mb-s5 max-w-prose">
           <strong>Eine Genehmigung würde jetzt abbrechen.</strong> Für{' '}
           {antrag.vonDatum?.slice(0, 4) ?? 'dieses Jahr'} ist kein offener
-          Urlaubsanspruch hinterlegt (O-18). Er wird eingetragen, bevor Urlaub
+          Urlaubsanspruch hinterlegt (O-18; Voreinstellung der Gruppe: 30 Tage bei
+            Vollzeit). Er wird eingetragen, bevor Urlaub
           genehmigt wird — sonst stünde der Resturlaub im Minus, ohne dass
           jemand das entschieden hätte.
         </Hinweis>
@@ -326,9 +327,8 @@ export default async function Antragsblatt({
           Besetzen (05-API-KARTE §C.8). Der Antragsteller läse „genehmigt" und
           käme nicht zur Schicht.
           <span className="mt-s2 block text-xs">
-            Offen (O-613): ob eine Tauschgenehmigung die Umbesetzung selbst
-            ausführen soll oder nur freigibt, und wer das
-            Qualifikationstor verantwortet.
+            Voreinstellung (O-613): die Tauschgenehmigung gibt frei, die Einsatzleitung
+              führt die Umbesetzung im Dienstplan aus und verantwortet das Qualifikationstor.
             {/* TODO(client, O-613): Soll die Genehmigung eines Tauschantrags die Umbesetzung im Dienstplan selbst ausfuehren (mit SEC-04-Qualifikationstor) oder nur die Freigabe erteilen, die eine Planerin dann umsetzt? */}
           </span>
         </Hinweis>
@@ -342,9 +342,9 @@ export default async function Antragsblatt({
           nichts und rechnete nichts. Einen Knopf dafür zu zeigen hiesse, eine
           Wirkung zu versprechen, die es nicht gibt.
           <span className="mt-s2 block text-xs">
-            Offen (O-616): was die Genehmigung der Antragsarten leisten soll,
-            die der Kunde nach K-17 selbst anlegt — Stammdatenänderung,
-            Schichtabgabe, unbezahlte Freistellung.
+            Voreinstellung (O-616): die Genehmigung einer kundeneigenen Antragsart
+              (Stammdatenänderung, Schichtabgabe, unbezahlte Freistellung) protokolliert
+              die Entscheidung; die Umsetzung macht die Verwaltung von Hand.
             {/* TODO(client, O-616): Was soll die Genehmigung einer kundeneigenen Antragsart bewirken, die keine Abwesenheit erzeugt — Stammdatenaenderung, Schichtabgabe, unbezahlte Freistellung (K-17, O-142)? */}
           </span>
         </Hinweis>

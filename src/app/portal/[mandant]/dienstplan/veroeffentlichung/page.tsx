@@ -204,7 +204,7 @@ export default async function Veroeffentlichung(
         </label>
         <label>
           <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">
-            Zeitraumart — offen (O-710)
+            Zeitraumart — Voreinstellung Kalenderwoche (O-710)
           </span>
           <select
             name="umfang"
@@ -228,10 +228,9 @@ export default async function Veroeffentlichung(
             Zeitraum.
           </strong>{' '}
           Eine Sperre ist keine Warnung — sie ist eine Einteilung, die so nicht
-          stattfinden darf (§ 34a GewO, SEC-04). Ob sie die Veröffentlichung
-          aufhält, ist <strong>offen (O-712)</strong> und wird hier nicht
-          entschieden; dass Sie trotz Sperre veröffentlicht haben, steht danach im
-          Beleg.{' '}
+          stattfinden darf (§ 34a GewO, SEC-04). Voreinstellung (O-712): sie hält die
+          Veröffentlichung nicht auf; dass Sie trotz Sperre veröffentlicht haben, steht
+          danach im Beleg.{' '}
           {/*
             * Der Konflikteingang verlangt zusaetzlich `dienstplan.arbzg_lesen`
             * (Routenregister, §5.10): er zeigt Ruhezeiten und Hoechstarbeitszeiten,
@@ -497,24 +496,22 @@ export default async function Veroeffentlichung(
         </p>
         <ul className="m-0 list-disc pl-s5 text-sm text-warning">
           <li>
-            <strong>offen (O-710)</strong> — welcher Zeitraum wird
-            veröffentlicht: Woche, Monat, freies Fenster? Heute: die kommende
-            Woche als Vorgabe, jedes Fenster wählbar.
+            <strong>Voreinstellung (O-710)</strong> — veröffentlicht wird die
+              kommende Kalenderwoche; jedes andere Fenster bleibt wählbar.
           </li>
           <li>
-            <strong>offen (O-711)</strong> — wer wird benachrichtigt: jede
-            eingeteilte Person, oder auch Personen mit gestrichener Schicht?
-            Heute: wer im Fenster eine lebende Einteilung hat, ohne Absagen.
+            <strong>Voreinstellung (O-711)</strong> — benachrichtigt wird, wer im
+              Fenster eine lebende Einteilung hat; gestrichene Schichten melden die
+              Einsatzleitung persönlich.
           </li>
           <li>
-            <strong>offen (O-712)</strong> — was bedeutet eine Änderung nach der
-            Bekanntgabe: neue Meldung, Sperre, gar nichts? Heute: nichts von
-            selbst; eine zweite Bekanntgabe ist eine zweite Zeile.
+            <strong>Voreinstellung (O-712)</strong> — eine Änderung nach der Bekanntgabe
+              löst nichts von selbst aus; eine zweite Bekanntgabe ist eine zweite Zeile.
           </li>
           <li>
-            <strong>offen (O-713)</strong> — ist eine veröffentlichte Schicht
-            gegen stille Änderung geschützt? Heute: nein, und zwar nicht aus
-            Versehen — eine Sperre würde die Disposition am Einsatztag stehen
+            <strong>Voreinstellung (O-713)</strong> — eine veröffentlichte Schicht ist
+              nicht gegen Änderung gesperrt, und zwar mit Absicht — eine Sperre würde
+              die Disposition am Einsatztag stehen
             lassen.
           </li>
         </ul>

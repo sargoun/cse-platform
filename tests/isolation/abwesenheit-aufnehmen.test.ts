@@ -50,10 +50,10 @@ beforeAll(async () => {
   /*
    * **Die Art muss `bezahlt` gesetzt haben, sonst weist `pruefeArt` sie ab**
    * — und zwar zu Recht (O-139): ob eine Abwesenheit bezahlt ist, ist eine
-   * Lohnregel, die niemand erfinden darf. Der Katalog aus `0073` traegt bei
-   * allen sieben Arten `bezahlt = null`; die Fixtur beantwortet die Frage
-   * fuer GENAU EINE, damit der Test den Weg messen kann statt die offene
-   * Frage.
+   * Lohnregel, die niemand erfinden darf. Seit `0491` tragen die sieben
+   * Plattformarten eine Voreinstellung (D-781); die Fixtur stellt die Antwort
+   * fuer GENAU EINE trotzdem sicher, damit der Test den Weg misst und nicht
+   * den Stand der Migration.
    */
   const [a] = await alsRolle('', (tx) => tx.unsafe(
     `update abwesenheitsart set bezahlt = true

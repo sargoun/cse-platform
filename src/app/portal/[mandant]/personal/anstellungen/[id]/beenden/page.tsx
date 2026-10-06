@@ -326,9 +326,9 @@ export default async function Beendenblatt({
                 Pflicht und in Worten. Eine Beendigung ohne Begründung ist kein
                 Vorgang, sondern ein Klick; der Grund steht danach in der
                 Personalakte und im Protokoll.{' '}
-                <strong className="text-text">Offen (O-612):</strong> welche
-                Beendigungsgründe die Gruppe als feste Liste führen will — bis
-                dahin freier Text, keine erfundene Auswahl.
+                <strong className="text-text">Voreinstellung (O-612):</strong> Eigenkündigung,
+            Kündigung durch den Arbeitgeber, Befristungsablauf, Aufhebungsvertrag,
+            Rente, Tod — als freier Text, bis das Lohnsystem seine Codes nennt.
                 {/* TODO(client, O-612): Welche Beendigungsgruende fuehrt die Gruppe als Auswahlliste (Eigenkuendigung, Kuendigung Arbeitgeber, Befristung, Aufhebungsvertrag, Rente …), und muessen sie den Codes des Lohnsystems fuer die Abmeldung entsprechen? */}
               </span>
             </label>

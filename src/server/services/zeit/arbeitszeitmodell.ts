@@ -321,7 +321,8 @@ export async function setzeArbeitszeitmodell(
     throw new ArbeitszeitFehler('ungueltig',
       `„${e.uebertragArt}" ist keine Übertragsregel. Erlaubt ist derzeit nur `
       + `„${UEBERTRAG_ARTEN.join('", „')}" — was am Monatsende mit einem Saldo `
-      + 'geschieht, ist offen (O-18), und eine geratene Regel löscht Überstunden.');
+      + 'geschieht, bleibt in der Voreinstellung so: der Saldo wird weder übertragen noch '
+      + 'verfallen gelassen (O-18) — eine geratene Verfallsregel löschte Überstunden.');
   }
 
   try {

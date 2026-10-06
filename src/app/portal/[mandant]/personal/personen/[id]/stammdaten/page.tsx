@@ -279,10 +279,9 @@ export default async function Stammdatenblatt({
       )}
 
       <p className="max-w-prose text-sm text-text-muted">
-        <strong className="text-text">Offen (O-43):</strong> Wenn zwei
-        Gesellschaften der Gruppe denselben Menschen beschäftigen, darf dann
-        jede von ihnen seine Stammdaten pflegen? Ausgeliefert ist die heutige
-        Annahme: ja, solange die Beschäftigung in der eigenen Gesellschaft
+        <strong className="text-text">Voreinstellung (O-43):</strong> Wenn zwei
+        Gesellschaften der Gruppe denselben Menschen beschäftigen, pflegt jede von ihnen
+        seine Stammdaten, solange die Beschäftigung in der eigenen Gesellschaft
         besteht — ein Mensch gehört keiner einzelnen Gesellschaft (D-09), und er ist
         nur einmal im System. Jede Änderung steht mit dem Konto im Protokoll.
       </p>

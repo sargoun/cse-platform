@@ -339,10 +339,9 @@ export default async function Zeitliste({
       {filter.merkmal === 'offen_nacherfassung' ? (
         <p data-cse="merkmal-ohne-erzeuger"
            className="mb-s4 max-w-prose rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text">
-          <strong>Diesen Zustand erzeugt heute nichts.</strong> Ob eine von der
-          Verwaltung gesetzte Zeit gegengezeichnet werden muss, bevor sie abrechenbar
-          ist, ist offen (O-890) — bis zur Antwort schliesst die Verwaltung nach
-          „Abgeschlossen", und die gesetzte Zeit bleibt als solche erkennbar. Wer
+          <strong>Diesen Zustand erzeugt heute nichts.</strong> Voreinstellung (O-890): eine von der
+          Verwaltung gesetzte Zeit braucht keine Gegenzeichnung — die Verwaltung schliesst
+          nach „Abgeschlossen", und die gesetzte Zeit bleibt als solche erkennbar. Wer
           nachgetragene Einträge sucht, filtert nach{' '}
           <strong>{MERKMAL_TEXT['nacherfasst']}</strong>.
         </p>

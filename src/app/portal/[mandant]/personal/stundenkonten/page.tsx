@@ -256,9 +256,9 @@ export default async function Stundenkonten({
             ? 'Für ein Konto ist keine Sollzeit hinterlegt'
             : `Für ${String(ohneSoll)} Konten ist keine Sollzeit hinterlegt`}
           {' '}
-          (O-18): wie viele Stunden ein Monat schuldet, hängt an Arbeitszeitmodell,
-          Feiertagsbehandlung und Ausgleichszeitraum — vier Fragen, die niemand
-          beantwortet hat. Solange sie offen sind, zeigt diese Seite die erfasste
+          (O-18): Voreinstellung ist Vollzeit 40 Stunden in 5 Tagen, Feiertage senken das
+        Soll, Ausgleich im Kalendermonat — die Sollzeitregel dazu ist noch nicht gebaut
+        (V-289). Bis dahin zeigt diese Seite die erfasste
           Zeit und keinen Saldo.
         </p>
       )}

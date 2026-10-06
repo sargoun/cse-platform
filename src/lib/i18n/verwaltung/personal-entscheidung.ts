@@ -51,7 +51,7 @@ Readonly<Record<InternSprache, EntscheidungFehlerTexte>> = {
       grund_fehlt: 'Ablehnen und Stornieren brauchen einen Grund. Bitte tragen Sie ihn ein.',
       kommentar_fehlt: 'Eine Ablehnung braucht einen Kommentar. Bitte tragen Sie ihn ein.',
       urlaubskonto_fehlt:
-        'Für das Jahr dieses Urlaubs ist kein Urlaubsanspruch hinterlegt (O-18). Er wird '
+        'Für das Jahr dieses Urlaubs ist kein Urlaubsanspruch hinterlegt (O-18; Voreinstellung 30 Tage bei Vollzeit). Er wird '
         + 'eingetragen, bevor Urlaub genehmigt wird — sonst stünde der Resturlaub im Minus, '
         + 'ohne dass jemand das entschieden hätte.',
       art_ungeklaert:
@@ -72,7 +72,7 @@ Readonly<Record<InternSprache, EntscheidungFehlerTexte>> = {
       grund_fehlt: 'Declining and cancelling need a reason. Please enter one.',
       kommentar_fehlt: 'A refusal needs a comment. Please enter one.',
       urlaubskonto_fehlt:
-        'No leave entitlement is recorded for the year of this leave (O-18). It is entered '
+        'No leave entitlement is recorded for the year of this leave (O-18; default 30 days for full time). It is entered '
         + 'before leave is approved — otherwise the remaining leave would go negative without '
         + 'anyone having decided so.',
       art_ungeklaert:

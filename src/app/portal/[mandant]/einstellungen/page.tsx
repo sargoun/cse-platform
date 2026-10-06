@@ -115,7 +115,7 @@ const KARTEN: readonly Karte[] = [
       + 'ist eine neue Fassung, kein Überschreiben.' },
   { pfad: 'stammdaten/reinigungsklassen', titel: 'Reinigungsklassen', icon: 'reinigung',
     text: 'Die Einstufung im Raumbuch — heute ohne Frequenz- und Preiswirkung, und '
-      + 'noch unbestätigt (O-55).' },
+      + 'als Voreinstellung (O-55).' },
 ];
 
 export default async function Einstellungen(

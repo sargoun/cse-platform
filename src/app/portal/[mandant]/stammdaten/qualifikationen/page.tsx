@@ -117,11 +117,15 @@ export default async function Qualifikationen(
       <p data-cse="qualifikationen-offen" data-ohne-frist={String(ohneFrist)}
          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
         Vier Fragen hängen an genau den Feldern dieser Seite und sind offen: die
-        Ablauffrist des Bewacherausweises (O-341 — deshalb bleibt die
-        Standardgültigkeit bei {String(ohneFrist)} ablaufender Qualifikation(en)
-        leer), ob die Urkunden in der Plattform liegen sollen (O-343), welche
-        Kategorien die Nachweisberichte führen (O-144) und welche Nachweise die
-        Gewerke überhaupt verlangen (O-107). Ein geratener Vorgabewert trüge sich in
+        Ablauffrist des Bewacherausweises (O-341 — Voreinstellung: das aufgedruckte
+        Datum des Ausweises, die Standardgültigkeit bleibt bei {String(ohneFrist)} ablaufender
+        Qualifikation(en) leer, weil die Zuverlässigkeitsprüfung alle 5 Jahre ein eigener
+        Nachweis ist), ob die Urkunden in der Plattform liegen (O-343 — Voreinstellung:
+        Nummer und Frist in der Plattform, die Urkunde in der Papierakte; der Schalter
+        „Dokument erforderlich" ist hinterlegt, wird aber noch nicht geprüft), welche
+        Kategorien die Nachweisberichte führen (O-144 — die hinterlegten) und welche
+        Nachweise die Gewerke verlangen (O-107 — die hier eingetragenen Qualifikationen;
+        neue trägt die Gesellschaft ein). Ein geratener Vorgabewert trüge sich in
         jeden neu erfassten Nachweis ein und sähe dort aus wie eine geprüfte Angabe.
       </p>
 
@@ -197,7 +201,7 @@ export default async function Qualifikationen(
                       ? (
                         <span className="flex items-center gap-s2">
                           <StatusPill zustand="Offen" />
-                          <span className="text-xs text-warning">Frist offen (O-341)</span>
+                          <span className="text-xs text-text-subtle">Frist vom Ausweis (O-341)</span>
                         </span>
                       )
                       : (

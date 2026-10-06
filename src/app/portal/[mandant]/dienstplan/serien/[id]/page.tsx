@@ -586,10 +586,9 @@ export default async function Serienblatt(
             {istPosten && (
               <p className="m-0 mt-s4 max-w-prose text-sm text-text-muted">
                 Eine <strong>Ersatzbesetzung</strong> setzt die Sollstärke dieser
-                einen Nacht herab. Ob sie dabei unter die Mindestbesetzung des
-                Postens gehen darf, ist <strong>offen (O-714)</strong>; bis dahin
-                wird das Minimum mitgesenkt, damit keine Schicht entsteht, die von
-                Anfang an als unterbesetzt gemeldet wird.
+                einen Nacht herab. Voreinstellung (O-714): sie darf unter die
+            Mindestbesetzung des Postens gehen, und das Minimum wird mitgesenkt, damit
+            keine Schicht entsteht, die von Anfang an als unterbesetzt gemeldet wird.
               </p>
             )}
           </form>

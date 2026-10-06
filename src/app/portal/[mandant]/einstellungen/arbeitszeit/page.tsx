@@ -128,7 +128,7 @@ export default async function Arbeitszeit(
             : offeneModelle === 0
               ? 'Alle laufenden Modelle sind bestätigt.'
               : `${String(offeneModelle)} von ${String(laufendeModelle.length)} `
-                + 'laufenden Modellen sind unbestätigt (O-18).'}{' '}
+                + 'laufenden Modellen sind Voreinstellungen (O-18).'}{' '}
           <strong>Solange die Sollzeitregel „offen" ist, führt das Stundenkonto
           eine Sollzeit von 0 Minuten — und 0 heisst dort „nicht hinterlegt", nicht
           „nichts geschuldet".</strong> Ein Saldo aus einer geratenen Sollzeit machte jede
@@ -161,16 +161,16 @@ export default async function Arbeitszeit(
                     : m.arbeitstageWoche) },
                 { schluessel: 'sollzeit', kopf: 'Sollzeitregel',
                   zelle: (m) => (m.sollzeitregel === 'offen'
-                    ? <span className="text-warning">offen (O-18)</span>
+                    ? <span className="text-warning">Voreinstellung ohne Soll (O-18, V-289)</span>
                     : <code className="text-xs">{m.sollzeitregel}</code>) },
                 { schluessel: 'uebertrag', kopf: 'Übertrag',
                   zelle: (m) => (m.uebertragArt === 'offen'
-                    ? <span className="text-warning">offen (O-18)</span>
+                    ? <span className="text-text-subtle">kein Vortrag, kein Verfall (O-18)</span>
                     : `${m.uebertragArt}${m.uebertragGrenzeMinuten === null ? ''
                       : ` · max. ${minuten(m.uebertragGrenzeMinuten)}`}`) },
                 { schluessel: 'verfall', kopf: 'Verfall',
                   zelle: (m) => (m.verfallMonate === null
-                    ? <span className="text-warning">offen (O-18)</span>
+                    ? <span className="text-text-subtle">kein Verfall (O-18)</span>
                     : `nach ${String(m.verfallMonate)} Monaten`) },
                 { schluessel: 'gueltig', kopf: 'Gültig',
                   zelle: (m) => `${m.gueltigAb} – ${m.gueltigBis ?? 'offen'}` },
@@ -218,7 +218,7 @@ export default async function Arbeitszeit(
                 ) },
               { schluessel: 'tarif', kopf: 'Tarif',
                 zelle: (z) => (z.tarif === undefined
-                  ? <span className="text-text-subtle">nicht hinterlegt (O-50)</span>
+                  ? <span className="text-text-subtle">keine — es gilt das ArbZG (O-50)</span>
                   : (
                     <span className="text-xs text-text">
                       {minuten(z.tarif.pauseAb6hMinuten)} / {minuten(z.tarif.pauseAb9hMinuten)}{' '}
@@ -259,8 +259,9 @@ export default async function Arbeitszeit(
           <p className="mt-s2 text-xs text-text-muted">
             Die neue Fassung gilt ab dem angegebenen Tag; die bisherige endet am Tag
             davor und bleibt lesbar. Ein Tag vor heute ({heute}) legt eine
-            rückwirkende Fassung an — nötig für die Übernahme von Altbeständen. Ob
-            und ab wann ein Monat dafür gesperrt sein muss, ist offen (O-626);
+            rückwirkende Fassung an — nötig für die Übernahme von Altbeständen. Voreinstellung
+          (O-626): rückwirkende Fassungen sind erlaubt (Übernahme von Altbeständen), eine
+          Monatssperre gibt es nicht;
             überschneiden dürfen sich zwei Fassungen desselben Schlüssels nicht.
           </p>
           <form method="post"
@@ -272,8 +273,8 @@ export default async function Arbeitszeit(
                    placeholder="vollzeit_39" />
             <p className="mt-s2 text-xs text-text-muted">
               Über diesen Schlüssel verweisen die Vertragsbedingungen einer Anstellung
-              auf das Modell. Ob er den Lohncodes entsprechen muss, ist offen (O-18,
-              ACC-12).
+              auf das Modell. Voreinstellung (O-18, ACC-12): er ist frei gewählt und muss den
+          Lohncodes nicht entsprechen — die Zuordnung trägt das Lohnsystem.
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="bezeichnung">
@@ -304,10 +305,10 @@ export default async function Arbeitszeit(
               ))}
             </select>
             <p className="mt-s2 text-xs text-text-muted">
-              „offen" heisst: es wird nichts übertragen und nichts verfallen gelassen.
-              Eine geratene Verfallsregel löscht Überstunden (O-18) — deshalb steht
-              hier eine geschlossene Liste mit genau diesem einen Wert und kein
-              Freitextfeld. Die Liste wächst, wenn O-18 beantwortet ist.
+              „offen" ist die Voreinstellung (O-18): es wird nichts übertragen und nichts
+          verfallen gelassen — eine geratene Verfallsregel löschte Überstunden. Deshalb steht
+          hier eine geschlossene Liste mit genau diesem einen Wert und kein Freitextfeld;
+          weitere Regeln kommen mit der Sollzeit (V-289).
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="uebertragGrenze">

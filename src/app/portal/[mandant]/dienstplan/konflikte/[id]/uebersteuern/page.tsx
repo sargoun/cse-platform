@@ -162,9 +162,10 @@ export default async function ArbzgUebersteuern(
             <strong>Nicht übersteuerbar — durch kein Recht.</strong> Dieser
             Befund blockiert, und eine Sperre ist keine Warnung: sie ist eine
             Einteilung, die so nicht stattfinden darf. Die Einteilung muss
-            geändert werden. (Welche Befunde blockieren, ist noch offen —
-            <strong> offen (O-166)</strong>; diese Seite liest den gespeicherten
-            Wert und leitet nichts daraus ab.)
+            geändert werden. (Voreinstellung (O-166): kein Planungsbefund blockiert das Speichern —
+            Überschneidung, ArbZG und fehlende Qualifikation warnen, und wer trotzdem
+            einteilt, begründet es hier; nur die bestätigte Pflichtqualifikation eines
+            Postens sperrt (SEC-04). Diese Seite liest den gespeicherten Wert.)
           </p>
         ) : befund === null ? (
           <p className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

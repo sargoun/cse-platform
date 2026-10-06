@@ -671,7 +671,7 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
     return z!.id;
   }
 
-  it('das Formular kennt die Arten — und zeigt die ungeklaerte als ungeklaert (O-139)', async () => {
+  it('das Formular kennt die Arten — mit der Lohnfrage der Voreinstellung (O-139, D-781)', async () => {
     const gelesen = await alsPerson(async (k) => ({
       antrag: await leseAntragsarten(k, 'de'),
       abwesenheit: await leseAbwesenheitsarten(k, 'de'),
@@ -679,13 +679,19 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
     expect(gelesen.antrag.map((a) => a.schluessel).sort())
       .toEqual(['krankmeldung', 'schichttausch', 'urlaub']);
     /**
-     * `bezahlt` bleibt im Seed NULL (O-139). Die Art verschwindet deshalb
-     * NICHT aus dem Formular — eine fehlende Auswahl erzeugt einen Anruf, eine
-     * sichtbar ungeklaerte eine Rueckfrage an der richtigen Stelle.
+     * Seit `0491` tragen die sieben Plattformarten eine Antwort auf
+     * `bezahlt` (D-781) — und alle sieben stehen im Formular: eine fehlende
+     * Auswahl erzeugte einen Anruf, eine sichtbar unbezahlte eine Rueckfrage
+     * an der richtigen Stelle.
      */
+    const schluessel = gelesen.abwesenheit.map((a) => a.schluessel);
+    for (const s of ['urlaub', 'krankheit', 'kind_krank', 'unbezahlt', 'fortbildung',
+      'freizeitausgleich', 'sonstige']) {
+      expect(schluessel, s).toContain(s);
+    }
     const krank = gelesen.abwesenheit.find((a) => a.schluessel === 'krankheit');
-    expect(krank).toBeDefined();
-    expect(krank?.bezahlt).toBeNull();
+    expect(krank?.bezahlt).toBe(true);
+    expect(gelesen.abwesenheit.find((a) => a.schluessel === 'unbezahlt')?.bezahlt).toBe(false);
   });
 
   it('ein Antrag entsteht in DER Gesellschaft, deren Beschaeftigung gewaehlt wurde', async () => {

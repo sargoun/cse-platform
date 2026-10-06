@@ -89,7 +89,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             `Die Art „${eingabe.bezeichnung}" ist angelegt`
             + `${eingabe.plattform ? ' und gilt für alle vier Gesellschaften' : ''}.`
             + (eingabe.bezahlt === null
-              ? ' Solange „bezahlt" ungeklärt ist (O-139), weist die Abwesenheitsmeldung '
+              ? ' Solange „bezahlt" nicht eingeordnet ist (O-139), weist die Abwesenheitsmeldung '
                 + 'sie mit benanntem Grund ab.'
               : ''));
         }
@@ -102,7 +102,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return zurueck(anfrage,
           `„${eingabe.bezeichnung}" ist gespeichert.`
           + (eingabe.bezahlt === null
-            ? ' „Bezahlt" bleibt ungeklärt (O-139) — die Art ist damit nicht verwendbar.'
+            ? ' „Bezahlt" bleibt nicht eingeordnet (O-139) — die Art ist damit nicht verwendbar.'
             : ''));
       }))) as NextResponse;
   } catch (fehler: unknown) {

@@ -78,9 +78,9 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
     artErklaerung:
       'Krank, Urlaub, Fortbildung, unbezahlt — die Liste pflegt die '
       + 'Stammdatenverwaltung. Welche Art bezahlt ist und unter welchem '
-      + 'Lohnartenschlüssel sie läuft, ist noch offen (O-139); die Plattform '
-      + 'rechnet deshalb Tage und keine Beträge.',
-    artOffen: 'noch nicht hinterlegt, ob bezahlt (O-139)',
+      + 'Lohnartenschlüssel sie läuft, steht als Voreinstellung je Art (O-139); die '
+      + 'Plattform rechnet Tage und keine Beträge.',
+    artOffen: 'nicht eingeordnet, ob bezahlt (O-139)',
     keineGeklaerteArt:
       'Für keine Abwesenheitsart ist hinterlegt, ob sie bezahlt ist (O-139). '
       + 'Ohne diese Angabe entsteht keine Abwesenheit — eine erfundene '
@@ -100,7 +100,7 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
     auErklaerung:
       'Nur bei krankheitsbedingter Abwesenheit. Ab welchem Tag die Gruppe einen '
       + 'Nachweis verlangt, ist je Art hinterlegt — und wo es noch nicht '
-      + 'hinterlegt ist, warnt die Plattform nicht (O-139).',
+      + 'hinterlegt ist, warnt die Plattform nicht (Voreinstellung: Krankheit ab dem 4. Tag, O-139).',
 
     bemerkung: 'Bemerkung',
     bemerkungErklaerung:
@@ -115,8 +115,9 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       + 'genehmigt. Über eine Krankheit entscheidet niemand.',
     antragErklaerung:
       'Einen Urlaubsantrag stellt die Arbeiterin selbst. Ob das Büro ihn in '
-      + 'ihrem Namen stellen darf und wer dann als Antragsteller gilt, ist noch '
-      + 'zu entscheiden (O-893).',
+      + 'ihrem Namen stellen darf: Voreinstellung (O-893) nein — einen telefonisch erbetenen '
+      + 'Urlaub nimmt das Büro als Abwesenheit auf („erfasst", Vermerk in der Bemerkung); der '
+      + 'Antrag bleibt der Arbeiterin.',
     keineAnstellung:
       'In dieser Gesellschaft ist keine aktive Anstellung hinterlegt. Eine '
       + 'Abwesenheit hängt an einer Anstellung — die Person kommt zuerst.',
@@ -172,9 +173,9 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
     artWaehlen: 'Choose a type',
     artErklaerung:
       'Sick, holiday, training, unpaid — the list is maintained in master data. '
-      + 'Which type is paid, and under which payroll key it runs, is still open '
-      + '(O-139); the platform therefore counts days, not amounts.',
-    artOffen: 'not yet recorded whether paid (O-139)',
+      + 'Which type is paid, and under which payroll key it runs, stands as a default '
+      + 'per type (O-139); the platform counts days, not amounts.',
+    artOffen: 'not classified whether paid (O-139)',
     keineGeklaerteArt:
       'For no absence type is it recorded whether it is paid (O-139). Without '
       + 'that, no absence is created — an invented payroll rule would only '
@@ -194,7 +195,7 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
     auErklaerung:
       'For sickness absence only. From which day the group requires proof is '
       + 'held per type — and where it is not yet held, the platform does not '
-      + 'warn (O-139).',
+      + 'warn (default: sickness from day 4, O-139).',
 
     bemerkung: 'Note',
     bemerkungErklaerung:
@@ -209,8 +210,9 @@ Readonly<Record<InternSprache, AbwesenheitAufnahmeTexte>> = {
       + 'approved. Nobody decides about an illness.',
     antragErklaerung:
       'A holiday request is made by the worker themselves. Whether the office '
-      + 'may file one on their behalf, and who then counts as the applicant, is '
-      + 'still to be decided (O-893).',
+      + 'may file one on their behalf: default (O-893) no — leave requested by phone is '
+      + 'taken down by the office as an absence ("recorded", with a note in the remarks); '
+      + 'the request itself stays with the worker.',
     keineAnstellung:
       'No active Anstellung is on file for this Gesellschaft. An absence hangs '
       + 'off an Anstellung — the person comes first.',

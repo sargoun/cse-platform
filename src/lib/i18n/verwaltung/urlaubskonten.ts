@@ -69,7 +69,8 @@ Readonly<Record<InternSprache, UrlaubskontenTexte>> = {
       + '§ 3 BUrlG sind das gesetzliche Mindestmass und fast nie die '
       + 'vereinbarte Zahl; sie steht im Arbeitsvertrag. Eine hergeleitete Zahl '
       + 'sähe aus wie eine vereinbarte und würde zur Grundlage eines '
-      + 'Restanspruchs, den niemand zugesagt hat (O-18).',
+      + 'Restanspruchs, den niemand zugesagt hat; die Voreinstellung der Gruppe ist 30 Tage '
+    + 'bei Vollzeit, anteilig bei Teilzeit (O-18).',
     anspruchErklaerung:
       'Tage im Jahr, aus dem Arbeitsvertrag. Halbe Tage mit Komma: 25,5.',
     uebertragErklaerung:
@@ -133,7 +134,8 @@ Readonly<Record<InternSprache, UrlaubskontenTexte>> = {
       + 'of § 3 BUrlG are the statutory minimum and almost never the agreed '
       + 'figure; that one is in the employment contract. A derived figure would '
       + 'look like an agreed one and would become the basis of a remaining '
-      + 'entitlement nobody promised (O-18).',
+      + 'entitlement nobody promised; the group default is 30 days for full time, pro rata '
+    + 'for part time (O-18).',
     anspruchErklaerung:
       'Days per year, from the employment contract. Half days with a comma: 25,5.',
     uebertragErklaerung:

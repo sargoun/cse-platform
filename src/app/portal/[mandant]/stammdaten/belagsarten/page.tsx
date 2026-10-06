@@ -120,9 +120,9 @@ export default async function Belagsarten(
         {offen === 0
           ? 'Jeder laufende Leistungswert ist bestätigt.'
           : `${String(offen)} von ${String(laufend.length)} laufenden Leistungswerten `
-            + 'sind unbestätigt (O-17): aus welcher Quelle stammen die m²/h-Werte, und '
-            + 'wer bestätigt sie? Bis dahin rechnet die Kalkulation mit einer '
-            + 'geschätzten Zahl und sagt es an jeder Position.'}
+            + 'sind Voreinstellungen (O-17): branchenübliche m²/h-Werte je Belagsart, die die '
+            + 'Bereichsleitung hier bestätigt. Bis dahin rechnet die Kalkulation mit der '
+            + 'Voreinstellung und sagt es an jeder Position.'}
         {' '}Ein Glasreinigungsrevier rechnet ausserdem heute auf die Bodenfläche —
         ein Leistungswert je m² Glas steht in keinem Katalog (O-349).
       </p>
@@ -195,7 +195,7 @@ export default async function Belagsarten(
                     ? (
                       <span className="flex items-center gap-s2">
                         <StatusPill zustand="Entwurf" />
-                        <span className="text-xs text-warning">unbestätigt (O-17)</span>
+                        <span className="text-xs text-warning">Voreinstellung (O-17)</span>
                       </span>
                     )
                     : <StatusPill zustand="Aktiv" />),
@@ -324,7 +324,7 @@ export default async function Belagsarten(
                       {' · '}
                       {f.quelle}
                       {f.istPlatzhalter ? (
-                        <span className="ml-s2 text-xs text-warning">unbestätigt (O-17)</span>
+                        <span className="ml-s2 text-xs text-warning">Voreinstellung (O-17)</span>
                       ) : null}
                     </li>
                   ))}
