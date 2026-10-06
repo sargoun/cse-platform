@@ -634,7 +634,8 @@ export default async function Sonderleistungen(
                 </strong>{' '}
                 Die Auswahl bleibt trotzdem freiwillig: ein Abruf entsteht oft
                 vor dem Nachtrag. Die Liste oben führt solche Zeilen dann als
-                offen — nachtragen lässt sich die Zuordnung noch nicht (O-708).
+                offen — nachtragen lässt sich die Zuordnung noch nicht (Voreinstellung
+                O-708: bis zur Abrechnung nachtragbar, der Weg fehlt, V-325).
               </span>
             </label>
             <label className="block">

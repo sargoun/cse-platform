@@ -386,7 +386,7 @@ export interface AbrufEingabe {
    * eine still gewaehlte Antwort hiesse, einen bereits abgerechneten Abruf
    * einer anderen Vertragszeile zuzuschlagen.
    */
-  // TODO(client, O-708): Darf die Vertragszeile eines bereits erfassten Abrufs nachtraeglich zugeordnet oder geaendert werden, und ist das nach `abgerechnet` noch zulaessig?
+  // TODO(client, O-708): Voreinstellung — die Vertragszeile eines Abrufs laesst sich bis zur Abrechnung nachtragen oder aendern, danach nicht mehr; der Nachtragsweg fehlt (V-325). D-789.
   readonly auftragLeistungId?: string | null;
   readonly beauftragtDurch?: string | null;
   readonly ausfuehrungVon?: string | null;

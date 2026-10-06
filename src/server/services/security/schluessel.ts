@@ -43,6 +43,13 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { kanonisiere, type KanonischerWert } from '../finanz/kanonisch.js';
 import { schreibeEintrag } from './wachbuch.js';
 
+/**
+ * TODO(client, O-161): Voreinstellung — `wiedergefunden` fuehrt den Schluessel in
+ * den Bestand zurueck und schliesst nichts sonst: einen Haftungsfall kennt die
+ * Plattform nicht als Objekt, und ob ein beauftragter Schlosswechsel damit
+ * erledigt ist, entscheidet der Kunde; eine `sperrung` bleibt bis zur
+ * `entsperrung`. D-789.
+ */
 /** Die acht Lebenszyklusereignisse (`schluessel_ereignis_art`, 0079 §1). */
 export const SCHLUESSEL_EREIGNISSE = [
   'ausgabe', 'ruecknahme', 'verlustmeldung', 'wiedergefunden',

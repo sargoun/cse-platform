@@ -29,7 +29,7 @@ import { grundAufsFormularweg } from '@/app/api/formular-antwort';
  * ohne verbundenen Speicher gaebe es ohnehin keins, ohne dass die Unterschrift
  * daran scheitern duerfte.
  *
- * // TODO(client, O-741): Soll der Auftraggeber zusaetzlich handschriftlich auf dem Bildschirm zeichnen, und gilt eine getippte Namensangabe mit Serverzeit und Pruefsumme als ausreichend?
+ * // TODO(client, O-741): Voreinstellung — die getippte Namensangabe mit Serverzeit und Pruefsumme genuegt; eine Zeichenflaeche kommt nicht (alte Diensttelefone, kein JavaScript). D-789.
  */
 export const dynamic = 'force-dynamic';
 

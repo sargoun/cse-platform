@@ -111,6 +111,11 @@ export interface TurnusZeile {
   readonly beginnLokal: string;
   /** Sollangabe, `integer` — keine gemessene Dauer. */
   readonly dauerMinuten: number;
+  /**
+   * TODO(client, O-145): Voreinstellung — `ausfall` (Spaltenvorgabe 0029): ein
+   * Turnus am gesetzlichen Feiertag entfaellt, wird weder vorgezogen noch
+   * nachgeholt; `unveraendert` ist je Serie waehlbar. D-789.
+   */
   readonly feiertagsregel: 'ausfall' | 'unveraendert';
   readonly gueltigAb: string;
   readonly gueltigBis: string | null;
@@ -302,7 +307,11 @@ export interface AusnahmeZeile {
    * es steht im Vertrag. Die Spalte ist deshalb nullbar, und dieser Dienst
    * leitet den Wert nicht aus der Art ab.
    *
-   * // TODO(client, O-700): Ist ein Ausfall eines Reinigungsturnus vom Pauschalbetrag abzuziehen und ein Zusatztermin zusaetzlich zu berechnen, oder gleicht die Pauschale beides aus?
+   * // TODO(client, O-700): Voreinstellung (D-783) — „ja" vorbelegt: ein Ausfall mindert die Pauschale, ein Zusatztermin wird berechnet; „nein" und „nicht gesetzt" bleiben waehlbar.
+   * // TODO(client, O-146): Voreinstellung — ein ausgefallener Turnus mindert die
+   * Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des
+   * Monats); gerechnet wird die Minderung heute nirgends, die Rechnung entsteht
+   * aus der Pauschale allein (V-327). D-789.
    */
   readonly abrechnungsrelevant: boolean | null;
   readonly erstelltAmLokal: string;

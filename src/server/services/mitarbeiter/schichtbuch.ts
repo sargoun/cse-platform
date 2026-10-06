@@ -13,7 +13,12 @@
  * **Eine leere Liste ist keine Auskunft.** Ohne die Einstellung
  * `wachbuch.uebergabe_fenster` ist das Fenster `interval '0'`, und dann steht
  * hier nur, was die Wache selbst geschrieben hat. Das als „keine Eintraege" zu
- * zeigen hiesse, eine offene Geschaeftsfrage (O-151) als Tatsache auszugeben.
+ * zeigen hiesse, die Lage zu verschweigen.
+ *
+ * TODO(client, O-151): Voreinstellung — die Uebergabe zeigt die Eintraege der
+ * letzten zwoelf Stunden vor Schichtbeginn an DIESEM Objekt; ausgeliefert ist
+ * das Fenster mit 0 (0033), gesetzt wird es je Gesellschaft ueber
+ * `wachbuch.uebergabe_fenster` — ein Eingabeweg dafuer fehlt (V-323). D-789.
  */
 import type { LeseKontext } from '../../kontext/index.js';
 import { leseBuch, type EintragZeile } from '../security/wachbuch.js';

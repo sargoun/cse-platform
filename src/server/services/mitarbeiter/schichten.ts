@@ -72,8 +72,9 @@ export interface EigeneSchicht {
    * weiter ein Formular an, das die Datenbank dann abweist — beim
    * Leistungsnachweis mit einem nackten `422 kein_objekt`.
    *
-   * Wie lange nach Schichtende noch erfasst werden darf, ist offen (O-740);
-   * bis zur Antwort ist die Grenze das Schichtende, und die Seite nennt sie.
+   * TODO(client, O-740): Voreinstellung — Schichtende plus die Ausstempeltoleranz
+   * (60 Minuten, O-164); gebaut ist die Grenze Schichtende (0004, V-326), und
+   * die Seite nennt sie. D-789.
    */
   readonly beendet: boolean;
   /**

@@ -203,6 +203,11 @@ function pruefeText(eingabe: EintragEingabe): void {
       'schluessel_fehlt',
     );
   }
+  /*
+   * TODO(client, O-152): Voreinstellung — kein Pflichtnachweis je Rundgang; wo
+   * ein Vertrag einen verlangt, traegt der Kontrollpunkt seine Nachweisart
+   * (nfc, qr, barcode, manuell), und ein Praesenznachweis nennt ihn. D-789.
+   */
   if (eingabe.praesenzBestaetigt === true
       && (eingabe.kontrollpunktId ?? '') === '') {
     throw new WachbuchEingabeFehlt(

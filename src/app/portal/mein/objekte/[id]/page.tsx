@@ -47,9 +47,9 @@ import { Feld, Felder, Gesellschaft, Hinweis, Leer, SchichtKarte } from '../../b
  * **Kein Kunde, kein Auftrag, kein Preis** (EMP-13, K-05). Der Ansprechpartner
  * steht mit Namen und Telefonnummer da, weil er die Tuer aufmacht — nicht mit
  * seiner Firma, seiner Rolle im Vertrieb oder seiner Mailadresse.
- * // TODO(client, O-853): Welche Kontaktangaben des Objekt-Ansprechpartners
- * darf die eingeteilte Kraft sehen — Name und Festnetz, oder auch die
- * Mobilnummer? Heute zeigt die Seite beide Nummern, sofern hinterlegt.
+ * // TODO(client, O-853): Voreinstellung — Name, Festnetz und Mobilnummer als
+ * Waehlverweis, nur waehrend der Einteilung (`app.mein_objekt_zugang`); keine
+ * E-Mail-Adresse. D-789.
  *
  * **Ohne JavaScript bedienbar**, 44-px-Ziele, Fliesstext nie unter 16 px: das
  * Diensttelefon im Treppenhaus ist kein schmaler Schreibtisch (SPEC §10,

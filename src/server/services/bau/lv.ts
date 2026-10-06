@@ -155,7 +155,7 @@ export function positionsBetragCent(
  * **Bedarfs- und Alternativpositionen zählen NICHT** — sie sind angeboten,
  * aber nicht beauftragt, und sie in eine Summe zu nehmen hiesse, dem Kunden
  * einen Auftragswert zu nennen, den er nie erteilt hat. Das ist die
- * ausdrückliche Vorgabe von 03-GEWERKE §3.3, solange O-155 offen ist.
+ * ausdrückliche Vorgabe von 03-GEWERKE §3.3 — und die Voreinstellung (O-155).
  *
  * **Die Art steht getrennt von der Zeile, weil zwei Seiten sie brauchen.**
  * Der LV-Baum hat einen ganzen `LvZeile`-Satz, die Positionsdetailseite hat
@@ -163,8 +163,11 @@ export function positionsBetragCent(
  * Seitenkörper. Zwei Kopien einer offenen Frage beantworten sie irgendwann
  * verschieden, und das fällt erst auf, wenn zwei Seiten zwei Auftragssummen
  * über denselben Vertrag zeigen.
- * // TODO(client, O-155): Welche Positionsarten kommen vor, und wie geht jede
- * in die Angebots- bzw. Auftragssumme ein?
+ * // TODO(client, O-155): Voreinstellung — sechs Positionsarten (unbestimmt,
+ * Normal-, Bedarfs-, Alternativ-, Zuschlags-, Grundposition); Normal-,
+ * Zuschlags- und Grundposition zählen in die Summe, Bedarfs- und
+ * Alternativposition nicht, eine unbestimmte zählt wie eine Normalposition
+ * (03-GEWERKE §3.3). D-789.
  */
 export function zaehltPositionsartInSumme(positionsart: string): boolean {
   return positionsart !== 'bedarfsposition' && positionsart !== 'alternativposition';
