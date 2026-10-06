@@ -33,12 +33,13 @@ import { parseGeld, type Cent } from '../finanz/geld.js';
  * ausgeben will, trägt `0,00 €` ein; das ist eine Entscheidung und sieht
  * auch wie eine aus. Zurück auf NULL wäre das Löschen einer Entscheidung.
  *
- * **3. Die HÖHE erfindet diese Datei nicht.** O-26 (welches Monatsbudget je
- * Gesellschaft und je Agent?) und O-195 (ab welchem Anteil wird gewarnt?)
- * bleiben offen; es gibt keinen Vorgabewert, und die Maske schlägt keinen
- * vor. Ein Vorschlag in einer Finanzmaske sieht aus wie eine Abstimmung.
- * Was ein Mensch einträgt, setzt `ist_platzhalter` auf `false` — ab da ist
- * die Zeile entschieden und wird nicht mehr als geraten gefärbt (§1.16).
+ * **3. Die HÖHE ist eine Voreinstellung, keine Entscheidung.** O-26 (welches
+ * Monatsbudget je Gesellschaft und je Agent?) und O-195 (ab welchem Anteil
+ * wird gewarnt?) haben Voreinstellungen (`BUDGET_VOREINSTELLUNG_CENT`,
+ * `WARNSCHWELLE_VOREINSTELLUNG_PROZENT`; D-784, D-786); die Maske belegt sie
+ * vor und nennt sie so. Was ein Mensch einträgt, setzt `ist_platzhalter` auf
+ * `false` — ab da ist die Zeile entschieden und wird nicht mehr als
+ * Voreinstellung gefärbt (§1.16).
  */
 /**
  * Die Auditaktion als benannte Konstante — sie steht nicht als Literal in
@@ -161,6 +162,16 @@ async function schreibeOderSatz<T>(lauf: Promise<readonly T[]>): Promise<readonl
  */
 // TODO(client, O-195): Voreinstellung — Warnung ab 80 % des Monatsbudgets; Budget und Preisliste in Euro, Kurs beim Eintrag der Preisliste.
 export const WARNSCHWELLE_VOREINSTELLUNG_PROZENT = 80;
+
+/**
+ * Das Monatsbudget je Gesellschaft, das der Seed anlegt und die Maske
+ * vorbelegt — die **Voreinstellung** (D-786), bewusst klein: ein Budget, das
+ * zu gross ist, fällt niemandem auf, bevor es kostet. Je Agent gibt es keine
+ * Voreinstellung; eine Agentenzeile ist eine Entscheidung des Menschen. Ohne
+ * Zeile läuft kein Agent (`budget_fehlt`), auch das bleibt.
+ */
+// TODO(client, O-26): Voreinstellung — 50,00 € je Gesellschaft und Monat, kein eigenes Budget je Agent.
+export const BUDGET_VOREINSTELLUNG_CENT = 5_000n;
 
 export async function setzeBudget(
   kontext: SchreibKontext, e: BudgetEingabe,

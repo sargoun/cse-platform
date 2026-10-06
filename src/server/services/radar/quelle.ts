@@ -40,6 +40,24 @@ const UMGEBUNG: Readonly<Record<QuellSchluessel, string>> = {
   ted: 'RADAR_TED_URL',
 };
 
+/**
+ * Die Abfrage, die der Betreiber an beide Quellen stellen soll — die
+ * **Voreinstellung** (O-366, D-786): die CPV-Abteilungen der drei Gewerke,
+ * Berlin und Brandenburg, die letzten 30 Tage. Die fertige Adresse baut diese
+ * Datei NICHT (V-311): die Abfragesprachen der beiden Quellen sind hier nicht
+ * gegen echte Antworten geprüft, und eine ungeprüfte Adresse wäre ein stiller
+ * Lauf, der nichts findet. Der Betreiber trägt die Adresse in die Variable ein;
+ * der Satz daneben nennt ihm die Voreinstellung.
+ */
+// TODO(client, O-366): Voreinstellung — CPV 90 (Reinigung), 79 (Sicherheitsdienste), 45 (Bau); NUTS DE3 und DE4; Zeitfenster 30 Tage.
+export const ABFRAGE_VOREINSTELLUNG = {
+  cpvAbteilungen: ['90', '79', '45'],
+  nutsPraefixe: ['DE3', 'DE4'],
+  zeitfensterTage: 30,
+  text: 'CPV-Abteilungen 90 (Reinigung), 79 (Sicherheitsdienste) und 45 (Bau), '
+    + 'Berlin und Brandenburg (NUTS DE3, DE4), die letzten 30 Tage',
+} as const;
+
 /** Der Name der Quelle — dieselbe Karte, die die Radarseiten zeigen (V-232). */
 const NAME: Readonly<Record<QuellSchluessel, string>> = RADAR_QUELLE_TEXT.de;
 
@@ -53,9 +71,9 @@ export function quellStand(schluessel: QuellSchluessel): QuellStand {
     verbunden: url !== null,
     basisUrl: url,
     hinweis: url === null
-      ? `Nicht verbunden: ${UMGEBUNG[schluessel]} ist nicht gesetzt. `
-        + 'Die Quelle ist öffentlich und braucht keinen Schlüssel — nur die Adresse und die '
-        + 'Abfrage, die dieser Betrieb stellen will (TODO(client, O-366)).'
+      ? `Nicht verbunden: ${UMGEBUNG[schluessel]} ist nicht gesetzt — trägt der Betreiber ein. `
+        + 'Die Quelle ist öffentlich und braucht keinen Schlüssel, nur die Abfrage-Adresse; '
+        + `Voreinstellung für die Abfrage (O-366): ${ABFRAGE_VOREINSTELLUNG.text}.`
       : `Verbunden mit ${url}.`,
   };
 }

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import {
-  ABZUG_PLATZHALTER, GEWICHTE_PLATZHALTER,
+  ABZUG_PLATZHALTER, GEWICHTE_PLATZHALTER, SCHWELLE_VOREINSTELLUNG,
 } from '@/server/services/radar/gewichte.platzhalter';
 import { REGEL_VERSION } from '@/server/services/radar/bewertung';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -111,12 +111,13 @@ export default async function Profile(
       </p>
 
       <Hinweis art="warnung" cse="radar-profile-platzhalter" className="mb-s5 max-w-prose">
-        <strong>Die Gewichte sind Platzhalter.</strong> Wie viel ein CPV-Treffer gegenüber einer
-        Region oder einem Stichwort wiegt, und ab welcher Punktzahl benachrichtigt wird, hat
-        niemand entschieden (offene Frage O-15). Bis dahin gilt dieses Gerüst:{' '}
+        <strong>Die Gewichte sind die Voreinstellung.</strong> Wie viel ein CPV-Treffer gegenüber
+        einer Region oder einem Stichwort wiegt, und ab welcher Punktzahl benachrichtigt wird,
+        hat der Betreiber noch nicht bestätigt (O-15, D-786). Bis dahin gilt dieses Gerüst:{' '}
         CPV {String(GEWICHTE_PLATZHALTER.cpv)} · Region {String(GEWICHTE_PLATZHALTER.region)} ·
         Stichwort {String(GEWICHTE_PLATZHALTER.stichwort)} · Wert {String(GEWICHTE_PLATZHALTER.wert)} ·
-        Frist {String(GEWICHTE_PLATZHALTER.frist)}; ein Negativ-Stichwort kostet{' '}
+        Frist {String(GEWICHTE_PLATZHALTER.frist)}; Treffermeldung ab{' '}
+        {String(SCHWELLE_VOREINSTELLUNG)} Punkten bei neuen Profilen; ein Negativ-Stichwort kostet{' '}
         {String(ABZUG_PLATZHALTER.stichwort)} Punkte und schliesst nicht aus (O-191 — die sichere
         Richtung, weil ein Ausschluss still verwirft, was nie ein Mensch gesehen hat).
       </Hinweis>
@@ -236,7 +237,7 @@ export default async function Profile(
                               data-schwelle={e.abPunkte ?? ''}>
                           {e.name} —{' '}
                           {e.abPunkte === null
-                            ? 'ohne Schwelle, bekommt keine Treffermeldung (O-15)'
+                            ? 'ohne Schwelle, bekommt keine Treffermeldung (Voreinstellung nicht gesetzt, O-15)'
                             : `ab ${String(e.abPunkte)} von ${String(p.skalaMax)} Punkten`}
                         </span>
                       ))}

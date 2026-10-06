@@ -78,9 +78,9 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     betrag: 'Obergrenze in Euro',
     betragErklaerung:
       'Deutsche Schreibweise: Punkt trennt die Tausender, Komma die Cent — „1.250,00". '
-      + 'Es gibt keinen Vorschlagswert; welche Höhe richtig ist, ist eine Frage an den '
-      + 'Mandanten (O-26), und ein Vorschlag in einer Finanzmaske sähe aus wie eine '
-      + 'Abstimmung. 0,00 € ist erlaubt und heisst „in diesem Monat nichts".',
+      + 'Vorbelegt ist die Voreinstellung 50,00 € je Gesellschaft und Monat (O-26, D-786) — '
+      + 'bewusst klein; was Sie eintragen, gilt als entschieden. 0,00 € ist erlaubt und '
+      + 'heisst „in diesem Monat nichts".',
     stopp: 'Bei Überschreitung hart stoppen',
     stoppErklaerung:
       'Ohne Haken läuft der Agent über die Grenze hinaus weiter und die Überschreitung '
@@ -143,9 +143,9 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     betrag: 'Cap in euro',
     betragErklaerung:
       'German notation: full stop groups thousands, comma separates the cents — '
-      + '“1.250,00”. There is no suggested value; what the right figure is remains a '
-      + 'question for the client (O-26), and a suggestion in a financial form would look '
-      + 'like agreement. 0,00 € is allowed and means “nothing this month”.',
+      + '“1.250,00”. Prefilled is the default of 50,00 € per entity and month (O-26, '
+      + 'D-786) — deliberately small; what you enter counts as decided. 0,00 € is allowed '
+      + 'and means “nothing this month”.',
     stopp: 'Hard stop when exceeded',
     stoppErklaerung:
       'Unticked, the agent keeps running past the cap and the overrun only shows in the '

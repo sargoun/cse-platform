@@ -490,9 +490,9 @@ async function laufeAlsAgent(
  * Wie viele Token ein Entwurf höchstens kostet — die Schätzung für die
  * Reservierung, nicht die Abrechnung.
  *
- * TODO(client, O-196): Wie lang darf ein Agentenentwurf höchstens werden?
- * Bis zur Antwort steht hier eine Obergrenze, die grosszügig genug ist, dass
- * keine Buchung die Reservierung übersteigt.
+ * TODO(client, O-196): Voreinstellung — 8.000 Token je Entwurf als
+ * Reservierung; grosszügig genug, dass keine Buchung die Reservierung
+ * übersteigt.
  */
 const SCHAETZUNG_TOKEN = 8_000;
 

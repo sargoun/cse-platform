@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 import { bewerteLauf } from '../../services/radar/lauf.js';
 import { PLATTFORM_VOREINSTELLUNG } from '../../services/radar/plattform.js';
+import { SCHWELLE_VOREINSTELLUNG } from '../../services/radar/gewichte.platzhalter.js';
 import { uebernimmAusschreibungAlsLead } from '../../services/crm/lead-radar.js';
 import { alsPortalSitzung } from './sitzung.js';
 
@@ -251,12 +252,13 @@ export async function seedRadar(
     const [zeile] = await sql<{ id: string }[]>`
       insert into radar_profil
         (mandant_id, name, nuts_praefixe, positiv_keywords, negativ_keywords,
-         wert_min_cent, wert_max_cent, ist_platzhalter, ist_aktiv)
+         wert_min_cent, wert_max_cent, ist_platzhalter, ist_aktiv,
+         benachrichtigung_ab_punkte)
       values (${mandantId}, ${p.name}, ${sql.array([...PROFIL_NUTS])},
               ${sql.array([...p.positiv])}, ${sql.array([...p.negativ])},
               ${p.minCent === null ? null : p.minCent.toString()}::bigint,
               ${p.maxCent === null ? null : p.maxCent.toString()}::bigint,
-              true, true)
+              true, true, ${SCHWELLE_VOREINSTELLUNG})
       returning id`;
     if (zeile === undefined) continue;
     profile += 1;
@@ -423,19 +425,18 @@ async function seedVergabemappe(
 }
 
 /**
- * Die Empfänger einer Radarmeldung (RAD-08) — **ohne Punktschwelle**.
+ * Die Empfänger einer Radarmeldung (RAD-08) — **ohne eigene Punktschwelle**.
  *
- * **Warum eingetragen, aber ohne Zahl.** Der Fristenwächter (SPEC §14) läuft
- * ohne jede Einstellung: fünf Tage stehen im SPEC. Die Trefferschwelle steht
- * dort nicht, und sie zu raten hiesse, eine Entscheidung des Betriebs zu
- * erfinden (O-15) — eine zu niedrige Zahl macht Lärm, eine zu hohe Stille,
- * und beides fällt erst auf, wenn eine Vergabe verpasst ist.
+ * **Warum eingetragen, aber ohne eigene Zahl.** Der Fristenwächter (SPEC §14)
+ * läuft ohne jede Einstellung: fünf Tage stehen im SPEC. Die Trefferschwelle
+ * bringt das Profil mit — die Voreinstellung `SCHWELLE_VOREINSTELLUNG` (60 von
+ * 100, O-15, D-786), dieselbe, die `legeProfilAn` jedem neuen Profil gibt; ein
+ * Empfänger ohne eigene Zahl erbt sie (`coalesce` in `warnung.ts`).
  *
- * Der Seed legt deshalb genau die Lage an, die ein neuer Betrieb hat: die
- * Einsatzleitung ist eingetragen, bekommt die Fristwarnungen, und die
- * Profilseite sagt bei jedem Empfänger, dass ohne Schwelle keine
- * Treffermeldung kommt. Eine gesetzte Demoschwelle sähe aus wie eine
- * beantwortete Frage.
+ * Der Seed legt damit genau die Lage an, die ein neuer Betrieb hat: die
+ * Einsatzleitung ist eingetragen, bekommt die Fristwarnungen und die
+ * Treffermeldung ab der Voreinstellung, und die Profilseite nennt beides als
+ * Voreinstellung — nicht als Entscheidung des Betriebs.
  */
 async function seedEmpfaenger(
   sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,

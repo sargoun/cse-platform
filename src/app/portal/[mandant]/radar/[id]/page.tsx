@@ -316,7 +316,8 @@ export default async function Bekanntmachung(
           {kopf.wertCent === null
             ? 'nicht genannt'
             : kopf.wertKriterium === 'fremdwaehrung'
-              ? `${kopf.wertCent.toString()} ${kopf.waehrung ?? ''} — nicht umgerechnet (offene Frage O-47)`
+              ? `${kopf.wertCent.toString()} ${kopf.waehrung ?? ''} — nicht umgerechnet (Voreinstellung O-47: `
+                + 'das Wertkriterium bleibt für Fremdwährung unbewertet; ein Kursdienst ist nicht angebunden, V-303)'
               : formatiereGeld(cent(kopf.wertCent))}
         </dd>
         <dt className="text-text-muted">Veröffentlicht</dt>
@@ -359,7 +360,7 @@ export default async function Bekanntmachung(
               : `${String(kopf.punkte)} von ${String(kopf.skalaMax)} Punkten für das Profil „${kopf.profilName}".`}{' '}
             Gerechnet hat das Code, kein Sprachmodell (RAD-05).
             {kopf.istPlatzhalterProfil
-              ? ' Die Gewichte dieses Profils sind noch Platzhalter (offene Frage O-15).'
+              ? ' Die Gewichte dieses Profils sind die Voreinstellung, vom Betreiber nicht bestätigt (O-15).'
               : ''}
           </p>
         )}

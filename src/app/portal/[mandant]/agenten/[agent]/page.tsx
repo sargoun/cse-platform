@@ -405,7 +405,7 @@ export default async function AgentDetail(
                    benutzt `MAX_SCHRITTE_PLATZHALTER` als Rueckfall, wenn `max_schritte`
                    leer ist. Stand hier die 12 als Literal, sagte der Bildschirm nach
                    einer Aenderung des Platzhalters eine Grenze zu, die nicht gilt. */
-                ? `${String(MAX_SCHRITTE_PLATZHALTER)} — Platzhalter (offene Frage O-196)`
+                ? `${String(MAX_SCHRITTE_PLATZHALTER)} — Voreinstellung (O-196)`
                 : String(kopf.max_schritte)}
             </dd>
           </div>

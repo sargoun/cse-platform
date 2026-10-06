@@ -239,10 +239,10 @@ export default async function GruppenRadar({ searchParams }: { searchParams: Suc
       {ohneQuelle ? (
         <Hinweis art="warnung" cse="radar-quellen" className="mb-s5 max-w-prose">
           <strong>Keine Quelle verbunden.</strong> Der Radar liest{' '}
-          {quellen.map((q) => q.name).join(' und ')}. Was fehlt, ist die Abfrage, die dieser
-          Betrieb stellen will — welche CPV-Gruppen, welche Region, welches Zeitfenster
-          (offene Frage O-366). Bis dahin stehen hier nur die Bekanntmachungen, die bereits
-          in der Datenbank liegen; es wird keine erfunden.
+          {quellen.map((q) => q.name).join(' und ')}. Was fehlt, ist die Abfrage-Adresse, die der
+          Betreiber einträgt; die Voreinstellung für die Abfrage steht im Radar der Gesellschaft
+          (O-366, D-786). Bis dahin stehen hier nur die Bekanntmachungen, die bereits in der
+          Datenbank liegen; es wird keine erfunden.
         </Hinweis>
       ) : null}
 

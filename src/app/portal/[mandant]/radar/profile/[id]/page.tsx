@@ -12,7 +12,7 @@ import {
   leseEmpfaengerkandidaten, leseProfil, type ProfilBlick,
 } from '@/server/services/radar/profil';
 import {
-  ABZUG_PLATZHALTER, GEWICHTE_PLATZHALTER,
+  ABZUG_PLATZHALTER, GEWICHTE_PLATZHALTER, SCHWELLE_VOREINSTELLUNG,
 } from '@/server/services/radar/gewichte.platzhalter';
 import { REGEL_VERSION } from '@/server/services/radar/bewertung';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -83,7 +83,7 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
 const VERMERKT_TEXT: Readonly<Record<string, string>> = {
   stammdaten: 'Die Stammdaten sind gespeichert. Die Fassung des Profils ist damit '
     + 'hochgezählt; der nächste Lauf schreibt neue Bewertungen, die alten bleiben stehen.',
-  cpv_hinzu: 'Die CPV-Zeile ist eingetragen — als Platzhalter (O-98).',
+  cpv_hinzu: 'Die CPV-Zeile ist eingetragen — als Voreinstellung, gegen die amtliche Liste unbestätigt (O-98).',
   cpv_weg: 'Die CPV-Zeile ist entfernt.',
   empfaenger_hinzu: 'Der Empfänger ist eingetragen — ohne Schwelle, also ohne '
     + 'Treffermeldung, bis O-15 beantwortet ist.',
@@ -268,7 +268,7 @@ export default async function ProfilBearbeiten(
           {/* O-191: die Wirkung der Negativ-Stichwörter ist nicht umstellbar. */}
           <label className="flex flex-col gap-s2 text-xs text-text-muted"
                  htmlFor="negativWirkung">
-            Wirkung der Negativ-Stichwörter <strong>(offen — O-191)</strong>
+            Wirkung der Negativ-Stichwörter <strong>(Voreinstellung — O-191)</strong>
             <input id="negativWirkung" type="text" readOnly disabled
                    className={gesperrt} data-cse="profil-negativ-wirkung"
                    data-wirkung={p.negativWirkung}
@@ -298,9 +298,10 @@ export default async function ProfilBearbeiten(
           <p className="text-xs text-text-muted">
             Beträge in ganzen Cent (Invariante 1), deutsches Format. Die Währung dieses
             Profils ist <strong>{p.waehrung}</strong> und hier nicht umstellbar{' '}
-            <strong>(offen — O-47)</strong>: Fremdwährungen werden NIE umgerechnet — eine
-            Bekanntmachung in einer anderen Währung bleibt im Wertkriterium unbewertet und
-            sagt es. Ein Profil in anderer Währung verlöre das Kriterium für jede
+            <strong>(Voreinstellung — O-47)</strong>: Fremdwährungen werden nicht umgerechnet —
+            eine Bekanntmachung in einer anderen Währung bleibt im Wertkriterium unbewertet
+            und sagt es; ein Kursdienst (EZB-Referenzkurs des Veröffentlichungstags) ist nicht
+            angebunden (V-303). Ein Profil in anderer Währung verlöre das Kriterium für jede
             Bekanntmachung in Euro.
           </p>
 
@@ -340,9 +341,9 @@ export default async function ProfilBearbeiten(
           <p className="text-xs text-text-muted">
             Ein abgeschaltetes Profil bewertet nichts mehr; seine bisherigen Bewertungen
             bleiben lesbar. Gelöscht wird ein Profil hier nicht{' '}
-            <strong>(offen — O-720)</strong> — was mit den Bewertungen eines archivierten
-            Profils geschehen soll, hat niemand entschieden, und die sichere Richtung ist,
-            es lesbar zu lassen.
+            <strong>(Voreinstellung — O-720)</strong>: Abschalten statt Archivieren, die
+            Bewertungen bleiben unter dem Profilnamen lesbar. Ein Archiv-Weg ist nicht gebaut
+            (V-304).
           </p>
 
           <div>
@@ -357,12 +358,12 @@ export default async function ProfilBearbeiten(
       <section aria-labelledby="gewichte-titel" className="mb-s7 max-w-prose">
         <h2 id="gewichte-titel" className="mb-s3 text-h2 text-text">Gewichtung</h2>
         <Hinweis art="warnung" cse="profil-gewichte" className="mb-s3">
-          <strong>Die Gewichte sind Platzhalter (offen — O-15).</strong> Wie viel ein
+          <strong>Die Gewichte sind die Voreinstellung (O-15, D-786).</strong> Wie viel ein
           CPV-Treffer gegenüber einer Region oder einem Stichwort wiegt, welche Punkteskala
-          gilt und ab welcher Punktzahl benachrichtigt wird, hat niemand entschieden. Diese
-          Felder stehen deshalb gesperrt da, statt zu fehlen: ein freies Zahlenfeld täte
-          so, als wäre die Gewichtung bestätigt, und die Rangfolge, die daraus entsteht,
-          würde geglaubt.
+          gilt und ab welcher Punktzahl benachrichtigt wird, hat der Betreiber noch nicht
+          bestätigt. Diese Felder stehen deshalb gesperrt da, statt zu fehlen: ein freies
+          Zahlenfeld täte so, als wäre die Gewichtung bestätigt, und die Rangfolge, die
+          daraus entsteht, würde geglaubt.
         </Hinweis>
         <dl data-cse="profil-gewichte-werte"
             className="grid grid-cols-1 gap-s2 rounded-lg border border-line bg-surface p-s5 text-sm sm:grid-cols-[12rem_1fr] sm:gap-x-s5">
@@ -393,8 +394,9 @@ export default async function ProfilBearbeiten(
           <dt className="text-text-muted">Benachrichtigung ab</dt>
           <dd className="text-text tabular-nums" data-cse="profil-schwelle">
             {p.benachrichtigungAbPunkte === null
-              ? 'nicht gesetzt — es wird niemand benachrichtigt (gesperrt, O-15)'
-              : `${String(p.benachrichtigungAbPunkte)} Punkte (gesperrt, O-15)`}
+              ? `nicht gesetzt — es wird niemand benachrichtigt; ein neues Profil bekommt die Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} (gesperrt, O-15)`
+              : `${String(p.benachrichtigungAbPunkte)} Punkte (${
+                p.benachrichtigungAbPunkte === SCHWELLE_VOREINSTELLUNG ? 'Voreinstellung, ' : ''}gesperrt, O-15)`}
           </dd>
         </dl>
       </section>
@@ -422,7 +424,7 @@ export default async function ProfilBearbeiten(
                   </span>
                   {c.istPlatzhalter ? (
                     <span className="ml-s2 text-xs text-warning">
-                      Platzhalter — gegen die amtliche CPV-Liste unbestätigt (offen — O-98)
+                      Voreinstellung — gegen die amtliche CPV-Liste unbestätigt (O-98)
                     </span>
                   ) : null}
                 </span>
@@ -476,9 +478,9 @@ export default async function ProfilBearbeiten(
           <p className="text-xs text-text-muted">
             Die Präfixlänge sagt, wie viele Stellen verglichen werden:{' '}
             <span className="font-mono">45000000</span> bei Länge 2 fängt den ganzen
-            Hochbau. Jede hier eingetragene Zeile bleibt <strong>Platzhalter</strong>, bis
+            Hochbau. Jede hier eingetragene Zeile bleibt <strong>Voreinstellung</strong>, bis
             die CPV-Listen der Gewerke gegen die amtliche Liste bestätigt sind{' '}
-            <strong>(offen — O-98)</strong>. Ein eigenes Gewicht je Code gibt es nicht: die
+            <strong>(O-98)</strong>. Ein eigenes Gewicht je Code gibt es nicht: die
             Spalte steht im Schema, die Bewertung benutzt sie nicht (O-15).
             {' '}<strong>„Schliesst aus" verwirft still</strong>, was nie ein Mensch gesehen
             hat — verwenden Sie es sparsam.
@@ -518,10 +520,9 @@ export default async function ProfilBearbeiten(
                   </span>
                   <span className="ml-s2 text-text-muted">
                     {e.abPunkte === null
-                      ? `ohne Schwelle — bekommt keine Treffermeldung${
-                        p.benachrichtigungAbPunkte === null
-                          ? ' (offen — O-15)'
-                          : `, solange auch das Profil keine wirksame Schwelle hat (offen — O-15)`}`
+                      ? (p.benachrichtigungAbPunkte === null
+                        ? `ohne Schwelle — bekommt keine Treffermeldung, solange auch das Profil keine hat (Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} nicht gesetzt, O-15)`
+                        : `ohne eigene Schwelle — ab ${String(p.benachrichtigungAbPunkte)} von ${String(p.skalaMax)} Punkten, der Schwelle des Profils (Voreinstellung, O-15)`)
                       : `ab ${String(e.abPunkte)} von ${String(p.skalaMax)} Punkten`}
                   </span>
                 </span>
@@ -566,12 +567,12 @@ export default async function ProfilBearbeiten(
               </select>
             </label>
             <p className="text-xs text-text-muted">
-              Eingetragen wird <strong>ohne Schwelle</strong>: ab welcher Punktzahl
-              benachrichtigt wird, hat niemand entschieden{' '}
-              <strong>(offen — O-15)</strong>, und eine erfundene Zahl schickte entweder
-              Post, deren Auswahlregel niemand bestätigt hat, oder verschwiege Treffer, die
-              niemand sucht. Die <strong>knappe Abgabefrist</strong> meldet der Wächter
-              davon unabhängig und ohne Schwelle: fünf Tage stehen in SPEC §14 und RAD-06.
+              Eingetragen wird <strong>ohne eigene Schwelle</strong>: es gilt die Schwelle des
+              Profils — bei neuen Profilen die Voreinstellung {String(SCHWELLE_VOREINSTELLUNG)} von{' '}
+              {String(p.skalaMax)} Punkten <strong>(O-15, D-786)</strong>; eine eigene Zahl je
+              Empfänger hat hier kein Feld (V-309). Die <strong>knappe Abgabefrist</strong> meldet
+              der Wächter davon unabhängig und ohne Schwelle: fünf Tage stehen in SPEC §14 und
+              RAD-06.
             </p>
             <div>
               <Button type="submit" variante="secondary" data-cse="profil-empfaenger-hinzu">

@@ -2,6 +2,7 @@ import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { cent, type Cent } from '../finanz/geld.js';
 import type { KeywordWirkung, Wirkung } from './bewertung.js';
+import { SCHWELLE_VOREINSTELLUNG } from './gewichte.platzhalter.js';
 
 /**
  * Ein Suchprofil des Vergaberadars lesen und schreiben (RAD-04, RAD-05,
@@ -12,16 +13,18 @@ import type { KeywordWirkung, Wirkung } from './bewertung.js';
  * nur die Eingaben eines Profils gepflegt. Und kein Sprachmodell ist
  * beteiligt — weder beim Bewerten noch beim Pflegen (Invariante 6).
  *
- * **Vier Felder bleiben gesperrt, weil ihre Regel offen ist** (Regel 1):
+ * **Vier Felder bleiben gesperrt, weil ihre Regel eine Voreinstellung ist**
+ * (Regel 1, D-786):
  *
  *  * `gewichtung` und `benachrichtigung_ab_punkte` — wie viel ein CPV-Treffer
  *    gegenüber einer Region wiegt und ab welcher Punktzahl benachrichtigt
- *    wird, hat niemand entschieden (O-15). Freie Zahlenfelder täten so, als
- *    wäre die Gewichtung bestätigt, und die Rangfolge, die daraus entsteht,
- *    würde geglaubt.
+ *    wird, ist die Voreinstellung aus `gewichte.platzhalter.ts` (O-15), vom
+ *    Betreiber nicht bestätigt. Freie Zahlenfelder täten so, als wäre die
+ *    Gewichtung bestätigt, und die Rangfolge, die daraus entsteht, würde
+ *    geglaubt. Ein neues Profil bekommt `SCHWELLE_VOREINSTELLUNG`.
  *  * `negativ_wirkung` — schliesst ein Negativ-Stichwort aus oder zieht es
- *    nur ab (O-191)? Bis zur Antwort steht es auf `abzug`, der sicheren
- *    Richtung: ein Ausschluss verwirft still, was nie ein Mensch gesehen hat.
+ *    nur ab (O-191)? Voreinstellung `abzug`, die sichere Richtung: ein
+ *    Ausschluss verwirft still, was nie ein Mensch gesehen hat.
  *  * `waehrung` — Fremdwährungen werden NIE umgerechnet (O-47). Ein Profil,
  *    dessen Grenzen in einer anderen Währung stünden, verlöre für jede
  *    Bekanntmachung in Euro das Wertkriterium, und zwar stillschweigend
@@ -381,7 +384,7 @@ export interface ProfilEingabe {
  * `benachrichtigung_ab_punkte`, `skala_max`, `negativ_wirkung`, `waehrung`
  * und `ist_platzhalter` tauchen in `ProfilEingabe` nicht auf — nicht weil sie
  * vergessen wurden, sondern damit kein Aufrufer sie versehentlich setzen
- * kann. Ihre offenen Fragen: O-15, O-191, O-47.
+ * kann. Ihre Voreinstellungen: O-15, O-191, O-47 (D-786).
  */
 /** Genau die Felder, die eine Bewertung beeinflussen — die Vergleichsgrundlage. */
 interface StandRoh {
@@ -442,9 +445,10 @@ function gleich(a: readonly string[], b: readonly string[]): boolean {
  * wären — und der erste, an dem sie eines Tages fehlen.
  *
  * `ist_platzhalter` bleibt `true` (O-98), `gewichtung`, `skala_max`,
- * `waehrung`, `negativ_wirkung` und `benachrichtigung_ab_punkte` bleiben bei
- * ihren Vorgabewerten: jeder andere Wert wäre eine Behauptung über eine
- * offene Frage.
+ * `waehrung` und `negativ_wirkung` bleiben bei ihren Vorgabewerten;
+ * `benachrichtigung_ab_punkte` bekommt `SCHWELLE_VOREINSTELLUNG` (O-15,
+ * D-786) — ohne sie meldete RAD-08 für das neue Profil nichts, und ein
+ * Profil, das still schweigt, sieht aus wie eines ohne Treffer.
  */
 export async function legeProfilAn(
   kontext: SchreibKontext, name: string,
@@ -462,10 +466,11 @@ export async function legeProfilAn(
   let zeile: { id: string } | undefined;
   try {
     [zeile] = await kontext.schreibe<{ id: string }>(
-      `insert into radar_profil (mandant_id, name, ist_aktiv, erstellt_von)
-       values (app.aktiver_mandant(), $1, false, $2::uuid)
+      `insert into radar_profil
+         (mandant_id, name, ist_aktiv, erstellt_von, benachrichtigung_ab_punkte)
+       values (app.aktiver_mandant(), $1, false, $2::uuid, $3::int)
        returning id`,
-      [geprueft, kontext.benutzerId]);
+      [geprueft, kontext.benutzerId, SCHWELLE_VOREINSTELLUNG]);
   } catch (fehler: unknown) {
     const text = fehler instanceof Error ? fehler.message : String(fehler);
     if (text.includes('row-level security') || text.includes('row level security')) {

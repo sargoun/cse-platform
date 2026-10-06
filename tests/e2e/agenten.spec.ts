@@ -10,8 +10,8 @@
  *  2. **Kein Startknopf.** Das ist die Zusicherung, nicht die Auslassung: ein
  *     Knopf, der eine Aufgabe anlegt, die niemand ausführt, wäre die
  *     vorgetäuschte Funktion, die CLAUDE.md verbietet.
- *  3. Das Budget zeigt die Obergrenze als PLATZHALTER — die Zahl steht da,
- *     und daneben steht, dass sie noch keine Entscheidung ist (O-26).
+ *  3. Das Budget zeigt die Obergrenze als VOREINSTELLUNG — die Zahl steht da,
+ *     und daneben steht, dass sie noch keine Entscheidung ist (O-26, D-786).
  *  4. Wer `agent.lesen` nicht hält, sieht die Seite gar nicht (AUT-06).
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -69,7 +69,7 @@ test.describe('Agenten-Zentrum', () => {
     await expect(page.locator('[data-cse="agent-starten"]')).toBeVisible();
   });
 
-  test('das Budget nennt seine Obergrenze — und dass sie ein Platzhalter ist', async ({ page }) => {
+  test('das Budget nennt seine Obergrenze — und dass sie eine Voreinstellung ist', async ({ page }) => {
     /*
      * `agent.budget_verwalten` haelt nur `super_admin` — und das ist die
      * Absicht, nicht eine Luecke im Seed: eine Obergrenze fuer die KI ist
@@ -92,7 +92,7 @@ test.describe('Agenten-Zentrum', () => {
     await page.locator('[data-cse="wechsel-knopf"]').click();
     await expect(page).toHaveURL(new RegExp(`/portal/${MANDANT}/agenten/budget$`, 'u'));
     await expect(page.getByRole('heading', { name: 'KI-Budget', level: 1 })).toBeVisible();
-    await expect(page.getByText('Platzhalter').first()).toBeVisible();
+    await expect(page.locator('[data-cse="budget-voreinstellung"]').first()).toBeVisible();
 
     /*
      * Die Warnschwelle ist die Voreinstellung 80 % (O-195, D-784): der Seed

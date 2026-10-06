@@ -152,7 +152,7 @@ export default async function GruppenAgenten({ searchParams }: { searchParams: S
           />
         </div>
       )}
-      <GruppenHinweis text="Die Obergrenze je Gesellschaft ist ein Platzhalter, bis die Geschäftsführung sie festlegt (O-26). Geändert wird sie im Bereich, unter KI-Budget." />
+      <GruppenHinweis text="Die Obergrenze je Gesellschaft ist die Voreinstellung 50,00 € im Monat (O-26, D-786), bis die Geschäftsführung sie festlegt. Geändert wird sie im Bereich, unter KI-Budget." />
     </GruppenRahmen>
   );
 }

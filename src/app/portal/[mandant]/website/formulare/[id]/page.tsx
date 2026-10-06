@@ -381,7 +381,7 @@ export default async function WebsiteFormular(
               </div>
             </dl>
             <p className="mb-s4 mt-0 max-w-prose text-xs text-text-subtle">
-              Die 24 Stunden des Erstbestands sind die <strong>Voreinstellung</strong>
+              Die 24 Stunden des Erstbestands sind die <strong>Voreinstellung</strong>{' '}
               (O-14, D-780): Kalenderstunden ab Eingang, auch an einem Freitagabend. Aus
               ihnen entsteht die Fälligkeit des Vorgangs; läuft sie ab, eskaliert der Lauf
               an die eigene Leitung (REQ-06).

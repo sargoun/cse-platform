@@ -29,6 +29,7 @@ import {
   ProfilFehler, entferneCpv, entferneEmpfaenger, legeProfilAn, leseProfil, schreibeProfil,
   setzeCpv, setzeEmpfaenger,
 } from '../../src/server/services/radar/profil.js';
+import { SCHWELLE_VOREINSTELLUNG } from '../../src/server/services/radar/gewichte.platzhalter.js';
 import { cent, type Cent } from '../../src/server/services/finanz/geld.js';
 
 let f: Fixtur;
@@ -612,11 +613,15 @@ describe('(9) ein Profil anlegen', () => {
     expect(blick!.cpv).toHaveLength(0);
     expect(blick!.nutsPraefixe).toHaveLength(0);
     expect(blick!.positivKeywords).toHaveLength(0);
-    /* Die gesperrten Felder stehen auf ihren Vorgabewerten — O-15, O-47, O-191. */
+    /*
+     * Die gesperrten Felder stehen auf ihren Voreinstellungen — O-15, O-47,
+     * O-191. Die Treffermeldung kommt seit D-786 mit: ein neues Profil meldet
+     * ab `SCHWELLE_VOREINSTELLUNG`, nicht nie.
+     */
     expect(blick!.skalaMax).toBe(100);
     expect(blick!.waehrung).toBe('EUR');
     expect(blick!.negativWirkung).toBe('abzug');
-    expect(blick!.benachrichtigungAbPunkte).toBeNull();
+    expect(blick!.benachrichtigungAbPunkte).toBe(SCHWELLE_VOREINSTELLUNG);
   });
 
   it('und lässt sich mit dem vorhandenen Weg einschalten', async () => {

@@ -60,8 +60,9 @@ export function registriereRadarWarnungen(db: Abfrage): JobDefinition {
        * `ohne_schwelle` steht mit im Kennzahlensatz, und zwar einzeln.
        *
        * „0 Treffer" allein sähe wie ein ruhiger Tag aus — auch dann, wenn
-       * schlicht niemand eine Schwelle gesetzt hat (O-15) und RAD-08 deshalb
-       * gar nicht arbeiten KANN. Der Unterschied ist genau der zwischen
+       * ein Profil aus dem Bestand keine Schwelle trägt (vor D-786 bekam ein
+       * neues Profil keine; O-15) und RAD-08 dort deshalb gar nicht arbeiten
+       * KANN. Der Unterschied ist genau der zwischen
        * „heute war nichts dabei" und „dieser Wächter ist unbestellt".
        */
       return {

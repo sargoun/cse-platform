@@ -21,6 +21,7 @@ import { haeltRechte } from '../../../../rechte';
 import { kennungFuer } from '../../kennung';
 import { startSperre } from '../../darstellung';
 import { MAX_SCHRITTE_PLATZHALTER } from '@/server/agent/limits.platzhalter';
+import { BUDGET_VOREINSTELLUNG_CENT } from '@/server/services/agent/budget-pflege';
 import { Recht } from '@/components/ui/Recht';
 
 /**
@@ -286,7 +287,7 @@ export default async function AgentStart(
                    benutzt `MAX_SCHRITTE_PLATZHALTER` als Rueckfall, wenn `max_schritte`
                    leer ist. Stand hier die 12 als Literal, sagte der Bildschirm nach
                    einer Aenderung des Platzhalters eine Grenze zu, die nicht gilt. */
-                ? `${String(MAX_SCHRITTE_PLATZHALTER)} — Platzhalter (offene Frage O-196)`
+                ? `${String(MAX_SCHRITTE_PLATZHALTER)} — Voreinstellung (O-196)`
                 : String(kopf.max_schritte)}
             </dd>
           </dl>
@@ -376,9 +377,10 @@ export default async function AgentStart(
             </span>
           ) : budget === null ? (
             <span className="text-text-muted">
-              für diesen Monat ist keine Obergrenze hinterlegt. Der harte Stopp aus AGT-05
-              greift dann nicht — wie viel die KI kosten darf, entscheidet die
-              Geschäftsführung (offene Frage O-26).
+              für diesen Monat ist keine Obergrenze hinterlegt — ohne Budgetzeile läuft der
+              Agent nicht (AGT-05). Die Voreinstellung ist{' '}
+              {formatiereGeld(cent(BUDGET_VOREINSTELLUNG_CENT))} je Gesellschaft und Monat
+              (O-26, D-786); eingetragen wird sie unter KI-Budget.
             </span>
           ) : (
             <span className="text-text">
@@ -388,7 +390,7 @@ export default async function AgentStart(
               {' · verbraucht '}{formatiereGeld(cent(verbrauchCent))}
               {gebundenCent > 0n ? ` · gebunden ${formatiereGeld(cent(gebundenCent))}` : ''}
               {restCent === null ? '' : ` · übrig ${formatiereGeld(cent(restCent))}`}
-              {budget.istPlatzhalter ? ' — Platzhalter (O-26)' : ''}
+              {budget.istPlatzhalter ? ' — Voreinstellung (O-26)' : ''}
             </span>
           )}
         </p>
