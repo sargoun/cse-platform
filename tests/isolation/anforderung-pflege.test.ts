@@ -148,6 +148,27 @@ async function qualifikation(): Promise<string> {
   return q!.id;
 }
 
+/**
+ * Die zwei §34a-Qualifikationen MIT ihren festen Schluesseln, als globale
+ * Katalogzeilen — so wie `seed/qualifikation.ts` sie im Betrieb anlegt. Die
+ * Voreinstellung (`ANFORDERUNG_VOREINSTELLUNG`, O-342) sucht sie ueber genau
+ * diese Schluessel; der Isolations-Seed laedt den vollen Katalog nicht, also
+ * legt der Test sie selbst an (wie Objekt und Posten). `on conflict do nothing`,
+ * weil die Veranstaltung beide braucht und ein zweiter Aufruf nichts doppelt
+ * anlegt.
+ */
+async function qualifikationen34a(): Promise<void> {
+  await sql.unsafe(
+    `insert into qualifikation (mandant_id, schluessel, bezeichnung, kategorie,
+                                rechtsgrundlage, laeuft_ab, blockiert_einsatz)
+     values
+       (null, '34a_unterrichtung', 'Unterrichtung nach §34a GewO', 'gesetzlich',
+        '§34a Abs. 1 GewO', false, true),
+       (null, '34a_sachkunde', 'Sachkundeprüfung nach §34a GewO', 'gesetzlich',
+        '§34a Abs. 1a GewO', false, true)
+     on conflict do nothing`);
+}
+
 async function nachweis(personId: string, q: string, bis: string): Promise<void> {
   await sql.unsafe(
     `insert into nachweis (person_id, qualifikation_id, gueltig_ab, gueltig_bis,
@@ -469,6 +490,7 @@ describe('(4) von der Veranstaltung aus — und die uebrigen Zweige des Nachzugs
  */
 describe('(9) die Voreinstellung nach § 34a GewO (D-783, O-342)', () => {
   it('am Posten: die Unterrichtung für jede Kraft, unbestätigt, als Warnung — einmal', async () => {
+    await qualifikationen34a();
     const { objektId } = await objekt();
     const postenId = await posten(objektId);
     const herkunft = { art: 'posten' as const, id: postenId };
@@ -489,6 +511,7 @@ describe('(9) die Voreinstellung nach § 34a GewO (D-783, O-342)', () => {
   });
 
   it('an der Veranstaltung: Unterrichtung für jede Kraft und mindestens eine Sachkunde', async () => {
+    await qualifikationen34a();
     const { objektId, kundeId } = await objekt();
     const veranstaltungId = await veranstaltung(kundeId, objektId);
     const herkunft = { art: 'veranstaltung' as const, id: veranstaltungId };
