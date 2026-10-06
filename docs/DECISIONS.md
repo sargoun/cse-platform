@@ -24515,6 +24515,19 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-36, O-22 | EU-gehosteter Transaktionsmailer mit Auftragsverarbeitungsvertrag (Zugangsdaten = Betreiberdaten); kein Peppol-Zugangspunkt. Beides bleibt „nicht verbunden" — kein vorgetäuschter Versand. | `versand.ts`, `rechnung-ausgabe.ts` |
 | O-135 | Kein Erkennungsdienst für gescannte Rechnungen verbunden (Voreinstellung: EU-Anbieter mit AVV); bis dahin manuelle Erfassung. | `eingangsrechnungen.ts` |
 
+**Prüfstand (06.10.2026).** Während dieser PR lief, wurden drei Advisories gegen
+Werkzeuge der Build-Kette veröffentlicht; `pnpm audit --audit-level=moderate`
+in der CI wurde rot, ohne dass der Diff sie berührt. Behoben per Override, wo
+eine korrigierte Fassung existiert: `source-map-js` ≥ 1.2.2
+(GHSA-68fv-2mgg-jv7q, über `postcss`) und `postcss-selector-parser` ≥ 7.1.6
+(GHSA-rj75-hqrm-r3gf, über `tailwindcss` 3.4 — Hauptversionssprung, Build und
+Oberflächenprüfungen laufen damit). Für `braces` ≤ 3.0.3
+(GHSA-vfj7-8cjw-p6xm, über `tailwindcss › chokidar`, Stack-Exhaustion bei
+tief verschachtelten Mustern) gibt es keine korrigierte Fassung; auf Weisung des
+Auftraggebers (06.10.2026) nimmt `pnpm.auditConfig.ignoreGhsas` die Advisory
+aus — `braces` läuft nur im Build-Werkzeug, nie in der Plattform zur Laufzeit.
+Die Ausnahme fällt, sobald `braces` eine korrigierte Fassung hat.
+
 **Nicht entschieden in dieser Runde.** O-183 (Vier-Augen-Grenze für
 Eingangsrechnungen): Wortlaut und Verhalten bleiben, wie sie waren — die
 Einstellung `eingang.vier_augen_ab_cent` setzt die Gesellschaft; eine
