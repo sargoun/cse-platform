@@ -170,7 +170,7 @@ const ZIELE: readonly Ziel[] = [
      * falsch (K-18). `DOKUMENTE_ERREICHBAR` ist die eine Stelle, die sich
      * aendert, wenn O-671 beantwortet ist.
      */
-    satz: () => DOKUMENTE_ERREICHBAR ? 'für Sie freigegeben' : 'Weg noch nicht geöffnet (O-671)',
+    satz: () => DOKUMENTE_ERREICHBAR ? 'für Sie freigegeben' : 'folgt (O-671, V-282)',
   },
 ];
 

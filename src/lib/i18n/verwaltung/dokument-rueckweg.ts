@@ -33,7 +33,8 @@ export const UPLOAD_FEHLER_GRUENDE = [
   'speicher',
   'datei_leer', 'datei_unbekannt', 'datei_nicht_erlaubt', 'datei_widerspruch',
   'datei_zu_gross', 'datei_metadaten',
-  'titel_fehlt', 'titel_zu_lang', 'kategorie_unbekannt', 'beschreibung_zu_lang',
+  'titel_fehlt', 'titel_zu_lang', 'kategorie_unbekannt', 'kategorie_nicht_freigebbar',
+  'beschreibung_zu_lang',
   'kunde_unbekannt', 'objekt_unbekannt', 'auftrag_unbekannt',
 ] as const;
 export type UploadFehlerGrund = (typeof UPLOAD_FEHLER_GRUENDE)[number];
@@ -73,6 +74,9 @@ export const UPLOAD_RUECKWEG_TEXTE: Readonly<Record<'de', UploadRueckwegTexte>> 
       kategorie_unbekannt:
         'Bitte eine der Kategorien wählen. DOC-01 nennt genau neun, und an der Kategorie hängt '
         + 'die Aufbewahrungsfrist — eine zehnte hiesse, eine Frist zu erfinden.',
+      kategorie_nicht_freigebbar:
+        'Für die Belegschaft freigebbar sind nur die Kategorien Unternehmen und Projekt '
+        + '(Voreinstellung, O-851). Ohne das Häkchen ablegen — oder die Kategorie prüfen.',
       beschreibung_zu_lang: 'Die Beschreibung fasst 2000 Zeichen.',
       kunde_unbekannt:
         'Diesen Kunden gibt es in dieser Gesellschaft nicht — die Auswahl zeigt die, die diese '

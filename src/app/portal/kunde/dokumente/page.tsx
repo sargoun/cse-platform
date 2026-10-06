@@ -143,7 +143,7 @@ export default async function Kundendokumente(
           ? (kategorie === null
             ? 'Für diesen Zugang ist keine Unterlage freigegeben. Ein Dokument erscheint hier erst, wenn es ausdrücklich für Sie freigegeben wurde — das ist ein eigener Vorgang und nie der Normalfall.'
             : 'In dieser Kategorie ist nichts freigegeben. Über „Alle" sehen Sie die übrigen.')
-          : 'Diese Liste ist leer, weil der Weg noch nicht geöffnet ist (O-671) — nicht, weil keine Unterlagen vorliegen. Der Hinweis oben sagt, wie Sie sie heute bekommen.'} />
+          : 'Diese Liste ist leer, weil der Weg noch nicht gebaut ist (O-671, folgt unter V-282) — nicht, weil keine Unterlagen vorliegen. Der Hinweis oben sagt, wie Sie sie heute bekommen.'} />
       ) : (
         <DataTable
           beschriftung="Freigegebene Dokumente mit Titel, Kategorie, Dateityp, Größe, Objekt und Gesellschaft"

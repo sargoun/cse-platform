@@ -111,7 +111,7 @@ export default async function Aufbewahrung(
         <strong>Wirtschaftsjahr:</strong>{' '}
         beginnt am {String(daten.wj.beginnTag)}.{String(daten.wj.beginnMonat)}.
         {daten.wj.istPlatzhalter
-          ? ' — angenommen, nicht bestätigt (O-05). Es bestimmt den Jahrgang eines Prüfbündels, nicht den Beginn der Aufbewahrung.'
+          ? ' — Voreinstellung Kalenderjahr, nicht bestätigt (O-05). Es bestimmt den Jahrgang eines Prüfbündels, nicht den Beginn der Aufbewahrung.'
           : ' — bestätigt. Es bestimmt den Jahrgang eines Prüfbündels, nicht den Beginn der Aufbewahrung.'}
       </Hinweis>
 
@@ -136,7 +136,7 @@ export default async function Aufbewahrung(
                 <div><dt className="text-text-subtle">Löschsperre</dt>
                   <dd className="text-text">{r.loeschsperre ? 'ja' : 'nein'}</dd></div>
                 <div><dt className="text-text-subtle">Gesetzliche Untergrenze</dt>
-                  <dd className="text-text">{min === null ? 'keine eine Zahl (O-25)' : `${String(min)} Jahre`}</dd></div>
+                  <dd className="text-text">{min === null ? 'keine (O-25)' : `${String(min)} Jahre`}</dd></div>
                 <div><dt className="text-text-subtle">Grundlage</dt>
                   <dd className="text-text">{r.grundlage}</dd></div>
               </dl>

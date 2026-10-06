@@ -86,8 +86,10 @@ test.describe('Eine einzelne Firma', () => {
     await anmelden(page, KONTO.adminReinigung);
     await page.goto(await ersteFirma(page));
 
-    /* 1 — die Begruendung nennt sich selbst als Platzhalter (O-15). */
-    await expect(page.getByText('PLATZHALTER').first()).toBeVisible();
+    /* 1 — die Begruendung nennt sich selbst als Voreinstellung (O-15, D-780) und sagt,
+       dass die Geschaeftsfuehrung die Gewichte noch nicht bestaetigt hat. */
+    await expect(page.getByText(/Voreinstellung \(O-15\)/u).first()).toBeVisible();
+    await expect(page.getByText(/noch nicht bestätigt/u).first()).toBeVisible();
 
     /* 2 — der Entwurf steht da, und er beziffert nichts. */
     const entwurf = page.locator('pre').first();

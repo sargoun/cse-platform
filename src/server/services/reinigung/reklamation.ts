@@ -15,10 +15,16 @@
  *
  * **Keine Frist wird hier gerechnet.** `faellig_am` schreibt der SLA-Dienst,
  * und den gibt es noch nicht, weil die Frist je Priorität unbekannt ist.
- * // TODO(client, O-14): Welche Reaktions- und Behebungsfrist gilt je
+ * Voreinstellung (D-780): `faellig_am` = Serverzeit + 24 Kalenderstunden,
+ * fuer jede Quelle und jede Prioritaet gleich; die Eskalation nach Ablauf
+ * bleibt Sache der Objektleitung (die Liste zeigt die Frist farbig).
+ * // TODO(client, O-14): Voreinstellung 24 Stunden. Welche Reaktions- und Behebungsfrist gilt je
  * Priorität — Vertrags-SLA je Auftrag oder je Gesellschaft?
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+
+/** Reaktionsfrist einer Reklamation (O-14, D-780): 24 Kalenderstunden ab Serverzeit. */
+export const REAKTIONSFRIST_VOREINSTELLUNG_STUNDEN = 24;
 
 export type ReklamationQuelle =
   'kunde' | 'eigenkontrolle' | 'qualitaetspruefung' | 'mitarbeiter';
@@ -238,10 +244,11 @@ export async function erstelleReklamation(
     `insert into reklamation
        (mandant_id, nummer, objekt_id, revier_id, auftrag_leistung_id, kunde_id,
         leistungsnachweis_id, quelle, prioritaet, beschreibung, gemeldet_von_name,
-        wiederholung_von_id, erstellt_von)
+        wiederholung_von_id, erstellt_von, faellig_am)
      values (app.aktiver_mandant(), $1, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
              $6::uuid, $7::reklamation_quelle, $8::reklamation_prioritaet, $9, $10,
-             $11::uuid, app.aktueller_benutzer())
+             $11::uuid, app.aktueller_benutzer(),
+             now() + make_interval(hours => $12::int))
      returning id`,
     [
       nummer, eingabe.objektId, eingabe.revierId ?? null,
@@ -249,6 +256,7 @@ export async function erstelleReklamation(
       eingabe.leistungsnachweisId ?? null, eingabe.quelle,
       eingabe.prioritaet ?? 'mittel', eingabe.beschreibung.trim(),
       eingabe.gemeldetVonName ?? null, eingabe.wiederholungVonId ?? null,
+      REAKTIONSFRIST_VOREINSTELLUNG_STUNDEN,
     ],
   );
   return { id: z!.id, nummer };

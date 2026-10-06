@@ -111,7 +111,7 @@ export default async function ReklamationsBlatt({
           <div>
             <dt className="text-micro uppercase tracking-[0.08em] text-text-muted">Frist</dt>
             <dd className="m-0 text-base text-text">
-              {zeile.faelligAmLokal ?? 'offen (O-14)'}
+              {zeile.faelligAmLokal ?? 'ohne Frist (O-14)'}
             </dd>
           </div>
         </dl>

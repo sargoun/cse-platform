@@ -326,8 +326,9 @@ export default async function Stapelmappe({
       {!mappe.darfStapel && (
         <Hinweis art="warnung" cse="stapel-kein-recht" className="mb-s5 max-w-prose">
           Dieses Konto hält <Recht schluessel="freigabe.stapel_entscheiden" /> nicht. Die Mappe
-          bleibt lesbar; entschieden wird dann einzeln in der Prüfansicht. Wer die
-          Befugnis halten soll, ist offen (O-367).
+          bleibt lesbar; entschieden wird dann einzeln in der Prüfansicht. Voreinstellung (O-367):
+          die Administration hält die Befugnis; eine Leitung erhält sie je Gesellschaft über die
+          Rollenrechte.
         </Hinweis>
       )}
 

@@ -210,7 +210,8 @@ export async function setzeKostenposition(
   }
   if (kopf.basis === 'je_kostenart') {
     throw new KalkulationFehler(
-      'Gemeinkosten je Kostenart brauchen Saetze je Kostenart — sie sind offen (O-16)',
+      'Gemeinkosten je Kostenart brauchen Saetze je Kostenart — der Katalog fuehrt keine; '
+        + 'Voreinstellung ist die Basis Lohnkosten (O-16)',
       'basis_offen', 'gemeinkostenBasis');
   }
   if (kopf.satz === null || kopf.basis === null || kopf.gk === null || kopf.wg === null) {

@@ -439,7 +439,7 @@ export default async function KalkulationSeite(
               data-cse="kalkulation-offen"
               className="mb-s5 rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
             >
-              <strong>Dieser Preis ruht auf unbestätigten Werten.</strong>{' '}
+              <strong>Dieser Preis ruht auf unbestätigten Voreinstellungen.</strong>{' '}
               {kopf.bemerkung ?? 'Stundenverrechnungssatz und Zuschläge (O-16)'}
               {kopf.leistungswert_offen
                 ? ' — dazu der Reinigungsrichtwert je Belagsart (O-17).'
@@ -479,8 +479,8 @@ export default async function KalkulationSeite(
               <h2 className="text-h2 text-text">Werte bestätigen</h2>
               <p className="mb-s4 text-sm text-text-muted">
                 Was hier eingetragen wird, gilt für <strong>dieses</strong> Angebot.
-                Ein gruppenweiter Tarif ist noch nicht festgelegt (O-16) — bis er
-                es ist, entscheidet die Leitung je Angebot, und die Kalkulation
+                Der gruppenweite Tarif ist eine Voreinstellung (O-16: 29 € Stundenverrechnungssatz,
+            15 % Gemeinkosten, 3 % Wagnis und Gewinn) — die Leitung entscheidet je Angebot, und die Kalkulation
                 hält fest, wer wann was bestätigt hat.
               </p>
               <input type="hidden" name="angebotId" value={id} />

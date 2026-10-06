@@ -221,7 +221,7 @@ export default async function AuftragAbrechnung(
                   </h2>
                   <span className="flex items-center gap-s2">
                     <StatusPill zustand="Entwurf" />
-                    <span className="text-xs text-warning">provisorisch (O-04)</span>
+                    <span className="text-xs text-warning">Voreinstellung (O-04)</span>
                   </span>
                 </div>
 
@@ -263,9 +263,9 @@ export default async function AuftragAbrechnung(
 
                 {offen.length === 0 ? null : (
                   <p className="mt-s4 rounded-md border border-warning bg-warning-soft p-s3 text-sm text-warning">
-                    Unbestätigter Wert: <code>{offen.join(', ')}</code> ist im
-                    Vertrag nicht hinterlegt. Bis dahin weist die Abrechnung
-                    dieses Auftrags mit benanntem Grund ab (O-04).
+                    Fehlender Vertragswert: <code>{offen.join(', ')}</code> ist im
+                    Vertrag nicht hinterlegt; die Abrechnung dieses Auftrags weist mit
+                    benanntem Grund ab (O-04).
                   </p>
                 )}
 

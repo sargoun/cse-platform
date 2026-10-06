@@ -105,8 +105,7 @@ export default async function Leistungskatalog(
       {offeneGesamt > 0 ? (
         <Hinweis art="warnung" cse="platzhalter-gesamt" className="mb-s5">
           <strong>
-            {offeneGesamt} Position(en) tragen unbestätigte Werte — offen (O-17,
-            O-731).
+            {offeneGesamt} Position(en) tragen Voreinstellungen (O-17, O-731).
           </strong>{' '}
           Welche Zeitwerte, Leistungswerte und Standardpreise gelten und wer sie
           freigibt, ist nicht entschieden. Die Zahlen stehen als{' '}
@@ -165,7 +164,7 @@ export default async function Leistungskatalog(
                 <span className="text-text-subtle">—</span>
               ) : (
                 <span className="text-warning">
-                  {k.platzhalter} · offen (O-17, O-731)
+                  {k.platzhalter} · Voreinstellung (O-17, O-731)
                 </span>
               )),
             },

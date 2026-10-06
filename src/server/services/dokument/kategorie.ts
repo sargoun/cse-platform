@@ -51,12 +51,14 @@ export const AUFBEWAHRUNG: readonly AufbewahrungsRegel[] = [
   // Arbeitszeitnachweise 2 Jahre MiLoG, Berufsgenossenschaft laenger). Welche
   // hier gilt, haengt vom Dokument ab, nicht von der Kategorie — deshalb
   // offen und gesperrt, statt eine Zahl zu waehlen.
-  { kategorie: 'mitarbeiter', jahre: null, loeschsperre: true,
-    grundlage: 'offen — je Unterlage verschieden (O-25)', istPlatzhalter: true },
-  { kategorie: 'projekt', jahre: null, loeschsperre: true,
-    grundlage: 'offen — VOB/B-Gewaehrleistung je Vertrag (O-25)', istPlatzhalter: true },
-  { kategorie: 'unternehmen', jahre: null, loeschsperre: true,
-    grundlage: 'offen — Gesellschaftsunterlagen (O-25)', istPlatzhalter: true },
+  // Seit 0489 (D-779) Voreinstellungen — `istPlatzhalter` heisst „von der
+  // Buchhaltung noch nicht bestaetigt", die Loeschsperre bleibt.
+  { kategorie: 'mitarbeiter', jahre: 6, loeschsperre: true,
+    grundlage: 'Voreinstellung — § 41 EStG Lohnunterlagen, § 28f SGB IV: 6 Jahre (O-25)', istPlatzhalter: true },
+  { kategorie: 'projekt', jahre: 10, loeschsperre: true,
+    grundlage: 'Voreinstellung — § 147 AO Abrechnungsunterlagen, VOB/B § 13 Gewährleistung: 10 Jahre (O-25)', istPlatzhalter: true },
+  { kategorie: 'unternehmen', jahre: 10, loeschsperre: true,
+    grundlage: 'Voreinstellung — § 257 HGB Gesellschaftsunterlagen: 10 Jahre (O-25)', istPlatzhalter: true },
 ];
 
 export function regelFuer(kategorie: Kategorie): AufbewahrungsRegel {
@@ -97,4 +99,40 @@ export const FASSUNG_ERLAUBT_PLATZHALTER: readonly Kategorie[] =
 /** Bekommt ein Dokument dieser Kategorie eine neue Fassung? */
 export function fassungMoeglich(kategorie: string): boolean {
   return (FASSUNG_ERLAUBT_PLATZHALTER as readonly string[]).includes(kategorie);
+}
+
+/**
+ * **Welche Kategorien das Haus verlassen duerfen** — die Voreinstellungen zu
+ * O-736 (Kunde) und O-851 (Belegschaft), D-780.
+ *
+ * Die Frage war offen, und die Datenbank prueft bis heute nur das Recht bzw.
+ * den Schalter. Seit D-780 gilt eine Voreinstellung, und sie steht an EINER
+ * Stelle: `setzeKundenfreigabe`, `setzeMitarbeiterfreigabe` und die Ablage
+ * (`pruefeFelder`) weisen alles andere ab. Die Ruecknahme einer Freigabe
+ * bleibt fuer jede Kategorie moeglich — ein falsch freigegebenes Dokument
+ * muss man immer wieder sperren koennen.
+ *
+ * TODO(client, O-736): Voreinstellung — an einen KUNDEN gehen `kunde`
+ * (Schriftverkehr mit ihm), `angebot`, `vertrag`, `rechnung` und `projekt`
+ * (Leistungsnachweise, Berichte, Aufmasse fuer ihn); nie `mitarbeiter`,
+ * `buchhaltung`, `beleg` oder `unternehmen`.
+ * TODO(client, O-851): Voreinstellung — an die BELEGSCHAFT gehen
+ * `unternehmen` (Dienstanweisungen, Aushaenge, Schulungsunterlagen,
+ * Bescheinigungen der Gesellschaft) und `projekt` (Objektunterlagen,
+ * Dienstplaene, Nachweise); nie `mitarbeiter` (eine Personalakte gehoert
+ * einer Person, nicht der Belegschaft), nie Kunden-, Vertrags-, Angebots-,
+ * Rechnungs-, Beleg- oder Buchhaltungsunterlagen.
+ */
+export const KUNDENFREIGABE_KATEGORIEN: readonly Kategorie[] =
+  ['kunde', 'angebot', 'vertrag', 'rechnung', 'projekt'];
+export const MITARBEITERFREIGABE_KATEGORIEN: readonly Kategorie[] = ['unternehmen', 'projekt'];
+
+/** Darf ein Dokument dieser Kategorie an einen Kunden freigegeben werden? */
+export function kundenfreigabeMoeglich(kategorie: string): boolean {
+  return (KUNDENFREIGABE_KATEGORIEN as readonly string[]).includes(kategorie);
+}
+
+/** Darf ein Dokument dieser Kategorie der Belegschaft freigegeben werden? */
+export function mitarbeiterfreigabeMoeglich(kategorie: string): boolean {
+  return (MITARBEITERFREIGABE_KATEGORIEN as readonly string[]).includes(kategorie);
 }

@@ -32,8 +32,8 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   oz_belegt: 'Diese Ordnungszahl ist in dieser Fassung schon belegt.',
   ohne_wert:
     'Eine Position braucht mindestens einen Wert: Zeitwert, Leistungswert oder '
-    + 'Standardeinzelpreis. Ist der richtige Wert offen (O-17, O-731), trägt sie einen '
-    + 'gekennzeichneten Platzhalter — keinen leeren Wert.',
+    + 'Standardeinzelpreis. Fehlt ein bestätigter Wert, trägt sie die gekennzeichnete '
+    + 'Voreinstellung (O-17, O-731) — keinen leeren Wert.',
   fremder_elternteil: 'Die gewählte Elternposition gehört zu einer anderen Fassung.',
   zyklus: 'Diese Zuordnung hängt die Position unter sich selbst.',
   zahl_unlesbar:

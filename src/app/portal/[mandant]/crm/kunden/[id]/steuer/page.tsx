@@ -209,8 +209,8 @@ export default async function Steuer(
           <strong>Nicht „heute".</strong> §13b und §48b werden am
           LEISTUNGSDATUM beurteilt: ein Kunde, der seit letztem Monat kein
           Bauleistender mehr ist, war es im August — und eine Rechnung über August muss
-          das tragen. Welcher Tag gilt, wenn der Leistungszeitraum eine Statusgrenze
-          überschreitet, ist offen (O-21).
+          das tragen. Überschreitet der Leistungszeitraum eine Statusgrenze, gilt in der
+            Voreinstellung das Leistungsende (O-21).
         </p>
       </form>
 
@@ -556,9 +556,9 @@ export default async function Steuer(
                       </option>
                     </select>
                     <span className="text-xs text-text-muted">
-                      Nur diese zwei. Welche weiteren Tatbestände des § 13b Abs. 2 UStG
-                      die Gruppe berühren, ist offen (O-104) — ein dritter Wert wäre eine
-                      Geschäftsregel, die niemand getroffen hat.
+                      Nur diese zwei — Voreinstellung (O-104): Bauleistungen (Nr. 4) und
+                Gebäudereinigung (Nr. 8) sind die Tatbestände der Gruppe; ein dritter
+                kommt erst mit einem neuen Geschäftsfeld.
                     </span>
                   </label>
                   <fieldset className="m-0 flex flex-col gap-s2 border-0 p-0">
@@ -596,9 +596,9 @@ export default async function Steuer(
                            placeholder="Bestätigung USt 1 TG vom 12.01.2025"
                            data-cse="steuer-13b-grundlage" />
                     <span className="text-xs text-text-muted">
-                      Womit ist der Status belegt? Wie er zu belegen ist, ist offen
-                      (O-104) — was hier steht, ist das, was in einer Prüfung vorgelegt
-                      wird.
+                      Womit ist der Status belegt? Voreinstellung (O-104): Freistellungsbescheinigung
+                § 48b oder Bescheinigung USt 1 TG als Dokument am Kunden — was hier steht,
+                wird in einer Prüfung vorgelegt.
                     </span>
                   </label>
                   <p className="m-0 text-xs text-text-muted">
@@ -654,9 +654,9 @@ export default async function Steuer(
                 </span>
               </p>
               <p className="m-0 mt-s3 max-w-prose text-sm text-text-muted">
-                Geprüft wird AM STICHTAG, nicht heute. Wer die Gültigkeit vor der
-                Zahlung prüft und ob die Bescheinigung je Kunde, je Auftrag oder je
-                Nachunternehmer geführt wird, ist offen (O-67).
+                Geprüft wird AM STICHTAG, nicht heute. Voreinstellung (O-67): die
+            Bescheinigung wird je Nachunternehmer (Lieferant) mit Gültigkeit geführt; die
+            Buchhaltung prüft sie beim Freigeben einer Eingangsrechnung mit Bauleistung.
               </p>
             </div>
 

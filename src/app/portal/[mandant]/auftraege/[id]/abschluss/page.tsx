@@ -189,9 +189,8 @@ export default async function Abschluss(
         </p>
 
         <Hinweis art="warnung" cse="o730" className="mb-s4">
-          <strong>Keiner dieser Befunde sperrt den Abschluss — offen (O-730).</strong>{' '}
-          Welche von ihnen verbindlich verhindern, dass ein Auftrag geschlossen
-          wird, und welche nur gesehen worden sein müssen, ist nicht entschieden.
+          <strong>Keiner dieser Befunde sperrt den Abschluss — Voreinstellung (O-730): Warnung, keine Sperre.</strong>{' '}
+          Die Buchhaltung sieht die Befunde vor dem Abschluss und entscheidet.
           Bis zur Antwort <em>warnen alle</em>. FIN-18 selbst ist entschieden
           (D-366, D-367): es warnt im <strong>Rechnungsweg</strong> und wird nur
           mit protokollierter Begründung übergangen.
@@ -297,8 +296,8 @@ export default async function Abschluss(
           Europe/Berlin, gespeichert in UTC). Der Abschluss ist{' '}
           <strong>einwegig</strong>: das Datum ist unveränderlich und der Status
           wird nicht zurückgedreht — ein Zurückdrehen entschärfte die
-          FIN-18-Warnung ohne Spur. Ob ein Wiederöffnen überhaupt vorgesehen ist,
-          ist eine offene Frage — sichtbar als <strong>offen (O-734)</strong>.
+          FIN-18-Warnung ohne Spur. Ein Wiederöffnen ist nicht vorgesehen —
+            Voreinstellung (O-734): Korrektur über einen Nachtrag oder einen neuen Auftrag.
           <dl className="m-0 mt-s4 grid grid-cols-[auto_1fr] gap-x-s5 gap-y-s2">
             <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">
               Abnahme
@@ -384,12 +383,13 @@ export default async function Abschluss(
 
             <fieldset className="mt-s5 rounded-md border border-line p-s4">
               <legend className="px-s2 text-sm text-text">
-                Sicherheitseinbehalt — offen (O-20)
+                Sicherheitseinbehalt — Voreinstellung: keiner ohne Vereinbarung (O-20)
               </legend>
               <p className="mb-s4 max-w-[72ch] text-xs text-text-muted">
                 Welche VOB/B-§16-Bedingungen gelten, welcher Einbehaltssatz, wann
                 er freigegeben wird und ob eine Bürgschaft ihn ersetzt, ist{' '}
-                <strong>nicht entschieden (O-20)</strong>. Hier wird deshalb nur
+              <strong>Sache des Vertrags — Voreinstellung (O-20): kein Einbehalt ohne Vereinbarung,
+              Abschläge nach § 16 Abs. 1 VOB/B</strong>. Hier wird deshalb nur
                 festgehalten, was vereinbart wurde — <em>gerechnet wird
                 nichts</em>. Und genau <strong>eines</strong> von beiden: die
                 Datenbank nimmt nie einen Satz und einen Betrag zugleich an.
@@ -438,7 +438,7 @@ export default async function Abschluss(
               <strong>Der Abschluss ist einwegig.</strong> Das Abschlussdatum kommt
               aus der Serveruhr (Invariante 5) und wird danach nicht geändert; der
               Status wird nicht zurückgedreht. Korrektur läuft über einen Nachtrag
-              oder einen neuen Auftrag — offen (O-734).
+              oder einen neuen Auftrag — Voreinstellung (O-734).
             </p>
 
             <button

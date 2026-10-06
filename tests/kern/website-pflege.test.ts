@@ -69,10 +69,10 @@ describe('(1) der Zustand einer Formularversion kommt aus zwei Zeitpunkten', () 
 });
 
 describe('(2) die Reaktionszeit ist vorlaeufig, nicht unbekannt (D-75, O-14)', () => {
-  it('24 Stunden werden ANGEZEIGT und als vorlaeufig markiert', () => {
+  it('24 Stunden werden ANGEZEIGT und als Voreinstellung markiert', () => {
     const text = reaktionszeitText(24);
     expect(text).toContain('24');
-    expect(text).toContain('vorläufig');
+    expect(text).toContain('Voreinstellung');
     expect(text).toContain('O-14');
   });
 
@@ -87,8 +87,9 @@ describe('(2) die Reaktionszeit ist vorlaeufig, nicht unbekannt (D-75, O-14)', (
     expect(reaktionszeitText(24)).not.toContain('nicht festgelegt');
   });
 
-  it('der Nullfall bleibt — ein Formular ohne Zustaendigkeitszeile hat keine Frist', () => {
-    expect(reaktionszeitText(null)).toBe('offen (O-14)');
+  it('der Nullfall bleibt — ein Formular ohne Zustaendigkeitszeile hat keine Frist, und das steht da', () => {
+    expect(reaktionszeitText(null)).toBe('nicht gesetzt — ohne Frist läuft keine Eskalation (O-14)');
+    expect(reaktionszeitText(null)).not.toContain('24');
   });
 });
 

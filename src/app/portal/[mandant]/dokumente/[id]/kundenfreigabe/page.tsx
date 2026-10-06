@@ -128,9 +128,11 @@ export default async function Dokumentfreigabe(
           <dd className="m-0 text-sm text-text">
             <strong>{KATEGORIE[stand.kategorie] ?? stand.kategorie}</strong>
             <span className="block text-xs text-text-muted">
-              Welche Kategorien einem Kunden überhaupt gezeigt werden dürfen, ist
-              nicht entschieden — <strong>offen (O-736)</strong>. Die Datenbank
-              prüft nur das Recht; die Kategorie steht deshalb hier groß.
+              Für Kunden freigebbar sind die Kategorien Kunde, Angebot, Vertrag, Rechnung
+              und Projekt — nie Mitarbeiter, Beleg, Buchhaltung oder Unternehmen
+              (Voreinstellung, O-736). Der Dienst weist andere Kategorien ab, die
+              Rücknahme geht immer; die Datenbank prüft das Recht. Die Kategorie steht
+              deshalb hier groß.
             </span>
           </dd>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Dateityp</dt>
@@ -245,8 +247,8 @@ export default async function Dokumentfreigabe(
           Voraussetzung, nicht der Weg: das Kundenportal hat noch keinen Weg zu
           Dokumenten — die Datenbank gibt einem Konto im Kundenportal kein Dokument
           heraus, und es sieht deshalb <em>null</em> Dokumente, wie dieser Schalter
-          auch steht. Ob Anlagen dort herunterladbar werden, ist{' '}
-          <strong>offen (O-671)</strong>. Wo die Freigabe wirkt, wirkt sie nur für{' '}
+          auch steht. Anlagen werden dort herunterladbar, sobald der Weg gebaut ist{' '}
+          (O-671, V-282). Wo die Freigabe wirkt, wirkt sie nur für{' '}
           <strong>diesen</strong> Kunden.
         </Hinweis>
       </section>

@@ -620,7 +620,7 @@ export default async function Freigabe(
           <p className="mb-s3 text-sm text-text-muted">
             Genehmigt, aber noch nicht ausgelöst — bis{' '}
             <strong>{ZEIT.format(f.verzoegertBis)}</strong> kann jemand widersprechen (APR-05).
-            Danach läuft die Ausführung an; das Fenster ist ein Platzhalter (O-108).
+            Danach läuft die Ausführung an; das Fenster ist die Voreinstellung (O-108).
           </p>
           <form method="post" action="/api/freigaben/fenster" className="flex flex-col gap-s3">
             <input type="hidden" name="mandant" value={mandant} />

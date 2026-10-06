@@ -25,7 +25,7 @@ export type FassungAbweisungText =
 
 /** Die Gründe, mit denen die Mitarbeiterfreigabe abgewiesen wird (`DokumentfreigabeFehler`). */
 export type MitarbeiterfreigabeAbweisung =
-  'nicht_gefunden' | 'geloescht' | 'schon_so' | 'ohne_grund' | 'kein_recht';
+  'nicht_gefunden' | 'geloescht' | 'schon_so' | 'ohne_grund' | 'kein_recht' | 'kategorie';
 
 export interface DokumentBlattTexte {
   /* ── Fassungen (V-219 b) ────────────────────────────────────────────── */
@@ -174,9 +174,12 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     mfIstNichtFrei: 'Nicht freigegeben: im Mitarbeiterportal ist dieses Dokument unsichtbar.',
     mfKategorie: 'Kategorie',
     mfKategorieHinweis:
-      'Welche Kategorien einer Belegschaft überhaupt freigegeben werden dürfen, ist offen '
-      + '(O-851); die Datenbank prüft nur den Schalter. Die Kategorie steht deshalb hier '
-      + 'groß — an ihr fällt eine falsche Freigabe auf.',
+      'Voreinstellung (O-851): für die Belegschaft freigebbar sind die Kategorien Unternehmen '
+      + '(Dienstanweisungen, Aushänge, Schulungsunterlagen, Bescheinigungen) und Projekt '
+      + '(Objektunterlagen, Dienstpläne, Nachweise) — nie Mitarbeiter, Kunde, Vertrag, Angebot, '
+      + 'Rechnung, Beleg oder Buchhaltung. Der Dienst weist andere Kategorien ab; die Rücknahme '
+      + 'bleibt immer möglich. Die Kategorie steht deshalb hier groß — an ihr fällt eine falsche '
+      + 'Freigabe auf.',
     mfOhneRecht: 'Freigegeben und zurückgenommen wird von einer Sitzung mit',
     mfGrund: 'Grund',
     mfGrundBeispielZuruecknehmen:
@@ -205,6 +208,9 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
       ohne_grund: 'Der Grund fehlt. Freigabe und Rücknahme nennen ihren Grund.',
       kein_recht:
         'Diese Sitzung darf den Schalter nicht umlegen. Es wurde nichts geändert.',
+      kategorie:
+        'Dokumente dieser Kategorie werden nicht der Belegschaft freigegeben — Voreinstellung '
+        + '(O-851): freigebbar sind Unternehmen und Projekt. Es wurde nichts geändert.',
     },
     mfFehlerSonst: 'Die Änderung wurde abgewiesen.',
   },
@@ -291,9 +297,12 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     mfIstNichtFrei: 'Not released: the document is invisible in the employee portal.',
     mfKategorie: 'Category',
     mfKategorieHinweis:
-      'Which categories may be released to a workforce at all is still open (O-851); the '
-      + 'database checks only the switch. That is why the category is shown prominently '
-      + 'here — it is where a wrong release gets noticed.',
+      'Default (O-851): releasable to the workforce are the categories company (service '
+      + 'instructions, notices, training material, certificates) and project (site documents, '
+      + 'duty rosters, records) — never employee, customer, contract, offer, invoice, voucher '
+      + 'or accounting. The service rejects other categories; a withdrawal is always possible. '
+      + 'That is why the category is shown prominently here — it is where a wrong release gets '
+      + 'noticed.',
     mfOhneRecht: 'Releases are granted and withdrawn by a session holding',
     mfGrund: 'Reason',
     mfGrundBeispielZuruecknehmen:
@@ -321,6 +330,9 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
         + 'time. The page shows the current state.',
       ohne_grund: 'The reason is missing. Releases and withdrawals state their reason.',
       kein_recht: 'This session may not change the switch. Nothing was changed.',
+      kategorie:
+        'Documents of this category are not released to the workforce — default (O-851): '
+        + 'releasable are company and project documents. Nothing was changed.',
     },
     mfFehlerSonst: 'The change was rejected.',
   },

@@ -148,7 +148,8 @@ export async function setzeAuftragsstatus(
         ? 'Ein stornierter Auftrag wird nicht wieder aufgenommen. Wer sich geirrt '
           + 'hat, legt einen neuen an — dieselbe Antwort, die der Abschluss gibt.'
         : alt.status === 'abgeschlossen'
-          ? 'Ein abgeschlossener Auftrag wird nicht wieder geöffnet (O-734).'
+          ? 'Ein abgeschlossener Auftrag wird nicht wieder geöffnet — Voreinstellung (O-734): '
+            + 'Korrektur über einen Nachtrag oder einen neuen Auftrag.'
           : `Von „${alt.status}" nach „${zustand}" führt am Auftrag kein Weg.`,
       'kein_weg', 409);
   }

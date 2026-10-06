@@ -1898,7 +1898,7 @@ async function main(): Promise<void> {
     + `${String(rein.nachweise)} Leistungsnachweise mit `
     + `${String(rein.positionen)} Positionen aus erfasster Zeit, `
     + `${String(rein.unterschriften)} Unterschrift (Abzug eingefroren, CLN-04), `
-    + `${String(rein.reklamationen)} Reklamationen (Frist bleibt offen: O-14)\n`,
+    + `${String(rein.reklamationen)} Reklamationen (Frist: Voreinstellung 24 Stunden, O-14, D-780)\n`,
   );
   if (rein.nummerOffen !== null) {
     process.stdout.write(`  · Nachweisnummer nicht gezogen: ${rein.nummerOffen}\n`);

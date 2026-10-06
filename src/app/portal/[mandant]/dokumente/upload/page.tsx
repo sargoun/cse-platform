@@ -292,7 +292,8 @@ export default async function DokumentHochladen({
           <span>
             Für Beschäftigte im Arbeiterportal sichtbar
             <span className="mt-s1 block text-xs text-text-subtle">
-              Aus, bis jemand es anhakt (DOC-04). Für <strong className="text-text">Kunden</strong>{' '}
+              Aus, bis jemand es anhakt (DOC-04); angehakt nur für die Kategorien Unternehmen
+              und Projekt (Voreinstellung, O-851). Für <strong className="text-text">Kunden</strong>{' '}
               wird hier nichts freigegeben: das ist eine eigene Handlung mit eigenem
               Recht auf der Seite des Dokuments.
             </span>
@@ -333,7 +334,7 @@ export default async function DokumentHochladen({
                 <span>{r.grundlage}</span>
                 {r.istPlatzhalter && (
                   <span className="text-xs text-warning">
-                    Platzhalter — die Dauer ist nicht bestätigt (O-25); bis dahin gilt
+                    Voreinstellung — die Dauer ist nicht bestätigt (O-25); bis dahin gilt
                     die Sperre.
                   </span>
                 )}

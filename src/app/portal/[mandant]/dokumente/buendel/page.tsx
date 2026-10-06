@@ -106,7 +106,7 @@ export default async function Buendel(
         </select>
         <button type="submit" className={knopf}>Anzeigen</button>
         {b.wirtschaftsjahr.istPlatzhalter ? (
-          <span className="text-xs text-text-muted">Beginn {String(b.wirtschaftsjahr.beginnTag)}.{String(b.wirtschaftsjahr.beginnMonat)}. — angenommen (O-05)</span>
+          <span className="text-xs text-text-muted">Beginn {String(b.wirtschaftsjahr.beginnTag)}.{String(b.wirtschaftsjahr.beginnMonat)}. — Voreinstellung Kalenderjahr (O-05)</span>
         ) : null}
       </form>
 

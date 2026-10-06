@@ -43,8 +43,8 @@ export default async function Projekte({ params, searchParams }: {
           <strong>Die Marge ist eine Näherung.</strong> Sie ist Auftragssumme minus Lohn
           (freigegebene Zeiteinträge zum internen Stundensatz) minus Fremdleistung
           (Eingangsrechnungen mit Projektbezug). Material ohne Rechnungsbezug, Gemeinkosten
-          und Gerätestunden sind <em>nicht</em> enthalten — welche Kostenarten hineingehören,
-          ist offen (O-502). Eine Nachkalkulation ist das nicht, und in ein Angebot gehört
+          und Gerätestunden sind <em>nicht</em> enthalten — Voreinstellung (O-502): Lohn und
+        Fremdleistung bilden die Marge. Eine Nachkalkulation ist das nicht, und in ein Angebot gehört
           diese Zahl nicht ungeprüft.
         </>
       }

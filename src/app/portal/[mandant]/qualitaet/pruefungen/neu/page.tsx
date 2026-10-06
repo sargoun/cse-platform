@@ -145,7 +145,7 @@ export default async function PruefungNeu(
 
       {nurPlatzhalter && (
         <Hinweis art="hinweis" cse="pruefung-verfahren-platzhalter" className="mb-s5 max-w-prose">
-          <strong>Das Prüfverfahren ist ein Platzhalter ohne Skala und ohne
+          <strong>Das Prüfverfahren ist die Voreinstellung ohne Skala und ohne
           Schwelle (O-29).</strong>{' '}
           Auslöser, Punkteskala, Bestehensschwelle und die Folge einer nicht
           bestandenen Prüfung sind nicht festgelegt. Die erfasste Prüfung bleibt
@@ -243,7 +243,7 @@ export default async function PruefungNeu(
                 {auswahl.verfahren.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.bezeichnung}
-                    {v.istPlatzhalter ? ' — Platzhalter ohne Skala (O-29)' : ''}
+                    {v.istPlatzhalter ? ' — Voreinstellung ohne Skala (O-29)' : ''}
                     {v.maxPunkte === null ? '' : ` · bis ${v.maxPunkte.replace('.', ',')} Punkte`}
                   </option>
                 ))}
@@ -339,8 +339,8 @@ export default async function PruefungNeu(
             einem Mangel ohne Beschreibung belegt nichts.
           </p>
           <p className="mb-s4 max-w-prose text-xs text-text-subtle">
-            Die Kriterienvorschläge sind <strong>Platzhalter</strong>: es gibt
-            keinen Kriterienkatalog (O-29). Sie lassen sich überschreiben.
+            Die Kriterienvorschläge sind die <strong>Voreinstellung</strong>: ein
+          Kriterienkatalog ist nicht hinterlegt (O-29). Sie lassen sich überschreiben.
           </p>
 
           <datalist id="kriterium-vorschlaege">

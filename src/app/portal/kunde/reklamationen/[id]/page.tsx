@@ -91,7 +91,7 @@ export default async function Kundenreklamation(
           </Feld>
           <Feld label="Frist">
             {r.faelligAmLokal === null
-              ? <span className="text-text-subtle">offen (O-14)</span>
+              ? <span className="text-text-subtle">ohne Frist (O-14)</span>
               : <span className="cse-zahl">{r.faelligAmLokal}</span>}
           </Feld>
           <Feld label="Priorität">{PRIORITAET[r.prioritaet] ?? r.prioritaet}</Feld>
