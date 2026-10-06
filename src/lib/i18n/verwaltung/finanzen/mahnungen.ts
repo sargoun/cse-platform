@@ -249,9 +249,9 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     erledigenTitel: 'Erledigt',
     erledigenErklaerung:
       'Die Sache ist beigelegt — bezahlt, verrechnet oder auf anderem Weg. Die '
-      + 'Mahnung bleibt vollständig stehen; nur ihr Zustand sagt es. Ob ein '
-      + 'bezahlter offener Posten seine Mahnung von selbst schliesst, ist offen '
-      + '(O-902) — bis dahin setzt es ein Mensch, und er sieht dabei den Betrag.',
+      + 'Mahnung bleibt vollständig stehen; nur ihr Zustand sagt es. Voreinstellung '
+      + '(O-902): ein bezahlter offener Posten schliesst seine Mahnung nicht von '
+      + 'selbst — ein Mensch vermerkt es und sieht dabei den Betrag.',
     erledigenKnopf: 'Als erledigt vermerken',
     versandErklaerung:
       'Es gibt keinen automatischen Versand: die Mahnung geht als Brief, '
@@ -394,9 +394,9 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
     erledigenTitel: 'Settled',
     erledigenErklaerung:
       'The matter is closed — paid, offset, or settled some other way. The Mahnung '
-      + '(dunning letter) stays on file in full; only its state says so. Whether a '
-      + 'paid open item closes its Mahnung by itself is open (O-902) — until then a '
-      + 'human sets it, and sees the amount while doing so.',
+      + '(dunning letter) stays on file in full; only its state says so. Default '
+      + '(O-902): a paid open item does not close its Mahnung by itself — a human '
+      + 'marks it, and sees the amount while doing so.',
     erledigenKnopf: 'Mark as settled',
     versandErklaerung:
       'There is no automatic dispatch: the Mahnung goes out as a letter, as '

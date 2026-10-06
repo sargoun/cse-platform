@@ -762,6 +762,9 @@ describe('Ohne Zahlungsziel geht kein Beleg hinaus (§4.2, O-66)', () => {
     const fehler = await alsApp(sitzung(f.reinigung), async (tx) => {
       const d = alsDienst(tx);
       const id = await legeEntwurfAn(d, { kundeId: kundeReinigung, zahlungszielTage: null });
+      /* D-779: das Anlegen setzt die Voreinstellung 14 Tage. Geprüft wird hier die
+         Sperre für einen Entwurf OHNE Ziel — also ausdrücklich geleert. */
+      await tx.unsafe('update rechnung set zahlungsziel_tage = null where id = $1', [id]);
       await fuegePositionHinzu(d, {
         rechnungId: id, bezeichnung: 'Ohne Ziel', menge: milliMenge(1000n),
         einheit: 'stk', einzelpreisCent: cent(100n), steuergruppe: 'ust_19',

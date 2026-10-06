@@ -50,7 +50,7 @@ const FEHLER: Readonly<Record<string, string>> = {
   leer: 'Im Zeitraum steht keine Buchungszeile. Es ist keine Datei entstanden.',
   stammdaten: 'Für diese Gesellschaft fehlen die DATEV-Stammdaten (O-05). Es ist keine Datei entstanden.',
   nicht_bereit:
-    'Die DATEV-Stammdaten sind unvollständig oder stehen als Platzhalter, oder eine Zeile '
+    'Die DATEV-Stammdaten sind unvollständig oder noch nicht bestätigt (Voreinstellung), oder eine Zeile '
     + 'im Zeitraum hat keinen Beleg oder kein Konto. Es ist keine Datei entstanden.',
   speicher: 'Die Datei liess sich nicht ablegen. Es ist kein Stapel entstanden.',
 };

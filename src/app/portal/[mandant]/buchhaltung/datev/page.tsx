@@ -178,7 +178,7 @@ export default async function Datev(
               ? 'Für diese Gesellschaft ist keine DATEV-Konfiguration angelegt.'
               : `Es fehlen ${String(daten.stamm.fehlend)} Angabe(n)`
                 + `${daten.stamm.ist_platzhalter
-                  ? ', und die Konfiguration steht als Platzhalter.'
+                  ? ', und die Konfiguration steht als Voreinstellung — bestätigen, dann entsteht die Datei.'
                   : '.'}`}
             {' '}Beraternummer, Mandantennummer, Kontenrahmen, Sachkontenlänge,
             Wirtschaftsjahresbeginn, Versteuerungsart und EXTF-Fassung kommen
@@ -235,7 +235,7 @@ export default async function Datev(
             {
               schluessel: 'format', kopf: 'Format',
               zelle: (z) => (z.format_ungeprueft
-                ? <span className="text-xs text-warning">ungeprüft (O-05)</span>
+                ? <span className="text-xs text-warning">ohne Muster geprüft (O-05)</span>
                 : <span className="text-xs text-text-muted">gegen Muster geprüft</span>),
             },
           ]}

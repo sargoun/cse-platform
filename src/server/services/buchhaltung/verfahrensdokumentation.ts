@@ -348,8 +348,8 @@ export async function erstelleVerfahrensdokumentation(
         + 'geschlossen. Beim endgültigen Schluss werden die Monatszahlen eingefroren.',
         `Kontenrahmen: ${kontenrahmen}${konfig?.sachkontenlaenge === null || konfig?.sachkontenlaenge === undefined ? '' : `, Sachkontenlänge ${String(konfig.sachkontenlaenge)}`}`
         + `${konfig?.versteuerungsart === null || konfig?.versteuerungsart === undefined ? '' : `, Versteuerungsart ${konfig.versteuerungsart}`}`
-        + `${konfig === undefined || konfig.ist_platzhalter ? ' — Platzhalter (O-05)' : ''}. `
-        + `Wirtschaftsjahr beginnt am ${String(wj.beginnTag)}.${String(wj.beginnMonat)}.${wj.istPlatzhalter ? ' (angenommen, O-05)' : ''}.`,
+        + `${konfig === undefined || konfig.ist_platzhalter ? ' — Voreinstellung: Platzhalter (O-05), vom Steuerberater nicht bestätigt' : ''}. `
+        + `Wirtschaftsjahr beginnt am ${String(wj.beginnTag)}.${String(wj.beginnMonat)}.${wj.istPlatzhalter ? ' (Voreinstellung Kalenderjahr, O-05)' : ''}.`,
         `Gültige Kontenzuordnungen: ${zuordnungen.length === 0 ? 'keine' : zuordnungen.map((z) => `${z.schluessel} ${String(z.n)}`).join(', ')}`
         + `; davon Platzhalter: ${String(zuordnungPlatzhalter?.n ?? 0)}.`,
       ],
@@ -503,7 +503,9 @@ export async function erstelleVerfahrensdokumentation(
         'Datenbank und Objektspeicher werden vom Anbieter (Supabase, Frankfurt) gesichert; Zugang zur Datenbank '
         + 'hat nur die Serverumgebung, der Dienstschlüssel des Speichers liegt nur dort. Was der Anbieter auf '
         + 'Bucket-Ebene garantiert (Versionierung, Unveränderlichkeit), ist Teil der Vereinbarung mit ihm und wird '
-        + 'hier nicht behauptet (O-364). Ein geprüfter Wiederherstellungstest ist eingeplant und noch nicht erbracht.',
+        + 'hier nicht behauptet (O-364; Voreinstellung: Versionierung und Object Lock beim Anbieter aktivieren, '
+        + 'Nachweis in der Auftragsverarbeitungsvereinbarung). Ein geprüfter Wiederherstellungstest ist eingeplant '
+        + 'und noch nicht erbracht.',
         'Der Betrieb kennt kein Löschen von Finanzdaten durch Administration; ein Rückbau erfolgt, wenn überhaupt, '
         + 'über eine neue Migration mit Prüfung und Protokoll.',
       ],

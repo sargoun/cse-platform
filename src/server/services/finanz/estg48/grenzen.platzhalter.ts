@@ -32,9 +32,9 @@ export const BAGATELLGRENZE_PLATZHALTER: Bagatellgrenze = {
   grenzeCent: null,
   fundstelle: '§48 Abs. 2 EStG',
   herkunft:
-    'Nicht entschieden (O-21). Es wird ohne Bagatellgrenze einbehalten, bis der '
-    + 'Steuerberater bestätigt hat, ob und für welche Leistungsempfänger die '
-    + 'Grenzen des §48 Abs. 2 EStG anzuwenden sind.',
+    'Voreinstellung (O-21): die Bagatellgrenze des § 48 Abs. 2 EStG (5.000 € je '
+    + 'Leistendem und Jahr) wird nicht automatisch angewandt — ohne gültige '
+    + 'Freistellungsbescheinigung wird einbehalten, die Jahressumme steht zur Prüfung.',
   istPlatzhalter: true,
 };
 

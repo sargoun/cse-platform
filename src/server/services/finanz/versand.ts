@@ -112,9 +112,9 @@ export async function versandwege(db: Abfrage): Promise<readonly Versandweg[]> {
       grund: verbunden
         ? null
         : kanal === 'email'
-          ? 'Kein EU-gehosteter Transaktionsmailer mit Auftragsverarbeitungsvertrag '
-            + 'entschieden (O-36). Die Datei lässt sich herunterladen und von Hand '
-            + 'versenden.'
+          ? 'Kein Transaktionsmailer verbunden — Voreinstellung (O-36): ein EU-gehosteter '
+            + 'Anbieter mit Auftragsverarbeitungsvertrag, dessen Zugangsdaten der Betreiber '
+            + 'einträgt. Die Datei lässt sich herunterladen und von Hand versenden.'
           : 'Kein Zugangspunkt eingerichtet (O-22). Die Einreichung bei den '
             + 'Vergabe- und Rechnungseingangsplattformen ist manuell by design.',
     };

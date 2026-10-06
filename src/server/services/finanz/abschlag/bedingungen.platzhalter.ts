@@ -28,7 +28,8 @@ export const BEDINGUNGEN_PLATZHALTER: AbschlagsBedingungen = {
   einbehalt: null,
   vomAbschlag: false,
   herkunft:
-    'Nicht entschieden (O-20). Es wird nichts einbehalten, bis der Mandant die '
-    + 'Vertragsbedingung nach VOB/B §17 bestätigt hat.',
+    'Voreinstellung (O-20): kein Sicherheitseinbehalt, solange der Auftrag keinen '
+    + 'vereinbart (VOB/B § 17 Abs. 1 verlangt die Vereinbarung); Abschläge nach '
+    + '§ 16 Abs. 1 VOB/B in Höhe der nachgewiesenen Leistung.',
   istPlatzhalter: true,
 };

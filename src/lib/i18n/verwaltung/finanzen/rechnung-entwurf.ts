@@ -130,7 +130,8 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       + 'Auftrag und Rechnungsart. Die Nummer entsteht erst beim Festschreiben.',
     kopfZahlungszielLeer:
       'Leer: die Kondition des Kunden oder die Einstellung der Gesellschaft wird '
-      + 'neu ermittelt. Es gibt keinen Vorgabewert (O-66).',
+      + 'neu ermittelt; sonst gilt die Voreinstellung 14 Tage, bei öffentlichen '
+      + 'Auftraggebern 30 Tage (O-66).',
     kopfAbzugHinweis:
       'Wechseln Rechnungsart oder Auftrag einer Schlussrechnung, wirken die '
       + 'abgezogenen Abschläge nicht mehr; „Abschläge abziehen" stellt sie wieder her.',
@@ -150,7 +151,7 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
     abrAbgewiesen: 'Die Abrechnung lässt sich so nicht rechnen:',
     abrZurAbrechnung: 'Abrechnung des Auftrags',
     abrArt: 'Abrechnungsart',
-    abrProvisorisch: 'provisorisch (O-04)',
+    abrProvisorisch: 'Voreinstellung (O-04)',
     abrGiltAb: 'Vereinbarung gilt ab',
     abrBefunde: 'Befunde der Abrechnungsregel',
     abrZeilen: 'Diese Zeilen entstehen',
@@ -194,9 +195,8 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
     ausgabe: 'Ausgabe',
     einstandNetto: 'Einstand netto',
     materialHinweis:
-      'Den Einzelpreis setzen Sie selbst: ob Material zum Einstand oder mit '
-      + 'Aufschlag weiterberechnet wird, ist nicht entschieden (O-931). Eine '
-      + 'Ausgabe steht auf höchstens einer Rechnungszeile.',
+      'Den Einzelpreis setzen Sie selbst — Voreinstellung (O-931): Einstand plus '
+      + '10 % Aufschlag. Eine Ausgabe steht auf höchstens einer Rechnungszeile.',
     ausgabenVerdeckt:
       'Weiterberechenbare Ausgaben sind für Sie nicht sichtbar. Dafür fehlt das Recht',
     ausgabeWaehlen: '— Ausgabe wählen —',
@@ -285,7 +285,7 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       keine_abrechnungsart:
         'Für den Auftrag ist im Leistungszeitraum keine Abrechnungsart hinterlegt — oder '
         + 'mehrere auf einzelnen Leistungszeilen; dann je Leistungszeile übernehmen.',
-      parameter_offen: 'Die Abrechnungsvereinbarung hat offene Parameter (O-04).',
+      parameter_offen: 'Der Abrechnungsvereinbarung fehlen Parameter (O-04) — bitte im Vertrag ergänzen.',
       unbekannte_abrechnungsart: 'Zu dieser Abrechnungsart gibt es keine Umsetzung.',
       befund_blockiert:
         'Die Abrechnungsregel meldet einen blockierenden Befund; er steht in der Vorschau.',
@@ -338,8 +338,9 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       + 'order and invoice type. The number is only assigned at Festschreibung '
       + '(finalisation).',
     kopfZahlungszielLeer:
-      'Blank: the customer terms or the company setting are determined again. '
-      + 'There is no default value (O-66).',
+      'Blank: the customer terms or the company setting are determined again; '
+      + 'otherwise the default of 14 days applies, 30 days for public-sector '
+      + 'customers (O-66).',
     kopfAbzugHinweis:
       'If the invoice type or the order of a Schlussrechnung changes, the deducted '
       + 'Abschläge no longer apply; “Deduct Abschläge” restores them.',
@@ -359,7 +360,7 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
     abrAbgewiesen: 'The billing cannot be calculated like this (message in German):',
     abrZurAbrechnung: 'Billing of the order',
     abrArt: 'Billing type (Abrechnungsart)',
-    abrProvisorisch: 'provisional (O-04)',
+    abrProvisorisch: 'default (O-04)',
     abrGiltAb: 'Agreement valid from',
     abrBefunde: 'Findings of the billing rule (in German)',
     abrZeilen: 'These lines will be created',
@@ -403,9 +404,8 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
     ausgabe: 'Expense (Ausgabe)',
     einstandNetto: 'cost net',
     materialHinweis:
-      'You set the unit price yourself: whether material is passed on at cost or '
-      + 'with a mark-up has not been decided (O-931). An expense appears on at most '
-      + 'one invoice line.',
+      'You set the unit price yourself — default (O-931): cost plus a 10 % mark-up. '
+      + 'An expense appears on at most one invoice line.',
     ausgabenVerdeckt:
       'Expenses that can be passed on are not visible to you. The missing permission is',
     ausgabeWaehlen: '— choose an expense —',
@@ -491,7 +491,7 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       keine_abrechnungsart:
         'No billing type is stored for the order in the supply period — or several on '
         + 'individual contract lines; then take over per contract line.',
-      parameter_offen: 'The billing agreement has open parameters (O-04).',
+      parameter_offen: 'The billing agreement is missing parameters (O-04) — please complete them in the contract.',
       unbekannte_abrechnungsart: 'There is no implementation of this billing type.',
       befund_blockiert:
         'The billing rule reports a blocking finding; it is shown in the preview.',

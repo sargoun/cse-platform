@@ -153,6 +153,12 @@ describe('(5) eine nicht loeschbare Kategorie verweigert auf BEIDEN Ebenen', () 
   });
 
   it('eine offene Frist wird als Pflicht behandelt, nicht als ihre Abwesenheit (O-25)', async () => {
+    /* Seit 0489 trägt jede Plattformklasse eine Voreinstellung (O-25, D-779);
+       eine Regel ohne Frist gibt es nur noch als Vorgabe der Gesellschaft. */
+    await sql.unsafe(
+      `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
+       values ($1, 'mitarbeiter', null, true, 'Probe: Frist der Gesellschaft offen', true)
+       on conflict (mandant_id, kategorie) do update set jahre = null`, [f.reinigung]);
     const d = await dokument(f.reinigung, 'mitarbeiter');
     const [z] = await sql.unsafe<{ loeschsperre: boolean; aufbewahrung_bis: Date | null }[]>(
       `select loeschsperre, aufbewahrung_bis from dokument where id = $1`, [d],

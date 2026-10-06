@@ -44,8 +44,9 @@ export const MAHNREGEL_PLATZHALTER: MahnRegel = {
   gebuehrCent: [],
   zinsMethode: null,
   herkunft:
-    'Nicht entschieden (O-19). Solange keine Stufe bestätigt ist, erzeugt der '
-    + 'Mahnlauf keinen Entwurf; wo eine bestätigte Stufe ohne Zinsart steht, '
-    + 'nennt der Brief nur die Hauptforderung.',
+    'Voreinstellung (O-19, D-779): drei Stufen ab 7 Tagen Überfälligkeit im Abstand '
+    + 'von 14 Tagen, Gebühren 0 / 5 / 10 €; die Zinsart (B2B oder Verbraucher, § 288 BGB) '
+    + 'wählt die Buchhaltung je Stufe. Wo eine Stufe ohne Zinsart steht, nennt der Brief '
+    + 'nur die Hauptforderung.',
   istPlatzhalter: true,
 };

@@ -99,7 +99,8 @@ export interface EntwurfKopf {
   readonly vereinnahmungGeplantAm: string | null;
   /**
    * `null`: neu auflösen — dieselbe Kette wie beim Anlegen (§4.2): Kunde,
-   * dann Einstellung der Gesellschaft. Es gibt keinen Vorgabewert (O-66).
+   * dann Einstellung der Gesellschaft, dann die Voreinstellung 14 Tage
+   * (öffentliche Auftraggeber 30; O-66, D-779).
    */
   readonly zahlungszielTage: number | null;
   readonly zahlungsmittelCode: string | null;

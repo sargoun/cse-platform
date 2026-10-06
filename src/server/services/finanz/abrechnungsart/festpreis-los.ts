@@ -214,9 +214,9 @@ export const FESTPREIS_LOS: Abrechnungsart = {
         ? `Teilleistung: Fertigstellung ${prozentText(eingabe.fertigstellungBp ?? 0)} des `
           + 'vereinbarten Pauschalpreises'
           + (bisher === 0n ? '' : `, abzüglich bisher berechneter ${formatiereGeld(bisher)}`)
-          + ' — provisorisch (O-04, O-932)'
+          + ' — Voreinstellung (O-04, O-932)'
         : `Pauschalpreis nach Abnahme vom ${String(auftrag.abnahme_am)} `
-          + '— provisorisch (O-04)',
+          + '— Voreinstellung (O-04)',
       menge,
       einheit: 'psch',
       preisBasismenge: basis,

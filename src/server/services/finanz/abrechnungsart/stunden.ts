@@ -248,7 +248,7 @@ export const STUNDENBASIERT: Abrechnungsart = {
         beschreibung:
           `${String(gerundet)} Minuten (${stundenText(gerundet)} Std.) `
           + `aus ${String(eintraege.length)} Zeiteinträgen, `
-          + `Rundung auf ${String(stufe)} Minuten — provisorisch (O-04)`,
+          + `Rundung auf ${String(stufe)} Minuten — Voreinstellung (O-04)`,
         menge,
         einheit: 'min',
         preisBasismenge: STUNDE_IN_MINUTEN,

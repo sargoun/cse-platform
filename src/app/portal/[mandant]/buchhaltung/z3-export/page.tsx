@@ -104,7 +104,7 @@ export default async function Z3Export(
         <button type="submit" className={knopf}>Anzeigen</button>
         {z.wirtschaftsjahr.istPlatzhalter ? (
           <span data-cse="z3-wirtschaftsjahr" className="text-xs text-text-muted">
-            Beginn {String(z.wirtschaftsjahr.beginnTag)}.{String(z.wirtschaftsjahr.beginnMonat)}. — angenommen (O-05)
+            Beginn {String(z.wirtschaftsjahr.beginnTag)}.{String(z.wirtschaftsjahr.beginnMonat)}. — Voreinstellung Kalenderjahr (O-05)
           </span>
         ) : null}
       </form>

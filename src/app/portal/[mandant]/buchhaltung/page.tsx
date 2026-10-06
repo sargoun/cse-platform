@@ -54,7 +54,7 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'buchhaltung/jahrespaket', titel: 'Jahrespaket', icon: 'export',
     text: 'Ein ZIP je Wirtschaftsjahr für den Steuerberater — Tabellen, Monatszahlen, offene Posten, DATEV-Stapel, Prüfbündel, Dokumentation.' },
   { pfad: 'buchhaltung/lohnexport', titel: 'Lohnexport', icon: 'zeit',
-    text: 'Zeitdaten eines Monats für das Lohnsystem — Stundenkonten, Abwesenheiten, jeder Zeiteintrag; das Format ist ein Platzhalter (O-27).' },
+    text: 'Zeitdaten eines Monats für das Lohnsystem — Stundenkonten, Abwesenheiten, jeder Zeiteintrag; Format: Voreinstellung generische CSV, bis das Lohnsystem feststeht (O-27).' },
 ];
 
 interface Zahlen {

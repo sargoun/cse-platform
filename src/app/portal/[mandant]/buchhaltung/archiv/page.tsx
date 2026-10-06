@@ -240,7 +240,7 @@ export default async function Archiv(
             { schluessel: 'entstanden', kopf: 'Entstanden', zelle: (z) => deutschesDatum(z.entstanden) },
             { schluessel: 'frist', kopf: 'Aufbewahrung bis',
               zelle: (z) => z.aufbewahrung_bis === null
-                ? <span className="text-text-muted">offen (O-25)</span>
+                ? <span className="text-text-muted">ohne Frist (O-25)</span>
                 : deutschesDatum(z.aufbewahrung_bis) },
             { schluessel: 'sperre', kopf: 'Löschsperre',
               zelle: (z) => <StatusPill zustand={z.loeschsperre ? 'Archiviert' : 'Offen'} /> },
@@ -257,7 +257,8 @@ export default async function Archiv(
 
       <p data-cse="archiv-anbieter" className="mt-s6 max-w-prose text-xs text-text-subtle">
         Die Unveränderlichkeit des Objektspeichers selbst (Versionierung, Object Lock) ist eine
-        Einstellung beim Anbieter und wird hier nicht behauptet — offen (O-364).
+        Einstellung beim Anbieter und wird hier nicht behauptet — Voreinstellung (O-364): beide
+        werden beim Anbieter aktiviert und in der Auftragsverarbeitungsvereinbarung festgehalten.
       </p>
     </PortalRahmen>
   );

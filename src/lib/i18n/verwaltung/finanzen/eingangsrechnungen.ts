@@ -437,7 +437,8 @@ const DE: EingangsrechnungenTexte = {
     erechnung_fehlt: 'Bitte eine E-Rechnung wählen — XRechnung als XML oder ZUGFeRD als PDF.',
     keine_erechnung:
       'Das PDF trägt keine eingebettete E-Rechnung. Die Belegerkennung für gescannte '
-      + 'Rechnungen hat noch keinen Anbieter (O-135) — bitte unten von Hand erfassen; das PDF '
+      + 'Rechnungen ist nicht verbunden (O-135; Voreinstellung: EU-Anbieter mit AVV, bis dahin '
+      + 'von Hand) — bitte unten von Hand erfassen; das PDF '
       + 'lässt sich dort als Beleg hochladen.',
     erechnung_kein_xml:
       'Die Datei ist kein lesbares XML und damit keine E-Rechnung. Es wurde nichts gespeichert.',
@@ -626,7 +627,8 @@ const DE: EingangsrechnungenTexte = {
   keinLeserechtSteuerMitte: '. Diese Seite öffnet mit',
   keinLeserechtSteuerNach:
     ', die Rechnung selbst liegt aber hinter dem Eingangsrecht — beide Mengen '
-    + 'sind nicht deckungsgleich, und welche gelten soll, ist offen (O-604).',
+    + 'sind nicht deckungsgleich — Voreinstellung (O-604): für die steuerliche Lage '
+    + 'genügt das Steuer-Leserecht, die Rechnung selbst bleibt beim Eingangsrecht.',
   steuerH1: '§13b UStG und §48 EStG',
   ustIdLieferant: 'USt-IdNr. des Lieferanten',
   geprueftGegen: 'Geprüft gegen',
@@ -635,8 +637,8 @@ const DE: EingangsrechnungenTexte = {
   stichtagErklaerung:
     'Das Ende des Leistungszeitraums, sonst das Leistungsdatum, sonst '
     + 'das Rechnungsdatum. Der Gesetzeswortlaut des §48 EStG knüpft an die '
-    + 'ZAHLUNG an, SPEC FIN-10 an das Leistungsdatum; welches gilt, ist offen '
-    + '(O-176). Die Entscheidung unten ist gegen den genannten Tag getroffen '
+    + 'ZAHLUNG an, SPEC FIN-10 an das Leistungsdatum; Voreinstellung ist das '
+    + 'Leistungsende (O-176). Die Entscheidung unten ist gegen den genannten Tag getroffen '
     + 'und gegen keinen anderen.',
   titel13b: '§13b UStG — Steuerschuldnerschaft des Leistungsempfängers',
   greift: 'greift',
@@ -700,7 +702,9 @@ const DE: EingangsrechnungenTexte = {
   abweichungNach:
     '. Gebucht wurde nach dem Beleg; die Abweichung ist ein Prüfauftrag, keine '
     + 'Korrektur.',
-  keineBagatellgrenze: 'Keine Bagatellgrenze angewandt (O-21) — es wird einbehalten.',
+  keineBagatellgrenze:
+    'Bagatellgrenze nicht automatisch angewandt — Voreinstellung (O-21): ohne gültige '
+    + 'Freistellungsbescheinigung wird einbehalten; die Jahressumme steht unten zur Prüfung.',
   bagatellgrenzeVor: 'Bagatellgrenze:',
   fundstelle: 'Fundstelle:',
   jahressummeTitel: 'Die Jahressumme dieses Leistenden — der zweite Ausgang',
@@ -745,7 +749,8 @@ const DE: EingangsrechnungenTexte = {
   giltNicht: 'gilt am Stichtag nicht',
   keinDokument: 'kein Dokument',
   pflegeOffenBetont:
-    'Hochladen, Gültigkeit setzen und Widerruf sind hier nicht möglich (O-604).',
+    'Hochladen, Gültigkeit setzen und Widerruf sind hier noch nicht möglich — Voreinstellung '
+    + '(O-604): die Buchhaltung pflegt sie mit dem Schreibrecht der Finanzen; der Schreibweg folgt (V-283).',
   pflegeOffenVor:
     'Für diese Seite ist kein Schreibrecht eingetragen; die Datenbank nimmt eine '
     + 'Freistellungsbescheinigung nur mit',
@@ -863,7 +868,7 @@ const EN: EingangsrechnungenTexte = {
     erechnung_fehlt: 'Please choose an e-invoice — XRechnung as XML or ZUGFeRD as PDF.',
     keine_erechnung:
       'The PDF carries no embedded e-invoice. Reading scanned invoices has no provider yet '
-      + '(O-135) — please record it by hand below; the PDF can be uploaded there as the Beleg '
+      + '(O-135; default: an EU provider with a DPA, until then by hand) — please record it by hand below; the PDF can be uploaded there as the Beleg '
       + '(supporting document).',
     erechnung_kein_xml: 'The file is not readable XML and so not an e-invoice. Nothing was saved.',
     erechnung_kein_format:
@@ -1052,7 +1057,8 @@ const EN: EingangsrechnungenTexte = {
   keinLeserechtSteuerMitte: '. This page opens with',
   keinLeserechtSteuerNach:
     ', but the invoice itself sits behind the Eingang right — the two sets are '
-    + 'not congruent, and which of them is to apply is open (O-604).',
+    + 'not congruent — default (O-604): the tax read right suffices for the tax '
+    + 'position; the invoice itself stays behind the Eingang right.',
   steuerH1: '§13b UStG and §48 EStG',
   ustIdLieferant: 'Supplier’s USt-IdNr. (VAT identification number)',
   geprueftGegen: 'Checked against',
@@ -1061,8 +1067,8 @@ const EN: EingangsrechnungenTexte = {
   stichtagErklaerung:
     'The end of the period of supply, failing that the date of '
     + 'supply, failing that the invoice date. The wording of §48 EStG attaches '
-    + 'to PAYMENT, SPEC FIN-10 to the date of supply; which of them applies is '
-    + 'open (O-176). The decision below was taken against the day named and '
+    + 'to PAYMENT, SPEC FIN-10 to the date of supply; the default is the end of '
+    + 'supply (O-176). The decision below was taken against the day named and '
     + 'against no other.',
   titel13b:
     '§13b UStG — Steuerschuldnerschaft des Leistungsempfängers (reverse charge: '
@@ -1132,7 +1138,8 @@ const EN: EingangsrechnungenTexte = {
     '. The booking followed the document; the difference is something to '
     + 'examine, not a correction.',
   keineBagatellgrenze:
-    'No Bagatellgrenze (de-minimis threshold) applied (O-21) — tax is retained.',
+    'Bagatellgrenze (de-minimis threshold) not applied automatically — default (O-21): '
+    + 'without a valid exemption certificate tax is retained; the annual total stands below for review.',
   bagatellgrenzeVor: 'Bagatellgrenze (de-minimis threshold):',
   fundstelle: 'Source:',
   jahressummeTitel: 'This provider’s annual total — the second outcome',
@@ -1181,7 +1188,8 @@ const EN: EingangsrechnungenTexte = {
   giltNicht: 'not valid on the cut-off date',
   keinDokument: 'no document',
   pflegeOffenBetont:
-    'Uploading, setting validity and revoking are not possible here (O-604).',
+    'Uploading, setting validity and revoking are not possible here yet — default '
+    + '(O-604): accounting maintains them with the finance write right; the write path follows (V-283).',
   pflegeOffenVor:
     'No write right is entered for this page; the database accepts a '
     + 'Freistellungsbescheinigung (exemption certificate) only with',

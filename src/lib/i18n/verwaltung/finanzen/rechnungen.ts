@@ -101,11 +101,11 @@ export const RECHNUNGEN_TEXTE: Readonly<Record<InternSprache, RechnungenTexte>> 
       + 'Entwurf lässt sich anlegen, festschreiben aber nicht — die Nummer '
       + 'käme aus keinem Kreis (O-01, O-134).',
 
-    platzhalterVor: 'Unbestätigter Wert: der Kreis „',
+    platzhalterVor: 'Noch nicht freigegeben: der Kreis „',
     platzhalterMitte: '" führt die Maske',
     platzhalterEnde:
-      'als Platzhalter. Bis jemand sie bestätigt, wird keine Nummer daraus '
-      + 'vergeben (O-134).',
+      'als noch nicht freigegebenen Entwurf. Bis die Administration ihn freigibt, '
+      + 'wird keine Nummer daraus vergeben (O-134).',
 
     ohneKunden: 'Ohne Kunden keine Rechnung. Zuerst einen Kunden anlegen.',
     leistungsort: 'Leistungsort (Objekt)',
@@ -114,8 +114,9 @@ export const RECHNUNGEN_TEXTE: Readonly<Record<InternSprache, RechnungenTexte>> 
     leistungBis: 'Leistung bis',
     zahlungsziel: 'Zahlungsziel (Tage)',
     zahlungszielHinweis:
-      'Leer lassen: dann wird die Kundenkondition oder die Einstellung der '
-      + 'Gesellschaft genommen. Es gibt keinen Vorgabewert (O-66).',
+      'Leer lassen: dann gilt die Kundenkondition, sonst die Einstellung der '
+      + 'Gesellschaft, sonst die Voreinstellung 14 Tage — öffentliche Auftraggeber '
+      + '30 Tage (O-66).',
     zahlungsart: 'Zahlungsart',
     nichtAngegeben: '— nicht angegeben —',
     zahlungsartHinweis:
@@ -153,11 +154,11 @@ export const RECHNUNGEN_TEXTE: Readonly<Record<InternSprache, RechnungenTexte>> 
       + 'can be created but not finalised (festgeschrieben) — the number '
       + 'would come from no range (O-01, O-134).',
 
-    platzhalterVor: 'Unconfirmed value: the number range (Nummernkreis) “',
+    platzhalterVor: 'Not released yet: the number range (Nummernkreis) “',
     platzhalterMitte: '” carries the mask',
     platzhalterEnde:
-      'as a placeholder. Until someone confirms it, no number is issued from '
-      + 'it (O-134).',
+      'as a draft not yet released. Until the administration releases it, no '
+      + 'number is issued from it (O-134).',
 
     ohneKunden: 'No invoice without a customer. Create a customer first.',
     leistungsort: 'Place of performance (site)',
@@ -166,8 +167,8 @@ export const RECHNUNGEN_TEXTE: Readonly<Record<InternSprache, RechnungenTexte>> 
     leistungBis: 'Supply period to',
     zahlungsziel: 'Payment term (days)',
     zahlungszielHinweis:
-      'Leave blank: the customer terms or the company setting are then used. '
-      + 'There is no default value (O-66).',
+      'Leave blank: the customer terms apply, otherwise the company setting, '
+      + 'otherwise the default of 14 days — 30 days for public-sector customers (O-66).',
     zahlungsart: 'Payment method',
     nichtAngegeben: '— not specified —',
     zahlungsartHinweis:

@@ -323,7 +323,7 @@ export async function erstelleJahrespaket(
   if (lauf.unvollstaendig > 0) {
     hinweise.push(`${String(lauf.unvollstaendig)} Buchungszeile(n) des Jahres tragen keinen Beleg oder kein Konto; sie stehen im Journal (daten/buchungen.csv) mit leeren Feldern.`);
   }
-  if (wj.istPlatzhalter) hinweise.push('Der Beginn des Wirtschaftsjahrs ist angenommen (Kalenderjahr, O-05).');
+  if (wj.istPlatzhalter) hinweise.push('Der Beginn des Wirtschaftsjahrs ist die Voreinstellung Kalenderjahr (O-05).');
 
   const zahlen: JahrespaketZahlen = {
     tabellen: lauf.tabellen.length,
@@ -335,7 +335,7 @@ export async function erstelleJahrespaket(
 
   const liesmich = [
     `Jahrespaket ${bezeichnung} — ${lauf.mandant.firma}${lauf.mandant.rechtsform === null ? '' : ` (${lauf.mandant.rechtsform})`}`,
-    `Wirtschaftsjahr ${von} bis ${bis}${wj.istPlatzhalter ? ' (Beginn angenommen, O-05)' : ''}`,
+    `Wirtschaftsjahr ${von} bis ${bis}${wj.istPlatzhalter ? ' (Beginn: Voreinstellung Kalenderjahr, O-05)' : ''}`,
     '',
     'INHALT',
     '  daten/*.csv                      die Tabellen der Datenträgerüberlassung (Journal, Rechnungen mit Positionen, Eingangsrechnungen,',

@@ -405,7 +405,7 @@ export const EINHEITSPREIS_AUFMASS: Abrechnungsart = {
 
       entwuerfe.push({
         bezeichnung: `${String(erste.oz)} ${String(erste.kurztext ?? erste.bezeichnung)}`,
-        beschreibung: `Rechenansatz: ${ansatz} — provisorisch (O-04)`,
+        beschreibung: `Rechenansatz: ${ansatz} — Voreinstellung (O-04)`,
         menge,
         einheit,
         preisBasismenge: basis,

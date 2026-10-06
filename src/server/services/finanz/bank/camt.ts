@@ -55,7 +55,7 @@ function pruefeWaehrung(roh: string | null, wo: string): typeof WAEHRUNG {
   if (roh === null || roh === WAEHRUNG) return WAEHRUNG;
   throw new CamtFehler(
     `${wo} in ${roh}: diese Plattform bucht nur EUR. Der Auszug wird nicht `
-    + 'eingelesen, statt einen Fremdwährungsbetrag als Euro zu führen (O-05).',
+    + 'eingelesen, statt einen Fremdwährungsbetrag als Euro zu führen (Voreinstellung O-189: nur EUR).',
     'waehrung');
 }
 

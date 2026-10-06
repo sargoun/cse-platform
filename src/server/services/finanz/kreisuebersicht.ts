@@ -163,8 +163,8 @@ export async function kreise(db: Abfrage): Promise<readonly Kreis[]> {
     const nummer = Number(z.naechste_nummer);
     const geschlossen = z.geschlossen_am !== null;
     const grund = z.ist_platzhalter
-      ? 'Maske und Rücksetzung sind unbestätigt (O-134) — eine Nummer daraus '
-        + 'wäre eine erfundene. In diesem Kreis wird nicht festgeschrieben.'
+      ? 'Der Kreis ist noch nicht freigegeben (O-134) — bis zur Freigabe durch '
+        + 'die Administration wird in ihm nicht festgeschrieben.'
       : geschlossen
         ? `Der Kreis ist seit ${String(z.geschlossen_am)} geschlossen und vergibt `
           + 'keine Nummern mehr. Ein Nachfolgekreis muss ihn fortsetzen.'

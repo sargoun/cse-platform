@@ -93,7 +93,7 @@ Readonly<Record<InternSprache, AusgabeErfassenTexte>> = {
     kategorie: 'Aufwandskategorie',
     kategorieWaehlen: 'Kategorie wählen',
     kategoriePlatzhalter:
-      '(unbestätigt) — welche Kategorien der Steuerberater erwartet, ist offen (O-05)',
+      'Voreinstellung (O-05) — Kategorien und Konten folgen dem Standardkontenrahmen SKR03; der Steuerberater passt sie an',
     ausgabedatum: 'Ausgabedatum',
     ausgabedatumErklaerung:
       'Der Berliner Kalendertag des Belegs, nicht der Tag der Eingabe.',
@@ -202,7 +202,7 @@ Readonly<Record<InternSprache, AusgabeErfassenTexte>> = {
     kategorie: 'Expense category',
     kategorieWaehlen: 'Choose a category',
     kategoriePlatzhalter:
-      '(unconfirmed) — which categories the tax adviser expects is open (O-05)',
+      'Default (O-05) — categories and accounts follow the standard chart SKR03; the tax adviser adjusts them',
     ausgabedatum: 'Expense date',
     ausgabedatumErklaerung:
       'The Berlin calendar day on the receipt, not the day it was typed in.',

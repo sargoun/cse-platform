@@ -403,7 +403,7 @@ describe('§33 UStDV — beide Seiten der Grenze (FIN-13)', () => {
     expect(bericht.fehler).toEqual([]);
   });
 
-  it('eine UNBESTÄTIGTE Grenze greift nie (O-175)', () => {
+  it('eine Grenze in Voreinstellung greift nie (O-175, D-779)', () => {
     const bericht = pruefePflichtfelder({
       ...ohneEmpfaengeranschrift(24_999n),
       kleinbetragGrenze: {
@@ -411,7 +411,7 @@ describe('§33 UStDV — beide Seiten der Grenze (FIN-13)', () => {
       },
     });
     expect(bericht.kleinbetrag.greift).toBe(false);
-    expect(bericht.kleinbetrag.grund).toMatch(/unbestätigter Wert \(O-175\)/u);
+    expect(bericht.kleinbetrag.grund).toMatch(/Voreinstellung \(O-175\)/u);
     expect(bericht.fehler.map((f) => f.feld)).toEqual(['empfaenger.anschrift']);
   });
 

@@ -289,15 +289,15 @@ export const NICHT_GEPRUEFT: readonly NichtGeprueft[] = [
     grund:
       'Die Seitenkarte nennt „and the other pre-invoice checks", ohne sie '
       + 'aufzuzählen. Die beiden zusätzlichen Prüfungen hier sind aus FIN-01/FIN-16 '
-      + 'und FIN-07 abgeleitet und als solche benannt; welche weiteren die '
-      + 'Buchhaltung braucht, ist offen (O-601).',
+      + 'und FIN-07 abgeleitet und als solche benannt; diese Liste ist die '
+      + 'Voreinstellung (O-601) — weitere Prüfungen ergänzt die Buchhaltung.',
   },
   {
     frage: 'Ab welcher Überschreitung ist ein Auftrag „überfällig abzurechnen"?',
     grund:
-      'Eine Frist zwischen Abschluss und Rechnungsstellung ist nirgends '
-      + 'festgelegt. Eine hier zu setzen wäre eine Geschäftsregel, die sich diese '
-      + 'Liste erfindet (O-602).',
+      'Voreinstellung (O-602): keine Frist — ein abgeschlossener Auftrag ohne '
+      + 'Rechnung steht sofort in dieser Liste; eine Überfälligkeitsfrist setzt die '
+      + 'Buchhaltung bei Bedarf.',
   },
 ];
 
