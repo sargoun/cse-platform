@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { GEBAEUDETYPEN } from '@/lib/formular/vokabular';
 import type { ObjekteTexte } from '@/lib/i18n/verwaltung/objekte';
 import { koordinateAlsText } from '@/server/services/objekt/anlegen';
 
@@ -92,8 +93,19 @@ export function ObjektFormular(
             {t.gebaeudetyp} <span className="text-text-subtle">{t.freiwillig}</span>
             <input name="gebaeudetyp" className={FELD}
                    defaultValue={werte?.gebaeudetyp ?? ''}
-                   placeholder={t.gebaeudetypBeispiel} />
-            {/* // TODO(client, O-69): Kontrolliertes Vokabular fuer Gebaeudetyp? */}
+                   placeholder={t.gebaeudetypBeispiel}
+                   list="gebaeudetyp-vorschlaege" data-cse="objekt-gebaeudetyp" />
+            {/*
+              * TODO(client, O-69): Voreinstellung — die Gebäudetypen des
+              * Anfrageformulars (`lib/formular/vokabular.ts`) als Vorschläge; der
+              * Text bleibt frei, die Spalte `objekt.gebaeudetyp` bleibt `text`. D-792.
+              */}
+            <datalist id="gebaeudetyp-vorschlaege">
+              {GEBAEUDETYPEN.map(([schluessel, label]) => (
+                <option key={schluessel} value={label} />
+              ))}
+            </datalist>
+            <span className="text-xs text-text-muted">{t.gebaeudetypVorschlaege}</span>
           </label>
           <label className="flex flex-col gap-s2 text-sm text-text">
             {t.etagen} <span className="text-text-subtle">{t.freiwillig}</span>

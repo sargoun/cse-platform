@@ -50,6 +50,8 @@ export interface ObjekteTexte {
   readonly objektnummerHinweis: string;
   readonly gebaeudetyp: string;
   readonly gebaeudetypBeispiel: string;
+  /** Die Vorschlagsliste (O-69, D-792) — und dass eigener Text möglich bleibt. */
+  readonly gebaeudetypVorschlaege: string;
   readonly etagen: string;
   readonly strasse: string;
   readonly hausnummer: string;
@@ -141,6 +143,9 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
       + 'Leistungsnachweis.',
     gebaeudetyp: 'Gebäudetyp',
     gebaeudetypBeispiel: 'z. B. Bürogebäude, Schule, Baustelle',
+    gebaeudetypVorschlaege:
+      'Vorgeschlagen werden die Gebäudetypen des Anfrageformulars (Voreinstellung O-69); '
+      + 'ein eigener Text bleibt möglich.',
     etagen: 'Etagen',
     strasse: 'Strasse',
     hausnummer: 'Nr.',
@@ -274,6 +279,9 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
       + 'Leistungsnachweis (the countersigned record of work performed).',
     gebaeudetyp: 'Building type',
     gebaeudetypBeispiel: 'e.g. office building, school, construction site',
+    gebaeudetypVorschlaege:
+      'Suggested are the building types of the public request form (default O-69); '
+      + 'free text stays possible.',
     etagen: 'Floors',
     strasse: 'Street',
     hausnummer: 'No.',

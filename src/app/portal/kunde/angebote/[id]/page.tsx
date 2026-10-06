@@ -83,7 +83,7 @@ const ZUSTANDSSATZ: Readonly<Record<string, string>> = {
   abgelaufen: 'Die Bindefrist dieses Angebots ist abgelaufen.',
 };
 
-/** `angebotsposition_typ` (0024, Platzhalter O-73). */
+/** `angebotsposition_typ` (0024, Voreinstellung O-73). */
 const TYP: Readonly<Record<string, string>> = {
   leistung: 'Leistung',
   alternativ: 'Alternativposition',

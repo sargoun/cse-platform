@@ -383,9 +383,9 @@ export function monateDerPeriode(periode: Periode): readonly Periode[] {
  * FIN-05 nennt den Leistungszeitraum das am haeufigsten fehlende Pflichtfeld
  * und haelt fest, dass sein Fehlen dem Kunden den Vorsteuerabzug kostet. Er
  * wird deshalb hergeleitet und nicht weggelassen — ausser im Modus
- * `nach_leistungsnachweis`, wo die Herleitung selbst offen ist (O-54); dort
- * meldet die Strategie einen blockierenden Befund, statt den Kalendermonat zu
- * unterstellen.
+ * `nach_leistungsnachweis`, wo die Herleitung aus den Nachweisen noch nicht
+ * gebaut ist (O-54, Voreinstellung D-792, V-337); dort meldet die Strategie
+ * einen blockierenden Befund, statt den Kalendermonat zu unterstellen.
  */
 export function leistungszeitraum(
   konfiguration: VertragAbrechnung, abschnitt: Periode,
@@ -422,11 +422,21 @@ export function pruefeParameter(
     }
   }
   if (konfiguration.leistungszeitraumModus === 'nach_leistungsnachweis') {
+    /*
+     * TODO(client, O-54): Voreinstellung — der Leistungszeitraum einer
+     * Rechnung nach Leistungsnachweis ist der Zeitraum der gegengezeichneten
+     * Nachweise des Abschnitts (fruehester Beginn bis spaetestes Ende); die
+     * Pauschale nimmt den Kalendermonat, der Einheitspreis das Aufmassdatum.
+     * Die Herleitung aus den Nachweisen ist nicht gebaut (V-337); bis dahin
+     * bleibt der Modus gesperrt, statt den Kalendermonat zu unterstellen. D-792.
+     */
     befunde.push(fehler(
       'leistungszeitraum_modus',
-      'Unbestätigter Wert: wie der Leistungszeitraum aus einem Leistungsnachweis '
-      + 'hergeleitet wird, ist offen. Ohne Leistungszeitraum verliert der Kunde '
-      + 'den Vorsteuerabzug (FIN-05, §14 Abs. 4 Nr. 6 UStG).',
+      'Voreinstellung (O-54): der Leistungszeitraum ist der Zeitraum der '
+      + 'gegengezeichneten Leistungsnachweise des Abschnitts. Diese Herleitung ist '
+      + 'noch nicht gebaut (V-337); bis dahin bleibt der Modus gesperrt. Ohne '
+      + 'Leistungszeitraum verliert der Kunde den Vorsteuerabzug (FIN-05, '
+      + '§14 Abs. 4 Nr. 6 UStG).',
       'O-54',
     ));
   }

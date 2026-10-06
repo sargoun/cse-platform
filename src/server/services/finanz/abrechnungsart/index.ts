@@ -122,7 +122,15 @@ function alsKonfiguration(z: KonfigurationZeile): VertragAbrechnung {
 
 export interface KonfigurationsSuche {
   readonly auftragId: string;
-  /** Eine Konfiguration JE LEISTUNGSZEILE schlaegt die auftragsweite (O-53). */
+  /**
+   * Eine Konfiguration JE LEISTUNGSZEILE schlaegt die auftragsweite (O-53).
+   *
+   * TODO(client, O-53): Voreinstellung — ein Auftrag traegt Positionen
+   * verschiedener Abrechnungsarten (Unterhaltsreinigung als Monatspauschale,
+   * Sonderreinigung nach Stunden im selben Vertrag); die Konfiguration haengt
+   * deshalb an der Leistungszeile, und `null` ist der Sonderfall einer
+   * Pauschale ueber den ganzen Auftrag. Wie gebaut. D-792.
+   */
   readonly auftragLeistungId?: string | null | undefined;
   readonly periode: Periode;
 }

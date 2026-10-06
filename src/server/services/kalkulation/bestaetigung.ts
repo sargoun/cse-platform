@@ -13,6 +13,15 @@
  * so“, und die Kalkulation haelt fest, wer das wann gesagt hat. Was
  * gruppenweit gilt, bleibt offen (O-16) — und wird es so lange, bis der
  * Mandant es beantwortet, statt dass eine Vorgabe im Code es fuer ihn tut.
+ *
+ * TODO(client, O-59): Voreinstellung — die Zeitwerte und Listenpreise des
+ * Leistungskatalogs (`ist_platzhalter`) sind die Voreinstellung jeder
+ * Kalkulation; bestaetigt werden sie nicht gruppenweit, sondern hier, je
+ * Kalkulation und mit den Zahlen dieses Angebots (`ist_platzhalter = false`,
+ * `leistungswert_ist_platzhalter = false`). Einen Weg, einen Katalogwert im
+ * Katalog selbst zu bestaetigen, gibt es nicht — bis der Betreiber seine
+ * Richtwerte liefert (O-16, O-17), bleibt jede Bestaetigung eine je Angebot.
+ * Wie gebaut. D-792.
  */
 import { addiere, basisPunkte, NULL_CENT, parseGeld, type Cent } from '../finanz/geld.js';
 import type { MilliMenge } from '../finanz/menge.js';

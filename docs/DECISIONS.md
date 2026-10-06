@@ -2900,27 +2900,27 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 
 | # | Question |
 |---|---|
-| O-53 | May one order carry positions billed in different ways at the same time? |
-| O-54 | How is the service period derived per billing type — calendar month, per Leistungsnachweis, per Aufmaß? |
+| O-53 | May one order carry positions billed in different ways at the same time? · **Voreinstellung → D-792** |
+| O-54 | How is the service period derived per billing type — calendar month, per Leistungsnachweis, per Aufmaß? · **Voreinstellung → D-792** |
 | O-55 | Which cleaning classes are used (DIN 77400, own scheme, per customer), and do they drive frequency, price or quality? · **Voreinstellung → D-780** |
 | O-56 | How is a Turnus converted into a frequency factor? · **Voreinstellung → D-780** |
-| O-57 | Is subcontracted work a cost type of its own beside the five of OPS-07? |
-| O-58 | Must a Kalkulation exist before every offer is sent, or may catalogue and small orders go out without one? |
-| O-59 | Time values and list prices per service — confirm or supply |
+| O-57 | Is subcontracted work a cost type of its own beside the five of OPS-07? · **Voreinstellung → D-792** |
+| O-58 | Must a Kalkulation exist before every offer is sent, or may catalogue and small orders go out without one? · **Voreinstellung → D-792** |
+| O-59 | Time values and list prices per service — confirm or supply · **Voreinstellung → D-792** |
 | O-60 | Do intra-Community supplies (§4 Nr. 1b UStG) or the §19 UStG small-business rule occur in any entity? · **Voreinstellung → D-780** |
-| O-61 | Which fields does the offer-request form need for CSE Operations to be able to quote at all? |
-| O-62 | Value lists for `gebaeudetyp`, `frequenz` and `gewerk` |
-| O-63 | Is the privacy notice confirmed as a notice (Art. 6(1)(b)/(f)) or as consent? |
-| O-64 | Does the lead score trigger any automatic decision (Art. 22 DSGVO)? |
-| O-65 | Which communication counts as contractually necessary rather than advertising (§7 UWG)? |
+| O-61 | Which fields does the offer-request form need for CSE Operations to be able to quote at all? · **Voreinstellung → D-792** |
+| O-62 | Value lists for `gebaeudetyp`, `frequenz` and `gewerk` · **Voreinstellung → D-792** |
+| O-63 | Is the privacy notice confirmed as a notice (Art. 6(1)(b)/(f)) or as consent? · **Voreinstellung → D-792** |
+| O-64 | Does the lead score trigger any automatic decision (Art. 22 DSGVO)? · **Voreinstellung → D-792** |
+| O-65 | Which communication counts as contractually necessary rather than advertising (§7 UWG)? · **Voreinstellung → D-792** |
 | O-66 | Standard payment term per entity, and does it also apply to public clients? · **Voreinstellung → D-779** |
 | O-67 | Is the §48b certificate held per customer, per order or per subcontractor — who records it, who checks it? · **Voreinstellung → D-780** |
-| O-68 | Which warranty period is agreed — VOB/B §13 or BGB §634a — and from which event does it run? Does it vary per order? |
-| O-69 | Controlled vocabulary for `gebaeudetyp`, or does it stay free text? |
-| O-70 | A building served for two customers of the same entity: one `objekt` or two? |
-| O-71 | Erasure concept (Art. 17): which personal data is anonymised, on which trigger? |
-| O-72 | Are there projects without an order — internal or acquisition projects? |
-| O-73 | Confirm the working vocabularies: `lead_status`, `lead_prioritaet`, `angebot_status`, `angebotsposition_typ`, `auftrag_art` and the rest |
+| O-68 | Which warranty period is agreed — VOB/B §13 or BGB §634a — and from which event does it run? Does it vary per order? · **Voreinstellung → D-792** |
+| O-69 | Controlled vocabulary for `gebaeudetyp`, or does it stay free text? · **Voreinstellung → D-792** |
+| O-70 | A building served for two customers of the same entity: one `objekt` or two? · **Voreinstellung → D-792** |
+| O-71 | Erasure concept (Art. 17): which personal data is anonymised, on which trigger? · **Voreinstellung → D-792** |
+| O-72 | Are there projects without an order — internal or acquisition projects? · **Voreinstellung → D-792** |
+| O-73 | Confirm the working vocabularies: `lead_status`, `lead_prioritaet`, `angebot_status`, `angebotsposition_typ`, `auftrag_art` and the rest · **Voreinstellung → D-792** |
 
 **`02-datenmodell/03-GEWERKE.md`**
 
@@ -25285,4 +25285,59 @@ Social, Recruiting und Kundenportal; Integrationen, Seitenkarte und API-Karte;
 die zweisprachige Verwaltung) in D-792 ff.
 
 | Betrifft | O-620, O-622, O-623, O-625, O-640, O-642, O-643, O-644, O-645, O-646, O-648, O-649; V-332 bis V-336; `src/server/services/datenschutz/{auskunft,loeschentscheidung,berichtigung,werbewiderspruch}.ts`, `src/server/services/mandant/identitaet.ts`, `src/server/services/audit/buendel.ts`, `src/server/services/migration/uebernahme.ts`, `src/server/agent/policy.ts`, `src/app/api/werbewiderspruch/route.ts`, `src/app/(public)/werbewiderspruch/Werbewiderspruch.tsx`, `src/app/portal/[mandant]/datenschutz/{widersprueche,[id]/auskunft,[id]/loeschung}/page.tsx`, `src/app/portal/[mandant]/einstellungen/{identitaet,agent-richtlinien,protokoll/export,import}/page.tsx` |
+|---|---|
+
+### D-792 · CRM und Betrieb: Voreinstellungen statt offener Fragen (dreizehnte Runde der Weisung vom 05.10.2026)
+
+**Der Anlass.** Dieselbe Weisung wie D-779 bis D-791; diesmal die sechzehn
+Fragen des Datenmodells `02-CRM-OPERATIONS` — Abrechnung je Leistungszeile,
+Leistungszeitraum, Kostenarten, Kalkulation vor dem Versand, Formulare und
+Auswahllisten, Datenschutzhäkchen, Lead-Score, § 7 UWG, Gewährleistung,
+Gebäudetyp, Objekt je Kunde, Löschkonzept, Projekte ohne Auftrag, die
+Arbeitsvokabulare. Zwölf sind so gebaut und hiessen nur „offen"; vier sagen,
+was fehlt (V-337 bis V-341). Eine Zeile Code kommt dazu: das Objektformular
+bietet die Gebäudetypen des Anfrageformulars als Vorschläge an (O-69), aus
+einer Liste, die Seed und Formular gemeinsam lesen.
+
+**Was sich ändert.**
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-53 | Ja — ein Auftrag trägt Positionen verschiedener Abrechnungsarten (Monatspauschale und Sonderreinigung nach Stunden im selben Vertrag); die Konfiguration hängt deshalb an der Leistungszeile (`auftrag_leistung_id`), `null` ist der Sonderfall einer Pauschale über den ganzen Auftrag, und eine auftragsweite Pauschale über Zeilen mit verschiedenen Steuersätzen wird abgewiesen. Wie gebaut. | `finanz/abrechnungsart/index.ts`, `typen.ts` (`steuergruppeDesAuftrags`) |
+| O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Die Herleitung aus den Nachweisen ist nicht gebaut (V-337); bis dahin bleibt der Modus gesperrt, und der Befund sagt die Voreinstellung statt „offen". | `finanz/abrechnungsart/typen.ts` (`pruefeParameter`), `positionsquelle.ts` |
+| O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie löst § 13b UStG und § 48 EStG aus und gehört in der Preisbegründung getrennt ausgewiesen. Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und Rechenweg fehlen (V-338); die Kalkulationsseite sagt es zweisprachig. | `kalkulation/kostenposition.ts`, Angebot › Kalkulation |
+| O-58 | Ein Angebot aus dem Raumbuch trägt seine Kalkulation und geht erst mit bestätigten Werten hinaus (`kern.angebot_versand_pruefen`); ein Angebot von Hand (Katalog, Kleinauftrag, Pauschale) hat keine Kalkulation und geht ohne hinaus — die Verantwortung für den Preis trägt, wer freigibt (O-920). Wie gebaut. | `angebot/index.ts`, `angebot/von-hand.ts` |
+| O-59 | Die Zeitwerte und Listenpreise des Leistungskatalogs sind die Voreinstellung jeder Kalkulation (`ist_platzhalter`); bestätigt werden sie je Kalkulation mit den Zahlen des Angebots (`kalkulation/bestaetigung.ts`), nicht gruppenweit. Ein Weg, Katalogwerte im Katalog zu bestätigen, fehlt und ist bis zu den Richtwerten des Betreibers (O-16, O-17) nicht vorgesehen. Wie gebaut. | `kalkulation/bestaetigung.ts` |
+| O-61 | Das Formular für CSE Operations fragt Anliegen (Prozessanalyse, Software, Automatisierung, Migration, Schulung), betroffene Mitarbeitende, eingesetzte Systeme und Zeitrahmen — plus die gemeinsamen Felder. So steht es im Seed und ist veröffentlicht; `Angebot.tsx` sagte noch, Operations habe keines. | `db/seed/formulare.ts`, `/angebot/operations` |
+| O-62 | Die Auswahllisten des Seeds sind die Voreinstellung: sieben Gebäudetypen (Büro, Wohnanlage, Praxis/Klinik, Einzelhandel, Industrie/Lager, Schule/Kita, Hotel/Gastronomie), acht Frequenzen (täglich bis einmalig), sechs Gewerke (Hochbau, Ausbau, Rückbau, Sanierung, Maler, Boden). Die Gebäudetypen stehen jetzt in `lib/formular/vokabular.ts`, weil zwei Formulare sie lesen. | `db/seed/formulare.ts`, `lib/formular/vokabular.ts`, `lib/annahmen.ts` |
+| O-63 | Das Pflichthäkchen `datenschutz_hinweis` bestätigt, dass die Hinweise gezeigt wurden (Art. 13); die Verarbeitung ruht auf Art. 6 Abs. 1 lit. b (vorvertragliche Massnahme auf Anfrage) — keine Einwilligung. Ohne Häkchen wird nichts gespeichert, weil der Nachweis der Hinweispflicht zur Einsendung gehört; Werbung begründet allein `einwilligung_werbung`. Wie gebaut. | `lead/annahme.ts`, `lib/annahmen.ts` |
+| O-64 | Der Lead-Score löst keine Entscheidung aus: die Annahme setzt `lead.punktzahl` nicht, die Übernahme aus der Akquise kopiert die gerechnete Zielbewertung (`akquise/uebernahme.ts`), gelesen wird sie nur zum Sortieren und Filtern durch Menschen; SLA, Eskalation und Besitzer hängen nicht an ihr. Keine Entscheidung nach Art. 22 DSGVO. Die Seed-Leads tragen eine von Hand vergebene Zahl und sagen es in der Begründung. | `lead/annahme.ts`, `db/seed/operations.ts` |
+| O-65 | Vertraglich notwendig ist, was der Durchführung des Vertrags dient — Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist, was eine neue oder zusätzliche Leistung anbietet (Zusatzleistung, Newsletter, Jahresgruss), auch an Bestandskunden. `app.darf_kontaktiert_werden` weist `transaktional` bei Werbewiderspruch heute noch ab — der restriktive Zweig bleibt in Kraft, bis die Funktion per Migration mit Isolationstest umgestellt ist (V-339); vier Bildschirme und zwei Dienste sagen Voreinstellung und Stand. | Datenschutz › Widersprüche, Vorgang, `/werbewiderspruch/[token]`, `datenschutz/werbewiderspruch.ts`, `crm/uwg-matrix.ts`, `bau/behinderung.ts` |
+| O-68 | Wie O-154 (D-782): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf bei BGB (§ 634a Abs. 1 Nr. 2), gerechnet von der Gesamtabnahme am Projekt und je Auftrag überschreibbar; Dienstleistungsaufträge (Reinigung, Sicherheit) führen keine. `auftrag.gewaehrleistung_bis` trägt der Abschluss von Hand ein; die am Projekt gerechnete Frist kommt noch nicht an den Auftrag (V-341), und das Kundenportal zeigt die Auftragsspalte. | `kundenportal/auftrag.ts`, `auftrag/abschluss.ts`, `db/seed/bau.ts` |
+| O-69 | Kontrolliertes Vokabular UND Freitext: die sieben Gebäudetypen des Anfrageformulars sind die Vorschläge des Objektformulars (`<datalist>`), `objekt.gebaeudetyp` bleibt `text` (0021), damit ein Flughafen oder eine Baustelle erfassbar bleibt. Gebaut: `lib/formular/vokabular.ts`, Vorschlagsliste und Hinweis (de/en) im Objektformular. | `objekte/ObjektFormular.tsx`, `lib/i18n/verwaltung/objekte.ts` |
+| O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Wie gebaut (`kunde_id` nullbar). | `objekt/anlegen.ts` |
+| O-71 | Abgeleitete Befunde, Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz (Zeiteintrag, Person, Einsatz) und brauchen keine eigene Löschentscheidung; Abwesenheiten fallen mit der Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO) und werden dann anonymisiert, der Werbewiderspruch bleibt als Nachweis (§ 7 UWG). Die Matrix kennt keinen Sperrgrund „Voreinstellung" (V-340); ihre O-71-Zeilen stehen weiter auf „offen", die Löschseite sagt die Voreinstellung dazu. | `datenschutz/loeschentscheidung.ts` (`O71_VOREINSTELLUNG`), Datenschutz › Vorgang › Löschung, `db/seed/datenschutz.ts` |
+| O-72 | Keine Projekte ohne Auftrag: Akquise lebt in `akquise_ziel` und `lead`, bis ein Auftrag entsteht; interne Vorhaben sind kein Bauprojekt dieser Plattform. Wie gebaut (`projekt_auftrag_uk`). | `bau/projekt.ts` |
+| O-73 | Die Arbeitsvokabulare sind die Enums der Migrationen 0017, 0024 und 0025: `lead_status` (neu, in_bearbeitung, angebot, gewonnen, verloren, kein_bedarf), `lead_prioritaet` (niedrig, normal, hoch), `angebot_status`, `angebotsposition_typ`, `auftrag_art` (einzelauftrag, rahmenvertrag, dauerauftrag, projekt), `auftrag_status` (angelegt, aktiv, pausiert, abgeschlossen, storniert); ein weiterer Wert ist eine Migration, kein Freitext. Die Kundenseiten sagen „Voreinstellung" statt „Platzhalter". | Kundenportal › Angebote, Aufträge; `drizzle/0017`, `0024`, `0025` |
+
+**Was sich NICHT ändert.** Kein Recht, keine Sperre, kein Versand, keine
+Migration: `app.darf_kontaktiert_werden` weist `transaktional` weiter ab
+(V-339), `nach_leistungsnachweis` bleibt gesperrt (V-337), die Löschmatrix
+führt O-71 weiter als „offen" (V-340), die Kalkulation kennt keine
+Nachunternehmerzeile (V-338), und der Abschluss eines Auftrags übernimmt die
+Projektfrist nicht (V-341). Die Enums der Migrationen bleiben, wie sie sind.
+
+**Prüfung.** `tests/kern` komplett (`abrechnungsart.test.ts` prüft weiter
+Befund und Nummer für O-54, `kalkulation.test.ts` die Turnusse),
+`pnpm guards` (jedes `TODO(client, O-nn)` auf eine Registerzeile; die
+Übersetzungswache für Objektformular und Kalkulationsseite), `pnpm katalog:check`,
+`pnpm typecheck`. Seed-Lauf und Isolation in der CI.
+
+**Was nach dieser Runde bleibt.** Das Register führt 400 Fragen; 256
+tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-792), 144 keinen.
+Von diesen sind rund hundert Betreiberdaten; der Rest folgt (CRM O-660 ff.,
+Kundenportal, Website-Pflege, Social, Recruiting; Integrationen, Seitenkarte
+und API-Karte; die zweisprachige Verwaltung) in D-793 ff.
+
+| Betrifft | O-53, O-54, O-57, O-58, O-59, O-61, O-62, O-63, O-64, O-65, O-68, O-69, O-70, O-71, O-72, O-73; V-337 bis V-341; `src/lib/formular/vokabular.ts` (neu), `src/lib/i18n/verwaltung/{objekte,kalkulation}.ts`, `src/server/services/finanz/abrechnungsart/{index,typen}.ts`, `src/server/services/finanz/positionsquelle.ts`, `src/server/services/kalkulation/{kostenposition,bestaetigung,tarif}.ts`, `src/server/services/angebot/index.ts`, `src/server/services/lead/annahme.ts`, `src/server/services/datenschutz/{werbewiderspruch,loeschentscheidung}.ts`, `src/server/services/crm/uwg-matrix.ts`, `src/server/services/bau/{behinderung,projekt}.ts`, `src/server/services/kundenportal/auftrag.ts`, `src/server/services/objekt/anlegen.ts`, `src/server/db/seed/{formulare,index,bau,operations,datenschutz}.ts`, `src/app/(public)/angebot/[bereich]/Angebot.tsx`, `src/app/(public)/werbewiderspruch/[token]/page.tsx`, `src/app/portal/[mandant]/objekte/ObjektFormular.tsx`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/app/portal/[mandant]/datenschutz/{widersprueche,[id],[id]/loeschung}/page.tsx`, `src/app/portal/kunde/{auftraege,angebote,angebote/[id]}/page.tsx` |
 |---|---|

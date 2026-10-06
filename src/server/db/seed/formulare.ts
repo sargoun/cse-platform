@@ -4,27 +4,35 @@
  * **Die Feldmengen sind die Substanz von REQ-02/03/04** und stehen genau so in
  * `02-CRM-OPERATIONS.md` §4. Was dort nicht steht, steht auch hier nicht:
  *
- *  - Die Auswahllisten fuer `gebaeudetyp`, `frequenz` und `gewerk` sind
- *    PLATZHALTER. Ein erfundener Gebaeudetyp landet in der Auswertung und
- *    spaeter in einem Angebot, und niemand findet ihn wieder. (O-62)
- *  - Das Formular fuer CSE Operations ist VORLAEUFIG: REQ-02/03/04 definieren
- *    nur drei Feldmengen, die vierte ist aus dem Auftrag des Bereichs
- *    abgeleitet (Ablaeufe aufnehmen, digitalisieren, auswertbar machen) und
- *    steht als Annahme im Register. (O-61)
+ *  - Die Auswahllisten fuer `gebaeudetyp`, `frequenz` und `gewerk` sind die
+ *    VOREINSTELLUNG (O-62, D-792): branchenuebliche Werte, die der Betreiber
+ *    bestaetigt oder ersetzt. Die Gebaeudetypen stehen in
+ *    `lib/formular/vokabular.ts`, weil das Objektformular dieselbe Liste als
+ *    Vorschlaege anbietet (O-69). Ein erfundener Gebaeudetyp landet in der
+ *    Auswertung und spaeter in einem Angebot, und niemand findet ihn wieder.
+ *  - Das Formular fuer CSE Operations ist die VOREINSTELLUNG (O-61, D-792):
+ *    REQ-02/03/04 definieren nur drei Feldmengen, die vierte ist aus dem
+ *    Auftrag des Bereichs abgeleitet (Ablaeufe aufnehmen, digitalisieren,
+ *    auswertbar machen) — Anliegen, betroffene Mitarbeitende, eingesetzte
+ *    Systeme, Zeitrahmen — und steht als Annahme im Register.
  *
- * // TODO(client): O-62 — Auswahllisten für gebaeudetyp, frequenz und gewerk:
- * // bitte die tatsächlich verwendeten Werte bestätigen oder ersetzen.
- * // TODO(client): O-61 — Welche Felder braucht CSE Operations wirklich, um
- * // ein Angebot rechnen zu können?
+ * // TODO(client, O-62): Voreinstellung — die Auswahllisten unten (Gebaeudetyp,
+ * // Frequenz, Gewerk) gelten, bis der Betreiber die tatsaechlich verwendeten
+ * // Werte bestaetigt oder ersetzt. D-792.
+ * // TODO(client, O-61): Voreinstellung — das Operations-Formular fragt
+ * // Anliegen, betroffene Mitarbeitende, eingesetzte Systeme und Zeitrahmen;
+ * // welche Felder der Bereich wirklich braucht, bestaetigt der Mandant. D-792.
  */
 import type { FormularFeld } from '../../../lib/formular/schema.js';
 import { FORMULAR_SCHLUESSEL } from '../../../lib/formular/bereiche.js';
+import { GEBAEUDETYPEN } from '../../../lib/formular/vokabular.js';
 
 /** Der Datenschutztext, dessen Bestaetigung auf jeder Einsendung gespeichert wird. */
 export const DATENSCHUTZ_VERSION = '2026-09-01';
 
 /**
- * Die Auswahllisten — branchenüblich, VORLÄUFIG, und im Register (O-62).
+ * Die Auswahllisten — branchenüblich, die VOREINSTELLUNG (O-62, D-792), und
+ * im Register.
  *
  * Sie tragen keinen "(vorläufig)"-Zusatz mehr im Label: der Mandant soll das
  * Formular sehen, wie ein Kunde es sieht. Dass die Listen noch nicht bestätigt
@@ -82,15 +90,7 @@ export const FORMULARE: readonly FormularVorlage[] = [
     titel: 'Angebot für Gebäudereinigung anfragen',
     felder: [
       { typ: 'auswahl', schluessel: 'gebaeudetyp', label: 'Gebäudetyp', pflicht: true,
-        sortierung: 1, optionen: optionen([
-          ['buero', 'Bürogebäude'],
-          ['wohnanlage', 'Wohnanlage'],
-          ['praxis', 'Praxis oder Klinik'],
-          ['einzelhandel', 'Einzelhandel'],
-          ['industrie', 'Industrie oder Lager'],
-          ['bildung', 'Schule oder Kita'],
-          ['hotel', 'Hotel oder Gastronomie'],
-        ]),
+        sortierung: 1, optionen: optionen(GEBAEUDETYPEN),
         fehlermeldung: 'Bitte wählen Sie den Gebäudetyp.' },
       { typ: 'dezimal', schluessel: 'flaeche_qm', label: 'Fläche in m²', pflicht: true,
         sortierung: 2, min: 1, nachkommastellen: 2,

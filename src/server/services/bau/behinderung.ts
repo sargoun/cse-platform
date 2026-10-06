@@ -396,9 +396,11 @@ export function behinderungNutzlast(
      * `vertrag` und nicht `keine`: § 7 UWG trifft Werbung. Eine
      * Behinderungsanzeige ist eine vertraglich geschuldete Erklaerung nach
      * § 6 Abs. 1 VOB/B an den Vertragspartner — sie bewirbt nichts.
-     * // TODO(client, O-65): Fuer welche ausgehenden Nachrichtenarten gilt die
-     * §-7-UWG-Einwilligungsschranke und fuer welche nicht — Mahnung,
-     * Behinderungsanzeige, Bewerberantwort, Lieferantenrueckfrage?
+     * // TODO(client, O-65): Voreinstellung — die Schranke des § 7 UWG trifft
+     * nur Werbung; Mahnung, Behinderungsanzeige, Bewerberantwort und
+     * Lieferantenrueckfrage sind vertraglich oder vorvertraglich notwendig und
+     * gehen ohne Einwilligung hinaus. `app.darf_kontaktiert_werden` kennt
+     * `transaktional` noch als gesperrt (V-339). D-792.
      */
     empfaengerRechtsgrundlage: 'vertrag',
     inhalt: {

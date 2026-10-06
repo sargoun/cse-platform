@@ -312,6 +312,9 @@ export default async function KalkulationSeite(
                    data-cse="kalkulation-material">
             <h2 id="material" className="text-h2 text-text">{tk.materialTitel}</h2>
             <p className="mb-s4 text-sm text-text-muted">{tk.materialErklaerung}</p>
+            <p className="mb-s4 text-sm text-text-muted" data-cse="material-nachunternehmer">
+              {tk.materialNachunternehmer}
+            </p>
             {kostenzeilen.length === 0 ? (
               <p className="mb-s4 text-sm text-text-muted" data-cse="material-leer">
                 {tk.materialLeer}

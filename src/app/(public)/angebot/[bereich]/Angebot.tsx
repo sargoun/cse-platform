@@ -20,8 +20,9 @@ import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/s
  * validiert — es gibt keine zweite Feldliste, die auseinanderlaufen koennte.
  *
  * Ein Bereich ohne veroeffentlichtes Formular ist 404 und kein leeres
- * Formular: CSE Operations hat noch keines (O-61), und ein Formular ohne
- * Felder saehe aus wie ein Fehler beim Laden.
+ * Formular: ein Formular ohne Felder saehe aus wie ein Fehler beim Laden.
+ * Alle vier Bereiche haben eines — das von CSE Operations ist die
+ * Voreinstellung (O-61, D-792) aus dem Seed.
  */
 
 interface Zeile { titel: string; felder: unknown }

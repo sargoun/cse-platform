@@ -39,7 +39,7 @@ import {
  */
 export const dynamic = 'force-dynamic';
 
-/** `angebot_status` (0024, Platzhalter O-73) auf das feste Vokabular (DESIGN §5). */
+/** `angebot_status` (0024, Voreinstellung O-73) auf das feste Vokabular (DESIGN §5). */
 const PILLE: Readonly<Record<string, PillZustand>> = {
   versendet: 'Angebot',
   angenommen: 'Abgeschlossen',

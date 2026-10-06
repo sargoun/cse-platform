@@ -586,9 +586,10 @@ async function main(): Promise<void> {
    * Spalten-DEFAULT — eine per Schema gesetzte Frist findet spaeter niemand
    * als Entscheidung wieder — und die Oberflaeche weist sie als vorlaeufig aus.
    *
-   * Auch das Formular fuer CSE Operations ist vorlaeufig (O-61): welche
-   * Felder der Bereich wirklich braucht, um ein Angebot zu rechnen, weiss der
-   * Mandant.
+   * Auch das Formular fuer CSE Operations ist eine Voreinstellung (O-61,
+   * D-792): Anliegen, betroffene Mitarbeitende, eingesetzte Systeme und
+   * Zeitrahmen — welche Felder der Bereich wirklich braucht, um ein Angebot
+   * zu rechnen, bestaetigt der Mandant.
    */
   let formulare = 0;
   for (const vorlage of FORMULARE) {

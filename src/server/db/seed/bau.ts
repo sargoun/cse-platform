@@ -126,10 +126,10 @@ const LEER: BauErgebnis = {
 const PROJEKT = {
   bezeichnung: 'Dachgeschossausbau Berliner Straße 42',
   /**
-   * // TODO(client, O-154): Kommen BGB-Bauvertraege vor oder ausschliesslich
-   * VOB/B — und woran erkennt die Bauleitung, welches Regime gilt? Das Regime
-   * entscheidet ueber Nachtrag, Behinderung, Abnahme und Gewaehrleistung;
-   * `vertragsgrundlage` hat deshalb KEINEN Vorgabewert. Dieses Demoprojekt
+   * // TODO(client, O-154): Voreinstellung (D-782) — Bauvertraege der Gruppe
+   * nach VOB/B, die Maske belegt es vor; BGB wird ausdruecklich gewaehlt, und
+   * der Dienst nimmt ohne Angabe nichts an. Das Regime entscheidet ueber
+   * Nachtrag, Behinderung, Abnahme und Gewaehrleistung. Dieses Demoprojekt
    * steht auf VOB/B, weil der Nachtrag darauf aufsetzt (§ 2 Abs. 6) — das ist
    * eine Aussage ueber DIESE Demodaten und keine ueber die Vertragspraxis des
    * Hauses.
@@ -656,10 +656,15 @@ export async function seedBau(
      *
      * // TODO(client, O-20): Welcher Sicherheitseinbehalt ist ueblich
      * vereinbart (§ 17 VOB/B), und wird er durch Buergschaft abgeloest?
-     * Ebenso `gewaehrleistung_bis` — // TODO(client, O-68): Gewaehrleistungs-
-     * frist je Vertragsart und ab welchem Ereignis sie laeuft. Ein geratener
-     * Prozentsatz waere Geld, das jemand einbehaelt, ohne dass es vereinbart
-     * ist.
+     * Ein geratener Prozentsatz waere Geld, das jemand einbehaelt, ohne dass
+     * es vereinbart ist.
+     *
+     * // TODO(client, O-68): Voreinstellung — die Gewaehrleistungsfrist rechnet
+     * die Gesamtabnahme am Projekt (`bau/abnahme.ts`, D-782): vier Jahre ab
+     * Abnahme bei VOB/B, fuenf bei BGB, je Auftrag ueberschreibbar;
+     * `auftrag.gewaehrleistung_bis` traegt der Abschluss von Hand ein, wenn der
+     * Vertrag sie nennt (V-341). Hier bleibt sie LEER, weil kein Demoprojekt
+     * gesamtabgenommen ist. D-792.
      */
     await kontext.schreibe(
       `update projekt set auftragssumme_netto_cent = $2,
@@ -1081,7 +1086,9 @@ export async function seedBau(
      * (§ 12 Abs. 2: „in sich abgeschlossene Teile der Leistung"), zeigt aber
      * genau die Kanten, um die es geht: den Leistungsumfang, die beiden
      * Vorbehalte im Wortlaut, die Mängelliste mit Fristen — und dass
-     * `gewaehrleistung_bis` LEER bleibt, weil die Frist offen ist (O-154).
+     * `gewaehrleistung_bis` LEER bleibt, weil die Voreinstellung (O-154,
+     * D-782) sie erst mit der Gesamtabnahme rechnet und dieses Projekt nur
+     * teilabgenommen ist.
      *
      * `vorbehalt_vertragsstrafe` steht auf `true` und traegt seinen Wortlaut:
      * nach § 11 Abs. 4 VOB/B verfaellt der Anspruch, wenn er bei der Abnahme

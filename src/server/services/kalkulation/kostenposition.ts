@@ -6,6 +6,13 @@
  * werden je Auftrag beschafft, hier als Kostenposition erfasst und über die
  * Rechnungsposition weiterberechnet (D-787).
  *
+ * TODO(client, O-57): Voreinstellung — Nachunternehmerleistung ist eine eigene
+ * Kostenart `nachunternehmer` neben den fuenf aus OPS-07: sie loest § 13b UStG
+ * und § 48 EStG aus und gehoert in der Preisbegruendung getrennt ausgewiesen.
+ * Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und
+ * Rechenweg fehlen (V-338). Bis dahin ist Fremdleistung in der Kalkulation
+ * nicht erfassbar, und die Kalkulationsseite sagt es. D-792.
+ *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**
  * ═══════════════════════════════════════════════════════════════════════════

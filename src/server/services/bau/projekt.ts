@@ -13,6 +13,11 @@ import type { SchreibKontext } from '../../kontext/index.js';
  *  - **Der Auftrag wird GEWÄHLT, nie erfunden.** Es gibt keinen Weg, der
  *    beides in einem Schritt anlegt: ein Bauvorhaben ohne kaufmännischen
  *    Auftrag wäre eine Baustelle ohne Vertrag.
+ *    // TODO(client, O-72): Voreinstellung — es gibt keine Projekte ohne
+ *    Auftrag. Akquise lebt in `akquise_ziel` und `lead`, bis ein Auftrag
+ *    entsteht; interne Vorhaben sind kein Bauprojekt dieser Plattform. Ein
+ *    eigener Projektkopf käme erst mit einem Fall, den der Betreiber nennt.
+ *    Wie gebaut (`projekt_auftrag_uk`). D-792.
  *  - **Kunde und Objekt kommen aus dem Auftrag**, nicht aus dem Formular.
  *    `projekt.kunde_id` ist `not null` und zeigt auf dieselbe Gesellschaft;
  *    ein zweites Feld daneben liesse zu, dass beide auseinanderlaufen — und

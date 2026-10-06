@@ -318,7 +318,7 @@ export default async function Widerspruechseite(
       </section>
 
       <Hinweis art="hinweis" cse="widerspruch-offen" className="max-w-prose">
-        <strong className="block">Zwei Punkte haben eine Voreinstellung; der dritte ist offen und steht hier als offen.</strong>
+        <strong className="block">Alle drei Punkte haben eine Voreinstellung; die dritte ist in der Versandprüfung noch nicht umgesetzt.</strong>
         <ul className="m-0 mt-s2 list-disc ps-s5">
           <li>
             <strong>O-640</strong> — Voreinstellung: ein Werbewiderspruch gilt pauschal,
@@ -334,11 +334,14 @@ export default async function Widerspruechseite(
             verantwortlich.
           </li>
           <li>
-            <strong>O-65</strong> — gilt eine transaktionale Nachricht
-            (Terminbestätigung, Leistungsnachweis, Mahnung) als vertraglich
-            notwendig? Bis das entschieden ist, weist die Prüfung vor dem Versand
-            sie bei Werbewiderspruch ab, statt sie lautlos zu senden — der restriktive
-            Zweig, sichtbar statt still.
+            <strong>O-65</strong> — Voreinstellung: vertraglich notwendig ist, was der
+            Durchführung des Vertrags dient — Rechnung, Leistungsnachweis,
+            Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist,
+            was eine neue oder zusätzliche Leistung anbietet, auch an Bestandskunden.
+            Die Prüfung vor dem Versand weist „transaktional" bei Werbewiderspruch
+            heute noch ab — der restriktive Zweig; die Umstellung ist eine Migration
+            mit Isolationstest (V-339) und bis dahin sichtbar statt still.
+            {/* TODO(client, O-65): Voreinstellung — Terminbestätigung, Leistungsnachweis, Mahnung und Störungsanzeige sind vertraglich notwendig und laufen trotz Werbewiderspruch; die Versandprüfung (0020/0376) weist „transaktional" noch ab (V-339). D-792. */}
           </li>
         </ul>
       </Hinweis>

@@ -10,9 +10,11 @@
  *    weiter: Kommunikation zur Durchführung des Vertrags ruht auf Art. 6
  *    Abs. 1 lit. b und lässt sich nicht wegwidersprechen. Leistungsnachweis
  *    (CLN-04), Terminbestätigung und Mahnung (FIN-15) sind dagegen als
- *    `zweck = 'transaktional'` geführt, und `app.darf_kontaktiert_werden`
- *    weist die bis zur Entscheidung von O-65 ebenfalls ab — der restriktive
- *    Zweig, nachgemessen im Funktionsrumpf und nicht angenommen.
+ *    `zweck = 'transaktional'` geführt; nach der Voreinstellung (O-65, D-792)
+ *    sind sie vertraglich notwendig und laufen weiter — aber
+ *    `app.darf_kontaktiert_werden` weist sie noch ab, bis die Funktion
+ *    umgestellt ist (V-339): der restriktive Zweig, nachgemessen im
+ *    Funktionsrumpf und nicht angenommen.
  *  - **Widerspruch nach Art. 21** (`widerspruch_am`) zwingt über
  *    `kern.erzwinge_widerspruch()` `rechtsgrundlage = 'keine'` — der seltenere,
  *    stärkere Fall.
@@ -90,9 +92,9 @@ export const ART_WIRKUNG: Readonly<Record<WiderspruchArt, string>> = {
     + 'vertraglich notwendige Post (zweck = „vertraglich“) laufen weiter — sie '
     + 'ruhen auf Art. 6 Abs. 1 lit. b und sind nicht widersprechlich. '
     + 'Terminbestätigung, Leistungsnachweis und Mahnung sind als '
-    + '„transaktional“ geführt und werden bis zur Entscheidung von O-65 '
-    + 'ebenfalls abgewiesen: im Zweifel der restriktive Zweig, sichtbar statt '
-    + 'still.',
+    + '„transaktional“ geführt und nach der Voreinstellung (O-65) vertraglich '
+    + 'notwendig; die Prüfung vor dem Versand weist sie aber noch ab, bis sie '
+    + 'umgestellt ist (V-339): der restriktive Zweig, sichtbar statt still.',
   verarbeitung:
     'Zwingt rechtsgrundlage = „keine“ und löscht Quelle, Erfassungszeitpunkt '
     + 'und Einwilligungskanäle. Damit endet jede werbliche Verarbeitung; '
