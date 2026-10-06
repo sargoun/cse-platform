@@ -28,10 +28,11 @@ import { vorbelegt } from '@/lib/formular/maske';
  * Datenbank. Eine Seite, die selbst prüft, prüft auf dem Gerät des Aufrufers
  * — also nirgends.
  *
- * **Die Postenart wird NICHT vorgeschlagen.** SEC-01 nennt keine, der Katalog
- * wird leer ausgeliefert (O-148), und eine Auswahlliste mit „Objektschutz,
- * Empfang, Streife" sähe aus wie eine Abstimmung, die es nicht gab (K-17).
- * Solange niemand Arten hinterlegt hat, steht hier der Satz statt der Liste.
+ * **Die Postenart kommt aus dem Katalog, und der Katalog kennt eine
+ * Voreinstellung** (O-148, D-783): sechs Arten eines Berliner Sicherheitsdienstes,
+ * die ein leerer Katalog mit einem Knopf uebernimmt — unbestaetigt, bis die
+ * Gesellschaft bestaetigt (K-17). Solange der Katalog leer ist, steht hier der
+ * Satz, die Voreinstellung und der Knopf statt der Liste.
  *
  * **Ein abgewiesener Anker kommt hierher zurück** (V-192, D-599): der Grund
  * als Satz in der Sprache der Sitzung, die Eingaben vorbelegt — nur mit
@@ -173,11 +174,22 @@ export default async function PostenNeu(
           <div className="mb-s4">
             <span className={feld}>Postenart</span>
             {arten.length === 0 ? (
-              <p className="m-0 text-sm text-text-muted">
-                Keine Arten hinterlegt. Welche Postenarten geführt werden, ist
-                offen (O-148) — der Posten wird ohne Art angelegt, und das ist
-                die ehrliche Variante.
-              </p>
+              <div className="rounded-md border border-line bg-surface-3 p-s3">
+                <p className="m-0 text-sm text-text-muted">
+                  Keine Arten hinterlegt — der Posten wird ohne Art angelegt. Voreinstellung
+                  (O-148): Objektschutz, Empfang und Pforte, Revier- und Streifendienst,
+                  Veranstaltungsschutz, Baustellenbewachung, Alarmverfolgung und Intervention;
+                  die Gesellschaft bestätigt, ergänzt oder archiviert sie.
+                </p>
+                {/* D-783: die Voreinstellung als Katalogzeilen — der Knopf ruft dieselbe Route. */}
+                <form method="post" action="/api/sicherheit/posten" className="mt-s3">
+                  <input type="hidden" name="mandant" value={mandant} />
+                  <input type="hidden" name="aktion" value="postenarten_voreinstellung" />
+                  <Button type="submit" variante="secondary" data-cse="postenarten-voreinstellung">
+                    Voreinstellung übernehmen
+                  </Button>
+                </form>
+              </div>
             ) : (
               <select name="postenart" className={eingabe} defaultValue={vor.postenart}>
                 <option value="">— ohne Art —</option>

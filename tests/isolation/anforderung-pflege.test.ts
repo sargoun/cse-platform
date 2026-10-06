@@ -27,7 +27,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   AnforderungFehler, archiviereAnforderung, legeAnforderungAn, leseAnforderungen,
-  type AnforderungEingabe,
+  uebernimmAnforderungVoreinstellung, type AnforderungEingabe,
 } from '../../src/server/services/security/anforderung.js';
 import { besetzeEinsatz } from '../../src/server/services/dienstplan/einteilung.js';
 import { QualifikationFehlt } from '../../src/server/services/nachweis/tor.js';
@@ -459,5 +459,47 @@ describe('(4) von der Veranstaltung aus — und die uebrigen Zweige des Nachzugs
       `select count(*)::int as n from einsatz
         where mandant_id <> $1 and jsonb_array_length(anforderung_snapshot) > 0`, [f.security]);
     expect(fremd!.n).toBe(0);
+  });
+});
+
+/**
+ * D-783 (O-342): die Voreinstellung — § 34a-Unterrichtung fuer jede Kraft, bei
+ * Veranstaltungen dazu mindestens eine Sachkunde — entsteht per Knopf als
+ * unbestaetigte WARNUNG, nie als Sperre, und nie doppelt.
+ */
+describe('(9) die Voreinstellung nach § 34a GewO (D-783, O-342)', () => {
+  it('am Posten: die Unterrichtung für jede Kraft, unbestätigt, als Warnung — einmal', async () => {
+    const { objektId } = await objekt();
+    const postenId = await posten(objektId);
+    const herkunft = { art: 'posten' as const, id: postenId };
+
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(1);
+    const zeilen = await alsChef((k) => leseAnforderungen(k, { ...herkunft, objektId }));
+    const eigene = zeilen.filter((z) => z.bereich === 'posten');
+    expect(eigene).toHaveLength(1);
+    expect(eigene[0]).toMatchObject({
+      zwingend: false, geltung: 'jeder', platzhalter: true, rechtsgrundlage: '§ 34a Abs. 1a GewO',
+    });
+    expect(eigene[0]!.qualifikation).toMatch(/Unterrichtung/iu);
+
+    // Idempotent: was lebt, wird nicht noch einmal angelegt.
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(0);
+    expect((await alsChef((k) => leseAnforderungen(k, { ...herkunft, objektId })))
+      .filter((z) => z.bereich === 'posten')).toHaveLength(1);
+  });
+
+  it('an der Veranstaltung: Unterrichtung für jede Kraft und mindestens eine Sachkunde', async () => {
+    const { objektId, kundeId } = await objekt();
+    const veranstaltungId = await veranstaltung(kundeId, objektId);
+    const herkunft = { art: 'veranstaltung' as const, id: veranstaltungId };
+
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(2);
+    const zeilen = (await alsChef((k) => leseAnforderungen(k, { ...herkunft, objektId })))
+      .filter((z) => z.bereich === 'veranstaltung');
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen.every((z) => !z.zwingend && z.platzhalter)).toBe(true);
+    expect(zeilen.map((z) => z.geltung).sort()).toEqual(['jeder', 'mindestens_einer']);
+    expect(zeilen.find((z) => z.geltung === 'mindestens_einer')?.mindestanzahl).toBe(1);
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(0);
   });
 });

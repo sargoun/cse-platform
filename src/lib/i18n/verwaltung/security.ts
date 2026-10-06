@@ -121,10 +121,10 @@ export const VERANSTALTUNG_TEXTE: Readonly<Record<InternSprache, VeranstaltungTe
       + 'ein unterbesetzter Dienst als nicht erbracht gilt —, ist noch zu '
       + 'entscheiden (O-210). Die Plattform zeigt deshalb Zahlen und keine Ampel.',
     leistungErklaerung:
-      'Freiwillig. Woher ein Veranstaltungsauftrag entsteht — aus einer '
-      + 'Auftragsposition, aus dem Vertrieb oder handerfasst von der Wachleitung '
-      + '—, ist noch zu entscheiden (O-703). Bis dahin lässt sich beides: mit '
-      + 'Position verbinden oder ohne erfassen.',
+      'Freiwillig. Voreinstellung (O-703): die Wachleitung erfasst den '
+      + 'Veranstaltungsauftrag von Hand und verbindet ihn mit der Auftragsposition, '
+      + 'sobald der Vertrieb sie angelegt hat — beides geht: mit Position verbinden '
+      + 'oder ohne erfassen.',
     besetzenIstSpaeter:
       'Das Anlegen teilt noch niemanden ein. Die Besetzung steht auf dem Blatt '
       + 'der Veranstaltung und verlangt ein eigenes Recht — wer den Auftrag '
@@ -184,10 +184,9 @@ export const VERANSTALTUNG_TEXTE: Readonly<Record<InternSprache, VeranstaltungTe
       + 'understaffed shift counts as not performed — is still to be decided '
       + '(O-210). The platform therefore shows numbers, not a traffic light.',
     leistungErklaerung:
-      'Optional. Where an event order originates — from an order position, from '
-      + 'sales, or recorded by hand by the guard management — is still to be '
-      + 'decided (O-703). Until then both work: linked to a position, or recorded '
-      + 'without one.',
+      'Optional. Default (O-703): the guard management records the event order by '
+      + 'hand and links it to the order position once sales has created it — both '
+      + 'work: linked to a position, or recorded without one.',
     besetzenIstSpaeter:
       'Creating it does not schedule anyone yet. Staffing lives on the event’s own '
       + 'page and requires a separate right — whoever records the order does not '
@@ -332,8 +331,8 @@ export const BEWACHERREGISTER_TEXTE: Readonly<Record<'de', BewacherregisterTexte
         'Welcher Registereintrag fortgeschrieben werden soll, fehlt — öffnen Sie ihn aus '
         + 'der Liste heraus.',
       bewacher_id_ungueltig:
-        'Die Bewacher-ID hat 1 bis 32 Zeichen. Ein Format wird nicht geprüft — welches gilt, '
-        + 'ist offen (O-40).',
+        'Die Bewacher-ID hat 1 bis 32 Zeichen. Ein Format wird nicht geprüft — Voreinstellung '
+        + '(O-40): übernommen wird, was die Behörde ausgestellt hat.',
       status_unbekannt:
         'Diesen Status kennt das Register nicht — bitte einen aus der Auswahl nehmen.',
       datum_ungueltig:

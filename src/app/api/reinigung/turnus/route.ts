@@ -154,7 +154,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             ersatzBeginn: text(daten, 'ersatz_beginn'),
             dauerMinuten: dauer === null || !Number.isFinite(dauer) ? null : Math.trunc(dauer),
             grund,
-            // Leer heisst UNBEANTWORTET und nicht `false` (O-700).
+            // Leer heisst NICHT GESETZT und nicht `false`; das Formular belegt „ja" vor (O-700, D-783).
             abrechnungsrelevant: relevanzRoh === 'ja' ? true
               : relevanzRoh === 'nein' ? false : null,
           });

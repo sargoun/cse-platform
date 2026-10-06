@@ -358,7 +358,7 @@ export interface AusnahmeEingabe {
   readonly ersatzBeginn?: string | null;
   readonly dauerMinuten?: number | null;
   readonly grund: string;
-  /** Bleibt `null`, wenn niemand es setzt — siehe O-700. */
+  /** `null` = nicht gesetzt; das Formular belegt „ja" vor (Voreinstellung O-700, D-783). */
   readonly abrechnungsrelevant?: boolean | null;
 }
 
@@ -369,9 +369,10 @@ const UHRZEIT = /^([01]\d|2[0-3]):[0-5]\d$/u;
  * Eine Ausnahme anlegen — der einzige Schreibweg auf `turnus_ausnahme`
  * ausserhalb des Seeds.
  *
- * **`abrechnungsrelevant` wird NICHT aus der Art abgeleitet.** Die naechste
- * Zeile waere `art === 'ausfall' ? true : false`, sie waere plausibel, und sie
- * waere eine Vertragsaussage, die niemand getroffen hat (O-700).
+ * **`abrechnungsrelevant` wird NICHT aus der Art abgeleitet.** Die
+ * Voreinstellung (O-700, D-783) sitzt im FORMULAR („ja" vorbelegt), nicht im
+ * Dienst: wer „nicht gesetzt" waehlt, laesst die Frage offen, und der Dienst
+ * schreibt genau das.
  *
  * **Der Ersatzbeginn kommt als Uhrzeit herein, nicht als Zeitstempel.** Die
  * Tabelle fuehrt `timestamp without time zone` — eine Wanduhr, wie

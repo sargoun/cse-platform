@@ -205,10 +205,10 @@ export default async function Sonderleistungen(
       )}
 
       <Hinweis art="hinweis" cse="sonderleistung-o702" className="mb-s6 max-w-prose">
-        <strong>Offen (O-702):</strong> ob diese Seite die Katalogzeilen, die
-        Abrufe oder beides pflegt, ist nicht entschieden — und den
-        Leistungskatalog als eigene Seite gibt es noch nicht. Bis dahin stehen
-        beide Hälften hier. Der <strong>Listenpreis</strong> einer Katalogzeile
+        <strong>Voreinstellung (O-702):</strong> diese Seite pflegt beide Hälften —
+        die Katalogzeilen der Sonderleistungen und die Abrufe je Objekt —, jede hinter
+        dem Recht ihrer Tabelle; den Leistungskatalog als Ganzes pflegt die
+        Katalogseite. Der <strong>Listenpreis</strong> einer Katalogzeile
         wird hier bewusst nicht geändert: er geht in Angebote und Rechnungen,
         und zwei Seiten, die dieselbe Preisspalte schreiben, sind eine Seite zu
         viel.

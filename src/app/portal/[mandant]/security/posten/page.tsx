@@ -171,7 +171,7 @@ export default async function PostenListe(
                   * allein (DESIGN §9).
                   */}
                 {p.artIstPlatzhalter && (
-                  <span className="ml-s2 text-warning">· Art unbestätigt (O-148)</span>
+                  <span className="ml-s2 text-warning">· Art unbestätigt (Voreinstellung, O-148)</span>
                 )}
               </p>
               <p className="m-0 mt-s2 text-sm text-text-muted">

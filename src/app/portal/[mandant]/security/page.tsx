@@ -268,8 +268,9 @@ export default async function SecurityKopfSeite(
           Bewacherqualifikationen sind in der Liste markiert. Die Schwellen
           kommen aus dem Qualifikationskatalog, nie aus dieser Ansicht. Ob eine
           abgelaufene Zeile eine Einteilung <em>sperrt</em>, entscheidet die
-          Anforderung des jeweiligen Postens — ob sie zwingend ist —, nicht diese Liste —
-          welche Teilmenge der Modulkopf zeigen soll, ist offen (O-706).
+          Anforderung des jeweiligen Postens — ob sie zwingend ist —, nicht diese Liste.
+          Voreinstellung (O-706): der Modulkopf zeigt alle Nachweise mit Frist und
+          markiert die Bewacherqualifikationen.
         </p>
 
         {kopf.nachweise === null ? (

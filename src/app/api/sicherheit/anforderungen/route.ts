@@ -2,7 +2,7 @@ import type { NextRequest, NextResponse } from 'next/server';
 import { fuehreUebergangAus, grundAus, UUID, type Rumpf } from '../../uebergang';
 import {
   AnforderungFehler, archiviereAnforderung, istAnforderungBereich, istAnforderungGeltung,
-  legeAnforderungAn, type AnforderungHerkunft,
+  legeAnforderungAn, uebernimmAnforderungVoreinstellung, type AnforderungHerkunft,
 } from '@/server/services/security/anforderung';
 
 /**
@@ -54,6 +54,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         }
         await archiviereAnforderung(kontext, id);
         return { herkunft, aktion: 'archiviert' };
+      }
+      /* D-783 (O-342): die Nachweise der Voreinstellung — unbestätigt, als Warnung. */
+      if (r.felder['aktion'] === 'voreinstellung') {
+        await uebernimmAnforderungVoreinstellung(kontext, herkunft);
+        return { herkunft, aktion: 'voreinstellung' };
       }
 
       const bereich = r.felder['bereich'];

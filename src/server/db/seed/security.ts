@@ -48,7 +48,12 @@ import { montag, tagePlus } from '@/lib/datum/kalendertag';
 import { besetzeUndErfasse } from './zeit.js';
 import { alsPortalSitzung } from './sitzung.js';
 import { erzeugeVeranstaltungsschicht } from '../../services/security/eventbesetzung.js';
-import { legeAnforderungAn } from '../../services/security/anforderung.js';
+import {
+  legeAnforderungAn, uebernimmAnforderungVoreinstellung,
+} from '../../services/security/anforderung.js';
+import {
+  uebernimmPostenartVoreinstellung, uebernimmSchluesselartVoreinstellung,
+} from '../../services/security/arten.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -144,6 +149,22 @@ export async function seedSecurity(
     returning id`)[0]!.id;
   if (da === undefined) posten += 1;
 
+  /**
+   * D-783 (O-148): die Posten- und Schluesselarten der Voreinstellung — ueber
+   * die ECHTEN Dienste, unbestaetigt, wie der Knopf im leeren Katalog sie
+   * anlegt; der Demoposten bekommt die Art „Objektschutz".
+   */
+  await alsPortalSitzung(sql, mandantId, planer.id, async (k) => {
+    await uebernimmPostenartVoreinstellung(k);
+    await uebernimmSchluesselartVoreinstellung(k);
+  });
+  await sql`
+    update posten set postenart_id = (
+      select id from postenart
+       where mandant_id = ${mandantId} and schluessel = 'objektschutz'
+         and archiviert_am is null limit 1)
+     where id = ${postenId} and postenart_id is null`;
+
   const [serieDa] = await sql<{ id: string }[]>`
     select id from planungsserie
      where mandant_id = ${mandantId} and posten_id = ${postenId}
@@ -196,9 +217,10 @@ export async function seedSecurity(
  * ECHTEN Dienst (`legeAnforderungAn`) in der Sitzung der Leitung.
  *
  * **Eine Warnung, keine Sperre, und als unbestaetigt markiert.** Welche
- * Qualifikation der Objektschutz verlangt, entscheidet der Vertrag (O-342),
- * nicht dieser Seed — eine Sperre hier waere eine erfundene Regel, die
- * Einteilungen verhindert. Die Warnung zeigt dagegen den ganzen Weg: sie
+ * Qualifikation der Objektschutz verlangt, entscheidet der Vertrag (O-342);
+ * die Voreinstellung (D-783: § 34a-Unterrichtung fuer jede Kraft) legt der
+ * Seed ueber denselben Dienst an wie der Knopf auf dem Postenblatt — eine
+ * Sperre hier waere eine erfundene Regel, die Einteilungen verhindert. Die Warnung zeigt dagegen den ganzen Weg: sie
  * steht auf dem Postenblatt mit „Anforderung unbestätigt", und weil sie NACH
  * der Einteilung entsteht, zieht der Ausloeser aus 0465 die kuenftigen
  * Schichten nach — Fatimas abgelaufener Bewacherausweis (seed/qualifikation)
@@ -240,7 +262,11 @@ export async function seedAnforderung(
     rechtsgrundlage: null,
     bestaetigt: false,
   }));
-  return 1;
+  /* D-783 (O-342): dazu die Nachweise der Voreinstellung — die § 34a-Unterrichtung
+     fuer jede Kraft, unbestaetigt, als Warnung. */
+  const voreinstellung = await alsPortalSitzung(sql, mandantId, leitung.id,
+    (k) => uebernimmAnforderungVoreinstellung(k, { art: 'posten', id: postenId }));
+  return 1 + voreinstellung;
 }
 
 /* ===========================================================================

@@ -88,6 +88,12 @@ export const REGISTERVERBINDUNG = 'nicht_verbunden' as const;
  * `qualifikation`, tritt diese Konstante ersatzlos zurück.
  */
 // TODO(client, O-707): In welchem Vorlauf ist eine ablaufende Bewacher-Erlaubnis zu melden, und gehoert die Schwelle in den Eintrag (wie qualifikation.warnung_tage) oder gilt eine feste Frist fuer alle?
+/**
+ * Voreinstellung (O-707, D-783): 60 Tage Vorlauf, bis eine ablaufende
+ * Bewacher-Erlaubnis in der Kachel steht — `bewacher_eintrag` traegt keine
+ * Warnstufen, deshalb steht die Zahl hier und nirgends in einer Seite.
+ * // TODO(client, O-707): Voreinstellung 60 Tage; aendern, wenn die Geschaeftsfuehrung einen anderen Vorlauf festlegt.
+ */
 export const BEWACHER_VORWARNUNG_TAGE = 60;
 
 /**
@@ -427,7 +433,8 @@ function pruefeFelder(e: EintragEingabe): {
   if (bewacherId === '' || bewacherId.length > 32) {
     throw new BewacherEingabeFehlt(
       'Die Bewacher-ID hat 1 bis 32 Zeichen. Ein Format wird nicht geprüft — '
-      + 'welches gilt, ist offen (O-40).', 'bewacher_id_ungueltig');
+      + 'Voreinstellung (O-40): übernommen wird, was die Behörde ausgestellt hat.',
+      'bewacher_id_ungueltig');
   }
   if (!BEWACHER_STATUS.includes(e.status)) {
     throw new BewacherEingabeFehlt(

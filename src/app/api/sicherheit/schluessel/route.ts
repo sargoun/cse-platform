@@ -8,6 +8,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import { legeSchluesselAn } from '@/server/services/security/schluessel';
+import { uebernimmSchluesselartVoreinstellung } from '@/server/services/security/arten';
 import { alsAntwort } from '../antwort';
 import { feldText as text } from '../formular';
 
@@ -38,7 +39,31 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = String(daten.get('mandant') ?? '');
+  const mandant = String(daten.get('mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
+
+  /* D-783 (O-148): die Schlüsselarten der Voreinstellung — unbestätigt, idempotent. */
+  if (daten.get('aktion') === 'schluesselarten_voreinstellung') {
+    try {
+      await (db().begin(async (tx: postgres.TransactionSql) =>
+        withTenant(tx, sitzung, async (kontext) => {
+          await authorize(
+            sitzung,
+            { recht: 'schluessel.schreiben', schreibend: true },
+            rechtepruefer(kontext.abfrage.bind(kontext)),
+          );
+          await uebernimmSchluesselartVoreinstellung(kontext);
+        })));
+    } catch (fehler) {
+      const antwort = alsAntwort(fehler, anfrage);
+      if (antwort !== null) return antwort;
+      throw fehler;
+    }
+    return NextResponse.redirect(
+      internesZiel(`/portal/${mandant}/security/schluessel?arten=voreinstellung`,
+        `/portal/${mandant}/security/schluessel`, anfrage),
+      303);
+  }
+
   const objektId = text(daten, 'objekt');
   const bezeichnung = text(daten, 'bezeichnung');
   if (objektId === null || bezeichnung === null) {

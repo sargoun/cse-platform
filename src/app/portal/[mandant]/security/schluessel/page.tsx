@@ -259,17 +259,18 @@ export default async function Schluesselbestand(
             <span className={feld}>Schlüsselart</span>
             {arten.length === 0 ? (
               /*
-               * Der Katalog wird LEER ausgeliefert (O-148). Hier steht das,
-               * statt eine plausible Liste zu zeigen, die niemand bestätigt
-               * hat (K-17) — und das Feld bleibt benutzbar.
+               * Der Katalog ist leer; seit D-783 (O-148) kennt er eine Voreinstellung,
+               * die der Knopf unten anlegt — unbestaetigt (K-17). Der Schluessel
+               * laesst sich auch ohne Art erfassen; das Feld bleibt benutzbar.
                */
               <span
                 className="block text-sm text-text-muted"
                 data-cse="schluesselarten-leer"
               >
-                Keine Schlüsselarten hinterlegt. Welche Arten geführt werden
-                (mechanisch, Transponder, Chipkarte, Zylindercode) ist offen —
-                der Schlüssel lässt sich auch ohne Art erfassen.
+                Keine Schlüsselarten hinterlegt — der Schlüssel lässt sich auch ohne Art
+                erfassen. Voreinstellung (O-148): Mechanischer Schlüssel, Generalschlüssel,
+                Gruppenschlüssel, Transponder, Chipkarte; übernehmen Sie sie unten und
+                bestätigen oder archivieren Sie, was die Gesellschaft nicht führt.
               </span>
             ) : (
               <select name="schluesselart" className={eingabe}>
@@ -282,6 +283,17 @@ export default async function Schluesselbestand(
           </label>
 
           <Button type="submit" variante="primary">Schlüssel erfassen</Button>
+        </form>
+      )}
+
+      {arten.length === 0 && (
+        /* D-783 (O-148): die Voreinstellung der Schluesselarten — ein eigenes Formular,
+           weil ein Formular im Formular nicht geht. */
+        <form method="post" action="/api/sicherheit/schluessel" className="mt-s4"
+              data-cse="schluesselarten-voreinstellung">
+          <input type="hidden" name="mandant" value={mandant} />
+          <input type="hidden" name="aktion" value="schluesselarten_voreinstellung" />
+          <Button type="submit" variante="secondary">Schlüsselarten der Voreinstellung übernehmen</Button>
         </form>
       )}
     </PortalRahmen>

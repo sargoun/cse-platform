@@ -10,6 +10,7 @@ import { withTenant } from '@/server/kontext/index';
 import {
   legePostenAn, PostenArchiviert, setzePostenLeistung,
 } from '@/server/services/security/posten';
+import { uebernimmPostenartVoreinstellung } from '@/server/services/security/arten';
 import { legePlanungsserieAn } from '@/server/services/dienstplan/serie';
 import { alsAntwort } from '../antwort';
 import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
@@ -99,6 +100,29 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       throw fehler;
     }
     return zurueckMit('leistung', 'gesetzt');
+  }
+
+  /* D-783 (O-148): die Postenarten der Voreinstellung — unbestätigt, idempotent. */
+  if (daten.get('aktion') === 'postenarten_voreinstellung') {
+    try {
+      await (db().begin(async (tx: postgres.TransactionSql) =>
+        withTenant(tx, sitzung, async (kontext) => {
+          await authorize(
+            sitzung,
+            { recht: 'security.schreiben', schreibend: true },
+            rechtepruefer(kontext.abfrage.bind(kontext)),
+          );
+          await uebernimmPostenartVoreinstellung(kontext);
+        })));
+    } catch (fehler) {
+      const antwort = alsAntwort(fehler, anfrage);
+      if (antwort !== null) return antwort;
+      throw fehler;
+    }
+    return NextResponse.redirect(
+      internesZiel(`/portal/${mandant}/security/posten/neu?arten=voreinstellung`,
+        `/portal/${mandant}/security/posten`, anfrage),
+      303);
   }
 
   const objektId = text(daten, 'objekt');

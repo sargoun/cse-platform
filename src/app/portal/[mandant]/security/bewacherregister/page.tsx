@@ -125,10 +125,9 @@ export default async function Bewacherregister(
   const ohneEintrag = daten.zeilen.filter((z) => z.eintragId === null);
   const gesperrt = daten.zeilen.filter(
     (z) => z.eintragId !== null && !z.einsetzbarAmStichtag);
-  /* Die Schwelle ist ein benannter PLATZHALTER im Dienst, keine Zahl in dieser
-     Seite: `bewacher_eintrag` trägt keine Warnstufen, und in welchem Vorlauf
-     eine ablaufende Erlaubnis zu melden ist, ist offen (O-707). Die Kachel
-     nennt die Zahl deshalb UND sagt, dass sie noch nicht entschieden ist. */
+  /* Die Schwelle ist die VOREINSTELLUNG im Dienst (O-707, D-783: 60 Tage), keine
+     Zahl in dieser Seite: `bewacher_eintrag` trägt keine Warnstufen. Die Kachel
+     nennt die Zahl und sagt, dass sie eine Voreinstellung ist. */
   const laufenAb = daten.zeilen.filter(
     (z) => z.einsetzbarAmStichtag && z.restTage !== null
       && z.restTage <= BEWACHER_VORWARNUNG_TAGE);
@@ -174,13 +173,13 @@ export default async function Bewacherregister(
       </Hinweis>
 
       <Hinweis art="hinweis" cse="register-o40" className="mb-s5 max-w-prose">
-        <strong>Offen (O-40):</strong> Format und Prüfziffer der Bewacher-ID, die
-        Pflichtfelder, das Statusvokabular und die dem Register zu meldenden
-        Ereignisse sind nicht festgelegt. Das Feld nimmt deshalb, was die Behörde
-        ausgestellt hat (1 bis 32 Zeichen), und keine Frist wird aus einem Datum
-        abgeleitet. Eine geratene Prüfziffernregel würde eine echte Kennung
-        abweisen — in dem Register, das über die Einsetzbarkeit eines Menschen
-        entscheidet.
+        <strong>Voreinstellung (O-40):</strong> die Bewacher-ID wird so übernommen, wie
+        die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung), das
+        Statusvokabular ist das hinterlegte, und keine Frist wird aus einem Datum
+        abgeleitet — die nächste Prüfung trägt ein, wer die Mitteilung der Behörde hat.
+        Eine geratene Prüfziffernregel würde eine echte Kennung abweisen — in dem
+        Register, das über die Einsetzbarkeit eines Menschen entscheidet. Ein Abgleich
+        mit dem Register ist nicht verbunden.
       </Hinweis>
 
       {erfolgText !== null && (
@@ -225,7 +224,7 @@ export default async function Bewacherregister(
           ton={gesperrt.length === 0 ? 'muted' : 'danger'}
         />
         <KpiStat
-          label={`Läuft in ${String(BEWACHER_VORWARNUNG_TAGE)} Tagen ab — Frist offen (O-707)`}
+          label={`Läuft in ${String(BEWACHER_VORWARNUNG_TAGE)} Tagen ab (Voreinstellung, O-707)`}
           wert={String(laufenAb.length)}
           icon="uhr"
           ton={laufenAb.length === 0 ? 'muted' : 'warning'}
@@ -243,13 +242,11 @@ export default async function Bewacherregister(
       </p>
 
       <Hinweis art="hinweis" cse="bewacher-frist-offen" className="mb-s5 max-w-prose">
-        <strong>Der Vorwarnvorlauf ist nicht entschieden (O-707).</strong>{' '}
-        Die Kachel „Läuft in {BEWACHER_VORWARNUNG_TAGE} Tagen ab" rechnet gegen
-        einen <strong>Platzhalter</strong>. Anders als bei den Qualifikationen,
-        deren Katalog die Warnschwellen in Tagen führt, trägt ein Eintrag im
-        Bewacherregister keine Warnstufen — in welchem Vorlauf
-        eine ablaufende Bewacher-Erlaubnis zu melden ist, muss der Auftraggeber
-        festlegen. Bis dahin ist die Zahl ein Anhalt, keine Frist.
+        <strong>Der Vorwarnvorlauf ist eine Voreinstellung (O-707): {BEWACHER_VORWARNUNG_TAGE} Tage.</strong>{' '}
+        Anders als bei den Qualifikationen, deren Katalog die Warnschwellen in
+        Tagen führt, trägt ein Eintrag im Bewacherregister keine Warnstufen — die
+        Zahl steht im Dienst und wird dort geändert, wenn die Geschäftsführung einen
+        anderen Vorlauf festlegt.
       </Hinweis>
 
       {daten.zeilen.length === 0 ? (
@@ -395,7 +392,7 @@ export default async function Bewacherregister(
                       )}
                       <label className="block">
                         <span className="mb-s1 block text-xs text-text-muted">
-                          Bewacher-ID (ohne Formatprüfung, O-40)
+                          Bewacher-ID (ohne Formatprüfung — Voreinstellung, O-40)
                         </span>
                         <input
                           name="bewacher_id"
