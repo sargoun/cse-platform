@@ -333,7 +333,7 @@ export default async function DokumentHochladen({
                 <span>{r.grundlage}</span>
                 {r.istPlatzhalter && (
                   <span className="text-xs text-warning">
-                    Platzhalter — die Dauer ist nicht bestätigt (O-25); bis dahin gilt
+                    Voreinstellung — die Dauer ist nicht bestätigt (O-25); bis dahin gilt
                     die Sperre.
                   </span>
                 )}

@@ -83,7 +83,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             `Die Klasse „${eingabe.code}" ist angelegt.`
             + (eingabe.bestaetigt
               ? ''
-              : ' Sie ist als unbestätigt hinterlegt (O-55) und steht im Raumbuch mit '
+              : ' Sie ist als Voreinstellung hinterlegt (O-55) und steht im Raumbuch mit '
                 + 'dieser Marke.'));
         }
 

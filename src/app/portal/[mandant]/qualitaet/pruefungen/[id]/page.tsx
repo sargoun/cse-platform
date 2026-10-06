@@ -225,7 +225,7 @@ export default async function PruefungBlatt(
           <p className="m-0 mt-s2 text-sm text-text">{q.verfahren}</p>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {q.verfahrenIstPlatzhalter && (
-              <span className="text-warning">Platzhalter ohne Skala (O-29)</span>
+              <span className="text-warning">Voreinstellung ohne Skala (O-29)</span>
             )}
             {q.verfahrenMaxPunkte === null
               ? ' — das Verfahren trägt keine Skala, also gibt es keinen Erfüllungsgrad.'
@@ -261,9 +261,9 @@ export default async function PruefungBlatt(
           </p>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {q.bestanden === null
-              ? 'Auslöser, Skala, Bestehensschwelle und die Folge einer nicht '
-                + 'bestandenen Prüfung sind nicht festgelegt (O-29). Deshalb steht '
-                + 'hier kein Urteil — und ausdrücklich nicht „nicht bestanden".'
+              ? 'Das Verfahren trägt keine Skala und keine Bestehensschwelle '
+                  + '(Voreinstellung, O-29). Deshalb steht hier kein Urteil — und '
+                  + 'ausdrücklich nicht „nicht bestanden".'
               : 'Ein Urteil steht nur, wenn das Verfahren eine Schwelle trägt.'}
             {q.punkte !== null && (
               <>
@@ -335,9 +335,9 @@ export default async function PruefungBlatt(
           <strong>
             {ueberfaellig.length} Mängelfrist(en) sind verstrichen.
           </strong>{' '}
-          Was daraus folgt, ist nicht entschieden (O-705): es entsteht keine
-          Reklamation und keine Aufgabe von selbst, und niemand ist automatisch
-          verantwortlich. Eine Beanstandung lässt sich unter{' '}
+          Voreinstellung (O-705): daraus folgt nichts von selbst — keine
+              Reklamation, keine Aufgabe, keine automatische Verantwortung; die
+              Objektleitung entscheidet. Eine Beanstandung lässt sich unter{' '}
           <Link
             href={`/portal/${mandant}/qualitaet/reklamationen/neu`}
             className="underline underline-offset-2"
@@ -460,8 +460,8 @@ export default async function PruefungBlatt(
       </section>
 
       <Hinweis art="hinweis" cse="pruefung-lesend" className="mt-s6 max-w-prose">
-        <strong>Dieses Blatt ist lesend.</strong> Wie eine falsch erfasste Prüfung
-        berichtigt wird, ist nicht entschieden (O-704): eine Prüfung lässt sich
+        <strong>Dieses Blatt ist lesend.</strong> Eine falsch erfasste Prüfung wird
+          durch Archivieren und Neuerfassen berichtigt (Voreinstellung, O-704): eine Prüfung lässt sich
         archivieren und trägt eine Löschsperre, kann aber — anders als ein
         Wachbucheintrag — nicht auf die Prüfung verweisen, die sie ersetzt. Gelöscht wird eine
         Prüfung ohnehin nie (Invariante 8) — bis die Frage beantwortet ist,

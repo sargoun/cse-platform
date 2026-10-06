@@ -173,7 +173,7 @@ export function bewerte(
     begruendung:
       `${String(punktzahl)} von ${String(SKALA_MAX_PLATZHALTER)} — `
       + `${teile.join(' · ')}. `
-      + 'Die Gewichte sind PLATZHALTER (O-15) und von niemandem bestätigt.',
+      + 'Die Gewichte sind die Voreinstellung (O-15), von der Geschäftsführung noch nicht bestätigt.',
     passenderBereich: bereich,
     bedarfVermutung: bereich === null ? null : bedarfSatz(bereich, treffer),
   };

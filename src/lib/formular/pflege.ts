@@ -72,14 +72,13 @@ export function naechsteVersion(vorhandene: readonly number[]): number {
  * Stunden, absichtlich als ZEILE und nicht als Spalten-DEFAULT. Wer darueber
  * „noch nicht festgelegt" schreibt, verschweigt einen gepflegten Wert — und
  * wer die 24 ohne Zusatz hinschreibt, behauptet eine Frist, die niemand
- * vereinbart hat. Offen ist nach O-14 nicht die ZAHL, sondern ob sie in
- * Kalender- oder Werktagsstunden zaehlt und wann sie an einem Freitagabend
- * anlaeuft.
+ * vereinbart hat. Seit D-780 ist die 24 die VOREINSTELLUNG (O-14): 24
+ * Kalenderstunden, auch am Freitagabend — der Zusatz sagt es.
  *
  * Der Nullfall bleibt: ein Formular ohne Zustaendigkeitszeile hat keine
- * Frist, und dann steht das da.
+ * eigene Frist, und dann steht die Voreinstellung da.
  */
 export function reaktionszeitText(slaStunden: number | null): string {
-  if (slaStunden === null) return 'offen (O-14)';
-  return `${String(slaStunden)} Stunden — vorläufig (O-14)`;
+  if (slaStunden === null) return 'nicht gesetzt — Voreinstellung 24 Stunden (O-14)';
+  return `${String(slaStunden)} Stunden (Voreinstellung, O-14)`;
 }

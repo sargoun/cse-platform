@@ -33,7 +33,7 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   ohne_freigabe:
     'Der Preis ist nicht freigegeben. Das ist ein eigener Vorgang mit eigenem Recht.',
   kalkulation_platzhalter:
-    'Die Kalkulation steht auf unbestätigten Werten (O-16, O-17, O-56).',
+    'Die Kalkulation steht auf unbestätigten Voreinstellungen (O-16, O-17, O-56) — erst bestätigen, dann versenden.',
   kein_entwurf: 'Dieses Angebot ist nicht mehr im Entwurf.',
   ohne_positionen: 'Das Angebot trägt keine Leistungsposition.',
   kein_kreis:

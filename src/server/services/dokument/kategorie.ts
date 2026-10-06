@@ -51,12 +51,14 @@ export const AUFBEWAHRUNG: readonly AufbewahrungsRegel[] = [
   // Arbeitszeitnachweise 2 Jahre MiLoG, Berufsgenossenschaft laenger). Welche
   // hier gilt, haengt vom Dokument ab, nicht von der Kategorie — deshalb
   // offen und gesperrt, statt eine Zahl zu waehlen.
-  { kategorie: 'mitarbeiter', jahre: null, loeschsperre: true,
-    grundlage: 'offen — je Unterlage verschieden (O-25)', istPlatzhalter: true },
-  { kategorie: 'projekt', jahre: null, loeschsperre: true,
-    grundlage: 'offen — VOB/B-Gewaehrleistung je Vertrag (O-25)', istPlatzhalter: true },
-  { kategorie: 'unternehmen', jahre: null, loeschsperre: true,
-    grundlage: 'offen — Gesellschaftsunterlagen (O-25)', istPlatzhalter: true },
+  // Seit 0489 (D-779) Voreinstellungen — `istPlatzhalter` heisst „von der
+  // Buchhaltung noch nicht bestaetigt", die Loeschsperre bleibt.
+  { kategorie: 'mitarbeiter', jahre: 6, loeschsperre: true,
+    grundlage: 'Voreinstellung — § 41 EStG Lohnunterlagen, § 28f SGB IV: 6 Jahre (O-25)', istPlatzhalter: true },
+  { kategorie: 'projekt', jahre: 10, loeschsperre: true,
+    grundlage: 'Voreinstellung — § 147 AO Abrechnungsunterlagen, VOB/B § 13 Gewährleistung: 10 Jahre (O-25)', istPlatzhalter: true },
+  { kategorie: 'unternehmen', jahre: 10, loeschsperre: true,
+    grundlage: 'Voreinstellung — § 257 HGB Gesellschaftsunterlagen: 10 Jahre (O-25)', istPlatzhalter: true },
 ];
 
 export function regelFuer(kategorie: Kategorie): AufbewahrungsRegel {

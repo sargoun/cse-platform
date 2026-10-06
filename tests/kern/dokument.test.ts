@@ -261,13 +261,13 @@ describe('der Upload-Pfad haelt die Reihenfolge ein', () => {
     expect(rechnung.aufbewahrungBis).toBe('2036-12-31');
     expect(rechnung.loeschsperre).toBe(true);
 
-    // Offene Frist: `null` — und trotzdem gesperrt. Eine unbekannte Pflicht
-    // wird als Pflicht behandelt, nie als ihre Abwesenheit (O-25).
+    // Seit 0489 (D-779) trägt die Klasse `mitarbeiter` die Voreinstellung
+    // 6 Jahre — gesperrt bleibt sie, die Regel ist noch nicht bestätigt (O-25).
     const personal = await ladeHoch(
       { mandantId: 'm1', kategorie: 'mitarbeiter', titel: 'P', dateiname: 'p.pdf', daten: PDF() },
       speicher, 2026,
     );
-    expect(personal.aufbewahrungBis).toBeNull();
+    expect(personal.aufbewahrungBis).toBe('2032-12-31');
     expect(personal.loeschsperre).toBe(true);
   });
 });

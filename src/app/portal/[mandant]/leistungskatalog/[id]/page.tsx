@@ -160,10 +160,10 @@ export default async function Katalogfassung(
 
       {offen > 0 ? (
         <Hinweis art="warnung" cse="platzhalter-hinweis" className="mb-s6">
-          <strong>{offen} Position(en) tragen unbestätigte Werte.</strong> Welche
-          Zeitwerte und Standardpreise je Position gelten und wer sie freigibt,
-          ist nicht entschieden — <strong>offen (O-731)</strong>; die
-          Leistungswertfrage je Belagsart ist <strong>offen (O-17)</strong>. Die
+          <strong>{offen} Position(en) tragen Voreinstellungen.</strong> Zeitwerte
+            und Standardpreise je Position sind Voreinstellungen (O-731), die
+            Leistungswerte je Belagsart ebenso (O-17); die Bereichsleitung bestätigt sie
+            in der Katalogpflege. Die
           Werte stehen da, weil die Datenbank je Position mindestens einen verlangt
           — Zeitwert, Leistungswert oder Standardpreis —, und sie stehen als{' '}
           <em>gekennzeichnete Platzhalter</em>, nicht als Preise.
@@ -255,7 +255,7 @@ export default async function Katalogfassung(
                   {p.steuer_kennzeichen}
                   {p.steuer_kennzeichen === 'regelsatz' ? (
                     <span className="block text-xs text-text-subtle">
-                      Vorgabe — offen (O-60)
+                      Vorgabe — Voreinstellung (O-60)
                     </span>
                   ) : null}
                 </span>
@@ -264,7 +264,7 @@ export default async function Katalogfassung(
             {
               schluessel: 'stand', kopf: 'Stand',
               zelle: (p) => (p.ist_platzhalter ? (
-                <span className="text-warning">unbestätigt (O-17, O-731)</span>
+                <span className="text-warning">Voreinstellung (O-17, O-731)</span>
               ) : (
                 <StatusPill zustand="Bereit" />
               )),

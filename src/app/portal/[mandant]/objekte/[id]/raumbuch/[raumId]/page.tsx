@@ -355,9 +355,9 @@ export default async function Raumblatt(
         <h2 id="haengt" className="text-h2 text-text">Was an diesem Raum hängt</h2>
         <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
           Fläche und Belagsart speisen den Reinigungspreis und die Revier-Sollzeit.
-          Eine Änderung hier verschiebt Zahlen an anderen Stellen. Ob laufende
-          Angebote und Aufträge dabei neu gerechnet und der Kunde informiert
-          werden muss, ist nicht entschieden — <strong>offen (O-737)</strong>.
+          Eine Änderung hier verschiebt Zahlen an anderen Stellen. Laufende
+            Angebote und Aufträge bleiben unverändert — Voreinstellung (O-737): die
+            Änderung steht am Raum, und die Kalkulation zeigt sie zur Prüfung.
         </p>
 
         <div className="rounded-lg border border-line bg-surface p-s5">
@@ -375,7 +375,7 @@ export default async function Raumblatt(
                 {formatiereMenge(richtzeit.richtzeit.posten.leistungswert)} m²/h{' '}
                 {richtzeit.richtzeit.posten.leistungswertIstPlatzhalter === true ? (
                   <span className="ml-s2 text-warning">
-                    unbestätigt — offen (O-17)
+                    Voreinstellung (O-17)
                   </span>
                 ) : null}
               </dd>

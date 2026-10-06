@@ -183,8 +183,8 @@ export default async function Konditionen(
                 Freies Feld; unter den nicht archivierten Kunden einer Gesellschaft
                 lässt die Datenbank jede Nummer nur einmal zu. Ob sie dem
                 DATEV-Debitorenkreis des SKR folgen muss — Nummernband, Länge, führende
-                Ziffer —, ist offen (O-05); bis dahin wird nichts erzwungen, was später
-                falsch wäre.
+                Ziffer —: Voreinstellung (O-05) ist der SKR03-Debitorenkreis 10000–69999, fünfstellig;
+            erzwungen wird nichts, was später falsch wäre.
               </p>
             </div>
 
@@ -291,10 +291,9 @@ export default async function Konditionen(
               />
               <span className="text-xs text-text-muted">
                 0 bis 180 — einen anderen Wert nimmt die Datenbank nicht an.
-                Leer heisst „nicht vereinbart" — dann schreibt die Faktura kein
-                Fälligkeitsdatum und die Festschreibung weist mit Grund ab. Das ist
-                gewollt: ein Vorgabewert triebe den Mahnlauf und die Verzugszinsen nach
-                § 288 BGB (O-66).
+                Leer heisst „nicht vereinbart" — dann gilt die Einstellung der Gesellschaft,
+                sonst die Voreinstellung 14 Tage, bei öffentlichen Auftraggebern 30 Tage
+                (§ 271a BGB); die Faktura schreibt damit das Fälligkeitsdatum (O-66, D-779).
               </span>
             </label>
 

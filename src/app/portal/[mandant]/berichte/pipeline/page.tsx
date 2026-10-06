@@ -41,7 +41,7 @@ export default async function Pipeline({ params, searchParams }: {
           jede, zu der jemand einen Vorgang eröffnet hat. Bewertet wird jede eingelesene
           Bekanntmachung; eine Bewertung allein ist noch kein Fund.{' '}
           <span data-cse="pipeline-fund-platzhalter">
-            Diese Lesart ist ein Platzhalter, bis geklärt ist, was als gefunden zählt (O-941).
+            Diese Lesart ist die Voreinstellung dafür, was als gefunden zählt (O-941).
           </span>{' '}
           Gesichtet ist ein Vorgang mit einem Stand, auch ein verworfener. Geboten ist, was
           eingereicht wurde — mit oder ohne Ergebnis, auch wenn die Vergabestelle das

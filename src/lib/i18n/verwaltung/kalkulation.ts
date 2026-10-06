@@ -75,8 +75,9 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
         + 'Preis braucht ein neues Angebot.',
       nicht_gefunden: 'Zu diesem Angebot gibt es keine Kalkulation.',
       basis_offen:
-        'Gemeinkosten je Kostenart brauchen einen Satz je Kostenart, und die sind noch offen '
-        + '(O-16). Bitte „Lohnkosten" oder „Lohn + Material + Gerät" wählen.',
+        'Gemeinkosten je Kostenart brauchen einen Satz je Kostenart, und die führt der Katalog '
+        + 'nicht; Voreinstellung ist die Basis Lohnkosten (O-16). Bitte „Lohnkosten" oder '
+        + '„Lohn + Material + Gerät" wählen.',
       preis_freigegeben:
         'Der Preis dieses Angebots ist freigegeben. Eine Kostenzeile änderte ihn — ein anderer '
         + 'Preis braucht eine neue Angebotsversion (O-732).',
@@ -118,13 +119,14 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       lohn: 'Die Gemeinkosten rechnen auf die Lohnkosten.',
       selbstkosten:
         'Die Gemeinkosten rechnen auf Lohn, Material und Gerät zusammen (die Einzelkosten). '
-        + 'Welche Basis in welchem Bereich gilt, ist offen (O-16).',
-      je_kostenart: 'Gemeinkosten je Kostenart sind offen (O-16) — so wird nicht gerechnet.',
+        + 'Voreinstellung in allen Bereichen ist die Basis Lohnkosten (O-16).',
+      je_kostenart: 'Gemeinkosten je Kostenart brauchen Sätze je Kostenart, die der Katalog nicht '
+        + 'führt (O-16) — so wird nicht gerechnet.',
     },
     basisOption: {
       lohn: 'Lohnkosten',
       selbstkosten: 'Lohn + Material + Gerät (Einzelkosten)',
-      je_kostenart: 'je Kostenart — offen (O-16)',
+      je_kostenart: 'je Kostenart — ohne Sätze (O-16)',
     },
 
     materialTitel: 'Material und Gerät',
@@ -174,8 +176,9 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
         + 'needs a new offer.',
       nicht_gefunden: 'There is no Kalkulation (costing) for this offer.',
       basis_offen:
-        'Overhead per cost type needs a rate per cost type, and those are still open (O-16). '
-        + 'Please choose "Labour cost" or "Labour + material + equipment".',
+        'Overhead per cost type needs a rate per cost type, and the catalogue carries none; '
+        + 'the default base is labour cost (O-16). Please choose "Labour cost" or '
+        + '"Labour + material + equipment".',
       preis_freigegeben:
         'The price of this offer has been released. A cost line would change it — a '
         + 'different price needs a new offer version (O-732).',
@@ -217,13 +220,14 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       lohn: 'Overhead is charged on labour cost.',
       selbstkosten:
         'Overhead is charged on labour, material and equipment together (the Einzelkosten, '
-        + 'direct costs). Which base applies in which area is open (O-16).',
-      je_kostenart: 'Overhead per cost type is open (O-16) — it is not calculated that way.',
+        + 'direct costs). The default in all areas is the labour-cost base (O-16).',
+      je_kostenart: 'Overhead per cost type needs rates per cost type that the catalogue does not '
+        + 'carry (O-16) — it is not calculated that way.',
     },
     basisOption: {
       lohn: 'Labour cost',
       selbstkosten: 'Labour + material + equipment (Einzelkosten, direct costs)',
-      je_kostenart: 'per cost type — open (O-16)',
+      je_kostenart: 'per cost type — without rates (O-16)',
     },
 
     materialTitel: 'Material and equipment',

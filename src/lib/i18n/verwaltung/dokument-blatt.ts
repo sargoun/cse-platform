@@ -174,8 +174,9 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     mfIstNichtFrei: 'Nicht freigegeben: im Mitarbeiterportal ist dieses Dokument unsichtbar.',
     mfKategorie: 'Kategorie',
     mfKategorieHinweis:
-      'Welche Kategorien einer Belegschaft überhaupt freigegeben werden dürfen, ist offen '
-      + '(O-851); die Datenbank prüft nur den Schalter. Die Kategorie steht deshalb hier '
+      'Voreinstellung (O-851): für die Belegschaft freigebbar sind Stundennachweis, Dienstplan, '
+    + 'Dienstanweisung, Schulungsunterlage und Bescheinigung — nie Kalkulation, Kundenvertrag, '
+    + 'Finanzbeleg oder fremde Personalakte; die Datenbank prüft nur den Schalter. Die Kategorie steht deshalb hier '
       + 'groß — an ihr fällt eine falsche Freigabe auf.',
     mfOhneRecht: 'Freigegeben und zurückgenommen wird von einer Sitzung mit',
     mfGrund: 'Grund',
@@ -291,8 +292,10 @@ export const DOKUMENT_BLATT_TEXTE: Readonly<Record<InternSprache, DokumentBlattT
     mfIstNichtFrei: 'Not released: the document is invisible in the employee portal.',
     mfKategorie: 'Category',
     mfKategorieHinweis:
-      'Which categories may be released to a workforce at all is still open (O-851); the '
-      + 'database checks only the switch. That is why the category is shown prominently '
+      'Default (O-851): releasable to a workforce are timesheet, duty roster, service '
+    + 'instruction, training material and certificate — never costing, customer contract, '
+    + 'financial voucher or another person\'s personnel file; the database checks only the '
+    + 'switch. That is why the category is shown prominently '
       + 'here — it is where a wrong release gets noticed.',
     mfOhneRecht: 'Releases are granted and withdrawn by a session holding',
     mfGrund: 'Reason',

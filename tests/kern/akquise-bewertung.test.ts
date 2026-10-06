@@ -102,12 +102,12 @@ describe('§3 die Begründung nennt, was gezählt hat (§12 „Reason for releva
     expect(b.begruendung).toContain('+0');
   });
 
-  it('sagt ausdrücklich, dass die Gewichte PLATZHALTER sind', () => {
+  it('sagt ausdrücklich, dass die Gewichte die Voreinstellung sind', () => {
     /*
      * Der wichtigste Satz der ganzen Datei. Wer die Zahl liest, soll wissen,
      * dass niemand sie bestätigt hat — sonst wird aus einem Gerüst ein Urteil.
      */
-    expect(bewerte(LEER).begruendung).toContain('PLATZHALTER');
+    expect(bewerte(LEER).begruendung).toContain('Voreinstellung');
     expect(bewerte(LEER).begruendung).toContain('O-15');
   });
 

@@ -330,9 +330,10 @@ test.describe('Reklamation (OPS-11)', () => {
     await expect(page.locator('body')).toContainText(/ungueltiger_zustand|nicht behoben/u);
   });
 
-  test('die Frist bleibt leer, solange O-14 offen ist', async ({ page }) => {
+  test('eine Reklamation ohne Frist (Altbestand) sagt das — die Voreinstellung gilt beim Anlegen (O-14, D-780)', async ({ page }) => {
     await page.goto(`/portal/${MANDANT}/qualitaet/reklamationen/${reklamationFrist}`);
-    // Kein erfundener Termin — die offene Frage steht im Klartext am Feld.
-    await expect(page.getByText('offen (O-14)')).toBeVisible();
+    // Diese Zeile wurde ohne `faellig_am` eingefügt; kein erfundener Termin —
+    // der Zustand steht im Klartext am Feld.
+    await expect(page.getByText('ohne Frist (O-14)')).toBeVisible();
   });
 });

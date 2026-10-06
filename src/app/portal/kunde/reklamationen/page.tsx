@@ -163,7 +163,7 @@ export default async function Kundenreklamationen(
                * das — dieselbe Form wie auf dem internen Blatt.
                */
               zelle: (r) => r.faelligAmLokal === null
-                ? <span className="text-text-subtle">offen (O-14)</span>
+                ? <span className="text-text-subtle">ohne Frist (O-14)</span>
                 : <span className="cse-zahl">{r.faelligAmLokal}</span>,
             },
             {

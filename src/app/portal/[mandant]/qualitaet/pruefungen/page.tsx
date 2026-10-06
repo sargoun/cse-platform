@@ -137,10 +137,10 @@ export default async function Pruefungsliste(
         oder als „0 %".
       */}
       <Hinweis art="hinweis" cse="pruefung-o29" className="mb-s5 max-w-prose">
-        <strong>Offen (O-29): es gibt keine Bewertung.</strong> Auslöser, Skala,
-        Bestehensschwelle und die Folge einer nicht bestandenen Prüfung sind
-        nicht festgelegt. Das Prüfverfahren in der Datenbank ist ein
-        <strong> Platzhalter ohne Skala</strong>, deshalb bleibt
+        <strong>Voreinstellung (O-29): keine automatische Bewertung.</strong> Das
+          Prüfverfahren trägt keine Skala und keine Bestehensschwelle; die Befunde
+          tragen Punkte, ein Urteil entsteht erst mit einer Skala. Das Prüfverfahren in der Datenbank ist eine
+          <strong> Voreinstellung ohne Skala</strong>, deshalb bleibt
         „bestanden" leer — <em>nicht</em> „nicht bestanden" — und ein
         Erfüllungsgrad erscheint nur, wo ein Verfahren eine Skala trägt. Eine
         plausible Schwelle (90 %, 95 %) wäre eine erfundene Regel mit
@@ -269,8 +269,8 @@ export default async function Pruefungsliste(
                       nicht als Pille (DESIGN §5 führt kein solches Wort). */}
                   {z.verfahrenIstPlatzhalter && (
                     <span className="block text-micro text-warning">
-                      Platzhalter ohne Skala (O-29)
-                    </span>
+                      Voreinstellung ohne Skala (O-29)
+                  </span>
                   )}
                 </span>
               ),

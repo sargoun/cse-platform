@@ -151,8 +151,8 @@ export default async function LeadNeu(
           <Hinweis art="hinweis" cse="lead-keine-frist" className="max-w-prose">
             <strong className="block">Dieser Lead bekommt keine Frist.</strong>
             Eine SLA-Frist hängt an einem Formular und daran, was dem Anfragenden
-            zugesagt wurde. Für einen Lead aus einem Telefonat eine zu erfinden hiesse,
-            eine Geschäftsregel zu wählen, die niemand vereinbart hat (O-14). Ein
+            zugesagt wurde. Für einen Lead aus einem Telefonat gilt keine Formularfrist; die
+          Voreinstellung für Formulare und Reklamationen ist 24 Stunden (O-14). Ein
             Wiedervorlagedatum können Sie am Lead selbst setzen.
           </Hinweis>
 

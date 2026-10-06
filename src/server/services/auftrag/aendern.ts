@@ -159,7 +159,8 @@ export async function aendereAuftrag(
   if (PFLEGE_GESPERRT.includes(alt.status)) {
     throw new AuftragPflegeFehler(
       alt.status === 'abgeschlossen'
-        ? 'Ein abgeschlossener Auftrag wird nicht mehr geändert (O-734).'
+        ? 'Ein abgeschlossener Auftrag wird nicht mehr geändert — Voreinstellung (O-734): '
+          + 'Korrektur über einen Nachtrag oder einen neuen Auftrag.'
         : 'Ein stornierter Auftrag wird nicht mehr geändert.',
       'gesperrt');
   }

@@ -310,7 +310,7 @@ export default async function AngebotDetail(
           data-cse="kalkulation-offen"
           className="mb-s5 rounded-md border border-warning bg-warning-soft p-s4 text-sm text-warning"
         >
-          <strong>Die Kalkulation steht auf unbestätigten Werten (O-16).</strong> Solange
+          <strong>Die Kalkulation steht auf unbestätigten Voreinstellungen (O-16).</strong> Solange
           das so ist, lässt sich dieses Angebot nicht versenden — ein
           eingefrorener Preis auf offenen Fragen sieht prüfbar aus und ist es
           nicht.

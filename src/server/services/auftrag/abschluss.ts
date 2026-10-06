@@ -293,7 +293,7 @@ export async function schliesseAuftragAb(
   if (prozent !== null && betrag !== null) {
     throw new AbschlussFehler(
       'Der Sicherheitseinbehalt ist ein Satz ODER ein Betrag, nicht beides — '
-      + 'welcher von beiden gilt, ist offen (O-20)', 'einbehalt_doppelt');
+      + 'Voreinstellung (O-20): nur eine Angabe fuehren, bevorzugt den Prozentsatz', 'einbehalt_doppelt');
   }
   const bp = prozent === null ? null : prozentInBasispunkte(prozent);
   const einbehaltCent: Cent | null = betrag === null ? null : geld(betrag);
@@ -357,7 +357,7 @@ async function mitEinbehaltFehler<T>(fn: () => Promise<T>): Promise<T> {
     if (f.code === '23514' && f.constraint_name === 'auftrag_einbehalt_eindeutig') {
       throw new AbschlussFehler(
         'Der Sicherheitseinbehalt ist ein Satz ODER ein Betrag, nicht beides — '
-        + 'welcher von beiden gilt, ist offen (O-20)', 'einbehalt_doppelt');
+        + 'Voreinstellung (O-20): nur eine Angabe fuehren, bevorzugt den Prozentsatz', 'einbehalt_doppelt');
     }
     throw fehler;
   }

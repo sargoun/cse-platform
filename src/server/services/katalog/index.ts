@@ -381,8 +381,8 @@ function pruefeUndWandle(eingabe: PositionEingabe): Vorbereitet {
   if (zeitwert === null && leistungswert === null && preis === null) {
     throw new KatalogFehler(
       'Eine Position braucht mindestens einen Wert: Zeitwert, Leistungswert oder '
-      + 'Standardeinzelpreis. Ist der richtige Wert noch offen (O-17, O-731), traegt '
-      + 'die Position einen gekennzeichneten Platzhalter — keinen leeren Wert.',
+      + 'Standardeinzelpreis. Fehlt ein bestaetigter Wert, traegt die Position die '
+      + 'gekennzeichnete Voreinstellung (O-17, O-731) — keinen leeren Wert.',
       'ohne_wert');
   }
   const kostenart = eingabe.kostenart ?? null;

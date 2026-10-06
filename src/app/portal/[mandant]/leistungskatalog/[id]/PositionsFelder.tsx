@@ -91,7 +91,7 @@ export function PositionsFelder(
 
       <fieldset className="mt-s5 rounded-md border border-line p-s4">
         <legend className="px-s2 text-sm text-text">
-          Werte — mindestens einer, offen (O-17, O-731)
+          Werte — mindestens einer; Voreinstellungen sind gekennzeichnet (O-17, O-731)
         </legend>
         <div className="grid grid-cols-1 gap-s4 sm:grid-cols-3">
           <div>
@@ -168,7 +168,8 @@ export function PositionsFelder(
           <p className="mt-s1 text-xs text-text-muted">
             Vorgabe Regelsatz. Welche Leistung welches Kennzeichen trägt,
             hängt an der Lage des <strong>Kunden</strong>, nicht am Katalog
-            — <strong>offen (O-60)</strong>.
+            — Voreinstellung (O-60): Regelsatz; keine innergemeinschaftlichen Lieferungen,
+            keine Kleinunternehmerregelung.
           </p>
         </div>
       </div>

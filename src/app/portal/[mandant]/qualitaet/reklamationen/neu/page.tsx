@@ -130,7 +130,7 @@ export default async function ReklamationAufnehmen({
           </div>
           <div>
             <label htmlFor="prioritaet" className="mb-s2 block text-sm text-text">
-              Priorität — sortiert, steuert nichts (O-14)
+              Priorität — sortiert; die Frist ist die Voreinstellung 24 Stunden (O-14)
             </label>
             <select
               id="prioritaet"

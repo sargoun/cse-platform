@@ -91,7 +91,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           + 'sind: sie berufen sich auf die Fassung, die damals galt.'
           + (eingabe.bestaetigt
             ? ''
-            : ' Der Wert ist als unbestätigt hinterlegt (O-17) — die Kalkulation '
+            : ' Der Wert ist als Voreinstellung hinterlegt (O-17) — die Kalkulation '
               + 'nennt ihn so.'));
       }))) as NextResponse;
   } catch (fehler: unknown) {

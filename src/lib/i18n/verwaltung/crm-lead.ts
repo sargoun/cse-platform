@@ -209,8 +209,9 @@ export const LEAD_TEXTE: Readonly<Record<InternSprache, LeadTexte>> = {
       'Diese Anfrage kam nicht über das Webformular. Ein ausgehender Anruf oder eine ausgehende '
       + 'E-Mail geht deshalb bis auf Weiteres als Werbung durch das Tor (§ 7 UWG): der '
       + 'Ansprechpartner braucht eine Rechtsgrundlage mit Quelle und Datum. Ob eine Erfassung '
-      + 'von Hand, eine Empfehlung oder eine Bekanntmachung selbst schon eine Anfrage ist, ist '
-      + 'eine offene Frage an die Geschäftsleitung (O-907).',
+      + 'von Hand, eine Empfehlung oder eine Bekanntmachung selbst schon eine Anfrage ist: '
+      + 'Voreinstellung (O-907) nein — eine Anfrage begründet nur, was der Kontakt selbst an '
+      + 'die Gesellschaft gerichtet hat (Formular, E-Mail, Anruf mit Datum und Quelle).',
     kontaktWerbungAkquise:
       'Diese Anfrage stammt aus der Akquise — niemand hat angefragt. Ein ausgehender Anruf oder '
       + 'eine ausgehende E-Mail ist Werbung (§ 7 UWG) und braucht beim Ansprechpartner eine '
@@ -378,7 +379,8 @@ export const LEAD_TEXTE: Readonly<Record<InternSprache, LeadTexte>> = {
       'This enquiry did not come in through the website form. An outgoing call or e-mail '
       + 'therefore passes the gate as advertising for now (§ 7 UWG): the contact person needs a '
       + 'legal basis with source and date. Whether an entry by hand, a referral or a tender '
-      + 'notice is itself an enquiry is an open question to management (O-907).',
+      + 'notice is itself an enquiry: default (O-907) no — only what the contact addressed to '
+      + 'the company themselves (form, e-mail, call with date and source) counts as an enquiry.',
     kontaktWerbungAkquise:
       'This enquiry comes from Akquise (prospecting) — nobody asked. An outgoing call or e-mail '
       + 'is advertising (§ 7 UWG) and needs a legal basis with source and date at the contact '

@@ -291,17 +291,17 @@ export default async function Preisfreigabe(
           <ul className="mt-s3 mb-0 list-disc pl-s5">
             {kopf.kopf_offen && (
               <li>
-                Stundenverrechnungssatz, Gemeinkostenbasis und Zuschläge sind
-                nicht bestätigt (O-16).
+                Stundenverrechnungssatz, Gemeinkostenbasis und Zuschläge stehen als
+                Voreinstellung, nicht bestätigt (O-16).
               </li>
             )}
             {kopf.frequenz_offen && (
-              <li>Der Frequenzfaktor ist geschätzt, nicht genannt (O-56).</li>
+              <li>Der Frequenzfaktor ist die Voreinstellung je Turnus, nicht genannt (O-56).</li>
             )}
             {kopf.grundlage_offen && (
               <li>
-                Mindestens ein Reinigungsrichtwert je Belagsart ist ein
-                Platzhalter (O-17).
+                Mindestens ein Reinigungsrichtwert je Belagsart ist eine
+                Voreinstellung (O-17).
               </li>
             )}
           </ul>
@@ -333,9 +333,8 @@ export default async function Preisfreigabe(
       {schonFrei ? (
         <Hinweis art="erfolg" cse="schon-freigegeben" className="mb-s5">
           <strong>Der Preis ist freigegeben.</strong> Eine erteilte Freigabe ist
-          unveränderlich; ob ein Widerruf vorgesehen ist, ist eine offene Frage
-          — sichtbar als <strong>offen (O-732)</strong>. Ein anderer Preis
-          braucht eine neue Angebotsversion.
+          unveränderlich — Voreinstellung (O-732): kein Widerruf. Ein anderer Preis
+            braucht eine neue Angebotsversion.
           {!versendet && darf['angebot.versenden'] === true ? (
             <p className="mt-s3 mb-0">
               <Link

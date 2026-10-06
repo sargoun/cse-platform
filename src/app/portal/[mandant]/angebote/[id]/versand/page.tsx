@@ -258,7 +258,7 @@ export default async function Versand(
               </>
             ) : (
               <>
-                Der Preis ruht auf offenen Fragen (O-16, O-17, O-56).{' '}
+                Der Preis ruht auf unbestätigten Voreinstellungen (O-16, O-17, O-56).{' '}
                 {darf['kalkulation.lesen'] === true ? (
                   <Link
                     href={`/portal/${mandant}/angebote/${id}/kalkulation`}
