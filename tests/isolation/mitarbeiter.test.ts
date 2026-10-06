@@ -730,22 +730,24 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
 
     /*
      * O-139: der Dienst verweigert, solange `bezahlt` NULL ist, und nennt den
-     * Grund. Seit 0491 (D-781) traegt die Plattformart die Voreinstellung
-     * (bezahlt, § 3 EFZG); die ungeklaerte Lage wird hier eigens hergestellt,
-     * damit der Riegel geprueft bleibt — `seed()` stellt sie vor jedem Test
-     * zurueck.
+     * Grund. Seit 0491 (D-781) tragen die Plattformarten die Voreinstellung —
+     * und `kern.abwesenheitsart_schutz` laesst eine Antwort nicht wieder auf
+     * NULL fallen. Ungeklaert bleibt deshalb nur eine EIGENE Art der
+     * Gesellschaft, deren Lohnfrage die Buchhaltung noch nicht eingeordnet hat;
+     * die Person sieht sie ueber ihre Beschaeftigung (`t_katalog`).
      */
-    await sql.unsafe(
-      `update abwesenheitsart set bezahlt = null where id = $1`, [krank]);
+    const [eigene] = await sql.unsafe<{ id: string }[]>(
+      `insert into abwesenheitsart (mandant_id, schluessel, bezeichnung, bezeichnung_i18n)
+       values ($1, 'sonderurlaub_test', 'Sonderurlaub (Lohnfrage offen)',
+               '{"de":"Sonderurlaub (Lohnfrage offen)"}'::jsonb)
+       returning id`, [f.reinigung]);
     await expect(alsPersonImMandanten(f.fatimaReinigung, async (k) =>
       meldeAbwesenheit(k, {
-        anstellungId: f.fatimaReinigung, abwesenheitsartId: krank,
+        anstellungId: f.fatimaReinigung, abwesenheitsartId: eigene!.id,
         von: '2026-03-02', bis: '2026-03-04',
       }))).rejects.toThrow(ArtUngeklaertFehler);
 
-    // Mit beantworteter Frage — der Voreinstellung — geht derselbe Weg durch.
-    await sql.unsafe(
-      `update abwesenheitsart set bezahlt = true where id = $1`, [krank]);
+    // Krankheit traegt die Voreinstellung (bezahlt, § 3 EFZG): derselbe Weg geht durch.
     const gemeldet = await alsPersonImMandanten(f.fatimaReinigung, async (k) =>
       meldeAbwesenheit(k, {
         anstellungId: f.fatimaReinigung, abwesenheitsartId: krank,
