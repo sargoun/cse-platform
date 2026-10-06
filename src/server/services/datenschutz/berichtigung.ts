@@ -281,7 +281,12 @@ export async function entscheide(
  * Also benennt sie ein Mensch, und hier steht, dass und wann er unterrichtet
  * hat. Eine Liste zu erfinden wäre die teuerste Art von Vollständigkeit.
  *
- * // TODO(client, O-646): Welche Empfänger nach Art. 19 DSGVO gibt es je Datenklasse, und auf welchem Weg werden sie unterrichtet?
+ * Voreinstellung (O-646, D-791): keine Empfaengerliste im System — die
+ * Empfaenger (Lohnbuero, Auftraggeber, Behoerde) benennt die sachbearbeitende
+ * Person je Vorgang, unterrichtet sie auf dem Weg, auf dem die Daten zu ihnen
+ * kamen (Lohnexport, Portal, Post), und traegt hier ein, wen und wann. Wie
+ * gebaut; eine Liste je Datenklasse waere die teuerste Art von Vollstaendigkeit.
+ * // TODO(client, O-646): Voreinstellung — Art.-19-Empfaenger benennt ein Mensch je Vorgang; keine Empfaengerliste im System.
  */
 export async function unterrichte(
   kontext: SchreibKontext, feldId: string, empfaenger: string,

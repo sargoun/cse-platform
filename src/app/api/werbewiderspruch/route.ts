@@ -62,10 +62,15 @@ import {
  * eine Auskunft über einen fremden Datenbestand an jeden, der eine Adresse
  * errät.
  *
- * **Was noch fehlt, und zwar sichtbar:** die Bestätigungsmail, die §2.4 für
- * den tokenlosen Weg nennt. Es ist kein Postausgang verbunden, und ein
- * simulierter Versand wäre schlimmer als keiner.
- * // TODO(client, O-649): Wer versendet die Bestätigung des tokenlosen Werbewiderspruchs, und was steht drin, wenn die Adresse im Bestand gar nicht vorkommt?
+ * **Die Bestätigungsmail** (§2.4, tokenloser Weg) — Voreinstellung (O-649,
+ * D-791): sie geht über den Postausgang der GEWÄHLTEN Gesellschaft, neutral
+ * formuliert („Ihr Widerspruch ist eingegangen"), ohne zu sagen, ob die
+ * Adresse im Bestand vorkam — dieselbe Zurückhaltung wie die Antwort der
+ * Seite. Der Postausgang ist Betreiberdatum (nicht verbunden), und der
+ * Versandschritt dafür fehlt noch (V-335); bis dahin sagt die Seite, dass
+ * keine Bestätigung gesendet wird. Ein simulierter Versand wäre schlimmer
+ * als keiner.
+ * // TODO(client, O-649): Voreinstellung — neutrale Bestaetigung ueber den Postausgang der gewaehlten Gesellschaft, sobald verbunden; Versandschritt fehlt (V-335).
  */
 export const dynamic = 'force-dynamic';
 

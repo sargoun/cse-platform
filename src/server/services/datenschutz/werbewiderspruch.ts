@@ -120,6 +120,13 @@ export const QUELLE_TEXT: Readonly<Record<WiderspruchQuelle, string>> = {
  *
  * 32 Byte, base64url: kurz genug für eine E-Mail-Zeile, lang genug, dass
  * Raten keine Strategie ist.
+ *
+ * **Der Link läuft nicht ab** (Voreinstellung O-645, D-791): `gueltig_bis`
+ * bleibt NULL. § 7 Abs. 3 Nr. 4 UWG sagt „jederzeit", und ein abgelaufener
+ * Widerspruchslink wäre eine Hürde vor einem Recht; ungültig wird er nur
+ * durch Einlösung oder Widerruf — das ist die Entscheidung, die für die
+ * betroffene Person sicher ist.
+ * // TODO(client, O-645): Voreinstellung — der Widerspruchslink laeuft nicht ab (gueltig_bis NULL); ungueltig nur durch Einloesung oder Widerruf.
  */
 export function neuerToken(): { readonly klartext: string; readonly hash: string } {
   const klartext = randomBytes(32).toString('base64url');

@@ -25,7 +25,14 @@
  * dieses Dienstes **Vormerkung** und nicht Vollzug, und `VOLLZUG` sagt in
  * Worten, was noch fehlt.
  *
- * // TODO(client, O-644): Wer führt die Löschvormerkung aus — Anonymisierungsprozedur, Nachtlauf, oder ein Mensch mit Protokollpflicht?
+ * Voreinstellung (O-644, D-791): den Vollzug uebernimmt eine
+ * Anonymisierungsprozedur (`app.person_anonymisieren`) im Nachtlauf — erst
+ * nach der Freigabe eines Menschen (Vier-Augen: wer vormerkt, gibt nicht
+ * frei), je Tabelle mit einer Protokollzeile, Tombstone statt Loeschung, wo
+ * eine Aufbewahrungspflicht ueberlagert. Nichts davon ist gebaut (V-333);
+ * bis dahin bleibt das Ergebnis die Vormerkung, und `VOLLZUG_VOREINSTELLUNG`
+ * sagt der Seite, was kommen soll.
+ * // TODO(client, O-644): Voreinstellung — Anonymisierungsprozedur im Nachtlauf nach menschlicher Freigabe, Protokollzeile je Tabelle; nicht gebaut (V-333).
  *
  * **Die Fristen rechnet eine getestete Funktion, kein Modell** (Invariante 6).
  * `aoFrist` und `milogFrist` rechnen im Berliner KALENDER auf Datumszahlen und
@@ -633,6 +640,14 @@ export const ERGEBNIS_TEXT: Readonly<Record<Entscheidungszeile['ergebnis'], stri
  * löschenden Läufe, und sie wird aus dem Jobregister gefaltet. Hier steht der
  * Satz, den die Seite darüber sagt.
  */
+/** Der Satz der Seite ueber den Vollzug, der kommen soll (O-644, D-791). */
+export const VOLLZUG_VOREINSTELLUNG =
+  'Voreinstellung (O-644, D-791): eine Anonymisierungsprozedur führt die Vormerkung im '
+  + 'Nachtlauf aus — erst nach der Freigabe eines zweiten Menschen, je Tabelle mit einer '
+  + 'Protokollzeile, und wo eine Aufbewahrungspflicht überlagert, als Tombstone statt als '
+  + 'Löschung. Gebaut ist davon nichts (V-333); bis dahin geschieht die Ausführung von Hand '
+  + 'und wird hier nachgetragen.';
+
 export const VOLLZUG = {
   vorhanden: ['bewerber_loeschung — anonymisiert abgelaufene Bewerbungen (REC-07)'],
   fehlend: [

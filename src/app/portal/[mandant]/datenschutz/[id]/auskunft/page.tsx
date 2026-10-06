@@ -61,7 +61,17 @@ function Abschnitt({ a }: { readonly a: AuskunftAbschnitt }) {
       </p>
       <p className="mb-s3 max-w-prose text-sm text-text-muted">{a.zweck}</p>
 
-      {a.offen !== null ? (
+      {a.offen === 'O-648' ? (
+        /* D-791: dieser Abschnitt hat eine Voreinstellung — die Seite sagt sie, statt „offen". */
+        <Hinweis art="warnung" cse="auskunft-offen" className="max-w-prose">
+          <strong className="block">Voreinstellung (O-648, D-791) — vier Abschnitte fehlen noch.</strong>
+          Zuordnungen (Einsätze, Zeitnachweise, Teams, Bewachereinträge) gehören in die
+          Auskunft und werden als eigene Abschnitte gebaut (V-334); die Mechanik des
+          Zugangs (Konto, Check-in-Marken, Offline-Ereignisse) und abgeleitete Befunde,
+          die aus schon ausgegebenen Daten rechnen, nicht. Bis dahin nennt dieser
+          Abschnitt alle elf Tabellen, statt sie auszulassen.
+        </Hinweis>
+      ) : a.offen !== null ? (
         <Hinweis art="warnung" cse="auskunft-offen" className="max-w-prose">
           <strong className="block">{`Der Umfang ist offen (${a.offen}).`}</strong>
           Wie ein Art.-15-Begehren auf Agentenprotokolle, Wissens-Chunks und

@@ -26,9 +26,10 @@ import { mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/sprache';
  *
  * **Die Gesellschaft steht im Formular.** Die vier sind verschiedene
  * juristische Personen, und jede ist für ihre Werbung selbst verantwortlich.
- * Ob ein Widerspruch für die ganze Gruppe wirken soll, ist eine Entscheidung
- * der Geschäftsführung und steht als offene Frage (O-641), nicht als still
- * gesetzte Regel.
+ * Ein Widerspruch wirkt bei der Gesellschaft, bei der er erklärt wurde —
+ * Voreinstellung (O-641, D-784), weil die vier verschiedene Verantwortliche
+ * sind; die Bestätigung per E-Mail folgt, sobald der Postausgang der
+ * Gesellschaft dafür verbunden ist (O-649, D-791, V-335).
  *
  * **Die Antwort ist immer dieselbe.** Ob eine Adresse im Bestand war, sagt
  * diese Seite nicht: „Zu dieser Adresse haben wir 3 Kontakte" wäre eine
@@ -102,7 +103,8 @@ const TEXTE: Readonly<Record<Sprache, Texte>> = {
           + 'gewählten Gesellschaft geführt werden, erhalten Sie von ihr keine Werbung '
           + 'mehr. Ob sie dort geführt wird, sagen wir an dieser Stelle nicht — das '
           + 'wäre eine Auskunft über unseren Datenbestand an jeden, der eine Adresse '
-          + 'errät. Eine Bestätigung per E-Mail versenden wir derzeit nicht.',
+          + 'errät. Eine Bestätigung per E-Mail versenden wir derzeit nicht; sie folgt, '
+          + 'sobald unser Postausgang dafür verbunden ist.',
       },
       email_ungueltig: { art: 'fehler', text: 'Bitte prüfen Sie die E-Mail-Adresse.' },
       ohne_gesellschaft: {
@@ -153,7 +155,8 @@ const TEXTE: Readonly<Record<Sprache, Texte>> = {
           + 'company you chose, you will receive no further advertising from it. '
           + 'Whether it is held there we do not say at this point — that would be '
           + 'disclosure about our records to anyone who guesses an address. We do not '
-          + 'currently send an e-mail confirmation.',
+          + 'currently send an e-mail confirmation; it will follow once our outgoing mail '
+          + 'is connected for it.',
       },
       email_ungueltig: { art: 'fehler', text: 'Please check the e-mail address.' },
       ohne_gesellschaft: { art: 'fehler', text: 'Please choose one of the companies.' },

@@ -22,7 +22,12 @@ import { richtlinienHinweis } from '../../agenten/richtlinien/hinweis';
  * Konfigurationsraum. Eine Aktion ohne Richtlinie ist nicht „egal", sondern
  * fail-closed: `gate()` verlangt eine Freigabe, weil eine fehlende Regel
  * keine Erlaubnis ist. Genau das steht in der Zeile — nicht eine leere
- * Zelle, die wie eine offene Frage aussieht.
+ * Zelle, die wie eine offene Frage aussieht. Voreinstellung (O-622, D-791):
+ * die fuenf Aufrufer, die `gate()` bewusst OHNE Richtlinie rufen (Anfrage,
+ * Mahnung, Behinderungsanzeige), bleiben fail-closed — dort entscheidet
+ * immer ein Mensch; `auto_erlaubt` wirkt nur bei den Aktionen, die hier eine
+ * Zeile haben. Eine Richtlinie an diese fuenf Stellen zu reichen ist eine
+ * Entscheidung mit eigenen Tests (Invariante 7), keine Aufraeumung.
  *
  * **Drei Aktionen sind im CODE gesperrt und nicht hier.** Angebot,
  * Nachtrag und Behinderungsanzeige gehen nie automatisch hinaus, unabhaengig

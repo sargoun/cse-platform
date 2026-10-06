@@ -170,10 +170,12 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     ],
     /*
      * Der Stundensatz steht NICHT dabei: `anstellung.stundensatz_intern` ist
-     * `cse_app` entzogen (K-05). Er gehoert trotzdem in eine Art.-15-Auskunft
-     * — ueber `app.anstellung_entgelt_lesen`, mit eigenem Recht. Bis der
-     * Abschnitt dafuer gebaut ist, sagt das Ergebnis das offen.
-     * // TODO(client, O-642): Gehoert der interne Stundensatz in die Art.-15-Auskunft, oder ist er Kalkulationsdatum der Gesellschaft?
+     * `cse_app` entzogen (K-05). Voreinstellung (O-642, D-791): er bleibt
+     * draussen — Art. 15 verlangt die Daten UEBER die Person, und der interne
+     * Satz ist der Preis, den die Gesellschaft fuer ihre eigene Arbeit
+     * kalkuliert, kein Datum ueber den Menschen. Wer anders entscheidet, baut
+     * den Abschnitt ueber `app.anstellung_entgelt_lesen` mit eigenem Recht.
+     * // TODO(client, O-642): Voreinstellung — der interne Stundensatz ist Kalkulationsdatum der Gesellschaft und nicht Teil der Art.-15-Auskunft.
      */
     sql: `select personalnummer, eintritt, austritt,
                  arbeitszeitmodell::text as arbeitszeitmodell, wochenstunden,
@@ -231,10 +233,13 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
     /*
      * Die ART der Abwesenheit steht NICHT dabei, und das ist nicht Nachlaessig-
      * keit: `abwesenheit.abwesenheitsart_id` sagt „Krankheit" oder „Kur", und
-     * das ist eine gesundheitsnahe Angabe (Art. 9). Sie ist ueber
-     * `app.abwesenheit_grund_lesen` mit eigenem Recht lesbar — ein eigener
-     * Abschnitt, kein stiller Beitrag zu diesem.
-     * // TODO(client, O-643): Gehoert die Abwesenheitsart (Art. 9) in die Art.-15-Auskunft, und mit welcher zusaetzlichen Pruefung?
+     * das ist eine gesundheitsnahe Angabe (Art. 9). Voreinstellung (O-643,
+     * D-791): sie gehoert in die Auskunft — Art. 15 kennt keine Ausnahme fuer
+     * Art.-9-Daten —, aber nur in einem EIGENEN Abschnitt, der ueber
+     * `app.abwesenheit_grund_lesen` mit eigenem Recht liest und den die
+     * sachbearbeitende Person ausdruecklich mitgibt; nie als stiller Beitrag
+     * zum Standardexport. Dieser Abschnitt fehlt noch (V-332).
+     * // TODO(client, O-643): Voreinstellung — die Abwesenheitsart gehoert in die Auskunft, als eigener Abschnitt hinter eigenem Recht, nicht im Standardexport (V-332).
      */
     sql: `select a.von, a.bis, a.tage_angerechnet, a.status::text as status,
                  a.gemeldet_am
@@ -965,7 +970,17 @@ const OFFENE_ABSCHNITTE: readonly {
 ];
 
 /*
- * // TODO(client, O-648): Welche der abgeleiteten Befunde, Zugangsdaten und Zuordnungen des Personenzweigs gehoeren in eine Art.-15-Auskunft, und welche sind Mechanik?
+ * Voreinstellung (O-648, D-791) fuer die elf Tabellen des Abschnitts oben:
+ *  - Mechanik des Zugangs — `benutzer`, `checkin_token`, `offline_ereignis` —
+ *    ist keine Angabe ueber den Menschen und bleibt draussen.
+ *  - Abgeleitete Befunde — `arbeitszeit_verstoss`, `planungs_konflikt`,
+ *    `nachweis_warnung`, `da_pflicht` — rechnen aus Daten, die die Auskunft
+ *    schon vollstaendig ausgibt; sie werden nicht eigens ausgegeben.
+ *  - Zuordnungen — `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`,
+ *    `bewacher_eintrag` — sagen, WO und WANN der Mensch eingesetzt war, und
+ *    GEHOEREN hinein; die vier Abschnitte fehlen noch (V-334). Bis dahin
+ *    nennt der Abschnitt oben alle elf, statt sie auszulassen.
+ * // TODO(client, O-648): Voreinstellung — Zuordnungen gehoeren in die Auskunft (vier Abschnitte, V-334); Zugangsmechanik und abgeleitete Befunde nicht.
  */
 
 /**

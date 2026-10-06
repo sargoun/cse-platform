@@ -318,13 +318,14 @@ export default async function Widerspruechseite(
       </section>
 
       <Hinweis art="hinweis" cse="widerspruch-offen" className="max-w-prose">
-        <strong className="block">Zwei Punkte sind offen und stehen hier als offen; der dritte hat eine Voreinstellung.</strong>
+        <strong className="block">Zwei Punkte haben eine Voreinstellung; der dritte ist offen und steht hier als offen.</strong>
         <ul className="m-0 mt-s2 list-disc ps-s5">
           <li>
-            <strong>O-640</strong> — soll ein Werbewiderspruch je Kanal gelten (nur
-            E-Mail, Post läuft weiter) oder pauschal? Heute pauschal: die Sperre
-            sitzt in EINER Spalte, so hat 0020 das Modell entschieden. Der Kanal in
-            der Protokollzeile beschreibt den Anlass und wirkt nicht.
+            <strong>O-640</strong> — Voreinstellung: ein Werbewiderspruch gilt pauschal,
+            für alle Kanäle der Gesellschaft — wer keine E-Mail-Werbung will, will in
+            der Regel auch keinen Brief. Die Sperre sitzt in EINER Spalte (0020); der
+            Kanal in der Protokollzeile beschreibt den Anlass und wirkt nicht.
+            {/* TODO(client, O-640): Voreinstellung — Werbewiderspruch wirkt pauschal über alle Kanäle (eine Spalte, 0020). D-791. */}
           </li>
           <li>
             <strong>O-641</strong> — Voreinstellung: ein Widerspruch wirkt bei der

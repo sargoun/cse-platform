@@ -208,6 +208,9 @@ export function gate(
   }
 
   // 3 — ohne Freigabe entscheidet die Richtlinie. Fehlt sie: nein.
+  // Voreinstellung (O-622, D-791): die Aufrufer, die hier bewusst `null`
+  // uebergeben (Anfrage, Mahnung, Behinderungsanzeige), bleiben fail-closed.
+  // TODO(client, O-622): Voreinstellung — fail-closed gebaute Aufrufer laden keine Richtlinie; immer Freigabe (Invariante 7).
   if (richtlinie === null || !richtlinie.ist_aktiv) {
     return {
       erlaubt: false,

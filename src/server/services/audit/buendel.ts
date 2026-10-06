@@ -40,6 +40,14 @@ import { schreibeZip } from '../archiv/zip.js';
  * und das Manifest nennt, wieviele Zeilen des Zeitraums gekettet sind. Eine
  * ungekettete Zeile ist keine Luecke im Beweis — sie ist ein Beweis, der
  * noch nicht gebildet ist, und der Unterschied gehoert dem Pruefer.
+ *
+ * Voreinstellung (O-623, D-791): die Kette wird beim Buendeln fortgeschrieben
+ * und nicht beim Schreiben (`app.protokolliere` haelt keine Zeilensperre, die
+ * jede Transaktion serialisierte und eine Sperrreihenfolge gegen
+ * `nummernkreis` und `freigabe_kette` eroeffnete); dazu soll ein naechtlicher
+ * Lauf `app.audit_kette_fortschreiben` und `app.audit_kette_pruefen` rufen,
+ * damit das Manifest selten ungekettete Zeilen nennt — der Lauf fehlt (V-336).
+ * // TODO(client, O-623): Voreinstellung — Kette beim Buendeln; Nachtlauf, der fortschreibt und prueft, fehlt (V-336).
  */
 
 export const MANIFEST_NAME = 'manifest.json';
