@@ -798,7 +798,13 @@ describe('Der Platzhalterkreis vergibt nichts (§1.11, O-134)', () => {
       const id = await entwurfMitPosition(tx, kundeReinigung);
       return finalisiere(alsDienst(tx), id);
     }).catch((e: unknown) => e);
-    expect((fehler as Error).message).toMatch(/Platzhalter.*O-134/su);
+    /*
+     * Der Satz heisst seit D-779 „Voreinstellung — noch nicht freigegeben
+     * (O-134)" (`ustg14.ts`): die Maske ist eine Voreinstellung, die Freigabe
+     * durch die Administration steht aus — und bis dahin entsteht keine Nummer.
+     */
+    expect((fehler as Error).message)
+      .toMatch(/Voreinstellung — noch nicht freigegeben \(O-134\)/su);
   });
 });
 
