@@ -250,11 +250,14 @@ describe('(3) die Kategorie entscheidet mit — Voreinstellung O-851 (D-780)', (
     const leitung = await konto();
     await mitglied(leitung, f.reinigung, 'leitung');
     const akte = await dokument(f.reinigung, { kategorie: 'mitarbeiter', frei: false });
-    await sql.unsafe(
-      `update dokument
-          set kunde_id = (select id from kunde where mandant_id = $1 order by kundennummer limit 1)
-        where id = $2`,
-      [f.reinigung, akte]);
+    /* Die Pruefdatenbank kennt keinen Kunden der Reinigung — der Test legt
+       seinen an, damit die Abweisung an der KATEGORIE haengt, nicht an der
+       fehlenden Kundenzuordnung (`ohne_kunde`). */
+    const [kunde] = await sql.unsafe<{ id: string }[]>(
+      `insert into kunde (mandant_id, kundennummer, name)
+       values ($1, $2, 'Hausverwaltung Test (O-736)') returning id`,
+      [f.reinigung, `K-${zufall()}`]);
+    await sql.unsafe(`update dokument set kunde_id = $2 where id = $1`, [akte, kunde!.id]);
     await expect(als(f.reinigung, leitung, (tx) => setzeKundenfreigabe(
       kontext(tx), akte, { frei: true, grund: 'Versuch' })))
       .rejects.toMatchObject({ grund: 'kategorie' });
