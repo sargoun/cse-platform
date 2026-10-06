@@ -58,7 +58,7 @@ import {
  *    Seite bräche sie ganz ab, statt einen Hinweis zu zeigen.
  *
  * **`gewaehrleistung_bis` wird NICHT gerechnet.** Die Frist je Vertragsregime
- * ist offen (O-154), und ein geratenes Datum liesse einen Anspruch
+ * folgt der Voreinstellung (O-154, D-782) — gerechnet im Abnahmedienst; ein geratenes Datum liesse einen Anspruch
  * verjähren, ohne dass es auffällt. Steht die Spalte leer, sagt die Seite,
  * warum sie leer ist.
  */
@@ -341,10 +341,8 @@ export default async function ProjektDetail(
           <p className="m-0 mt-s2 max-w-prose text-sm text-text-muted">
             {GRUNDLAGE_ERLAEUTERUNG[p.vertragsgrundlage]
               ?? 'Das Vertragsregime dieses Projekts.'}
-            {' '}Sie ist beim Anlegen festgelegt worden und wird nicht
-            angenommen — ob BGB-Bauverträge überhaupt vorkommen, ist eine offene
-            Frage (O-154), und ein Vorgabewert hätte sie stillschweigend
-            beantwortet.
+            {' '}Sie ist beim Anlegen festgelegt worden; Voreinstellung (O-154) ist VOB/B —
+            die Gruppe schliesst Bauverträge nach VOB/B, BGB wird ausdrücklich gewählt.
           </p>
         </div>
       </section>
@@ -385,11 +383,10 @@ export default async function ProjektDetail(
           <strong className="text-text">Gewährleistung bis:</strong>{' '}
           {p.gewaehrleistung_bis_lokal ?? (
             <>
-              <span className="text-warning">offen (O-154)</span> — die Frist
-              wird <em>gespeichert</em>, nicht berechnet. Ob vier Jahre (§ 13
-              Abs. 4 VOB/B) oder fünf (§ 634a BGB) gelten und ab welchem
-              Ereignis sie läuft, ist nicht entschieden; ein geratenes Datum
-              liesse einen Anspruch verjähren, ohne dass es auffällt.
+              <span className="text-text-subtle">noch keine Abnahme</span> — Voreinstellung
+              (O-154): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf Jahre bei
+              BGB (§ 634a Abs. 1 Nr. 2); gerechnet beim Protokollieren der Abnahme, eine
+              Teilabnahme setzt die Frist nicht.
             </>
           )}
         </p>

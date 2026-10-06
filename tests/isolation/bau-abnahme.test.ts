@@ -676,8 +676,8 @@ describe('der Dienst laeuft durch die Policies — dieselbe Eingabe wie der Saat
       // zurueckgegeben hat — waeren es zwei, gaebe es zwei Protokolle.
       expect(ergebnis.hashInDb).toBe(ergebnis.teil.hash);
       expect(ergebnis.teil.hash).toMatch(/^[0-9a-f]{64}$/u);
-      // O-154: die Gewaehrleistungsfrist wird NICHT abgeleitet, solange das
-      // Regime offen ist — die Schnittstelle gibt null, und das bleibt so.
+      // O-154 (D-782): eine Teilabnahme setzt die Projektfrist nicht —
+      // die Voreinstellung gibt fuer sie null, und das Projekt bleibt ohne Frist.
       expect(ergebnis.teil.fristEnde).toBeNull();
       expect(ergebnis.strafe).toBe(true);
       // Die Maengel in der Reihenfolge der Eingabe, mit ihrer OZ am Bezug.
@@ -734,9 +734,15 @@ describe('zweite Gesamtabnahme und Ersatzprotokoll', () => {
 
   it('die zweite wirksame Gesamtabnahme ist ein AbnahmeFehler, keine 500', async () => {
     const bau = await baueProjekt(f.bau);
-    await alsApp(SCHREIBEND2(bau), async (tx) => protokolliereAbnahme(
+    const erste = await alsApp(SCHREIBEND2(bau), async (tx) => protokolliereAbnahme(
       kontext2(tx, bau), { projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null) },
     ));
+    // D-782 (O-154): VOB/B → vier Jahre ab Abnahme, gerechnet UND am Projekt gespeichert.
+    expect(erste.fristEnde).toBe('2030-09-10');
+    const [frist] = await sql.unsafe<{ bis: string | null }[]>(
+      `select to_char(gewaehrleistung_bis, 'YYYY-MM-DD') as bis from projekt where id = $1`,
+      [bau.projekt]);
+    expect(frist!.bis).toBe('2030-09-10');
 
     const fehler = await alsApp(SCHREIBEND2(bau), async (tx) => {
       try {

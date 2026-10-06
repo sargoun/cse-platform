@@ -512,14 +512,13 @@ export default async function BauUebersicht(
         )}
         <p className="mt-s2 max-w-prose text-xs text-text-subtle">
           {/*
-            * Regel 1: die Erwartung ist offen, also steht sie hier als offene
-            * Frage und nicht als stille Filterung auf „Werktage".
+            * D-782: die Erwartung ist eine Voreinstellung, und die Filterung
+            * steht im Dienst (`tageOhneBautagebuch`) — hier wird sie benannt.
             */}
-          Gezählt wird jeder Kalendertag im Projektzeitraum — auch Samstag,
-          Sonntag und Feiertag. An welchen Tagen ein Eintrag erwartet wird, ist
-          <strong> offen (O-630)</strong>: jeder Kalendertag, jeder Werktag oder
-          nach Bauzeitenplan. Bis zur Antwort nennt diese Liste zu viel und
-          nichts zu wenig.
+          Gezählt wird jeder Werktag im Projektzeitraum — Montag bis Samstag, ohne
+          Sonntage und gesetzliche Feiertage Berlins. Das ist die
+          <strong> Voreinstellung (O-630)</strong>, bis ein Bauzeitenplan die
+          Pflichttage nennt.
         </p>
       </section>
 

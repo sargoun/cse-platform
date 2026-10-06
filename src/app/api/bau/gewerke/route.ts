@@ -1,7 +1,8 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import { fuehreUebergangAus, grundAus, UUID, type Rumpf } from '../../uebergang';
 import {
-  aendereGewerk, archiviereGewerk, GewerkFehler, legeGewerkAn, type GewerkEingabe,
+  aendereGewerk, archiviereGewerk, GewerkFehler, legeGewerkAn, uebernimmGewerkVoreinstellung,
+  type GewerkEingabe,
 } from '@/server/services/bau/gewerk';
 
 /**
@@ -42,7 +43,9 @@ function eingabe(r: Rumpf): Omit<GewerkEingabe, 'code'> {
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
-  return fuehreUebergangAus<{ readonly aktion: 'angelegt' | 'geaendert' | 'archiviert' }>(
+  return fuehreUebergangAus<{
+    readonly aktion: 'angelegt' | 'geaendert' | 'archiviert' | 'voreinstellung';
+  }>(
     anfrage, {
       recht: 'bau.schreiben',
       handle: async (kontext, r) => {
@@ -50,6 +53,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (aktion === 'anlegen') {
           await legeGewerkAn(kontext, { ...eingabe(r), code: r.felder['code'] ?? '' });
           return { aktion: 'angelegt' };
+        }
+        /* D-782 (O-159): die zwoelf STLB-Bau-Leistungsbereiche, unbestaetigt. */
+        if (aktion === 'voreinstellung') {
+          await uebernimmGewerkVoreinstellung(kontext);
+          return { aktion: 'voreinstellung' };
         }
         const id = r.felder['id'] ?? '';
         if (!UUID.test(id)) {

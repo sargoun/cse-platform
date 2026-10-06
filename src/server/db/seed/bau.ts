@@ -62,6 +62,7 @@ import {
 import {
   hefteMannstundenAn, heftePositionAn, legeBautagAn, schliesseBautag,
 } from '../../services/bau/bautagebuch.js';
+import { GEWERK_VOREINSTELLUNG } from '../../services/bau/gewerk.js';
 import {
   behinderungNutzlast, dokumentiereVersand, erstelleBehinderung, findeBehinderung,
   zeigeWegfallAn,
@@ -350,10 +351,8 @@ const BEHINDERUNGEN = [
  * stuende dann ohne die Angabe da, um die es in einem Bauzeitenstreit
  * ueberhaupt geht.
  */
-const GEWERKE = [
-  { code: 'TRO', bezeichnung: 'Trockenbauarbeiten', leistungsbereich: '039' },
-  { code: 'EST', bezeichnung: 'Estrich- und Bodenbelagsarbeiten', leistungsbereich: '025' },
-] as const;
+/** Die zwoelf Gewerke der Voreinstellung (D-782, O-159) — die Bautage buchen auf TRO und EST. */
+const GEWERKE = GEWERK_VOREINSTELLUNG;
 
 interface TagEntwurf {
   readonly versatz: number;
@@ -978,18 +977,13 @@ export async function seedBau(
 
     /*
      * V-182: ueber den ECHTEN Dienst, denselben, den die Katalogseite
-     * `/bau/gewerke` ruft — mit `bestaetigt: false`, also `ist_platzhalter`,
-     * weil O-159 offen ist. Vorher schrieb der Seed die Zeilen selbst, und der
-     * Seed war der einzige Weg, auf dem ueberhaupt ein Gewerk entstand.
+     * `/bau/gewerke` ruft — die Voreinstellung nach STLB-Bau (D-782, O-159),
+     * unbestaetigt (`ist_platzhalter`), wie sie der Knopf im leeren Katalog
+     * anlegt. Vorher schrieb der Seed zwei Zeilen selbst.
      */
     const gewerkIds = new Map<string, string>();
     for (const g of GEWERKE) {
-      gewerkIds.set(g.code, await legeGewerkAn(kontext, {
-        code: g.code,
-        bezeichnung: g.bezeichnung,
-        leistungsbereich: g.leistungsbereich,
-        bestaetigt: false,
-      }));
+      gewerkIds.set(g.code, await legeGewerkAn(kontext, g));
     }
 
     let bautage = 0;

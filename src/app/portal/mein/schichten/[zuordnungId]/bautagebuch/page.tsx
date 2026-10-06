@@ -358,13 +358,13 @@ export default async function MeinBautagebuch(
               sperre !== null ? <Hinweis text={sperre} marke="erfassung-zu" />
               : gewerke.length === 0 ? (
                 /*
-                 * Regel 1 auf dem Bildschirm: der Gewerkekatalog wird leer
-                 * ausgeliefert, bis feststeht, welche Gewerke gefuehrt werden.
+                 * Der Gewerkekatalog dieser Gesellschaft ist leer: die Verwaltung
+                 * uebernimmt die Voreinstellung (D-782, O-159) oder traegt eigene ein.
                  * Ohne Gewerk nimmt `bautagebuch_mannstunden` keine Zeile an —
                  * ein Formular hier waere ein Knopf, den die Datenbank abweist.
                  */
                 <p data-cse="gewerke-offen" className="mt-s4 max-w-prose text-base text-warning">
-                  {t.gewerk}: {t.offeneFrage} (O-159)
+                  {t.gewerkeVoreinstellung}
                 </p>
               ) : (
                 <form
@@ -591,7 +591,7 @@ export default async function MeinBautagebuch(
                 </Feld>
               </Felder>
               <p className="mt-s3 m-0 max-w-prose text-sm text-text-subtle">
-                {t.offeneFrage}: O-280 · O-281 · O-282
+                {t.abgleichVoreinstellung}
               </p>
             </section>
           )}

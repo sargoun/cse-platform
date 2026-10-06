@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { berlinHeute } from '@/server/db/heute';
 import {
-  ABNAHME_ART_TEXT, ABNAHME_ARTEN, FRIST_OFFEN_TEXT, ladeMaengel, listeAbnahmen,
+  ABNAHME_ART_TEXT, ABNAHME_ARTEN, FRIST_VOREINSTELLUNG_TEXT, ladeMaengel, listeAbnahmen,
   type AbnahmeArt, type AbnahmeZeile, type MangelZeile,
 } from '@/server/services/bau/abnahme';
 import {
@@ -44,7 +44,7 @@ import { haeltRechte } from '@/app/portal/rechte';
  * mit SHA-256 — genau wie beim Aufmass (§10.4). Korrigiert wird durch Storno
  * mit Ersatzprotokoll, nie durch Ändern.
  *
- * **Die Gewährleistungsfrist rechnet diese Seite nicht** (O-154): sie zeigt
+ * **Die Gewährleistungsfrist rechnet der Dienst nach der Voreinstellung** (O-154, D-782): die Seite zeigt
  * `projekt.gewaehrleistung_bis`, und solange die Spalte leer ist, steht dort,
  * warum.
  */
@@ -184,7 +184,7 @@ export default async function AbnahmeSeite(
           <strong className="text-text">Gewährleistung bis:</strong>{' '}
           {p.gewaehrleistung_bis_lokal ?? (
             <>
-              <span className="text-warning">offen (O-154)</span> — {FRIST_OFFEN_TEXT}
+              <span className="text-text-subtle">noch keine Abnahme</span> — {FRIST_VOREINSTELLUNG_TEXT}
             </>
           )}
         </p>
@@ -686,8 +686,9 @@ export default async function AbnahmeSeite(
             Mit dem Protokollieren friert der Server das Angezeigte als Abzug
             ein und siegelt es mit SHA-256. Danach ändert sich daran nichts
             mehr; korrigiert wird durch Storno mit Ersatzprotokoll (§ 12
-            VOB/B, LEG-01). Die Gewährleistungsfrist wird dabei{' '}
-            <strong>nicht</strong> berechnet — sie ist offen (O-154).
+            VOB/B, LEG-01). Die Gewährleistungsfrist wird dabei nach der Voreinstellung
+            gerechnet und am Projekt gespeichert (O-154): vier Jahre bei VOB/B, fünf bei BGB;
+            eine Teilabnahme setzt sie nicht.
           </p>
           <div className="mt-s4">
             <Button type="submit" variante="primary">Abnahme protokollieren</Button>

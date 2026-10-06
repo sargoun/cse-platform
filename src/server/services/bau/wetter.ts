@@ -28,6 +28,16 @@ import {
   WetterFehler, entfernungKm,
   type WetterMessung, type WetterPort,
 } from '../../versand/dwd.js';
+import { berlinTeile } from '../zeit/dauer.js';
+
+/**
+ * **Die drei Tageszeiten des Bautagebuchs — die Voreinstellung** (O-213,
+ * D-782): 07:00, 12:00 und 17:00 Uhr Berliner Wanduhr; angeheftet wird je
+ * Spalte die Beobachtung, die dieser Uhrzeit am naechsten liegt, aus den
+ * Stundenwerten des DWD (`versand/dwd.ts`). Die Beobachtungszeit steht weiter
+ * neben jedem Wert — eine Zuordnung ersetzt keine Zeitangabe.
+ */
+export const BEOBACHTUNGSZEITEN_BERLIN = { frueh: 7, mittag: 12, abend: 17 } as const;
 
 /** Der Text im Feld, wenn die Quelle nichts geliefert hat (BAU-08, woertlich). */
 export const WETTER_NICHT_VERFUEGBAR = 'Wetterdaten nicht verfügbar' as const;
@@ -93,12 +103,11 @@ export interface WetterSchnappschuss {
   readonly quellenhinweis: typeof WETTER_QUELLENHINWEIS;
   /**
    * Wie die drei Spalten `wetter_frueh_id`/`_mittag_id`/`_abend_id` belegt
-   * wurden. Heute: erste, mittlere und letzte ANGEHEFTETE Beobachtung — eine
-   * Ordnung, keine Tageszeit. Welche Uhrzeiten im Bautagebuch als frueh,
-   * mittag und abend gelten, ist offen (O-213, siehe `versand/dwd.ts`), und
-   * bis dahin steht neben jedem Wert seine Beobachtungszeit.
+   * wurden: je Spalte die Beobachtung, die 07:00, 12:00 bzw. 17:00 Uhr
+   * Berliner Zeit am naechsten liegt (`BEOBACHTUNGSZEITEN_BERLIN`, O-213,
+   * D-782). Neben jedem Wert steht weiter seine Beobachtungszeit.
    */
-  readonly belegung: 'erste_mittlere_letzte_beobachtung';
+  readonly belegung: 'naechste_beobachtung_07_12_17_berlin';
   readonly werte: readonly {
     readonly beobachtet_am: string;
     readonly temperatur_c: string | null;
@@ -134,7 +143,7 @@ export function baueWetterSchnappschuss(
     quelle_url: erste.quelleUrl,
     abgerufen_am: erste.abgerufenAm,
     quellenhinweis: WETTER_QUELLENHINWEIS,
-    belegung: 'erste_mittlere_letzte_beobachtung',
+    belegung: 'naechste_beobachtung_07_12_17_berlin',
     werte: sortiert.map((m) => ({
       beobachtet_am: m.beobachtetAm,
       temperatur_c: alsText(m.temperaturC),
@@ -177,7 +186,18 @@ export function wetterKennzahlen(messungen: readonly WetterMessung[]): WetterKen
   };
 }
 
-/** Welche drei Beobachtungen in die drei Spalten wandern (siehe `belegung`). */
+/** Minuten seit Mitternacht Berliner Wanduhr — fuer die Naehe zu einer Tageszeit. */
+function berlinMinuten(iso: string): number {
+  const w = berlinTeile(new Date(iso));
+  return w.stunde * 60 + w.minute;
+}
+
+/**
+ * Welche drei Beobachtungen in die drei Spalten wandern (siehe `belegung`):
+ * je Tageszeit der Voreinstellung die naechstliegende Beobachtung (O-213,
+ * D-782). Bei weniger als drei Beobachtungen bleibt die Mitte leer, bei einer
+ * einzigen auch der Abend — es wird keine erfunden.
+ */
 export function waehleBelegung(
   messungen: readonly WetterMessung[],
 ): { readonly frueh: string; readonly mittag: string | null; readonly abend: string | null } {
@@ -186,12 +206,14 @@ export function waehleBelegung(
   if (erste === undefined) {
     throw new WetterFehler('keine_daten', 'Ohne Beobachtung gibt es keine Belegung.');
   }
-  const letzte = sortiert[sortiert.length - 1];
-  const mitte = sortiert[Math.floor(sortiert.length / 2)];
+  const naechste = (stunde: number): WetterMessung => sortiert.reduce((beste, m) => (
+    Math.abs(berlinMinuten(m.beobachtetAm) - stunde * 60)
+      < Math.abs(berlinMinuten(beste.beobachtetAm) - stunde * 60) ? m : beste
+  ), erste);
   return {
-    frueh: erste.beobachtetAm,
-    mittag: sortiert.length >= 3 && mitte !== undefined ? mitte.beobachtetAm : null,
-    abend: sortiert.length >= 2 && letzte !== undefined ? letzte.beobachtetAm : null,
+    frueh: naechste(BEOBACHTUNGSZEITEN_BERLIN.frueh).beobachtetAm,
+    mittag: sortiert.length >= 3 ? naechste(BEOBACHTUNGSZEITEN_BERLIN.mittag).beobachtetAm : null,
+    abend: sortiert.length >= 2 ? naechste(BEOBACHTUNGSZEITEN_BERLIN.abend).beobachtetAm : null,
   };
 }
 

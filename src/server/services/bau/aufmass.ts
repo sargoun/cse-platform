@@ -592,9 +592,9 @@ export async function gegenzeichne(
      * (§ 14 Abs. 2 VOB/B). Er wird VOR der Unterschrift auf den Kopf
      * geschrieben, weil der Auslöser ihn dort liest.
      *
-     * **Eine Frist prüft die Plattform nicht** — wie lange vorher
-     * aufgefordert werden muss, ist offen (O-156), und eine hier erfundene
-     * Frist sähe im Werklohnprozess wie eine vereinbarte aus.
+     * **Eine Frist prüft die Plattform nicht** — die Voreinstellung (O-156,
+     * D-782) nennt eine Woche Vorlauf in Textform als Dienstpflicht; eine hier
+     * geprüfte Frist sähe im Werklohnprozess wie eine vereinbarte aus.
      */
     readonly ankuendigungAm?: string | null;
     /**

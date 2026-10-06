@@ -664,6 +664,11 @@ export interface LvPositionDetail {
   readonly einheit: string | null;
   readonly menge_vertrag: string | null;
   readonly einheitspreis_cent: string | null;
+  /**
+   * § 13b UStG — hinter demselben Recht wie der Einheitspreis (`bau.preis_lesen`),
+   * gelesen ueber `app.lv_steuer_lesen` (0492, O-632, D-782); ohne Recht `null`.
+   */
+  readonly steuer_kennzeichen: string | null;
   readonly gaeb_dp: string | null;
   readonly quelle_seite: number | null;
   readonly quelle_bereich: unknown;
@@ -719,6 +724,7 @@ export async function findeLvPosition(
             l.positionsart::text as positionsart, l.kurztext, l.langtext, l.einheit,
             l.menge_vertrag::text as menge_vertrag,
             app.lv_preis_lesen(l.id)::text as einheitspreis_cent,
+            app.lv_steuer_lesen(l.id) as steuer_kennzeichen,
             l.gaeb_dp, l.quelle_seite, l.quelle_bereich,
             l.konfidenz::text as konfidenz,
             to_char(l.geprueft_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')

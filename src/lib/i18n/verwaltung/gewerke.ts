@@ -22,9 +22,12 @@ export interface GewerkTexte {
   readonly modul: string;
   readonly titel: string;
   readonly einleitung: string;
-  /** Die offene Frage, die dieser Katalog nicht beantwortet (O-159). */
+  /** Die Voreinstellung dieses Katalogs (O-159, D-782) — und was „unbestaetigt" heisst. */
   readonly offen: string;
   readonly leer: string;
+  /** Der Knopf im leeren Katalog: die STLB-Bau-Voreinstellung uebernehmen. */
+  readonly voreinstellungKnopf: string;
+  readonly voreinstellungErklaerung: string;
   readonly keinSchreibrecht: string;
 
   readonly code: string;
@@ -69,10 +72,17 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
     einleitung: 'Die Gewerke, nach denen das Bautagebuch die Mannstunden eines Tages '
       + 'führt. Ohne ein Gewerk lässt sich keine Mannstundenzeile anlegen — weder in der '
       + 'Verwaltung noch im Mitarbeiterportal.',
-    offen: 'Offene Frage: welche Gewerke führt die Gesellschaft, und folgt die Liste den '
-      + 'STLB-Bau-Leistungsbereichen (O-159)? Die Plattform schlägt keines vor. Was hier '
-      + 'ohne das Häkchen „bestätigt" steht, trägt im Bautagebuch den Zusatz „unbestätigt".',
+    offen: 'Voreinstellung (O-159): die Liste folgt den STLB-Bau-Leistungsbereichen — '
+      + 'Mauer-, Beton-, Zimmer-, Dachdeckungs-, Putz-, Fliesen-, Estrich-, Tischler-, Maler-, '
+      + 'Bodenbelag-, Trockenbau- und Abbrucharbeiten (012 bis 084). Ein leerer Katalog '
+      + 'übernimmt sie mit einem Knopf; die Gesellschaft bestätigt, ergänzt oder archiviert. '
+      + 'Was hier ohne das Häkchen „bestätigt" steht, trägt im Bautagebuch den Zusatz '
+      + '„unbestätigt".',
     leer: 'Noch kein Gewerk eingetragen.',
+    voreinstellungKnopf: 'Voreinstellung übernehmen (STLB-Bau)',
+    voreinstellungErklaerung: 'Legt die zwölf Leistungsbereiche der Voreinstellung als '
+      + 'unbestätigte Gewerke an (O-159). Jede Zeile steht im Prüfprotokoll; archivieren '
+      + 'Sie, was die Gesellschaft nicht führt.',
     keinSchreibrecht: 'Gewerke trägt ein, wer das Bautagebuch führen darf — dieses Konto '
       + 'hält das Recht dafür nicht.',
     code: 'Code',
@@ -106,6 +116,8 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
       angelegt: 'Das Gewerk ist eingetragen.',
       geaendert: 'Die Änderung ist gespeichert.',
       archiviert: 'Das Gewerk ist archiviert. Gebuchte Mannstunden bleiben lesbar.',
+      voreinstellung: 'Die Voreinstellung ist übernommen — die Gewerke nach STLB-Bau stehen '
+        + 'unbestätigt im Katalog.',
     },
     abgewiesen: 'Nicht gespeichert.',
     fehler: {
@@ -128,10 +140,15 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
     einleitung: 'The Gewerke by which the Bautagebuch records a day\'s Mannstunden. Without '
       + 'a Gewerk no Mannstunden line can be created — neither in administration nor in '
       + 'the employee portal.',
-    offen: 'Open question: which Gewerke does the company keep, and does the list follow '
-      + 'the STLB-Bau work sections (O-159)? The platform suggests none. Anything entered '
-      + 'without the "confirmed" tick carries the note "unconfirmed" in the Bautagebuch.',
+    offen: 'Default (O-159): the list follows the STLB-Bau work sections — masonry, concrete, '
+      + 'carpentry, roofing, plastering, tiling, screed, joinery, painting, flooring, drywall '
+      + 'and demolition (012 to 084). An empty catalogue takes them over with one button; the '
+      + 'company confirms, adds or archives. Anything entered without the "confirmed" tick '
+      + 'carries the note "unconfirmed" in the Bautagebuch.',
     leer: 'No Gewerk entered yet.',
+    voreinstellungKnopf: 'Take over the default (STLB-Bau)',
+    voreinstellungErklaerung: 'Creates the twelve work sections of the default as unconfirmed '
+      + 'Gewerke (O-159). Every line is logged; archive what the company does not keep.',
     keinSchreibrecht: 'Gewerke are entered by whoever may keep the Bautagebuch — this '
       + 'account does not hold that right.',
     code: 'Code',
@@ -164,6 +181,8 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
       angelegt: 'The Gewerk has been entered.',
       geaendert: 'The change has been saved.',
       archiviert: 'The Gewerk has been archived. Booked Mannstunden stay readable.',
+      voreinstellung: 'The default has been taken over — the STLB-Bau Gewerke are in the '
+        + 'catalogue, unconfirmed.',
     },
     abgewiesen: 'Not saved.',
     fehler: {

@@ -1222,6 +1222,10 @@ export interface MeinTexte {
    */
   readonly nummerOffen: string;
   readonly offeneFrage: string;
+  /** Der Gewerkekatalog der Gesellschaft ist leer — die Verwaltung uebernimmt die Voreinstellung (O-159). */
+  readonly gewerkeVoreinstellung: string;
+  /** Die Voreinstellung des Mannstundenabgleichs (O-280, O-281). */
+  readonly abgleichVoreinstellung: string;
 
   /**
    * Die eigenen Dokumente und die eigenen Objekte (EMP-02, EMP-11, DOC-03,
@@ -1639,6 +1643,12 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'Dieser Nachweis hat noch keine Nummer — in dieser Gesellschaft ist kein '
       + 'Nummernkreis dafür eingerichtet.',
     offeneFrage: 'offen',
+    gewerkeVoreinstellung: 'Noch kein Gewerk im Katalog dieser Gesellschaft — die Verwaltung '
+      + 'übernimmt unter Bau › Gewerke die Voreinstellung (O-159). Bis dahin lassen sich '
+      + 'keine Mannstunden eintragen.',
+    abgleichVoreinstellung: 'Voreinstellung: die Mannstunden zählen netto, ohne Pausen; eine '
+      + 'Differenz über 30 Minuten gilt als auffällig (O-280, O-281). Verglichen wird die '
+      + 'Tagessumme (O-282).',
 
     dokumente: 'Dokumente',
     keineDokumente: 'Für Sie ist zurzeit kein Dokument freigegeben.',
@@ -2021,6 +2031,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'This record does not have a number yet — no number range is configured for it '
       + 'in this company.',
     offeneFrage: 'open',
+    gewerkeVoreinstellung: 'No Gewerk in this company\'s catalogue yet — the office takes over '
+      + 'the default under Bau › Gewerke (O-159). Until then no Mannstunden can be entered.',
+    abgleichVoreinstellung: 'Default: Mannstunden count net, without breaks; a difference above '
+      + '30 minutes counts as conspicuous (O-280, O-281). The day total is compared (O-282).',
 
     dokumente: 'Documents',
     keineDokumente: 'No document has been released to you at the moment.',
@@ -2386,6 +2400,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nummerOffen:
       'لا يحمل هذا المحضر رقماً بعد — لا يوجد نطاق ترقيم مُعدّ له في هذه الشركة.',
     offeneFrage: 'مفتوح',
+    gewerkeVoreinstellung: 'لا توجد حرفة في كتالوج هذه الشركة بعد — تعتمد الإدارة الإعداد الافتراضي تحت '
+      + 'البناء › الحِرَف (O-159). حتى ذلك الحين لا يمكن تسجيل ساعات العمل.',
+    abgleichVoreinstellung: 'الإعداد الافتراضي: تُحسب ساعات العمل صافيةً بدون فترات الراحة؛ الفرق الذي يتجاوز '
+      + '30 دقيقة يُعدّ ملحوظاً (O-280، O-281). تُقارَن المجاميع اليومية (O-282).',
 
     dokumente: 'المستندات',
     keineDokumente: 'لا يوجد حالياً أي مستند متاح لك.',
@@ -2759,6 +2777,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'Bu belgenin henüz bir numarası yok — bu şirkette bunun için bir numara aralığı '
       + 'tanımlı değil.',
     offeneFrage: 'açık',
+    gewerkeVoreinstellung: 'Bu şirketin kataloğunda henüz bir iş kolu yok — yönetim, İnşaat › İş '
+      + 'kolları altında varsayılan ayarı devralır (O-159). O zamana kadar adam-saat girilemez.',
+    abgleichVoreinstellung: 'Varsayılan: adam-saatler net, molalar hariç sayılır; 30 dakikayı aşan '
+      + 'fark dikkat çekici sayılır (O-280, O-281). Günlük toplam karşılaştırılır (O-282).',
 
     dokumente: 'Belgeler',
     keineDokumente: 'Şu anda size açılmış bir belge yok.',

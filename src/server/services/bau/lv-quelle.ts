@@ -35,7 +35,7 @@ export const LV_FORMATE: readonly LvFormat[] =
 
 export const LV_FORMAT_TEXT: Readonly<Record<LvFormat, string>> = {
   csv_semikolon: 'CSV, Semikolon-getrennt (implementiert)',
-  gaeb_da_xml: 'GAEB DA XML (X83/X84) — nicht implementiert (O-41)',
+  gaeb_da_xml: 'GAEB DA XML (X83/X84) — Zielformat der Voreinstellung, noch nicht implementiert (O-41, V-291)',
   gaeb_d83: 'GAEB D83 — nicht implementiert (O-41)',
   gaeb_d84: 'GAEB D84 — nicht implementiert (O-41)',
   excel: 'Excel (.xlsx) — nicht implementiert (O-41)',
@@ -251,7 +251,7 @@ function centAus(roh: string): { readonly cent: string | null; readonly fehler: 
  * ------------------------------------------------------------------------ */
 
 /**
- * CSV mit Semikolon — die Bruecke, bis O-41 beantwortet ist.
+ * CSV mit Semikolon — die Bruecke, bis der GAEB-Leser steht (O-41, V-291).
  *
  * Der Leser selbst ist NICHT nachgebaut: `leseCsv` aus
  * `raumbuch/tabelle.ts` erkennt das Trennzeichen ausserhalb von
@@ -433,9 +433,9 @@ function nichtImplementiert(format: LvFormat): LvQuelle {
     lese(): QuellErgebnis {
       throw new LvQuelleFehler(
         'nicht_implementiert',
-        `${LV_FORMAT_TEXT[format]} wird nicht gelesen. Bis zur Antwort auf O-41 `
-        + '(in welchem Format kommen die Leistungsverzeichnisse an?) nimmt der Import '
-        + 'CSV mit Semikolon — bitte die Datei so exportieren.',
+        `${LV_FORMAT_TEXT[format]} wird nicht gelesen. Voreinstellung (O-41): Zielformat `
+        + 'GAEB DA XML; bis der Leser steht (V-291), nimmt der Import CSV mit Semikolon — '
+        + 'bitte die Datei so exportieren.',
       );
     },
   };

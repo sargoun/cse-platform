@@ -95,17 +95,13 @@ export interface WetterPort {
 export const DWD_ZEITGRENZE_MS = 30_000;
 
 /**
- * Die drei Tageszeiten, die ein Bautagebuch ueblicherweise festhaelt, sind
- * NICHT gesetzt: welche Beobachtungszeitpunkte als frueh, mittag und abend
- * gelten — und welches DWD-Produkt (Zehnminuten-, Stunden- oder Tageswerte)
- * dafuer massgeblich ist — entscheidet die Bauleitung, nicht der Adapter.
- * Bis dahin heftet der Dienst an, was er bekommt, MIT Beobachtungszeit, und
- * ordnet nichts einer Tageszeit zu.
- * // TODO(client, O-213): Welche drei Beobachtungszeitpunkte gelten im
- * Bautagebuch als frueh/mittag/abend, und welches DWD-Produkt ist dafuer
- * massgeblich?
+ * Die drei Tageszeiten, die ein Bautagebuch festhaelt, sind seit D-782 eine
+ * Voreinstellung des DIENSTES (`BEOBACHTUNGSZEITEN_BERLIN` in `bau/wetter.ts`:
+ * 07:00, 12:00, 17:00 Uhr Berlin); der Adapter liefert die Stundenwerte des
+ * DWD mit Beobachtungszeit und ordnet selbst nichts zu.
+ * // TODO(client, O-213): Voreinstellung — 07:00, 12:00 und 17:00 Uhr Berliner
+ * Zeit aus den Stundenwerten (POI) des DWD; je Spalte die naechstliegende Beobachtung.
  */
-export const TAGESZEITEN_UNGEKLAERT = true;
 
 /** Erdradius in km — fuer die Entfernung Baustelle → Station. */
 const ERDRADIUS_KM = 6371;

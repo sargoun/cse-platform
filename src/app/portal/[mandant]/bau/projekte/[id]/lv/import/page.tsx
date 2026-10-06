@@ -40,7 +40,7 @@ import { Recht } from '@/components/ui/Recht';
  * Streit nach § 2 Abs. 6 VOB/B geht. Die Aktionspille sagt deshalb, was sich
  * ÄNDERT, und nicht, ob die Zeile mitkommt; mitkommen tun alle gültigen.
  *
- * **Das Austauschformat ist offen (O-41).** Die Auswahl nennt alle Formate,
+ * **Das Austauschformat ist GAEB DA XML — als Voreinstellung (O-41, D-782); der Leser fehlt (V-291).** Die Auswahl nennt alle Formate,
  * damit sichtbar ist, was fehlt, und weist jedes nicht implementierte
  * ausdrücklich ab, statt einen Erfolg vorzutäuschen.
  */
@@ -199,11 +199,10 @@ export default async function LvImportSeite(
                 * alle Formate, damit sichtbar ist, was fehlt — und der Versuch
                 * endet in einer Auskunft statt in einem halb gelesenen LV.
                 */}
-              <strong>Offen (O-41):</strong> in welchem Format die
-              Leistungsverzeichnisse ankommen — GAEB DA XML (X83/X84), GAEB D8x,
-              Excel oder PDF — ist nicht entschieden. Verarbeitet wird bis zur
-              Antwort <strong>nur CSV mit Semikolon</strong>; jedes andere Format
-              wird abgewiesen und nicht halb gelesen.
+              <strong>Voreinstellung (O-41):</strong> das Austauschformat ist GAEB DA XML
+              (X83/X84) — der Leser dafür ist noch nicht gebaut (V-291). Verarbeitet wird
+              heute <strong>nur CSV mit Semikolon</strong>; jedes andere Format wird
+              abgewiesen und nicht halb gelesen.
             </p>
 
             <label className="mt-s4 block text-sm text-text" htmlFor="datei">
@@ -345,11 +344,10 @@ export default async function LvImportSeite(
                 Übernommen wird, was in der Datei steht. Diese Ordnungszahlen stehen
                 nicht darin und wären in der neuen Fassung nicht mehr enthalten — die
                 bisherige Fassung bleibt als Beleg lesbar, aber gebucht wird künftig
-                auf der neuen. Ob eine Teildatei das Leistungsverzeichnis{' '}
-                <em>fortschreibt</em> (die fehlenden Positionen kommen mit) oder{' '}
-                <em>ersetzt</em> (sie fallen weg), ist eine Frage an die
-                Auftraggeberin und <strong>offen (O-633)</strong>; heute wird
-                ersetzt, und diese Liste sagt, was das kostet.
+                auf der neuen. Voreinstellung (O-633): eine Teildatei <em>ersetzt</em> das
+                Leistungsverzeichnis — die fehlenden Positionen fallen aus der neuen Fassung
+                heraus, und diese Liste sagt, welche. Wer fortschreiben will, exportiert das
+                vollständige Verzeichnis.
               </p>
               <p className="m-0 font-mono text-xs text-text" data-cse="fehlende-oz">
                 {kopf.fehlende_oz.join(' · ')}
@@ -438,9 +436,9 @@ export default async function LvImportSeite(
             geprüften Leser: wer <Recht schluessel="bau.preis_lesen" /> nicht hält, überträgt
             sie nicht, und die Fassung bleibt in Mengen und Texten vollständig und
             ohne Preise. Einen Preis zu schreiben, den niemand gesehen hat, wäre
-            eine Kalkulation aus zweiter Hand (K-05). Ob die Preise des
-            Auftraggebers überhaupt als <em>Vertragspreise</em> gelten oder nach der
-            Übernahme kalkuliert werden, ist offen <strong>(O-631)</strong>.
+            eine Kalkulation aus zweiter Hand (K-05). Voreinstellung <strong>(O-631)</strong>: die Preise des
+            Auftraggebers sind die <em>Vertragspreise</em>; kalkuliert wird vor dem Angebot,
+            nicht nach der Übernahme.
           </p>
 
           {schonUebernommen ? (
