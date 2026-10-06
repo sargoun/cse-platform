@@ -4,11 +4,16 @@
  * Uebersetzungen des Mitarbeiterportals, jede Zeile im Pruefprotokoll —, und
  * ein zweiter Aufruf legt nichts doppelt an. Ein archivierter Schluessel
  * gilt als vorhanden und kommt nicht zurueck.
+ *
+ * Dazu die Pflege (Pruefstand PR #33): bestaetigen, archivieren, eine eigene
+ * Art anlegen — und zwei Knopfdruecke zur selben Zeit, die genau EINEN Katalog
+ * ergeben statt eines Verstosses gegen den Index.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
+  archiviereArt, bestaetigeArt, legeArtAn, leseArten,
   POSTENART_VOREINSTELLUNG, SCHLUESSELART_VOREINSTELLUNG,
   uebernimmPostenartVoreinstellung, uebernimmSchluesselartVoreinstellung,
 } from '../../src/server/services/security/arten.js';
@@ -102,5 +107,82 @@ describe('(2) Schlüsselarten (O-148)', () => {
     expect(zeilen.map((z) => z.schluessel)).toEqual(SCHLUESSELART_VOREINSTELLUNG.map((a) => a.schluessel));
     expect(zeilen.every((z) => z.ist_platzhalter)).toBe(true);
     expect(await alsLeitung((k) => uebernimmSchluesselartVoreinstellung(k))).toBe(0);
+  });
+});
+
+describe('(3) Pflege: bestätigen, archivieren, ergänzen (D-783, Prüfstand)', () => {
+  it('bestätigen nimmt den Platzhaltervermerk, archivieren die Zeile — beides im Protokoll', async () => {
+    await alsLeitung((k) => uebernimmPostenartVoreinstellung(k));
+    const vorher = await alsLeitung((k) => leseArten(k, 'postenart'));
+    const empfang = vorher.find((z) => z.schluessel === 'empfang');
+    const revier = vorher.find((z) => z.schluessel === 'revier');
+    expect(empfang?.istPlatzhalter).toBe(true);
+
+    const bestaetigt = await alsLeitung((k) => bestaetigeArt(k, 'postenart', empfang!.id));
+    expect(bestaetigt.istPlatzhalter).toBe(false);
+    const archiviert = await alsLeitung((k) => archiviereArt(k, 'postenart', revier!.id));
+    expect(archiviert.schluessel).toBe('revier');
+
+    const nachher = await alsLeitung((k) => leseArten(k, 'postenart'));
+    expect(nachher.find((z) => z.schluessel === 'empfang')?.istPlatzhalter).toBe(false);
+    expect(nachher.map((z) => z.schluessel)).not.toContain('revier');
+    /* Die archivierte kommt nicht als Voreinstellung zurueck. */
+    expect(await alsLeitung((k) => uebernimmPostenartVoreinstellung(k))).toBe(0);
+
+    const [p] = await sql.unsafe<{ aktionen: string[] }[]>(
+      `select array_agg(aktion order by aktion) as aktionen from audit_log
+        where mandant_id = $1 and objekt_typ = 'postenart'
+          and aktion in ('security.postenart_bestaetigt', 'security.postenart_archiviert')`,
+      [f.security]);
+    expect(p!.aktionen).toEqual(['security.postenart_archiviert', 'security.postenart_bestaetigt']);
+  });
+
+  it('eine eigene Art ist bestätigt; derselbe Schlüssel noch einmal ist „doppelt", eine archivierte steht nicht im Weg', async () => {
+    const neu = await alsLeitung((k) => legeArtAn(k, 'schluesselart', {
+      bezeichnung: 'Tresorschlüssel', uebersetzungen: { en: 'Safe key' },
+    }));
+    expect(neu.schluessel).toBe('tresorschluessel');
+    expect(neu.istPlatzhalter).toBe(false);
+    expect((await katalog('schluesselart')).find((z) => z.schluessel === 'tresorschluessel'))
+      .toMatchObject({ ist_platzhalter: false, en: 'Safe key' });
+
+    /* Gleicher Schluessel, andere Schreibweise: doppelt. */
+    await expect(alsLeitung((k) => legeArtAn(k, 'schluesselart', { bezeichnung: 'TRESORSCHLÜSSEL' })))
+      .rejects.toMatchObject({ grund: 'doppelt', status: 409 });
+
+    /* Archiviert — und dann darf der Schluessel wieder leben (partieller Index, 0079). */
+    await alsLeitung((k) => archiviereArt(k, 'schluesselart', neu.id));
+    const wieder = await alsLeitung((k) => legeArtAn(k, 'schluesselart', { bezeichnung: 'Tresorschlüssel' }));
+    expect(wieder.id).not.toBe(neu.id);
+
+    /* Das Protokoll kennt die eigene Art OHNE Voreinstellungsvermerk. */
+    const [p] = await sql.unsafe<{ voreinstellung: string | null; i18n: string | null }[]>(
+      `select nachher->>'voreinstellung' as voreinstellung,
+              nachher->'uebersetzungen'->>'en' as i18n
+         from audit_log where objekt_id = $1 and aktion = 'security.schluesselart_angelegt'`,
+      [neu.id]);
+    expect(p!.voreinstellung).toBeNull();
+    expect(p!.i18n).toBe('Safe key');
+  });
+
+  it('eine fremde id ist „nicht_gefunden"', async () => {
+    await expect(alsLeitung((k) => bestaetigeArt(k, 'postenart', '00000000-0000-0000-0000-000000000000')))
+      .rejects.toMatchObject({ grund: 'nicht_gefunden', status: 404 });
+  });
+});
+
+describe('(4) zwei Knöpfe zur selben Zeit (Prüfstand PR #33)', () => {
+  it('legen die Voreinstellung genau einmal an — ohne Verstoss gegen den Index', async () => {
+    const [a, b] = await Promise.all([
+      alsLeitung((k) => uebernimmPostenartVoreinstellung(k)),
+      alsLeitung((k) => uebernimmPostenartVoreinstellung(k)),
+    ]);
+    expect(a + b).toBe(POSTENART_VOREINSTELLUNG.length);
+    expect(await katalog('postenart')).toHaveLength(POSTENART_VOREINSTELLUNG.length);
+    const [protokoll] = await sql.unsafe<{ n: string }[]>(
+      `select count(*)::text as n from audit_log
+        where objekt_typ = 'postenart' and aktion = 'security.postenart_angelegt'
+          and mandant_id = $1`, [f.security]);
+    expect(Number(protokoll!.n)).toBe(POSTENART_VOREINSTELLUNG.length);
   });
 });

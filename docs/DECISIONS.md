@@ -24754,7 +24754,7 @@ zwingend eingetragen hat. Die Riegel und ihre Prüfungen bleiben.
 
 | Frage | Voreinstellung (gilt, bis der Betreiber sie ändert) | Wo |
 |---|---|---|
-| O-148 | Postenarten: Objektschutz, Empfang und Pforte, Revier- und Streifendienst, Veranstaltungsschutz, Baustellenbewachung, Alarmverfolgung und Intervention; Schlüsselarten: Mechanischer Schlüssel, Generalschlüssel, Gruppenschlüssel, Transponder, Chipkarte — je mit en/ar/tr, unbestätigt (`ist_platzhalter`), per Knopf in den leeren Katalog (idempotent, archivierte kommen nicht zurück), im Prüfprotokoll; die Gesellschaft bestätigt, ergänzt oder archiviert. | `security/arten.ts`, `api/sicherheit/{posten,schluessel}`, Posten › Neu, Schlüssel, `seed/security.ts`, `tests/isolation/security-arten.test.ts`, `tests/kern/security-voreinstellung.test.ts` |
+| O-148 | Postenarten: Objektschutz, Empfang und Pforte, Revier- und Streifendienst, Veranstaltungsschutz, Baustellenbewachung, Alarmverfolgung und Intervention; Schlüsselarten: Mechanischer Schlüssel, Generalschlüssel, Gruppenschlüssel, Transponder, Chipkarte — je mit en/ar/tr, unbestätigt (`ist_platzhalter`), per Knopf in den leeren Katalog (idempotent, wettlauffest, archivierte kommen nicht zurück), im Prüfprotokoll; die Gesellschaft bestätigt, archiviert oder ergänzt im Katalogblock der Postenliste und der Schlüsselseite (`Artenkatalog`) — eine eigene Art gilt als bestätigt, ihr Schlüssel entsteht aus der Bezeichnung. | `security/arten.ts`, `api/sicherheit/{posten,schluessel,arten}`, `security/Artenkatalog.tsx`, Posten, Posten › Neu, Schlüssel, `seed/security.ts`, `tests/isolation/security-arten.test.ts`, `tests/kern/security-voreinstellung.test.ts` |
 | O-342 | Ein Posten verlangt die Unterrichtung nach § 34a Abs. 1a GewO für jede eingesetzte Kraft; eine Veranstaltung dazu mindestens eine Kraft mit Sachkundeprüfung (Zugangskontrolle, § 34a Abs. 1a Satz 5). Angelegt per Knopf auf dem Posten- bzw. Veranstaltungsblatt als unbestätigte Warnung (`zwingend: false`, `bestaetigt: false`); die Sperre stellt die Gesellschaft scharf, wenn der Vertrag es sagt. | `security/anforderung.ts` (`ANFORDERUNG_VOREINSTELLUNG`), `Anforderungsblock.tsx`, `api/sicherheit/anforderungen`, `seed/security.ts`, `tests/isolation/anforderung-pflege.test.ts` |
 | O-40 | Bewacherregister: die Bewacher-ID wird so übernommen, wie die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung, keine Prüfziffer); das Statusvokabular ist das hinterlegte; keine Frist wird aus einem Datum abgeleitet — die nächste Prüfung trägt ein, wer die Mitteilung der Behörde hat; ein Abgleich mit dem Register ist nicht verbunden. | Security › Bewacherregister, `security/bewacherregister.ts` |
 | O-707 | Vorwarnvorlauf für eine ablaufende Bewacher-Erlaubnis: 60 Tage (`BEWACHER_VORWARNUNG_TAGE`) — die Zahl steht im Dienst, nicht in der Seite. | `security/bewacherregister.ts`, Security › Bewacherregister |
@@ -24765,8 +24765,33 @@ zwingend eingetragen hat. Die Riegel und ihre Prüfungen bleiben.
 | O-163 | Zeitumstellung: bei doppelt vorhandener Ortszeit gilt der frühere Zeitpunkt; vergütet wird die tatsächlich gearbeitete Zeit (7 bzw. 9 Stunden statt 8), weil die Dauer die Differenz zweier Zeitpunkte ist (Invariante 2). | Turnus, Turnusvorschau, Einsatzblatt |
 | O-700 | Eine Turnus-Ausnahme ist abrechnungsrelevant („ja" vorbelegt): ein Ausfall mindert die Pauschale, ein Zusatztermin wird berechnet; wer anders vereinbart hat, wählt „nein", und „nicht gesetzt" bleibt wählbar, wenn der Vertrag die Frage offenlässt. Altbestand ohne Wert heisst „nicht gesetzt". | Reinigung › Turnus › Ausnahme, `reinigung/turnus.ts`, `api/reinigung/turnus` |
 
+**Prüfstand (PR #33).** Die CI und die Durchsicht fanden sechs Dinge, alle in
+derselben Runde behoben. (1) Der Seed brach mit „cannot delete from scalar":
+`JSON.stringify(...)` in einem blossen `$n::jsonb` legt eine JSON-Zeichenkette
+in `bezeichnung_i18n` (postgres.js serialisiert den Text ein zweites Mal), und
+die Prüfbedingung der Spalte fällt — jetzt `$n::text::jsonb` wie in
+`bau/gewerk.ts`, und die Protokollzeilen bekommen das Objekt statt des Textes.
+(2) Der Knopf „Voreinstellung übernehmen" auf Posten › Neu war ein Formular im
+Formular; der Browser schloss das Postenformular, und die Felder dahinter wurden
+nicht mehr gesendet — jetzt ein Knopf des äusseren Formulars mit eigenem
+`aktion`-Wert und `formNoValidate`. (3) Der Seed legte die § 34a-Voreinstellung
+nur an, wenn der Bewacherausweis noch fehlte; eine Demodatenbank von vor D-783
+bekam sie nie — jetzt ist nur die Altzeile bedingt. (4) Die Routen verlangten
+nur das Schreibrecht, der Dienst las aber den Katalog, und `RETURNING` prüft die
+Lesepolitik der Zeile — für die Katalogpflege verlangen sie jetzt Lesen UND
+Schreiben des Moduls. (5) Zwei Knöpfe zur selben Zeit konnten am lebenden
+Schlüsselindex scheitern — der Einsatz trägt `ON CONFLICT … DO NOTHING`, gezählt
+und protokolliert wird nur, was die eigene Transaktion einfügte (Isolationstest
+mit zwei gleichzeitigen Transaktionen). (6) „Die Gesellschaft bestätigt, ergänzt
+oder archiviert" hatte keinen Weg: jetzt `bestaetigeArt`, `archiviereArt` und
+`legeArtAn` in `arten.ts`, die Handlungen `*_bestaetigen`, `*_archivieren`,
+`*_anlegen` an `api/sicherheit/{posten,schluessel}` (ein Handler,
+`api/sicherheit/arten.ts`, Rückweg `?arten=<ergebnis>` als Satz) und der
+Baustein `Artenkatalog` auf der Postenliste und der Schlüsselseite — die Knöpfe
+nur für das Schreibrecht, jede Handlung im Prüfprotokoll.
+
 **Nicht in dieser Runde.** Website, Social, Radar, Datenschutz, Einstellungen,
 System und Agent folgen als letzte Entscheidung der Serie.
 
-| Betrifft | O-148, O-342, O-40, O-707, O-706, O-703, O-702, O-701, O-163, O-700; `src/server/services/security/{arten,anforderung,bewacherregister}.ts`, `src/server/services/reinigung/turnus.ts`, `src/app/api/sicherheit/{posten,schluessel,anforderungen}/route.ts`, `src/app/api/reinigung/turnus/route.ts`, `src/app/portal/[mandant]/security/**`, `src/app/portal/[mandant]/reinigung/{turnus,sonderleistungen}/**`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/{anforderung,security}.ts`, `src/server/db/seed/{security,index}.ts`, `tests/kern/security-voreinstellung.test.ts`, `tests/isolation/{security-arten,anforderung-pflege}.test.ts` |
+| Betrifft | O-148, O-342, O-40, O-707, O-706, O-703, O-702, O-701, O-163, O-700; `src/server/services/security/{arten,anforderung,bewacherregister}.ts`, `src/server/services/reinigung/turnus.ts`, `src/app/api/sicherheit/arten.ts`, `src/app/api/sicherheit/{posten,schluessel,anforderungen}/route.ts`, `src/app/api/reinigung/turnus/route.ts`, `src/app/portal/[mandant]/security/Artenkatalog.tsx`, `src/app/portal/[mandant]/security/**`, `src/app/portal/[mandant]/reinigung/{turnus,sonderleistungen}/**`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/{anforderung,security}.ts`, `src/server/db/seed/{security,index}.ts`, `tests/kern/security-voreinstellung.test.ts`, `tests/isolation/{security-arten,anforderung-pflege}.test.ts` |
 |---|---|

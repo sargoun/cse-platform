@@ -12,9 +12,13 @@ import {
   leseSchluessel, SCHLUESSEL_ZUSTAENDE, ZUSTAND_TEXT,
   type SchluesselZeile, type SchluesselZustand,
 } from '@/server/services/security/schluessel';
+import {
+  leseArten, SCHLUESSELART_VOREINSTELLUNG, type ArtZeile,
+} from '@/server/services/security/arten';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
+import { Artenkatalog } from '../Artenkatalog';
 
 /**
  * `/portal/[mandant]/security/schluessel` — der Bestand und wer ihn hält
@@ -37,7 +41,6 @@ import { slugTor } from '../../../unterseite';
 export const dynamic = 'force-dynamic';
 
 interface Objektzeile { readonly id: string; readonly bezeichnung: string }
-interface Artzeile { readonly id: string; readonly bezeichnung: string }
 
 function pille(s: SchluesselZeile): PillZustand {
   if (s.archiviert) return 'Archiviert';
@@ -78,7 +81,7 @@ export default async function Schluesselbestand(
   const statusFilter = (SCHLUESSEL_ZUSTAENDE as readonly string[]).includes(statusRoh ?? '')
     ? (statusRoh as SchluesselZustand) : null;
 
-  const { schluessel, objekte, arten } = await (db().begin(
+  const { schluessel, objekte, arten, darfSchreiben } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => ({
         schluessel: await leseSchluessel(kontext, {
@@ -88,14 +91,16 @@ export default async function Schluesselbestand(
           `select id, bezeichnung from objekt
             where archiviert_am is null order by bezeichnung`,
         ),
-        arten: await kontext.abfrage<Artzeile>(
-          `select id, bezeichnung from schluesselart
-            where archiviert_am is null order by sortierung, bezeichnung`,
-        ),
+        arten: await leseArten(kontext, 'schluesselart'),
+        /* Die Knöpfe der Katalogpflege stehen nur, wer sie drücken darf; Route und RLS prüfen es erneut. */
+        darfSchreiben: (await kontext.abfrage<{ darf: boolean }>(
+          `select app.hat_recht('schluessel.schreiben', app.aktiver_mandant()) as darf`,
+        ))[0]?.darf === true,
       }))) as Promise<{
         schluessel: readonly SchluesselZeile[];
         objekte: readonly Objektzeile[];
-        arten: readonly Artzeile[];
+        arten: readonly ArtZeile[];
+        darfSchreiben: boolean;
       }>);
 
   /**
@@ -286,16 +291,18 @@ export default async function Schluesselbestand(
         </form>
       )}
 
-      {arten.length === 0 && (
-        /* D-783 (O-148): die Voreinstellung der Schluesselarten — ein eigenes Formular,
-           weil ein Formular im Formular nicht geht. */
-        <form method="post" action="/api/sicherheit/schluessel" className="mt-s4"
-              data-cse="schluesselarten-voreinstellung">
-          <input type="hidden" name="mandant" value={mandant} />
-          <input type="hidden" name="aktion" value="schluesselarten_voreinstellung" />
-          <Button type="submit" variante="secondary">Schlüsselarten der Voreinstellung übernehmen</Button>
-        </form>
-      )}
+      {/* D-783 (O-148): der Katalog der Schlüsselarten mit seiner Pflege — eigene Formulare,
+          weil ein Formular im Formular nicht geht. `?arten=` ist der Rückweg der Route. */}
+      <Artenkatalog
+        mandant={mandant}
+        tabelle="schluesselart"
+        sprache={zugang.sprache}
+        zeilen={arten}
+        voreinstellung={SCHLUESSELART_VOREINSTELLUNG}
+        darfSchreiben={darfSchreiben}
+        action="/api/sicherheit/schluessel"
+        meldung={einzeln('arten')}
+      />
     </PortalRahmen>
   );
 }

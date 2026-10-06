@@ -231,17 +231,6 @@ export async function seedAnforderung(
 ): Promise<number> {
   const mandantId = ids.get('security');
   if (mandantId === undefined || postenId === null) return 0;
-  const [q] = await sql<{ id: string }[]>`
-    select id from qualifikation
-     where schluessel = 'bewacherausweis' and archiviert_am is null
-       and (mandant_id is null or mandant_id = ${mandantId})
-     order by mandant_id nulls first limit 1`;
-  if (q === undefined) return 0;
-  const [da] = await sql<{ id: string }[]>`
-    select id from einsatzanforderung
-     where posten_id = ${postenId} and qualifikation_id = ${q.id}
-       and archiviert_am is null limit 1`;
-  if (da !== undefined) return 0;
   const [leitung] = await sql<{ id: string }[]>`
     select b.id from benutzer b
      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
@@ -250,23 +239,50 @@ export async function seedAnforderung(
       and bm.entzogen_am is null
     order by r.schluessel, bm.module is not null, b.email limit 1`;
   if (leitung === undefined) return 0;
-  await alsPortalSitzung(sql, mandantId, leitung.id, (k) => legeAnforderungAn(k, {
-    herkunft: { art: 'posten', id: postenId },
-    bereich: 'posten',
-    qualifikationId: q.id,
-    zwingend: false,
-    geltung: 'jeder',
-    mindestanzahl: 1,
-    bewacherregisterPflicht: false,
-    gueltigAb: null,
-    rechtsgrundlage: null,
-    bestaetigt: false,
-  }));
-  /* D-783 (O-342): dazu die Nachweise der Voreinstellung — die § 34a-Unterrichtung
-     fuer jede Kraft, unbestaetigt, als Warnung. */
+
+  /*
+   * V-179: der Bewacherausweis als verlangter Nachweis — EINMAL. Nur DIESE
+   * Zeile ist bedingt; ein zweiter Lauf findet sie und legt sie nicht noch
+   * einmal an.
+   */
+  let angelegt = 0;
+  const [q] = await sql<{ id: string }[]>`
+    select id from qualifikation
+     where schluessel = 'bewacherausweis' and archiviert_am is null
+       and (mandant_id is null or mandant_id = ${mandantId})
+     order by mandant_id nulls first limit 1`;
+  if (q !== undefined) {
+    const [da] = await sql<{ id: string }[]>`
+      select id from einsatzanforderung
+       where posten_id = ${postenId} and qualifikation_id = ${q.id}
+         and archiviert_am is null limit 1`;
+    if (da === undefined) {
+      await alsPortalSitzung(sql, mandantId, leitung.id, (k) => legeAnforderungAn(k, {
+        herkunft: { art: 'posten', id: postenId },
+        bereich: 'posten',
+        qualifikationId: q.id,
+        zwingend: false,
+        geltung: 'jeder',
+        mindestanzahl: 1,
+        bewacherregisterPflicht: false,
+        gueltigAb: null,
+        rechtsgrundlage: null,
+        bestaetigt: false,
+      }));
+      angelegt += 1;
+    }
+  }
+
+  /*
+   * D-783 (O-342): dazu die Nachweise der Voreinstellung — die § 34a-Unterrichtung
+   * fuer jede Kraft, unbestaetigt, als Warnung. IMMER, nicht nur im ersten Lauf:
+   * eine Demodatenbank von vor D-783 traegt den Bewacherausweis schon und bekaeme
+   * die Voreinstellung sonst nie (Pruefstand PR #33). Der Dienst selbst ist
+   * idempotent — was steht, legt er nicht noch einmal an.
+   */
   const voreinstellung = await alsPortalSitzung(sql, mandantId, leitung.id,
     (k) => uebernimmAnforderungVoreinstellung(k, { art: 'posten', id: postenId }));
-  return 1 + voreinstellung;
+  return angelegt + voreinstellung;
 }
 
 /* ===========================================================================

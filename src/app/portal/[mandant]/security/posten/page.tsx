@@ -16,6 +16,10 @@ import {
   postenUebersicht, unterbesetzung,
   type PostenZeile, type Unterbesetzung,
 } from '@/server/services/security/posten';
+import {
+  leseArten, POSTENART_VOREINSTELLUNG, type ArtZeile,
+} from '@/server/services/security/arten';
+import { Artenkatalog } from '../Artenkatalog';
 
 /**
  * `/portal/[mandant]/security/posten` — die Posten und ihre Abdeckung
@@ -30,6 +34,11 @@ import {
  * der Veröffentlichung — der Sicht `posten_unterbesetzung` (0069). Zwei
  * Abfragen für eine Aussage laufen auseinander, und dann meldet der Wächter
  * etwas anderes als der Bildschirm.
+ *
+ * **Unten der Katalog der Postenarten mit seiner Pflege** (O-148, D-783,
+ * `../Artenkatalog.tsx`): Voreinstellung übernehmen, bestätigen, archivieren,
+ * ergänzen — hier und nicht auf der Anlagemaske, weil die Maske EIN Formular
+ * ist und die Pflege viele kleine braucht. `?arten=` ist der Rückweg der Route.
  */
 export const dynamic = 'force-dynamic';
 
@@ -37,9 +46,14 @@ export const dynamic = 'force-dynamic';
 const FENSTER_TAGE = 28;
 
 export default async function PostenListe(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
+  const artenMeldung = typeof suche['arten'] === 'string' ? suche['arten'] : null;
   const pfad = `/portal/${mandant}/security/posten`;
   const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
@@ -56,13 +70,19 @@ export default async function PostenListe(
   const heute = await berlinHeute();
   const bis = tagePlus(heute, FENSTER_TAGE);
 
-  const { posten, luecken } = await (db().begin(
+  const { posten, luecken, arten, darfSchreiben } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => ({
         posten: await postenUebersicht(kontext, { von: heute, bis }),
         luecken: await unterbesetzung(kontext, { von: heute, bis }),
+        arten: await leseArten(kontext, 'postenart'),
+        /* Die Knöpfe der Katalogpflege stehen nur, wer sie drücken darf; Route und RLS prüfen es erneut. */
+        darfSchreiben: (await kontext.abfrage<{ darf: boolean }>(
+          `select app.hat_recht('security.schreiben', app.aktiver_mandant()) as darf`,
+        ))[0]?.darf === true,
       }))) as Promise<{
         posten: readonly PostenZeile[]; luecken: readonly Unterbesetzung[];
+        arten: readonly ArtZeile[]; darfSchreiben: boolean;
       }>);
 
   return (
@@ -191,6 +211,17 @@ export default async function PostenListe(
           ))}
         </ul>
       )}
+
+      <Artenkatalog
+        mandant={mandant}
+        tabelle="postenart"
+        sprache={zugang.sprache}
+        zeilen={arten}
+        voreinstellung={POSTENART_VOREINSTELLUNG}
+        darfSchreiben={darfSchreiben}
+        action="/api/sicherheit/posten"
+        meldung={artenMeldung}
+      />
     </PortalRahmen>
   );
 }
