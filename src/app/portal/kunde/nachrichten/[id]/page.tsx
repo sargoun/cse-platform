@@ -146,9 +146,10 @@ export default async function Kundennachricht(
 
       <Offen
         nummer="O-74"
+        art="voreinstellung"
         was="Antworten läuft über Ihre Ansprechpartnerin"
-        weg="Das Portal ist lesend; ob ein Kundenzugang im Portal schreiben darf,
-          ist noch nicht entschieden."
+        weg="Das Portal ist lesend; eine Antwort geht per Telefon oder E-Mail an
+          Ihre Ansprechpartnerin, die sie hier ablegt."
       />
     </KundenRahmen>
   );

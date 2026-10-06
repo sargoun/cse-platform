@@ -39,6 +39,9 @@ export { PersonalnummerVergeben };
  * TODO(client, O-615): Voreinstellung — eine Wiedereinstellung stellt einen von
  * Hand entzogenen Portalzugang NICHT wieder her (`kern.bm_aus_anstellung`,
  * 0191); die Wiedererteilung bleibt eine Handlung der Leitung. D-788.
+ * TODO(client, O-87): Voreinstellung — mit `status = beendet` endet der
+ * Portalzugang sofort (K-14, 0191); die Stundennachweise uebergibt die
+ * Verwaltung (Lohnexport, Monatsblatt), ein Nachlaufzugang fehlt (V-329). D-790.
  *
  * **Was dieser Dienst NICHT tut.** Er setzt keinen Stundensatz und keine
  * Wochenstunden: beides ist der Spiegel der datierten `anstellung_kondition`

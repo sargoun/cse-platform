@@ -3009,25 +3009,25 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 
 | # | Slug | Question |
 |---|---|---|
-| O-74 | `auth-kunde-schreibrechte` | May a customer write in the portal at all — accept an offer with legal effect (OPS-09), report a Reklamation, send a message, upload a document? **Every customer write route is withheld until answered.** |
-| O-75 | `auth-entgelt-leitung` | May a Leitung read the internal hourly cost rates of their own area, or is that reserved to Geschäftsführung and Buchhaltung? |
-| O-76 | `auth-leitung-freigaben` | Which approvals and administrative acts may a Leitung or an Admin hold — releasing an incoming invoice, approving a booking, closing a period? |
+| O-74 | `auth-kunde-schreibrechte` | May a customer write in the portal at all — accept an offer with legal effect (OPS-09), report a Reklamation, send a message, upload a document? **Every customer write route is withheld until answered.** · **Voreinstellung → D-790** |
+| O-75 | `auth-entgelt-leitung` | May a Leitung read the internal hourly cost rates of their own area, or is that reserved to Geschäftsführung and Buchhaltung? · **Voreinstellung → D-790** |
+| O-76 | `auth-leitung-freigaben` | Which approvals and administrative acts may a Leitung or an Admin hold — releasing an incoming invoice, approving a booking, closing a period? · **Voreinstellung → D-790** |
 | O-77 | `auth-storno-berechtigung` | Who may issue a Storno? Invariant 4 fixes the mechanism and says nothing about the authority · **Voreinstellung → D-779** |
-| O-78 | `auth-wachbuch-kundensicht` | May a Wachbuch or Bautagebuch entry ever be shown to a customer? |
-| O-79 | `auth-sitzungsdauer` | Session lifetimes per portal — idle and absolute — and the device-loss revocation process for worker phones |
-| O-80 | `auth-sperrschwellen` | AUT-07: attempts per identity and per IP, the window, the lockout duration, automatic expiry or manual unlock, and whether the user is told |
-| O-81 | `auth-missbrauchsschutz` | Anti-abuse on the public login and OTP endpoints without a third-party CAPTCHA (PUB-13) |
+| O-78 | `auth-wachbuch-kundensicht` | May a Wachbuch or Bautagebuch entry ever be shown to a customer? · **Voreinstellung → D-790** |
+| O-79 | `auth-sitzungsdauer` | Session lifetimes per portal — idle and absolute — and the device-loss revocation process for worker phones · **Voreinstellung → D-790** |
+| O-80 | `auth-sperrschwellen` | AUT-07: attempts per identity and per IP, the window, the lockout duration, automatic expiry or manual unlock, and whether the user is told · **Voreinstellung → D-790** |
+| O-81 | `auth-missbrauchsschutz` | Anti-abuse on the public login and OTP endpoints without a third-party CAPTCHA (PUB-13) · **Voreinstellung → D-790** |
 | O-82 | `auth-sms-anbieter` | Which EU-hosted SMS gateway delivers the OTP and the check-in link (DPA, D-04), and what monthly spend cap triggers a hard stop? |
-| O-83 | `auth-2fa-wiederherstellung` | 2FA recovery: how many super_admin accounts, who holds each second factor, and what is the break-glass procedure? |
-| O-84 | `auth-2fa-uebergangsfrist` | Grace period for 2FA enrolment on existing admin accounts, and what happens on expiry |
-| O-85 | `auth-rollen-delegation` | Are roles beyond the five required, and may an Admin appoint another Admin, a Leitung a deputy? |
+| O-83 | `auth-2fa-wiederherstellung` | 2FA recovery: how many super_admin accounts, who holds each second factor, and what is the break-glass procedure? · **Voreinstellung → D-790** |
+| O-84 | `auth-2fa-uebergangsfrist` | Grace period for 2FA enrolment on existing admin accounts, and what happens on expiry · **Voreinstellung → D-790** |
+| O-85 | `auth-rollen-delegation` | Are roles beyond the five required, and may an Admin appoint another Admin, a Leitung a deputy? · **Voreinstellung → D-790** |
 | O-86 | `auth-mobilnummer-vieraugen` | Should a second approver be required to re-bind a worker's mobile number? **Live seit V-014** — der Schreibweg existiert jetzt; siehe die ausführliche Fassung unter „Personal". · **Voreinstellung → D-781** |
-| O-87 | `auth-austritt-login` | On `austritt`, is the worker login disabled at once or kept for N days so the person can download their Stundennachweise (EMP-06)? |
-| O-88 | `auth-doppelrolle-login` | Confirm the dual-role login path for someone who is both a manager and employed |
-| O-89 | `auth-nachweis-gegenzeichnung` | Does the customer portal need a counter-signature flow for the Leistungsnachweis (CLN-04)? |
-| O-90 | `auth-zweitfaktor-festschreibung` | Should finalisation, Storno or DATEV export require a second factor at the moment of the act? |
-| O-91 | `auth-entwurf-kundensicht` | Do customers see finalised invoices only, or may a draft ever be visible? |
-| O-92 | `auth-aufbewahrung-telemetrie` | Retention **and legal basis per data class**: auth events, the `audit_log` deletion concept, `anmeldeversuch` (30 days proposed), `sicherheitsvorfall`, and the `job_lauf` operations log |
+| O-87 | `auth-austritt-login` | On `austritt`, is the worker login disabled at once or kept for N days so the person can download their Stundennachweise (EMP-06)? · **Voreinstellung → D-790** |
+| O-88 | `auth-doppelrolle-login` | Confirm the dual-role login path for someone who is both a manager and employed · **Voreinstellung → D-790** |
+| O-89 | `auth-nachweis-gegenzeichnung` | Does the customer portal need a counter-signature flow for the Leistungsnachweis (CLN-04)? · **Voreinstellung → D-790** |
+| O-90 | `auth-zweitfaktor-festschreibung` | Should finalisation, Storno or DATEV export require a second factor at the moment of the act? · **Voreinstellung → D-790** |
+| O-91 | `auth-entwurf-kundensicht` | Do customers see finalised invoices only, or may a draft ever be visible? · **Voreinstellung → D-790** |
+| O-92 | `auth-aufbewahrung-telemetrie` | Retention **and legal basis per data class**: auth events, the `audit_log` deletion concept, `anmeldeversuch` (30 days proposed), `sicherheitsvorfall`, and the `job_lauf` operations log · **Voreinstellung → D-790** |
 
 **`04-SEITENKARTE.md`**
 
@@ -5561,7 +5561,7 @@ niemand ihn suchen.
 | O-374 | **Welche Jobbörse wird wirklich beauftragt — und mit welchem Vertrag?** Die Bundesagentur für Arbeit hat eine echte Arbeitgeber-Schnittstelle, setzt aber eine Betriebsnummer und eine freigeschaltete Kennung voraus. Indeed und StepStone stehen in CLAUDE.md unter „Out of scope" — verboten ist dort das SCRAPEN; eine Anzeige über eine offizielle Arbeitgeber-API wäre etwas anderes, nur gibt es dafür weder Vertrag noch Zugang. Bis zur Antwort sind alle vier Ziele sichtbar und dauerhaft `nicht_verbunden`, mit dem Grund an der Zeile: eine Liste, in der ein Ziel einfach fehlt, liest sich wie „geht nicht", und die Frage ist „noch nicht beauftragt". | REC-09, D-02, `versand/stellenboerse.ts`, D-569 |
 | O-375 | **Wohin gehen Bewerbungsunterlagen?** Das Karriereformular nimmt heute keine Datei an: der Belegspeicher ist nicht verbunden (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Feld, das eine Datei annimmt und sie nirgends ablegt, ist schlimmer als keines — der Mensch glaubt, sie sei angekommen. Offen ist damit auch, wie lange ein Lebenslauf im Speicher bleibt und ob er beim Löschen der Bewerbung mitgeht (er muss). | REC-03, REC-04, REC-07, `karriere/Formular.tsx`, D-569 |
 | O-376 | **Wie lange bleiben die Bewerbungsunterlagen eines EINGESTELLTEN Bewerbers, und wandern sie in die Personalakte?** Das öffentliche Formular sagt seit REC-03 zu: gelöscht nach der Frist, „sofern kein Arbeitsverhältnis zustande kommt". Der Nachtlauf `bewerber_loeschung` las bis dahin nur die Frist und nahm auch `status = 'eingestellt'` mit — samt `einstellungsentscheidung`, also genau dem Nachweis, den REC-08 verlangt. Zusage und Verhalten liefen auseinander; vor der Aufsicht zählt die Zusage. Der Lauf hält eingestellte Bewerbungen jetzt zurück und zeigt sie auf `/recruiting/datenschutz` als solche. Eine eigene Frist dafür erfindet diese Plattform nicht: das ist Personalaktenpraxis und gehört dem Mandanten. | REC-03, REC-07, REC-08, LEG-11, `jobs/bewerberLoeschung.ts`, `karriere/Formular.tsx`, O-373 |
-| O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 |
+| O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 · **Voreinstellung → D-790** |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
 | O-510 | **Warum zeigt die Seite hinter einer 303-Umleitung den alten Stand?** Nach dem Widerruf eines Kalenderzugangs steht die widerrufene Zeile auf der Umleitungsseite noch in der Liste. Festgestellt ist: die Datenbank ist zu diesem Zeitpunkt richtig (`widerrufen_am` gesetzt), der Feed antwortet sofort mit 404, und ein normaler Aufruf derselben Adresse zeigt die Liste richtig — es ist eine veraltete ANZEIGE und kein offener Zugang. Ausgeschlossen sind: fehlendes `force-dynamic` (steht), eine nicht abgeschlossene Transaktion (die 404-Antwort beweist das Gegenteil), `revalidatePath` auf dem Ziel und `cache-control: no-store` auf der Umleitung (beide eingebaut, beide ohne Wirkung). Bis zur Antwort sagt die Bestätigung auf der Seite ausdrücklich, dass eine noch sichtbare Zeile veraltet ist. Der Browsertest prüft den Stand deshalb nach einem frischen Aufruf — und die Wirkung des Widerrufs sofort. | CAL-03, `api/kalender-feed/widerrufen`, D-516 |
 | O-514 | **Auf welcher Rechtsgrundlage verarbeitet jede Gesellschaft — und wie lange hält sie Personal-, Konto- und Agentendaten?** Das Verarbeitungsverzeichnis nach Art. 30 (`services/datenschutz/verzeichnis.ts`) erzeugt sich aus der laufenden Konfiguration: Verantwortlicher, Tätigkeiten der gebuchten Module, Empfänger, Massnahmen. **Zwei Angaben kann es nicht erzeugen.** (a) Die Rechtsgrundlage je Tätigkeit (Art. 6 Abs. 1) — Vertrag, rechtliche Verpflichtung, berechtigtes Interesse oder Einwilligung — hängt an Arbeitsverträgen, Kundenverträgen und einer etwaigen Betriebsvereinbarung; sie zu erfinden hiesse, ein Verzeichnis zu liefern, das vor einer Aufsicht wie eine Prüfung aussieht und keine ist. (b) Die Aufbewahrungsfrist für Personalstammdaten, Dienstpläne, Abwesenheiten, Konten, Agentenläufe **und die Betriebsnachweise eines Objekts — Wachbuch, Leistungsnachweis, Bautagebuch** (V-09; sie werden im Streit vorgelegt, was ihre Unveränderlichkeit begründet, aber keine Frist nennt): § 147 AO und § 257 HGB decken die Belege, nicht die Personalakte, und was danach gilt, sagt die Personalaktenpraxis des Mandanten. Dazu gehört die Frage nach dem **Betriebsrat** (§ 87 BetrVG), die auch über LEG-10 entscheidet — den Standortpunkt bei Beginn und Ende eines Einsatzes. **Heute ehrlich gemacht:** Abschnitt 8 des Verzeichnisses sagt ausdrücklich, was dort NICHT steht und warum, und `verarbeitungen.test.ts` hält fest, dass keine Rechtsgrundlage ins Register wandert. | LEG-09, LEG-10, Art. 6 DSGVO, § 87 BetrVG, `registry/verarbeitungen.ts`, `services/datenschutz/verzeichnis.ts` |
@@ -25157,4 +25157,58 @@ Kundenportal; Integrationen, Seitenkarte und API-Karte; die zweisprachige
 Verwaltung) in D-790 ff.
 
 | Betrifft | O-145, O-146, O-149, O-150, O-151, O-152, O-153, O-155, O-157, O-158, O-160, O-161, O-708, O-740, O-741, O-852, O-853; V-323 bis V-328; `src/server/services/reinigung/{turnus,sonderleistung}.ts`, `src/server/services/nachweis/{gueltigkeit,tor}.ts`, `src/server/services/mitarbeiter/{schichtbuch,schichten}.ts`, `src/server/services/security/{wachbuch,dienstanweisung,schluessel}.ts`, `src/server/services/bau/{lv,lv-quelle,bautagebuch}.ts`, `src/server/services/finanz/positionsquelle.ts`, `src/lib/i18n/texte.ts`, Seiten `mein/objekte`, `mein/objekte/[id]`, `reinigung/sonderleistungen`, `api/mein/schichten/[zuordnungId]/leistungsnachweis/[id]/unterschrift` |
+|---|---|
+
+### D-790 · Anmeldung, Rollen und Kundenportal-Rechte: Voreinstellungen statt offener Fragen (elfte Runde der Weisung vom 05.10.2026)
+
+**Der Anlass.** Dieselbe Weisung wie D-779 bis D-789; diesmal die Fragen aus
+03-AUTH-BERECHTIGUNGEN und die Anmeldefrage O-500. Keine verlangt neuen Code:
+das Routen-Tor, die Rechtematrix (0008), die Brute-Force-Wache (0007/0379)
+und das lesende Kundenportal haben überall eine Richtung, die nur „offen"
+hiess. Das Kundenportal nennt sie an sechs Stellen „Voreinstellung" statt
+„offen". Drei Zeilen sagen, was nicht gebaut ist (V-329 bis V-331).
+
+**Was sich ändert.**
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-74 | Das Kundenportal ist lesend: Angebotsannahme, Reklamation, Nachricht, Raumänderung und Dokumentenupload nimmt die Ansprechpartnerin entgegen; kein Kundenschreibrecht (`withKundeScope` ohne `schreibe`, Rolle `kunde` ohne Schreibrechte). Wie gebaut; die Sätze sagen „Voreinstellung". | Kundenportal (sechs Stellen), `kundenportal/{reklamation,nachricht}.ts` |
+| O-75 | Den internen Stundensatz liest nur, wer `personal.entgelt_lesen` hält — in der Matrix die Super-Administration (0008); eine Leitung nicht, es sei denn, die Gesellschaft bindet das Recht an ihre Rolle (D-780). Wie gebaut. | `personal/anstellung.ts`, `drizzle/0008`, `drizzle/0193` |
+| O-76 | Die Administration hält `eingang.freigeben`, `finanzen.festschreiben`, `buchhaltung.festschreiben`, `mahnung.freigeben` und `freigabe.entscheiden`; die Leitung `freigabe.entscheiden` und `eingang.schreiben` (0008). Module einer Administration setzt die Super-Administration mit zweitem Faktor (0416). Wie gebaut. | `auth/zugang.ts`, `drizzle/0008` |
+| O-78 | Bautagebuch und Wachbuch bleiben dem Kunden verschlossen (`p_intern_einsatz_decke`, kein `t_kunde`); einen kundensichtbaren Auszug gibt es nicht. Wie gebaut. | `kundenportal/projekt.ts` |
+| O-79 | Zwölf Stunden absolut je Sitzung in allen Portalen (`SITZUNG_MAX_ALTER_SEK`), keine Leerlauffrist; bei Geräteverlust sperrt die Verwaltung das Konto (0379), die laufende Sitzung endet spätestens mit den zwölf Stunden — ein Widerruf einzelner Sitzungen fehlt (V-331). | `auth/sitzung.ts` |
+| O-80 | Anmeldung: 10 Fehlversuche je Kennung und 50 je IP in 15 Minuten, dann 30 Minuten Sperre (`auth.max_versuche_kennung`, `auth.max_versuche_ip`, `auth.fenster_minuten`, `auth.sperrdauer_minuten`; 0007/0379), automatisch ablaufend oder durch die Administration entsperrt; der Mensch sieht „zu viele Versuche". Formulare: 5 Einsendungen je Verbindung in 15 Minuten. Wie gebaut. | `lead/annahme.ts`, `drizzle/0007`, `drizzle/0379` |
+| O-81 | Honigtopf-Feld plus Ratenlimit je Verbindung auf den öffentlichen Formularen und den Anmeldeendpunkten; kein Fremd-CAPTCHA (PUB-13). Wie gebaut. | `lead/annahme.ts` |
+| O-83 | Zehn Wiederherstellungscodes je Konto (`CODES_ANZAHL`, als SHA-256 gespeichert); zwei Super-Administrationen je Gruppe; Break-glass: ein Wiederherstellungscode, sonst setzt die zweite Super-Administration den Faktor zurück. Wer welchen Faktor hält, trägt der Betreiber ein. | `auth/kennwort-anmeldung.ts`, `auth/zwei-faktor/einrichten` |
+| O-84 | Keine Übergangsfrist: eine Route mit `aal2` bleibt ohne zweiten Faktor zu, bis er eingerichtet ist (`zugang.ts` → `zweiter_faktor`); die Einrichtung steht jederzeit offen. Wie gebaut (AUT-02). | `auth/zugang.ts` |
+| O-85 | Fünf Rollen; `admin` und `leitung` lädt nur die Super-Administration ein (`EINLADBARE_ROLLEN`, `system.verwaltungskonto_erstellen` ist `nur_global`); eine Administration ernennt keine zweite, eine Leitung keine Vertretung; Rechte je Gesellschaft über die Rollenrechte (D-780). Wie gebaut. | `system/verwaltungskonto.ts`, `auth/zugang.ts` |
+| O-87 | Mit `status = beendet` endet der Portalzugang sofort (`kern.bm_aus_anstellung`, K-14, 0191); die Stundennachweise übergibt die Verwaltung (Lohnexport, Monatsblatt). Ein Nachlaufzugang zum Herunterladen fehlt (V-329). | `personal/einstellung.ts`, `drizzle/0191` |
+| O-88 | Wer führt und beschäftigt ist, meldet sich einmal an; dieselbe Sitzung öffnet Verwaltung und Mitarbeiterportal, der Bereich wird gewählt. Wie gebaut. | `auth/zugang.ts`, `auth/bereich` |
+| O-89 | Die Gegenzeichnung des Leistungsnachweises erfolgt vor Ort (Name, Serverzeit, Prüfsumme — O-741); eine Gegenzeichnung oder Ablehnung im Kundenportal gibt es nicht. Wie gebaut. | Kundenportal › Nachweise |
+| O-90 | Festschreibung, Storno und DATEV-Export verlangen keinen zweiten Faktor im Moment der Handlung (`aal2 = false` im Manifest); der zweite Faktor der Verwaltungsrollen gilt für die Sitzung (AUT-02). Wie gebaut. | `auth/zugang.ts`, `registry/routen.generiert.ts` |
+| O-91 | Kunden sehen nur festgeschriebene Rechnungen; ein Entwurf ist im Kundenportal strukturell unerreichbar (`t_kunde` auf `rechnung`, 0075). Wie gebaut. | `kundenportal/rechnung.ts` |
+| O-92 | Aufbewahrung: Anmeldeversuche 30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll (`job_lauf`) ein Jahr, Prüfprotokoll (`audit_log`) zehn Jahre; Rechtsgrundlage Art. 6 Abs. 1 Buchst. c (GoBD) und f DSGVO. Löschläufe fehlen für alle vier (V-330). | Einstellungen › Protokoll › Export |
+| O-500 | Einladungslink 168 Stunden (`auth.einladung_stunden`, 0372), zehn Wiederherstellungscodes, Kennwort mindestens zwölf Zeichen ohne weitere Zusammensetzungsregel (`KENNWORT_MIN`). Wie gebaut. | `auth/kennwort-anmeldung.ts`, `drizzle/0372` |
+
+**Betreiberdaten — keine Voreinstellung.** O-82 (das EU-gehostete SMS-Gateway
+mit AV-Vertrag und der Ausgabendeckel) bleibt im Register ohne Zeiger; der
+Satz in `auth/sms.ts` sagt „trägt der Betreiber ein". Wer die zweiten Faktoren
+der Super-Administrationen hält (O-83), ist ebenfalls Betreiberdatum.
+
+**Was sich NICHT ändert.** Kein Recht, keine Schwelle, keine Sitzungsdauer;
+O-183 (Vier-Augen bei Eingangsrechnungen) ist nicht Teil dieser Runde. Der
+Baustein `Offen` des Kundenportals bekommt die Art `voreinstellung` und sagt
+dann „Voreinstellung (O-nn)" statt „offen (O-nn)"; die Fragen O-671 bis O-673
+und O-844 stehen dort weiter als „offen", bis ihre Runde kommt.
+
+**Prüfung.** `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+**Was nach dieser Runde bleibt.** Das Register führt 400 Fragen; 228
+tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-790), 172 keinen.
+Von diesen sind rund hundert Betreiberdaten; der Rest folgt (Datenschutz und
+Einstellungen; CRM, Website, Social, Recruiting und Kundenportal;
+Integrationen, Seitenkarte und API-Karte; die zweisprachige Verwaltung) in
+D-791 ff.
+
+| Betrifft | O-74, O-75, O-76, O-78, O-79, O-80, O-81, O-83, O-84, O-85, O-87, O-88, O-89, O-90, O-91, O-92, O-500; Betreiberdaten O-82; V-329 bis V-331; `src/server/auth/{zugang,sitzung,sms,kennwort-anmeldung}.ts`, `src/server/services/lead/annahme.ts`, `src/server/services/personal/{einstellung,anstellung}.ts`, `src/server/services/kundenportal/{reklamation,nachricht,projekt}.ts`, `src/app/portal/kunde/bausteine.tsx`, Kundenportal-Seiten `angebote`, `angebote/[id]`, `objekte/[id]`, `nachrichten`, `nachrichten/[id]`, `nachweise`, `einstellungen/protokoll/export` |
 |---|---|

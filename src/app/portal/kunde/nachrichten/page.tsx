@@ -134,9 +134,10 @@ export default async function Kundennachrichten() {
       <div className="mt-s5 flex flex-col gap-s4">
         <Offen
           nummer="O-74"
+          art="voreinstellung"
           was="Antworten läuft über Ihre Ansprechpartnerin"
-          weg="Das Portal ist lesend; ob ein Kundenzugang im Portal schreiben darf,
-            ist noch nicht entschieden."
+          weg="Das Portal ist lesend; eine Antwort geht per Telefon oder E-Mail an
+            Ihre Ansprechpartnerin, die sie hier ablegt."
         />
       </div>
     </KundenRahmen>

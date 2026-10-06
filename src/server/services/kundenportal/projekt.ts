@@ -32,9 +32,9 @@ import {
  *    `t_kunde`; die Abfrage liefe ohnehin leer. Sie wird deshalb gar nicht
  *    erst gestellt: eine leere Liste auf dem Bildschirm behauptet, es sei
  *    nichts geschrieben worden.
- *    // TODO(client, O-78): Bleiben Bautagebuch und Wachbuch dem Kunden
- *    dauerhaft verschlossen, oder gibt es einen kundensichtbaren Auszug
- *    (Wetter, Anwesenheit, Behinderungen) ohne Personenbezug?
+ *    // TODO(client, O-78): Voreinstellung — Bautagebuch und Wachbuch bleiben
+ *    dem Kunden verschlossen; einen kundensichtbaren Auszug gibt es nicht
+ *    (D-790).
  *  · **Nachtraege und Behinderungen** — beide tragen die RESTRIKTIVE Policy
  *    `p_intern_decke` mit `app.portal() = 'intern'` und kein `t_kunde`
  *    (nachgesehen in `pg_policies`, nicht vermutet). Die Datenbank hat die

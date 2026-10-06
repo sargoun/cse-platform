@@ -83,7 +83,14 @@ export function keksSicher(umgebung: Umgebung = process.env): boolean {
 
 export const SITZUNG_COOKIE = sitzungsKeksName();
 
-/** Zwoelf Stunden — so lange lebt die Zeile in `benutzer_sitzung` auch. */
+/**
+ * Zwoelf Stunden — so lange lebt die Zeile in `benutzer_sitzung` auch.
+ *
+ * TODO(client, O-79): Voreinstellung — zwoelf Stunden absolut je Sitzung in
+ * allen Portalen, keine Leerlauffrist; bei Geraeteverlust sperrt die
+ * Verwaltung das Konto (0379), die laufende Sitzung endet spaetestens mit den
+ * zwoelf Stunden — ein Widerruf einzelner Sitzungen fehlt (V-331). D-790.
+ */
 export const SITZUNG_MAX_ALTER_SEK = 12 * 60 * 60;
 
 /**

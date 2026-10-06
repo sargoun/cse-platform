@@ -19,6 +19,26 @@ import type { Sitzung } from '../kontext/index.js';
  * **Das ist die ERSTE Linie, nicht die einzige.** RLS ist die zweite: selbst
  * wenn dieses Tor eine Route durchliesse, gaebe die Datenbank keine fremde
  * Zeile heraus. AUT-04 verlangt beides — die Pruefung im Layout UND im Dienst.
+ *
+ * TODO(client, O-76): Voreinstellung — die Administration haelt Freigabe von
+ * Eingangsrechnungen, Festschreibung, Periodenabschluss und Mahnfreigabe, die
+ * Leitung entscheidet Freigaben (`freigabe.entscheiden`) und schreibt
+ * Eingangsrechnungen (0008); mehr bindet eine Gesellschaft ueber die
+ * Rollenrechte (D-780). D-790.
+ * TODO(client, O-84): Voreinstellung — keine Uebergangsfrist: eine Route mit
+ * `aal2` bleibt ohne zweiten Faktor zu, bis er eingerichtet ist; die
+ * Einrichtung steht jederzeit offen (/auth/zwei-faktor/einrichten). D-790.
+ * TODO(client, O-85): Voreinstellung — fuenf Rollen; `admin` und `leitung`
+ * laedt nur die Super-Administration ein (`verwaltungskonto.ts`), eine
+ * Administration ernennt keine zweite, eine Leitung keine Vertretung; Rechte
+ * je Gesellschaft kommen ueber die Rollenrechte. D-790.
+ * TODO(client, O-88): Voreinstellung — wer fuehrt UND beschaeftigt ist, meldet
+ * sich einmal an; dieselbe Sitzung oeffnet Verwaltung und Mitarbeiterportal,
+ * der Bereich wird gewaehlt, nicht doppelt angemeldet. D-790.
+ * TODO(client, O-90): Voreinstellung — Festschreibung, Storno und DATEV-Export
+ * verlangen keinen zweiten Faktor im Moment der Handlung (`aal2 = false` im
+ * Manifest); der zweite Faktor der Verwaltungsrollen gilt fuer die Sitzung
+ * (AUT-02). D-790.
  */
 
 export type Entscheidung =

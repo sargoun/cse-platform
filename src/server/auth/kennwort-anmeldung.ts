@@ -305,6 +305,11 @@ export function codeHash(code: string): string {
  *
  * Gespeichert wird der SHA-256. Wer die Datenbank liest, kann sich damit nicht
  * anmelden; wer den Zettel hat, schon. Das ist der ganze Zweck.
+ *
+ * TODO(client, O-83): Voreinstellung — zehn Codes je Konto (`CODES_ANZAHL`),
+ * zwei Super-Administrationen je Gruppe; Break-glass: ein
+ * Wiederherstellungscode, sonst setzt die zweite Super-Administration den
+ * Faktor zurueck. Wer welchen Faktor haelt, traegt der Betreiber ein. D-790.
  */
 export async function gibWiederherstellungscodesAus(
   tx: Transaktion, anzahl: number,
@@ -509,6 +514,7 @@ export async function aendereKennwort(
  * `Sommer2024!` fuehren. Was zaehlt, ist Laenge — und dass es nicht eines der
  * paar Dutzend ist, die jeder zuerst probiert.
  */
+// TODO(client, O-500): Voreinstellung — Einladungslink 168 Stunden (`auth.einladung_stunden`, 0372), zehn Wiederherstellungscodes, Mindestlaenge zwoelf Zeichen ohne weitere Zusammensetzungsregel. D-790.
 export const KENNWORT_MIN = 12;
 
 const ZU_HAEUFIG = new Set([

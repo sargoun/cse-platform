@@ -194,10 +194,11 @@ export default async function Kundenangebote(
       <div className="mt-s5 flex flex-col gap-s4">
         <Offen
           nummer="O-74"
+          art="voreinstellung"
           was="Annehmen und ablehnen läuft über Ihre Ansprechpartnerin"
           weg="Die Annahme eines Angebots ist eine Willenserklärung mit
-            Rechtsfolge; ob sie ein Kundenzugang im Portal abgeben kann, ist
-            noch nicht entschieden."
+            Rechtsfolge; das Portal ist lesend, die Erklärung nimmt Ihre
+            Ansprechpartnerin entgegen."
         />
       </div>
     </KundenRahmen>

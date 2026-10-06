@@ -291,9 +291,10 @@ export default async function Kundenobjekt(
       <div className="flex flex-col gap-s4">
         <Offen
           nummer="O-74"
+          art="voreinstellung"
           was="Änderungen am Raumbuch nimmt Ihre Ansprechpartnerin auf"
-          weg="Das Portal ist lesend; ob ein Kundenzugang eine Raumänderung
-            selbst melden kann, ist noch nicht entschieden."
+          weg="Das Portal ist lesend; eine Raumänderung melden Sie Ihrer
+            Ansprechpartnerin, die sie im Raumbuch nachführt."
         />
       </div>
     </KundenRahmen>

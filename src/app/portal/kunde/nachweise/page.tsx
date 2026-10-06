@@ -258,10 +258,11 @@ export default async function Kundennachweise() {
       <div className="mt-s5 flex flex-col gap-s4">
         <Offen
           nummer="O-89"
+          art="voreinstellung"
           was="Gegenzeichnen geht vor Ort, nicht im Portal"
-          weg="Ob ein Kundenzugang einen Nachweis im Portal gegenzeichnen oder
-            ablehnen darf, ist noch nicht entschieden; heute unterschreibt Ihre
-            Objektverantwortliche beim Termin."
+          weg="Ihre Objektverantwortliche zeichnet beim Termin gegen — mit Namen,
+            Serverzeit und Prüfsumme; eine Gegenzeichnung oder Ablehnung im
+            Portal gibt es nicht."
         />
       </div>
     </KundenRahmen>

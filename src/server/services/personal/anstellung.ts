@@ -597,6 +597,10 @@ export interface KonditionEingabe {
    * und Sicherheitsgewerbe Berlin/Brandenburg, Bau nach dem BRTV; der Tarif
    * selbst ist kein Feld: die Gruppe steht hier, die Pausenregel in
    * `tarifvereinbarung` (O-50), das Entgelt rechnet das Lohnsystem (D-06). D-788.
+   * TODO(client, O-75): Voreinstellung — den internen Stundensatz liest nur, wer
+   * `personal.entgelt_lesen` haelt (0008: die Super-Administration); eine Leitung
+   * nicht, es sei denn, die Gesellschaft bindet das Recht an ihre Rolle (D-780).
+   * D-790.
    */
   readonly tarifgruppe?: string | null;
   readonly kostenstelle?: string | null;
