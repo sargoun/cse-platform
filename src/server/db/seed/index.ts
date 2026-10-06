@@ -1701,7 +1701,7 @@ async function main(): Promise<void> {
   const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null, verbundenerSpeicher);
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
-    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n'
+    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Voreinstellung, unbestätigt, O-17)\n'
     + `  ${String(ops.belegschaftsdokumente)} der Belegschaft freigegebene `
     + 'Unterlagen (EMP-11, DOC-04) — '
     + (verbundenerSpeicher === null
@@ -1897,7 +1897,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(rein.reviere)} Reviere zugeschnitten mit `
     + `${String(rein.revierRaeume)} Raumzuordnungen (davon `
-    + `${String(rein.aufPlatzhalter)} auf einem Platzhalter-Leistungswert, O-17), `
+    + `${String(rein.aufPlatzhalter)} auf einem unbestätigten Leistungswert der Voreinstellung, O-17), `
     + `${String(rein.nachweise)} Leistungsnachweise mit `
     + `${String(rein.positionen)} Positionen aus erfasster Zeit, `
     + `${String(rein.unterschriften)} Unterschrift (Abzug eingefroren, CLN-04), `

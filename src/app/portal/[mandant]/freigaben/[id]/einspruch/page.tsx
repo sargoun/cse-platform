@@ -233,7 +233,8 @@ export default async function Einspruch(
               eigene Befugnis
               {' '}<Recht schluessel="freigabe.einspruch_erheben" /> genügt dafür
               nicht — ein Knopf, den die Datenbank abweist, hätte gar nicht erst dastehen
-              dürfen (offene Frage O-367).
+              dürfen (Voreinstellung O-367: die Befugnis hält die Administration, eine Leitung
+              erhält sie je Gesellschaft über die Rollenrechte).
             </>
           ) : lage.art === 'abgelaufen' ? (
             <>

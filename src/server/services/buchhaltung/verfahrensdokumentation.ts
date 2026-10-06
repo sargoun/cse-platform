@@ -230,12 +230,12 @@ export async function erstelleVerfahrensdokumentation(
   const kontenrahmen = konfig?.kontenrahmen !== null && konfig?.kontenrahmen !== undefined
     && istKontenrahmen(konfig.kontenrahmen) ? RAHMEN_NAME[konfig.kontenrahmen] : 'nicht festgelegt';
   const offen: string[] = [];
-  if (wj.istPlatzhalter) offen.push('Der Beginn des Wirtschaftsjahrs ist angenommen (Kalenderjahr) — O-05.');
+  if (wj.istPlatzhalter) offen.push('Der Beginn des Wirtschaftsjahrs ist die Voreinstellung (Kalenderjahr), vom Steuerberater nicht bestätigt — O-05.');
   if (konfig === undefined || konfig.ist_platzhalter) {
-    offen.push('Kontenrahmen, Sachkontenlänge und Versteuerungsart sind Platzhalter, bis der Steuerberater sie bestätigt — O-05.');
+    offen.push('Kontenrahmen, Sachkontenlänge und Versteuerungsart sind Voreinstellungen, bis der Steuerberater sie bestätigt — O-05.');
   }
   if ((zuordnungPlatzhalter?.n ?? 0) > 0) {
-    offen.push(`${String(zuordnungPlatzhalter?.n ?? 0)} Kontenzuordnung(en) sind Platzhalter — O-05.`);
+    offen.push(`${String(zuordnungPlatzhalter?.n ?? 0)} Kontenzuordnung(en) sind Voreinstellungen, vom Steuerberater nicht bestätigt — O-05.`);
   }
   if (nummernkreise.some((n) => n.ist_platzhalter)) {
     offen.push('Mindestens ein Nummernkreis ist ein Platzhalter (Maske oder Rücksetzung noch nicht bestätigt).');

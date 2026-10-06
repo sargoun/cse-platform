@@ -84,16 +84,16 @@ const RECHTSEINHEITEN = ['reinigung', 'security', 'bau'] as const;
  */
 const KATEGORIEN: Readonly<Record<string, readonly { schluessel: string; bezeichnung: string }[]>> = {
   reinigung: [
-    { schluessel: 'verbrauchsmaterial', bezeichnung: 'Verbrauchsmaterial (Kontierung offen, O-05)' },
-    { schluessel: 'fahrtkosten', bezeichnung: 'Fahrtkosten (Kontierung offen, O-05)' },
+    { schluessel: 'verbrauchsmaterial', bezeichnung: 'Verbrauchsmaterial (Kontierung noch nicht zugeordnet, O-05)' },
+    { schluessel: 'fahrtkosten', bezeichnung: 'Fahrtkosten (Kontierung noch nicht zugeordnet, O-05)' },
   ],
   security: [
-    { schluessel: 'dienstkleidung', bezeichnung: 'Dienstkleidung (Kontierung offen, O-05)' },
-    { schluessel: 'fahrtkosten', bezeichnung: 'Fahrtkosten (Kontierung offen, O-05)' },
+    { schluessel: 'dienstkleidung', bezeichnung: 'Dienstkleidung (Kontierung noch nicht zugeordnet, O-05)' },
+    { schluessel: 'fahrtkosten', bezeichnung: 'Fahrtkosten (Kontierung noch nicht zugeordnet, O-05)' },
   ],
   bau: [
-    { schluessel: 'kleinwerkzeug', bezeichnung: 'Kleinwerkzeug (Kontierung offen, O-05)' },
-    { schluessel: 'fahrtkosten', bezeichnung: 'Fahrtkosten (Kontierung offen, O-05)' },
+    { schluessel: 'kleinwerkzeug', bezeichnung: 'Kleinwerkzeug (Kontierung noch nicht zugeordnet, O-05)' },
+    { schluessel: 'fahrtkosten', bezeichnung: 'Fahrtkosten (Kontierung noch nicht zugeordnet, O-05)' },
   ],
 };
 
