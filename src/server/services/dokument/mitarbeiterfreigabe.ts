@@ -22,14 +22,16 @@
  * **Immer mit Grund, und der Grund steht im Prüfprotokoll** — wie bei der
  * Kundenfreigabe (`kundenfreigabe.ts`), aus demselben Grund: `dokument` hat
  * keine Spalte dafür, und eine zu erfinden wäre eine Schemaänderung für
- * etwas, das ins Audit gehört. Die Kategorie wird mitprotokolliert, weil
- * O-851 offen ist (welche Kategorien überhaupt freigegeben werden dürfen).
+ * etwas, das ins Audit gehört. Die Kategorie wird geprüft und mitprotokolliert:
+ * welche Kategorien überhaupt freigegeben werden dürfen, ist seit D-780 eine
+ * Voreinstellung (`MITARBEITERFREIGABE_KATEGORIEN`, O-851).
  *
  * **Was die Rücknahme NICHT kann:** eine Datei zurückholen, die schon
  * geholt wurde. Das Zugriffsprotokoll (`dokument_zugriff`) steht deshalb auf
  * dem Dokumentblatt neben dem Schalter.
  */
 import { DokumentfreigabeFehler, type Abfrage } from './kundenfreigabe.js';
+import { mitarbeiterfreigabeMoeglich } from './kategorie.js';
 
 export interface Mitarbeiterfreigabe {
   readonly titel: string;
@@ -77,6 +79,17 @@ export async function setzeMitarbeiterfreigabe(
         ? 'Dieses Dokument ist bereits für die Belegschaft freigegeben.'
         : 'Dieses Dokument ist für die Belegschaft nicht freigegeben.',
       'schon_so');
+  }
+  /*
+   * **Die Kategorie entscheidet mit** (O-851, D-780): nur Unternehmens- und
+   * Projektunterlagen gehen an die ganze Belegschaft; die Rücknahme bleibt
+   * für jede Kategorie möglich.
+   */
+  if (eingabe.sichtbar && !mitarbeiterfreigabeMoeglich(vorher.kategorie)) {
+    throw new DokumentfreigabeFehler(
+      `Dokumente der Kategorie „${vorher.kategorie}" werden nicht der Belegschaft freigegeben — `
+      + 'Voreinstellung (O-851): freigebbar sind Unternehmen und Projekt.',
+      'kategorie');
   }
 
   /*

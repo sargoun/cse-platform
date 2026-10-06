@@ -87,8 +87,9 @@ describe('(2) die Reaktionszeit ist vorlaeufig, nicht unbekannt (D-75, O-14)', (
     expect(reaktionszeitText(24)).not.toContain('nicht festgelegt');
   });
 
-  it('der Nullfall bleibt — ein Formular ohne Zustaendigkeitszeile nennt die Voreinstellung', () => {
-    expect(reaktionszeitText(null)).toBe('nicht gesetzt — Voreinstellung 24 Stunden (O-14)');
+  it('der Nullfall bleibt — ein Formular ohne Zustaendigkeitszeile hat keine Frist, und das steht da', () => {
+    expect(reaktionszeitText(null)).toBe('nicht gesetzt — ohne Frist läuft keine Eskalation (O-14)');
+    expect(reaktionszeitText(null)).not.toContain('24');
   });
 });
 

@@ -128,10 +128,11 @@ export default async function Dokumentfreigabe(
           <dd className="m-0 text-sm text-text">
             <strong>{KATEGORIE[stand.kategorie] ?? stand.kategorie}</strong>
             <span className="block text-xs text-text-muted">
-              Für Kunden freigebbar sind Angebot, Auftragsbestätigung, Rechnung,
-              Leistungsnachweis, Berichte und Zertifikate — nie Personalakte, Kalkulation,
-              interne Notizen oder Wachbuch (Voreinstellung, O-736). Die Datenbank
-              prüft nur das Recht; die Kategorie steht deshalb hier groß.
+              Für Kunden freigebbar sind die Kategorien Kunde, Angebot, Vertrag, Rechnung
+              und Projekt — nie Mitarbeiter, Beleg, Buchhaltung oder Unternehmen
+              (Voreinstellung, O-736). Der Dienst weist andere Kategorien ab, die
+              Rücknahme geht immer; die Datenbank prüft das Recht. Die Kategorie steht
+              deshalb hier groß.
             </span>
           </dd>
           <dt className="text-micro uppercase tracking-[0.08em] text-text-subtle">Dateityp</dt>

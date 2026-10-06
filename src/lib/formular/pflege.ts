@@ -75,10 +75,12 @@ export function naechsteVersion(vorhandene: readonly number[]): number {
  * vereinbart hat. Seit D-780 ist die 24 die VOREINSTELLUNG (O-14): 24
  * Kalenderstunden, auch am Freitagabend — der Zusatz sagt es.
  *
- * Der Nullfall bleibt: ein Formular ohne Zustaendigkeitszeile hat keine
- * eigene Frist, und dann steht die Voreinstellung da.
+ * Der Nullfall bleibt ehrlich: ein Formular ohne Zustaendigkeitszeile hat
+ * KEINE Frist — `slaFrist` liefert dann `null`, und der Waechter eskaliert
+ * nichts —, und genau das steht da. Die 24 Stunden sind die Voreinstellung JE
+ * ZEILE (der Seed traegt sie ein), kein stiller Ersatz fuer eine fehlende.
  */
 export function reaktionszeitText(slaStunden: number | null): string {
-  if (slaStunden === null) return 'nicht gesetzt — Voreinstellung 24 Stunden (O-14)';
+  if (slaStunden === null) return 'nicht gesetzt — ohne Frist läuft keine Eskalation (O-14)';
   return `${String(slaStunden)} Stunden (Voreinstellung, O-14)`;
 }

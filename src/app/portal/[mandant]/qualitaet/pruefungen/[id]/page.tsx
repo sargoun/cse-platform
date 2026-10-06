@@ -460,12 +460,12 @@ export default async function PruefungBlatt(
       </section>
 
       <Hinweis art="hinweis" cse="pruefung-lesend" className="mt-s6 max-w-prose">
-        <strong>Dieses Blatt ist lesend.</strong> Eine falsch erfasste Prüfung wird
-          durch Archivieren und Neuerfassen berichtigt (Voreinstellung, O-704): eine Prüfung lässt sich
-        archivieren und trägt eine Löschsperre, kann aber — anders als ein
-        Wachbucheintrag — nicht auf die Prüfung verweisen, die sie ersetzt. Gelöscht wird eine
-        Prüfung ohnehin nie (Invariante 8) — bis die Frage beantwortet ist,
-        entsteht eine Korrektur als neue Prüfung.
+        <strong>Dieses Blatt ist lesend.</strong> Voreinstellung (O-704): eine falsch
+        erfasste Prüfung wird nicht geändert — die Berichtigung ist eine neue Prüfung, deren
+        Bemerkung die alte nennt; die alte bleibt stehen und trägt eine Löschsperre. Einen
+        Weg, sie mit Grund zu archivieren, gibt es noch nicht (V-288), und anders als ein
+        Wachbucheintrag verweist sie nicht auf die Prüfung, die sie ersetzt. Gelöscht wird
+        eine Prüfung ohnehin nie (Invariante 8).
       </Hinweis>
     </PortalRahmen>
   );

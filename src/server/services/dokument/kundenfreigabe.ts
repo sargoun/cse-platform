@@ -27,6 +27,7 @@
  * `dokument.kunde_freigeben`; `t_mandant` prueft `dokument.schreiben`, und
  * das haelt auch die Rolle `mitarbeiter`.
  */
+import { kundenfreigabeMoeglich } from './kategorie.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -35,7 +36,7 @@ export interface Abfrage {
 export class DokumentfreigabeFehler extends Error {
   constructor(nachricht: string, readonly grund:
     | 'nicht_gefunden' | 'geloescht' | 'ohne_kunde' | 'schon_so'
-    | 'ohne_grund' | 'kein_recht') {
+    | 'ohne_grund' | 'kein_recht' | 'kategorie') {
     super(nachricht);
     this.name = 'DokumentfreigabeFehler';
   }
@@ -117,10 +118,11 @@ export async function ladeZugriffe(
  *
  * Der Grund landet in `app.protokolliere`, nicht in einer Spalte: `dokument`
  * hat kein Feld dafuer, und eines zu erfinden waere eine Schemaaenderung fuer
- * etwas, das ins Audit gehoert. Die Kategorie wird MITPROTOKOLLIERT, weil
- * O-736 offen ist: welche Kategorien ueberhaupt an einen Kunden duerfen,
- * entscheidet die Datenbank heute nicht, und dann muss zumindest nachlesbar
- * sein, welche freigegeben wurden.
+ * etwas, das ins Audit gehoert. Die Kategorie wird GEPRUEFT und
+ * MITPROTOKOLLIERT: welche Kategorien ueberhaupt an einen Kunden duerfen, ist
+ * seit D-780 eine Voreinstellung (`KUNDENFREIGABE_KATEGORIEN`, O-736) — die
+ * Datenbank prueft weiter nur das Recht, dieser Dienst die Kategorie, und
+ * nachlesbar bleibt, welche freigegeben wurden.
  */
 export async function setzeKundenfreigabe(
   db: Abfrage, dokumentId: string,
@@ -169,6 +171,18 @@ export async function setzeKundenfreigabe(
         ? 'Dieses Dokument ist bereits für den Kunden freigegeben'
         : 'Dieses Dokument ist für den Kunden nicht freigegeben',
       'schon_so');
+  }
+  /**
+   * **Die Kategorie entscheidet mit** (O-736, D-780). Was nie an einen Kunden
+   * geht — Personalunterlagen, Buchhaltung, Buchungsbelege, Gesellschafts-
+   * unterlagen —, weist der Dienst hier ab, bevor die Datenbank das Recht
+   * prueft. Die RUECKNAHME bleibt fuer jede Kategorie moeglich.
+   */
+  if (eingabe.frei && !kundenfreigabeMoeglich(vorher.kategorie)) {
+    throw new DokumentfreigabeFehler(
+      `Dokumente der Kategorie „${vorher.kategorie}" werden nicht an Kunden freigegeben — `
+      + 'Voreinstellung (O-736): freigebbar sind Kunde, Angebot, Vertrag, Rechnung und Projekt.',
+      'kategorie');
   }
 
   await db.abfrage(

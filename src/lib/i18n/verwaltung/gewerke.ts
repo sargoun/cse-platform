@@ -69,10 +69,8 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
     einleitung: 'Die Gewerke, nach denen das Bautagebuch die Mannstunden eines Tages '
       + 'führt. Ohne ein Gewerk lässt sich keine Mannstundenzeile anlegen — weder in der '
       + 'Verwaltung noch im Mitarbeiterportal.',
-    offen: 'Voreinstellung (O-159): die Liste folgt den STLB-Bau-Leistungsbereichen (012 '
-    + 'Mauerarbeiten, 013 Betonarbeiten, 016 Zimmerarbeiten, 020 Dachdeckung, 023 Putz, 024 '
-    + 'Fliesen, 025 Estrich, 027 Tischler, 034 Maler, 036 Bodenbelag, 084 Abbruch); die '
-    + 'Gesellschaft trägt ihre Gewerke hier ein. Was hier '
+    offen: 'Offene Frage: welche Gewerke führt die Gesellschaft, und folgt die Liste den '
+      + 'STLB-Bau-Leistungsbereichen (O-159)? Die Plattform schlägt keines vor. Was hier '
       + 'ohne das Häkchen „bestätigt" steht, trägt im Bautagebuch den Zusatz „unbestätigt".',
     leer: 'Noch kein Gewerk eingetragen.',
     keinSchreibrecht: 'Gewerke trägt ein, wer das Bautagebuch führen darf — dieses Konto '
@@ -130,10 +128,8 @@ export const GEWERK_TEXTE: Readonly<Record<InternSprache, GewerkTexte>> = {
     einleitung: 'The Gewerke by which the Bautagebuch records a day\'s Mannstunden. Without '
       + 'a Gewerk no Mannstunden line can be created — neither in administration nor in '
       + 'the employee portal.',
-    offen: 'Default (O-159): the list follows the STLB-Bau work sections (012 masonry, 013 '
-    + 'concrete, 016 carpentry, 020 roofing, 023 plaster, 024 tiling, 025 screed, 027 '
-    + 'joinery, 034 painting, 036 flooring, 084 demolition); the company enters its '
-    + 'Gewerke here. Anything entered '
+    offen: 'Open question: which Gewerke does the company keep, and does the list follow '
+      + 'the STLB-Bau work sections (O-159)? The platform suggests none. Anything entered '
       + 'without the "confirmed" tick carries the note "unconfirmed" in the Bautagebuch.',
     leer: 'No Gewerk entered yet.',
     keinSchreibrecht: 'Gewerke are entered by whoever may keep the Bautagebuch — this '

@@ -12,7 +12,9 @@ import { describe, expect, it } from 'vitest';
 import {
   AblageFehler, TAG_HOECHSTZAHL, TAG_LAENGE, istKategorie, leseTags, pruefeFelder,
 } from '../../src/server/services/dokument/ablage.js';
-import { KATEGORIEN } from '../../src/server/services/dokument/kategorie.js';
+import {
+  KATEGORIEN, MITARBEITERFREIGABE_KATEGORIEN,
+} from '../../src/server/services/dokument/kategorie.js';
 
 const BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);   // `%PDF-`
 
@@ -131,8 +133,21 @@ describe('pruefeFelder', () => {
 
   it('die Sichtbarkeit für Beschäftigte ist AUS, bis jemand sie anhakt (DOC-04)', () => {
     expect(pruefeFelder(eingabe()).sichtbarFuerMitarbeiter).toBe(false);
-    expect(pruefeFelder(eingabe({ sichtbarFuerMitarbeiter: true })).sichtbarFuerMitarbeiter)
-      .toBe(true);
+    expect(pruefeFelder(eingabe({ kategorie: 'unternehmen', sichtbarFuerMitarbeiter: true }))
+      .sichtbarFuerMitarbeiter).toBe(true);
+  });
+
+  it('angehakt nur für Unternehmen und Projekt — die Voreinstellung zu O-851 (D-780)', () => {
+    for (const kategorie of MITARBEITERFREIGABE_KATEGORIEN) {
+      expect(pruefeFelder(eingabe({ kategorie, sichtbarFuerMitarbeiter: true }))
+        .sichtbarFuerMitarbeiter).toBe(true);
+    }
+    for (const kategorie of KATEGORIEN.filter((k) => !MITARBEITERFREIGABE_KATEGORIEN.includes(k))) {
+      expect(() => pruefeFelder(eingabe({ kategorie, sichtbarFuerMitarbeiter: true })))
+        .toThrow(/O-851/u);
+      // Ohne das Häkchen geht jede Kategorie durch — die Regel gilt der Freigabe, nicht der Ablage.
+      expect(pruefeFelder(eingabe({ kategorie })).sichtbarFuerMitarbeiter).toBe(false);
+    }
   });
 
   it('Schlagworte gehen durch dieselbe Leseregel', () => {

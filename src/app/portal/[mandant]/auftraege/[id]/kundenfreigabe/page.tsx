@@ -364,9 +364,12 @@ export default async function Kundenfreigabe(
             />
             <p className="mt-s3 text-xs text-text-muted">
               Der Beleg, <em>dass</em> einmal freigegeben wurde, bleibt stehen —
-              er zählt im Streit genauso wie der Widerruf. Für eine <strong>bereits veröffentlichte</strong> Referenz gilt die
-            Voreinstellung (O-735): die Website-Pflege nimmt sie binnen 5 Arbeitstagen heraus,
-            nicht rückwirkend. Diese Seite entfernt keine Referenzzeile.
+              er zählt im Streit genauso wie der Widerruf. Für eine{' '}
+              <strong>bereits veröffentlichte</strong> Referenz gilt die Voreinstellung
+              (O-735): die Website-Pflege nimmt sie binnen 5 Arbeitstagen von Hand heraus,
+              nicht rückwirkend — eine Aufgabe dafür entsteht noch nicht von selbst (V-287);
+              das Referenzblatt zeigt den Widerruf am Ursprungsauftrag. Diese Seite entfernt
+              keine Referenzzeile.
             </p>
             <button
               type="submit"

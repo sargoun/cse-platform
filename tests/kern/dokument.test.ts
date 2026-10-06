@@ -14,7 +14,10 @@ import {
 } from '../../src/server/storage/signatur.js';
 import { LokalerSpeicher, NichtVerbundenFehler, SupabaseSpeicher } from '../../src/server/storage/adapter.js';
 import { ladeHoch } from '../../src/server/services/dokument/upload.js';
-import { AUFBEWAHRUNG, KATEGORIEN, regelFuer } from '../../src/server/services/dokument/kategorie.js';
+import {
+  AUFBEWAHRUNG, KATEGORIEN, KUNDENFREIGABE_KATEGORIEN, MITARBEITERFREIGABE_KATEGORIEN,
+  kundenfreigabeMoeglich, mitarbeiterfreigabeMoeglich, regelFuer,
+} from '../../src/server/services/dokument/kategorie.js';
 
 const bytes = (...b: number[]): Uint8Array => Uint8Array.from(b);
 const PDF = (): Uint8Array => Uint8Array.from([...Buffer.from('%PDF-1.7'), ...Buffer.alloc(64)]);
@@ -308,5 +311,30 @@ describe('die neun Kategorien und ihre Fristen', () => {
       expect(regelFuer(k).jahre, k).toBe(10);
       expect(regelFuer(k).loeschsperre, k).toBe(true);
     }
+  });
+});
+
+describe('welche Kategorien das Haus verlassen (O-736, O-851, D-780)', () => {
+  it('beide Listen sind Teilmengen von DOC-01 und schliessen Personal, Buchhaltung und Belege aus', () => {
+    for (const k of [...KUNDENFREIGABE_KATEGORIEN, ...MITARBEITERFREIGABE_KATEGORIEN]) {
+      expect(KATEGORIEN).toContain(k);
+    }
+    for (const nie of ['mitarbeiter', 'buchhaltung', 'beleg'] as const) {
+      expect(kundenfreigabeMoeglich(nie)).toBe(false);
+      expect(mitarbeiterfreigabeMoeglich(nie)).toBe(false);
+    }
+  });
+
+  it('was den Kunden betrifft, geht an ihn und nicht an die Belegschaft — und umgekehrt', () => {
+    expect(kundenfreigabeMoeglich('rechnung')).toBe(true);
+    expect(mitarbeiterfreigabeMoeglich('rechnung')).toBe(false);
+    expect(mitarbeiterfreigabeMoeglich('unternehmen')).toBe(true);
+    expect(kundenfreigabeMoeglich('unternehmen')).toBe(false);
+    // Projektunterlagen gehen in beide Richtungen: Leistungsnachweis zum Kunden, Dienstplan zur Kraft.
+    expect(kundenfreigabeMoeglich('projekt')).toBe(true);
+    expect(mitarbeiterfreigabeMoeglich('projekt')).toBe(true);
+    // Eine zehnte Kategorie gibt es nicht — und sie geht nirgendwohin.
+    expect(kundenfreigabeMoeglich('sonstiges')).toBe(false);
+    expect(mitarbeiterfreigabeMoeglich('')).toBe(false);
   });
 });

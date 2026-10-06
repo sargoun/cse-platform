@@ -30,7 +30,7 @@ import {
 } from '../../src/server/services/reinigung/schnappschuss.js';
 import {
   erstelleReklamation, schreibeAbstellung, findeReklamation, NachweisPasstNicht,
-  BezugPasstNicht,
+  BezugPasstNicht, REAKTIONSFRIST_VOREINSTELLUNG_STUNDEN,
 } from '../../src/server/services/reinigung/reklamation.js';
 import { berechneRevierSollzeit } from '../../src/server/services/reinigung/sollzeit.js';
 import {
@@ -783,6 +783,36 @@ describe('(4) die Reklamation verweist auf Nachweis und Nacharbeitsschicht', () 
     await expect(sql.unsafe(
       `update reklamation set status = 'behoben' where id = $1`, [id],
     )).rejects.toThrow();
+  });
+
+  /**
+   * **Die Reaktionsfrist ist eine Zeitregel** (Invariante 2, 5; D-780, O-14):
+   * `faellig_am` = Serverzeit der Transaktion + 24 Kalenderstunden, für jede
+   * Quelle und jede Priorität gleich — und nie eine Zeit des Aufrufers.
+   */
+  it('eine neue Reklamation ist genau 24 Stunden nach der Serverzeit fällig — jede Quelle, jede Priorität', async () => {
+    const bau = await baueRevier(f.reinigung);
+    const faelle = [
+      ['kunde', 'hoch'], ['eigenkontrolle', 'mittel'], ['mitarbeiter', 'niedrig'],
+    ] as const;
+    for (const [quelle, prioritaet] of faelle) {
+      const id = await alsApp(
+        { scope: 'mandant', mandantId: bau.mandant, benutzerId: bau.leitung,
+          portal: 'intern', readonly: false },
+        async (tx) => (await erstelleReklamation(kontextAus(tx, bau.mandant, bau.leitung), {
+          objektId: bau.objekt, kundeId: bau.kunde, quelle, prioritaet,
+          beschreibung: `Fristprüfung ${quelle}/${prioritaet}`,
+        })).id,
+      );
+      const [z] = await sql.unsafe<{ genau: boolean; sekunden: boolean; vom_server: boolean }[]>(
+        `select faellig_am = erstellt_am + make_interval(hours => $2::int) as genau,
+                extract(epoch from (faellig_am - erstellt_am)) = $2::int * 3600 as sekunden,
+                erstellt_am between now() - interval '5 minutes' and now() as vom_server
+           from reklamation where id = $1`,
+        [id, REAKTIONSFRIST_VOREINSTELLUNG_STUNDEN]);
+      expect(REAKTIONSFRIST_VOREINSTELLUNG_STUNDEN).toBe(24);
+      expect(z).toMatchObject({ genau: true, sekunden: true, vom_server: true });
+    }
   });
 
   it('ein Nachweis eines anderen Objekts wird nicht angehängt', async () => {

@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto';
 import type { SchreibKontext } from '../../kontext/index.js';
 import { NichtVerbundenFehler, type Bucket, type Speicher } from '../../storage/adapter.js';
 import { MAX_BYTES } from '../../storage/mime.js';
-import { KATEGORIEN, fassungMoeglich, type Kategorie } from './kategorie.js';
+import {
+  KATEGORIEN, fassungMoeglich, mitarbeiterfreigabeMoeglich, type Kategorie,
+} from './kategorie.js';
 import { ladeHoch } from './upload.js';
 
 /**
@@ -48,7 +50,8 @@ import { ladeHoch } from './upload.js';
  * der aus der Liste gewählt hat, ist es derselbe Fall.
  */
 export type AblageGrund =
-  | 'titel_fehlt' | 'titel_zu_lang' | 'kategorie_unbekannt' | 'beschreibung_zu_lang'
+  | 'titel_fehlt' | 'titel_zu_lang' | 'kategorie_unbekannt' | 'kategorie_nicht_freigebbar'
+  | 'beschreibung_zu_lang'
   | 'kunde_unbekannt' | 'objekt_unbekannt' | 'auftrag_unbekannt'
   | 'datei_leer' | 'datei_zu_gross';
 
@@ -171,6 +174,15 @@ export function pruefeFelder(eingabe: AblageEingabe): GeprueftAblage {
       'Unbekannte Kategorie. DOC-01 nennt genau neun, und die Aufbewahrungsfrist '
       + 'hängt an ihr — eine zehnte zu erfinden hiesse, eine Frist zu erfinden.',
       'kategorie_unbekannt');
+  }
+  /* Angehakt „für Beschäftigte sichtbar" gilt nur den Kategorien der
+     Voreinstellung (O-851, D-780) — dieselbe Regel wie beim Schalter später. */
+  if (eingabe.sichtbarFuerMitarbeiter && !mitarbeiterfreigabeMoeglich(kategorie)) {
+    throw new AblageFehler(
+      'Diese Kategorie wird nicht der Belegschaft freigegeben — Voreinstellung (O-851): '
+      + 'freigebbar sind Unternehmen und Projekt. Ohne das Häkchen ablegen, oder die '
+      + 'Kategorie prüfen.',
+      'kategorie_nicht_freigebbar');
   }
   const beschreibung = eingabe.beschreibung.trim();
   if (beschreibung.length > 2000) {

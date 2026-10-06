@@ -247,7 +247,10 @@ describe('§5 die Übernahme in einen Lead', () => {
      * Rechtsgrundlage benennt.
      */
     expect(lead!.ansprechpartner_id).toBeNull();
-    expect(lead!.punktzahl_begruendung).toContain('PLATZHALTER');
+    // Die Gewichte sind eine Voreinstellung (O-15, D-780) — die Begründung sagt es dem Vertrieb
+    // in jedem Lead, bis die Geschäftsführung sie bestätigt.
+    expect(lead!.punktzahl_begruendung).toContain('Voreinstellung (O-15)');
+    expect(lead!.punktzahl_begruendung).toContain('noch nicht bestätigt');
 
     const [nachher] = await sql.unsafe<{ status: string; lead_id: string }[]>(
       `select status, lead_id from akquise_ziel where id = $1`, [ziel.id]);

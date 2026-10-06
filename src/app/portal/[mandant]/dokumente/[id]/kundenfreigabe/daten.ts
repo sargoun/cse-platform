@@ -11,5 +11,8 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   schon_so: 'Der Schalter stand schon so; es wurde nichts geändert.',
   geloescht: 'Dieses Dokument ist gelöscht und wird nicht freigegeben.',
   nicht_gefunden: 'Dieses Dokument gibt es nicht.',
+  kategorie:
+    'Dokumente dieser Kategorie werden nicht an Kunden freigegeben — Voreinstellung (O-736): '
+    + 'freigebbar sind Kunde, Angebot, Vertrag, Rechnung und Projekt.',
   // `kein_recht` setzt die Seite selbst: die Rechte stehen als Satz (`<Recht>`, V-250).
 };

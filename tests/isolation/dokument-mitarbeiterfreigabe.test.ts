@@ -23,6 +23,10 @@ import {
 import { findeEigenesDokument } from '../../src/server/services/mitarbeiter/dokumente.js';
 import { DokumentfreigabeFehler } from '../../src/server/services/dokument/kundenfreigabe.js';
 import { setzeMitarbeiterfreigabe } from '../../src/server/services/dokument/mitarbeiterfreigabe.js';
+import { setzeKundenfreigabe } from '../../src/server/services/dokument/kundenfreigabe.js';
+import {
+  KATEGORIEN, MITARBEITERFREIGABE_KATEGORIEN,
+} from '../../src/server/services/dokument/kategorie.js';
 
 let f: Fixtur;
 let fatimaKonto = '';
@@ -118,10 +122,11 @@ beforeEach(async () => {
 afterAll(async () => { await schliessen(); });
 
 describe('(1) die Rücknahme wirkt dort, wo die Freigabe wirkte', () => {
-  it('ein freigegebener Vertrag mit Löschsperre verschwindet aus dem Mitarbeiterportal', async () => {
+  it('eine freigegebene Unternehmensunterlage mit Löschsperre verschwindet aus dem Mitarbeiterportal', async () => {
     const leitung = await konto();
     await mitglied(leitung, f.reinigung, 'leitung');
-    const id = await dokument(f.reinigung);
+    // `unternehmen`: die Kategorie, die wieder freigegeben werden darf (O-851, D-780).
+    const id = await dokument(f.reinigung, { kategorie: 'unternehmen' });
     const [sperre] = await sql.unsafe<{ loeschsperre: boolean }[]>(
       `select loeschsperre from dokument where id = $1`, [id]);
     expect(sperre!.loeschsperre).toBe(true);
@@ -199,5 +204,62 @@ describe('(2) die Abweisungen', () => {
     await expect(als(f.reinigung, leitung, (tx) => setzeMitarbeiterfreigabe(
       kontext(tx), fremd, { sichtbar: false, grund: 'fremd' })))
       .rejects.toMatchObject({ grund: 'nicht_gefunden' });
+  });
+});
+
+/**
+ * **Die Kategorie entscheidet mit** — die Voreinstellung zu O-851 (D-780).
+ * Die Datenbank prüft weiter nur den Schalter; der Dienst prüft die Kategorie,
+ * und zwar nur in Richtung FREIGEBEN: zurücknehmen lässt sich alles.
+ */
+describe('(3) die Kategorie entscheidet mit — Voreinstellung O-851 (D-780)', () => {
+  it('Unternehmen und Projekt gehen an die Belegschaft, die übrigen sieben nicht', async () => {
+    const leitung = await konto();
+    await mitglied(leitung, f.reinigung, 'leitung');
+    for (const kategorie of MITARBEITERFREIGABE_KATEGORIEN) {
+      const id = await dokument(f.reinigung, { kategorie, frei: false });
+      const ergebnis = await als(f.reinigung, leitung, (tx) => setzeMitarbeiterfreigabe(
+        kontext(tx), id, { sichtbar: true, grund: `Aushang (${kategorie})` }));
+      expect(ergebnis.sichtbar).toBe(true);
+      expect(await sichtbarFuerArbeiterin(f.reinigung, id)).toBe(true);
+    }
+    for (const kategorie of KATEGORIEN.filter((k) => !MITARBEITERFREIGABE_KATEGORIEN.includes(k))) {
+      const id = await dokument(f.reinigung, { kategorie, frei: false });
+      await expect(als(f.reinigung, leitung, (tx) => setzeMitarbeiterfreigabe(
+        kontext(tx), id, { sichtbar: true, grund: 'Versuch' })))
+        .rejects.toMatchObject({ grund: 'kategorie' });
+      expect(await sichtbarFuerArbeiterin(f.reinigung, id)).toBe(false);
+    }
+  });
+
+  it('die Rücknahme kennt keine Kategorie — eine frei stehende Personalakte lässt sich sperren', async () => {
+    const leitung = await konto();
+    await mitglied(leitung, f.reinigung, 'leitung');
+    const akte = await dokument(f.reinigung, { kategorie: 'mitarbeiter', frei: true });
+    expect(await sichtbarFuerArbeiterin(f.reinigung, akte)).toBe(true);
+    const ergebnis = await als(f.reinigung, leitung, (tx) => setzeMitarbeiterfreigabe(
+      kontext(tx), akte, { sichtbar: false, grund: 'Gehört einer Person, nicht der Belegschaft' }));
+    expect(ergebnis.sichtbar).toBe(false);
+    expect(await sichtbarFuerArbeiterin(f.reinigung, akte)).toBe(false);
+    await expect(als(f.reinigung, leitung, (tx) => setzeMitarbeiterfreigabe(
+      kontext(tx), akte, { sichtbar: true, grund: 'noch einmal' })))
+      .rejects.toMatchObject({ grund: 'kategorie' });
+  });
+
+  it('und an den Kunden geht keine Personalunterlage (O-736) — auch mit Kundenzuordnung nicht', async () => {
+    const leitung = await konto();
+    await mitglied(leitung, f.reinigung, 'leitung');
+    const akte = await dokument(f.reinigung, { kategorie: 'mitarbeiter', frei: false });
+    await sql.unsafe(
+      `update dokument
+          set kunde_id = (select id from kunde where mandant_id = $1 order by kundennummer limit 1)
+        where id = $2`,
+      [f.reinigung, akte]);
+    await expect(als(f.reinigung, leitung, (tx) => setzeKundenfreigabe(
+      kontext(tx), akte, { frei: true, grund: 'Versuch' })))
+      .rejects.toMatchObject({ grund: 'kategorie' });
+    const [z] = await sql.unsafe<{ frei: boolean }[]>(
+      `select sichtbar_fuer_kunde as frei from dokument where id = $1`, [akte]);
+    expect(z!.frei).toBe(false);
   });
 });

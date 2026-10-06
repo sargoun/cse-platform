@@ -110,9 +110,7 @@ export const ANFORDERUNG_TEXTE: Readonly<Record<InternSprache, AnforderungTexte>
     rechtsgrundlageBeispiel: '§ 34a GewO',
     bestaetigt: 'Aus Vertrag oder Dienstanweisung bestätigt',
     bestaetigtErklaerung: 'Ohne dieses Häkchen steht die Anforderung als unbestätigt '
-    + 'im Plan, bis die Gesellschaft bestätigt, welche Nachweise der Posten verlangt '
-    + '(O-342; Voreinstellung: § 34a-Unterrichtung für jeden Wachdienst, Sachkunde bei '
-    + 'Veranstaltungen mit Zugangskontrolle).',
+      + 'im Plan — solange offen ist, welche Nachweise der Posten verlangt (O-342).',
     anlegen: 'Nachweis verlangen',
     nachzug: 'Welche Qualifikation ein Posten verlangt, entscheidet die Gesellschaft '
       + '(O-342) — hier wird eingetragen, nichts vorgeschlagen.',
@@ -187,9 +185,8 @@ export const ANFORDERUNG_TEXTE: Readonly<Record<InternSprache, AnforderungTexte>
     rechtsgrundlageBeispiel: '§ 34a GewO',
     bestaetigt: 'Confirmed by contract or Dienstanweisung',
     bestaetigtErklaerung: 'Without this tick the requirement is shown as unconfirmed '
-    + 'in the plan until the company confirms which credentials the Posten requires '
-    + '(O-342; default: § 34a instruction for every guard duty, the expert examination '
-    + 'for events with access control).',
+      + 'in the plan — as long as it is open which credentials the Posten requires '
+      + '(O-342).',
     anlegen: 'Require credential',
     nachzug: 'Which qualification a Posten requires is the company\'s decision (O-342) '
       + '— this form records it and suggests nothing.',
