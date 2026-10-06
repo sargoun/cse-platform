@@ -175,7 +175,14 @@ describe('der Abwesenheitskatalog', () => {
     }
     expect(je.get('krankheit')?.nachweisPflichtAbTagen).toBe(4);
     expect(je.get('kind_krank')?.nachweisPflichtAbTagen).toBe(1);
-    expect(arten.every((a) => (a.lohnartSchluessel ?? '') !== '')).toBe(true);
+    /* Die Lohnartenschlüssel gehen in den Export (ACC-12): die genaue Zuordnung, nicht nur „nicht leer". */
+    expect(Object.fromEntries(arten.map((a) => [a.schluessel, a.lohnartSchluessel]))).toEqual({
+      urlaub: 'URLAUB', krankheit: 'KRANK', kind_krank: 'KINDKRANK', unbezahlt: 'UNBEZAHLT',
+      fortbildung: 'FORTBILDUNG', freizeitausgleich: 'FZA', sonstige: 'SONSTIGE',
+    });
+    for (const s of ['urlaub', 'unbezahlt', 'fortbildung', 'freizeitausgleich', 'sonstige']) {
+      expect(je.get(s)?.nachweisPflichtAbTagen, s).toBeNull();
+    }
   });
 
   it('lässt sich vom Mandanten-Admin NICHT ändern', async () => {

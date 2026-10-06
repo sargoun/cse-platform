@@ -116,17 +116,20 @@ export default async function Qualifikationen(
 
       <p data-cse="qualifikationen-offen" data-ohne-frist={String(ohneFrist)}
          className="mb-s5 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning">
-        Vier Fragen hängen an genau den Feldern dieser Seite und sind offen: die
-        Ablauffrist des Bewacherausweises (O-341 — Voreinstellung: das aufgedruckte
-        Datum des Ausweises, die Standardgültigkeit bleibt bei {String(ohneFrist)} ablaufender
+        Vier Fragen hängen an genau den Feldern dieser Seite und haben eine
+        Voreinstellung (D-781): die Ablauffrist des Bewacherausweises (O-341 — das
+        aufgedruckte Datum des Ausweises; die Standardgültigkeit bleibt bei {String(ohneFrist)} ablaufender
         Qualifikation(en) leer, weil die Zuverlässigkeitsprüfung alle 5 Jahre ein eigener
-        Nachweis ist), ob die Urkunden in der Plattform liegen (O-343 — Voreinstellung:
-        Nummer und Frist in der Plattform, die Urkunde in der Papierakte; der Schalter
-        „Dokument erforderlich" ist hinterlegt, wird aber noch nicht geprüft), welche
-        Kategorien die Nachweisberichte führen (O-144 — die hinterlegten) und welche
-        Nachweise die Gewerke verlangen (O-107 — die hier eingetragenen Qualifikationen;
-        neue trägt die Gesellschaft ein). Ein geratener Vorgabewert trüge sich in
-        jeden neu erfassten Nachweis ein und sähe dort aus wie eine geprüfte Angabe.
+        Nachweis ist), ob die Urkunden in der Plattform liegen (O-343 — Nummer und Frist in
+        der Plattform; ob die Urkunde als Datei beiliegen muss, entscheidet je Qualifikation
+        der Schalter „Dokument erforderlich", und der wird geprüft: ohne Datei wird ein
+        solcher Nachweis nicht gültig (DOC-01). Bei den drei gesetzlichen Nachweisen —
+        Sachkunde und Unterrichtung nach § 34a, Bewacherausweis — ist er gesetzt, bei der
+        DGUV-Unterweisung nicht), welche Kategorien die Nachweisberichte führen (O-144 —
+        die hinterlegten) und welche Nachweise die Gewerke verlangen (O-107 — die hier
+        eingetragenen Qualifikationen; neue trägt die Gesellschaft ein). Eine geratene
+        Standardgültigkeit trüge sich in jeden neu erfassten Nachweis ein und sähe dort
+        aus wie eine geprüfte Angabe.
       </p>
 
       <Hinweis art="warnung" cse="qualifikationen-sperre" className="mb-s7 max-w-[72ch]">

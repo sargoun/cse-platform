@@ -487,12 +487,12 @@ export default async function Veroeffentlichung(
         data-cse="offene-fragen"
         className="rounded-lg border border-warning bg-warning-soft p-s5"
       >
-        <h2 className="mb-s3 mt-0 text-h3 text-warning">Vier Fragen sind offen</h2>
+        <h2 className="mb-s3 mt-0 text-h3 text-warning">Vier Voreinstellungen (D-781)</h2>
         <p className="mb-s3 max-w-prose text-sm text-warning">
-          Ein Veröffentlichungsablauf, den die Spezifikation nicht beschreibt,
-          wäre eine erfundene Geschäftsregel (K-17). Deshalb gibt es hier keinen
-          Zustand je Schicht, keine Sperre und kein Einfrieren — und deshalb steht
-          hier, was noch entschieden werden muss:
+          Die Spezifikation beschreibt den Veröffentlichungsablauf nicht; statt einer
+          erfundenen Geschäftsregel (K-17) gelten hier Voreinstellungen, die der
+          Betreiber ändern kann. Deshalb gibt es keinen Zustand je Schicht, keine
+          Sperre und kein Einfrieren — und deshalb steht hier, was gilt:
         </p>
         <ul className="m-0 list-disc pl-s5 text-sm text-warning">
           <li>
