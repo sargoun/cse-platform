@@ -125,8 +125,9 @@ test.describe('Vergaberadar (Phase 8)', () => {
       'die Fristwarnung braucht keine Einstellung').toContainText('fünf Tage');
 
     expect((await page.goto('/portal/reinigung/radar/plattformen'))?.status()).toBe(200);
-    /* Der Katalog ist leer — mit Absicht, und die Seite sagt warum (O-07). */
-    await expect(page.locator('[data-cse="plattform-leer"]')).toContainText('O-07');
+    /* Der Katalog trägt die Voreinstellung (D-784): jeder Eintrag unbestätigt, und die Zeile sagt es (O-07). */
+    await expect(page.locator('[data-cse="plattform"]').first()).toContainText('O-07');
+    await expect(page.locator('[data-cse="plattform-leer"]')).toHaveCount(0);
   });
 
   test('jede Gesellschaft sieht ihre eigene Bewertung', async ({ page }) => {

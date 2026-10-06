@@ -81,9 +81,9 @@ export default async function Kanaele(
         <Hinweis art="warnung" cse="kanaele-keiner" className="mb-s5 max-w-prose">
           <strong>Kein fremder Kanal ist verbunden.</strong> Ein Beitrag geht damit auf die
           eigene Seite und sonst nirgendwohin — und genau das steht danach an jedem Kanal,
-          statt eines Hakens, hinter dem nichts ist. Offen ist O-10: welche Konten gehören
-          welcher Gesellschaft, wer ist dort Administrator, und liegt für jedes ein
-          Auftragsverarbeitungsvertrag vor?
+          statt eines Hakens, hinter dem nichts ist. Der Betreiber trägt ein (O-10): welches
+          Konto welcher Gesellschaft gehört, wer dort Administrator ist, und ob für jedes ein
+          Auftragsverarbeitungsvertrag vorliegt.
         </Hinweis>
       ) : null}
 

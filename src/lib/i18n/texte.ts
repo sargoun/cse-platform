@@ -1506,10 +1506,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'Ihre Antwort steht im Vorgang.',
     schonGelesen: 'Für Sie war dieser Vorgang schon gelesen.',
     neuerFadenOffen:
-      'Von sich aus eine Nachricht zu schreiben ist noch nicht eingerichtet — wen Sie dann anschreiben dürfen, ist eine offene Frage (O-830). Auf einen Vorgang zu antworten funktioniert.',
+      'Von sich aus eine Nachricht zu schreiben ist noch nicht eingerichtet — Voreinstellung (O-830): sie geht an die Einsatzleitung Ihres laufenden Einsatzes. Auf einen Vorgang zu antworten funktioniert.',
     anlagen: 'Anlagen',
     anlagenNichtAbrufbar:
-      'Die Dateien erhalten Sie auf dem bisherigen Weg; ob Anlagen im Portal zu öffnen sind, ist noch nicht entschieden (O-831).',
+      'Die Dateien erhalten Sie auf dem bisherigen Weg; Anlagen im Portal zu öffnen ist vorgesehen (Voreinstellung, O-831), aber noch nicht eingerichtet.',
     profil: 'Profil',
     bereichWechseln: 'Bereich wechseln',
     konto: 'Konto',
@@ -1663,7 +1663,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'Abgelegt am',
     dokumenteOffenerBezug:
       'Hier steht, was Ihre Gesellschaft der Belegschaft freigegeben hat. Unterlagen, '
-      + 'die nur Sie persönlich betreffen, sind noch nicht zugeordnet — offen (O-850).',
+      + 'die nur Sie persönlich betreffen, sind noch nicht zugeordnet — vorgesehen ist die '
+      + 'Zuordnung über Ihre Beschäftigung (Voreinstellung, O-850).',
     abrufProtokolliert: 'Jeder Abruf wird mit Ihrem Konto protokolliert.',
     listeGekuerzt:
       'Es werden nur die neuesten Einträge angezeigt. Grenzen Sie die Liste über die '
@@ -1895,10 +1896,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'Your reply is now part of the thread.',
     schonGelesen: 'For you this thread was already read.',
     neuerFadenOffen:
-      'Starting a message yourself is not set up yet — who you would be allowed to write to is an open question (O-830). Replying to a thread works.',
+      'Starting a message yourself is not set up yet — default (O-830): it goes to the shift lead of your current assignment. Replying to a thread works.',
     anlagen: 'Attachments',
     anlagenNichtAbrufbar:
-      'You receive the files the way you did before; whether attachments can be opened in the portal has not been decided yet (O-831).',
+      'You receive the files the way you did before; opening attachments in the portal is planned (default, O-831) but not set up yet.',
     profil: 'Profile',
     bereichWechseln: 'Switch area',
     konto: 'Account',
@@ -2049,7 +2050,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'Filed on',
     dokumenteOffenerBezug:
       'What you see here is what your company released to the workforce. Papers that '
-      + 'concern you personally are not linked yet — open (O-850).',
+      + 'concern you personally are not linked yet — they are to be linked through your '
+      + 'employment (default, O-850).',
     abrufProtokolliert: 'Every retrieval is logged against your account.',
     listeGekuerzt:
       'Only the most recent entries are shown. Narrow the list down by category.',
@@ -2276,10 +2278,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'ردّك صار ضمن المحادثة.',
     schonGelesen: 'بالنسبة إلك هذه المحادثة كانت مقروءة أصلاً.',
     neuerFadenOffen:
-      'إرسال رسالة من طرفك لسّا مش مفعّل — لمين بيحقّ لك تكتب سؤال مفتوح (O-830). الردّ على محادثة شغّال.',
+      'إرسال رسالة من طرفك لسّا مش مفعّل — الإعداد الافتراضي (O-830): بتوصل لمسؤول العمل في مهمتك الحالية. الردّ على محادثة شغّال.',
     anlagen: 'المرفقات',
     anlagenNichtAbrufbar:
-      'بتوصلك الملفات بالطريقة المعتادة؛ وهل تنفتح المرفقات داخل البوابة لسّا ما تقرّر (O-831).',
+      'بتوصلك الملفات بالطريقة المعتادة؛ فتح المرفقات داخل البوابة مقرَّر (الإعداد الافتراضي، O-831) لكنه لسّا مش مفعّل.',
     profil: 'الملف الشخصي',
     bereichWechseln: 'تبديل القسم',
     konto: 'الحساب',
@@ -2417,7 +2419,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'تاريخ الحفظ',
     dokumenteOffenerBezug:
       'ما تراه هنا هو ما أتاحته شركتك للعاملين. أما الأوراق التي تخصّك شخصياً فلم تُربط '
-      + 'بعد — مفتوح (O-850).',
+      + 'بعد — ومن المقرَّر ربطها عبر عقد عملك (الإعداد الافتراضي، O-850).',
     abrufProtokolliert: 'يُسجَّل كل استدعاء للملف باسم حسابك.',
     listeGekuerzt: 'تُعرض أحدث المدخلات فقط. ضيّق القائمة حسب الفئة.',
 
@@ -2644,10 +2646,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'Yanıtınız konunun içinde.',
     schonGelesen: 'Sizin için bu konu zaten okunmuştu.',
     neuerFadenOffen:
-      'Kendiniz mesaj başlatmak henüz açık değil — kime yazabileceğiniz açık bir soru (O-830). Bir konuya yanıt vermek çalışıyor.',
+      'Kendiniz mesaj başlatmak henüz açık değil — varsayılan (O-830): mesaj, mevcut görevinizin ekip yöneticisine gider. Bir konuya yanıt vermek çalışıyor.',
     anlagen: 'Ekler',
     anlagenNichtAbrufbar:
-      'Dosyaları eskisi gibi alırsınız; eklerin portalda açılıp açılamayacağı henüz kararlaştırılmadı (O-831).',
+      'Dosyaları eskisi gibi alırsınız; eklerin portalda açılması öngörülmüştür (varsayılan, O-831) ancak henüz açık değil.',
     profil: 'Profil',
     bereichWechseln: 'Alan değiştir',
     konto: 'Hesap',
@@ -2795,7 +2797,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'Kayıt tarihi',
     dokumenteOffenerBezug:
       'Burada gördüğünüz, şirketinizin çalışanlara açtığı belgelerdir. Yalnızca sizi '
-      + 'ilgilendiren evraklar henüz eşleştirilmedi — açık (O-850).',
+      + 'ilgilendiren evraklar henüz eşleştirilmedi — eşleştirme, çalışma ilişkiniz üzerinden '
+      + 'öngörülmüştür (varsayılan, O-850).',
     abrufProtokolliert: 'Her dosya çağrısı hesabınıza kaydedilir.',
     listeGekuerzt:
       'Yalnızca en yeni kayıtlar gösterilir. Listeyi kategoriye göre daraltın.',

@@ -84,11 +84,12 @@ export default async function Import(
       </p>
 
       <Hinweis art="warnung" cse="import-o128" className="mb-s7 max-w-[72ch]">
-        <strong>Der Übernahmeweg wartet auf eine Antwort, nicht auf Code (O-128).</strong>{' '}
-        Offen ist: in welchem Format Aplano, Lexware und die bestehenden Excel-Dateien
-        exportieren, welcher Zeitraum übernommen wird, und ob die historischen Daten
-        revisionssicher ins GoBD-Archiv müssen oder die Aufbewahrung im Altsystem
-        genügt. Ein geratener Parser ist hier kein Komfortfehler: Zeitnachweise nach
+        <strong>Voreinstellung (O-128): Übernahme als CSV-Export je Altsystem.</strong>{' '}
+        Aplano liefert die Zeiten, Lexware die Belege, Excel die Listen — UTF-8, Semikolon,
+        Zeitraum ab Beginn des laufenden Geschäftsjahres; die Altdaten bleiben im Altsystem
+        revisionssicher archiviert, die Plattform übernimmt keine historischen Buchungen.
+        Der Leser dafür ist noch nicht gebaut (V-300). Ein geratener Parser wäre hier kein
+        Komfortfehler: Zeitnachweise nach
         § 17 MiLoG und Rechnungen nach GoBD sehen auch dann plausibel aus, wenn eine
         Spalte in die falsche gelaufen ist — und niemand findet die Stelle später.
       </Hinweis>
@@ -135,8 +136,8 @@ export default async function Import(
         {laeufe.length === 0 ? (
           <p data-cse="import-laeufe-leer"
              className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            Kein Lauf vorhanden. Das ist der erwartete Zustand, solange O-128 offen ist —
-            die Tabelle existiert, der Weg dorthin nicht.
+            Kein Lauf vorhanden. Das ist der erwartete Zustand, solange der Leser nicht
+            gebaut ist (O-128, V-300) — die Tabelle existiert, der Weg dorthin nicht.
           </p>
         ) : (
           <div data-cse="import-laeufe">

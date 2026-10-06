@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { bewerteLauf } from '../../services/radar/lauf.js';
+import { PLATTFORM_VOREINSTELLUNG } from '../../services/radar/plattform.js';
 import { uebernimmAusschreibungAlsLead } from '../../services/crm/lead-radar.js';
 import { alsPortalSitzung } from './sitzung.js';
 
@@ -24,9 +25,12 @@ import { alsPortalSitzung } from './sitzung.js';
  * wäre genau die Art Behauptung, die diese Plattform nicht macht. Deshalb
  * `quell_url = null` und `quell_id` mit `demo-`.
  *
- * **Kein Plattformkatalog.** `vergabeplattform` bleibt leer, bis O-07
- * beantwortet ist — welche Plattformen gelten, und wer dort unter welcher
- * Kennung registriert ist, weiss niemand hier. Die Plattformseite sagt das.
+ * **Der Plattformkatalog ist die Voreinstellung** (O-07, D-784): die
+ * öffentlichen Vergabeplattformen aus `PLATTFORM_VOREINSTELLUNG`, jede
+ * unbestätigt (`ist_platzhalter`). Wer dort unter welcher Kennung registriert
+ * ist, weiss niemand hier — `mandant_plattform_registrierung` bleibt leer, und
+ * die Plattformseite sagt „unbekannt". Die Demo-Bekanntmachungen tragen keine
+ * Adresse, also wird keine von ihnen einer Plattform zugeordnet.
  */
 
 export interface Vorlage {
@@ -188,11 +192,25 @@ export interface RadarSeedBefund {
   readonly bewertungen: number;
   readonly mappenpositionen: number;
   readonly empfaenger: number;
+  readonly plattformen: number;
 }
 
 export async function seedRadar(
   sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,
 ): Promise<RadarSeedBefund> {
+  /* Der Plattformkatalog: die Voreinstellung, unbestätigt, ohne Registrierung (D-784). */
+  let plattformen = 0;
+  for (const p of PLATTFORM_VOREINSTELLUNG) {
+    const neu = await sql<{ id: string }[]>`
+      insert into vergabeplattform
+        (name, slug, betreiber, basis_url, host_muster, registrierung_erforderlich)
+      values (${p.name}, ${p.slug}, ${p.betreiber}, ${p.basisUrl},
+              ${sql.array([...p.hostMuster])}, ${p.registrierungErforderlich})
+      on conflict (slug) do nothing
+      returning id`;
+    plattformen += neu.length;
+  }
+
   for (const v of BEKANNTMACHUNGEN) {
     const [a] = await sql<{ id: string }[]>`
       insert into ausschreibung
@@ -265,7 +283,7 @@ export async function seedRadar(
 
   return {
     profile, bekanntmachungen: BEKANNTMACHUNGEN.length, bewertungen: lauf.neueZeilen,
-    mappenpositionen: mappe, empfaenger,
+    mappenpositionen: mappe, empfaenger, plattformen,
   };
 }
 

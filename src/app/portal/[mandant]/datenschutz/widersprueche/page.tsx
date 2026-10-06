@@ -318,7 +318,7 @@ export default async function Widerspruechseite(
       </section>
 
       <Hinweis art="hinweis" cse="widerspruch-offen" className="max-w-prose">
-        <strong className="block">Drei Punkte sind offen und stehen hier als offen.</strong>
+        <strong className="block">Zwei Punkte sind offen und stehen hier als offen; der dritte hat eine Voreinstellung.</strong>
         <ul className="m-0 mt-s2 list-disc ps-s5">
           <li>
             <strong>O-640</strong> — soll ein Werbewiderspruch je Kanal gelten (nur
@@ -327,9 +327,10 @@ export default async function Widerspruechseite(
             der Protokollzeile beschreibt den Anlass und wirkt nicht.
           </li>
           <li>
-            <strong>O-641</strong> — wirkt ein Widerspruch bei einer Gesellschaft
-            auch für die drei anderen? Heute nicht: die vier sind verschiedene
-            juristische Personen, jede für ihre Werbung selbst verantwortlich.
+            <strong>O-641</strong> — Voreinstellung: ein Widerspruch wirkt bei der
+            Gesellschaft, bei der er erklärt wurde, nicht bei den drei anderen — die
+            vier sind verschiedene juristische Personen, jede für ihre Werbung selbst
+            verantwortlich.
           </li>
           <li>
             <strong>O-65</strong> — gilt eine transaktionale Nachricht

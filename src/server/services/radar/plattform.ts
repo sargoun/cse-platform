@@ -13,8 +13,10 @@ import type { SchreibKontext } from '../../kontext/index.js';
  * registriert ist, und Bekanntmachungen auf Plattformen ohne Registrierung zu
  * markieren. `vergabeplattform` und `mandant_plattform_registrierung` standen
  * seit 0145 mit RLS und Schreibrechten da — geschrieben hat sie kein Weg. Dass
- * der Katalog LEER ausgeliefert wird, ist entschieden (O-07, D-490). Nicht
- * entschieden war, dass die Antwort auf O-07 nie eingetragen werden kann: die
+ * der Katalog LEER ausgeliefert wurde, war entschieden (O-07, D-490); seit D-784
+ * bringt der Seed die Voreinstellung mit, und ein leerer Katalog uebernimmt sie
+ * mit einem Knopf. Nicht entschieden war bis V-175, dass die Antwort auf O-07
+ * nie eingetragen werden kann: die
  * Seite versprach „die Super-Administration trägt die Plattformen ein", und
  * die Warnung „nicht freigeschaltet" konnte nie auslösen, weil keine
  * Bekanntmachung je eine Plattform bekam.
@@ -26,9 +28,11 @@ import type { SchreibKontext } from '../../kontext/index.js';
  *  - **Den Katalog pflegt die Super-Administration** — er gehört keiner
  *    Gesellschaft, und `r_plattform_schreiben` (0145, 0146) sagt dasselbe.
  *    Dieser Dienst fragt es vorher, damit der Mensch einen Satz bekommt.
- *  - **Eingetragen wird, was ein Mensch weiss; vorbelegt wird nichts** (O-07).
- *    Ein neuer Eintrag trägt `ist_platzhalter`, bis ein Mensch ihn eigens
- *    bestätigt.
+ *  - **Vorbelegt wird die Voreinstellung, bestätigt wird von Hand** (O-07,
+ *    D-784). `PLATTFORM_VOREINSTELLUNG` nennt die öffentlichen Plattformen;
+ *    jeder Eintrag — vorbelegt oder eingetragen — trägt `ist_platzhalter`, bis
+ *    ein Mensch ihn eigens bestätigt. Registrierung und Kennung einer
+ *    Gesellschaft sind Betreiberdaten und werden nie vorbelegt.
  *  - **Nach jeder Änderung am Katalog werden die schon eingelesenen
  *    Bekanntmachungen ohne Plattform nachgeordnet** — über
  *    `app.radar_plattform_nachordnen` (0420), also über DENSELBEN Auslöser
@@ -367,6 +371,92 @@ export async function legePlattformAn(
     `select app.protokolliere('radar.plattform_angelegt', 'vergabeplattform', $1, null,
                               $2::jsonb, app.aktiver_mandant())`, [id, zeile]);
   return { plattformId: id, zugeordnet: await nachordnen(kontext) };
+}
+
+/* ---------------------------------------------------------- Voreinstellung */
+
+export interface PlattformVoreinstellung {
+  readonly slug: string;
+  readonly name: string;
+  readonly betreiber: string;
+  readonly basisUrl: string;
+  readonly hostMuster: readonly string[];
+  readonly registrierungErforderlich: boolean;
+}
+
+/**
+ * Die Voreinstellung des Plattformkatalogs (O-07, D-784): die öffentlichen
+ * Vergabeplattformen, auf denen Berliner Aufträge für Reinigung, Sicherheit
+ * und Bau bekannt gemacht werden. Jeder Eintrag entsteht als `ist_platzhalter`
+ * und bleibt es, bis die Super-Administration ihn bestätigt, ändert oder
+ * archiviert. Unter welcher Kennung wer dort registriert ist, steht NICHT
+ * hier — das trägt jede Gesellschaft selbst ein (Betreiberdaten).
+ */
+// TODO(client, O-07): Voreinstellung — diese Plattformen als unbestätigte Katalogeinträge; Registrierung und Kennung trägt jede Gesellschaft selbst ein.
+export const PLATTFORM_VOREINSTELLUNG: readonly PlattformVoreinstellung[] = [
+  { slug: 'vergabeplattform-berlin', name: 'Vergabeplattform Berlin',
+    betreiber: 'Land Berlin', basisUrl: 'https://www.berlin.de/vergabeplattform/',
+    hostMuster: ['vergabeplattform.berlin.de'], registrierungErforderlich: true },
+  { slug: 'dtvp', name: 'Deutsches Vergabeportal (DTVP)',
+    betreiber: 'Deutsches Vergabeportal GmbH', basisUrl: 'https://www.dtvp.de/',
+    hostMuster: ['dtvp.de'], registrierungErforderlich: true },
+  { slug: 'vergabe24', name: 'Vergabe24',
+    betreiber: 'Staatsanzeiger für Baden-Württemberg GmbH & Co. KG',
+    basisUrl: 'https://www.vergabe24.de/',
+    hostMuster: ['vergabe24.de'], registrierungErforderlich: true },
+  { slug: 'evergabe-online', name: 'e-Vergabe des Bundes',
+    betreiber: 'Beschaffungsamt des Bundesministeriums des Innern',
+    basisUrl: 'https://www.evergabe-online.de/',
+    hostMuster: ['evergabe-online.de'], registrierungErforderlich: true },
+  { slug: 'subreport-elvis', name: 'subreport ELViS',
+    betreiber: 'subreport Verlag Schawe GmbH', basisUrl: 'https://www.subreport.de/',
+    hostMuster: ['subreport.de'], registrierungErforderlich: true },
+  { slug: 'vergabemarktplatz-brandenburg', name: 'Vergabemarktplatz Brandenburg',
+    betreiber: 'Land Brandenburg', basisUrl: 'https://vergabemarktplatz.brandenburg.de/',
+    hostMuster: ['vergabemarktplatz.brandenburg.de'], registrierungErforderlich: true },
+  { slug: 'bund-de', name: 'Bekanntmachungen auf bund.de',
+    betreiber: 'Bundesverwaltungsamt', basisUrl: 'https://www.service.bund.de/',
+    hostMuster: ['service.bund.de'], registrierungErforderlich: false },
+  { slug: 'ted', name: 'Tenders Electronic Daily (TED)',
+    betreiber: 'Amt für Veröffentlichungen der Europäischen Union',
+    basisUrl: 'https://ted.europa.eu/',
+    hostMuster: ['ted.europa.eu'], registrierungErforderlich: false },
+];
+
+/**
+ * Übernimmt die Voreinstellung in den Katalog — nur die Super-Administration,
+ * idempotent: ein Kurzname, der schon steht (auch archiviert), wird nicht noch
+ * einmal angelegt — entschieden am Eindeutigkeitsschlüssel (`on conflict`),
+ * nicht an einer Leseabfrage, die eine Policy leer zurückgeben könnte. Danach
+ * werden die Bekanntmachungen ohne Plattform EINMAL nachgeordnet, nicht je
+ * Eintrag. Jede neue Zeile steht im Prüfprotokoll.
+ */
+export async function uebernimmPlattformVoreinstellung(
+  kontext: SchreibKontext,
+): Promise<{ readonly angelegt: number; readonly zugeordnet: number }> {
+  await nurSuperAdmin(kontext);
+  let angelegt = 0;
+  for (const v of PLATTFORM_VOREINSTELLUNG) {
+    const d = pruefePlattform({
+      name: v.name, slug: v.slug, betreiber: v.betreiber, basisUrl: v.basisUrl,
+      hostMuster: v.hostMuster.join(' '), registrierungErforderlich: v.registrierungErforderlich,
+    });
+    const [zeile] = await kontext.schreibe<Record<string, unknown>>(
+      `insert into vergabeplattform
+         (name, slug, betreiber, basis_url, host_muster, registrierung_erforderlich)
+       values ($1, $2, $3, $4, $5::text[], $6::boolean)
+       on conflict (slug) do nothing
+       returning ${KATALOG_SPALTEN}`,
+      [d.name, v.slug, d.betreiber, d.basisUrl, d.hostMuster, d.registrierungErforderlich]);
+    const id = zeile?.['id'];
+    if (typeof id !== 'string') continue; // steht schon — bestätigt, unbestätigt oder archiviert
+    await kontext.schreibe(
+      `select app.protokolliere('radar.plattform_angelegt', 'vergabeplattform', $1, null,
+                                $2::jsonb, app.aktiver_mandant())`,
+      [id, { ...zeile, voreinstellung: 'O-07' }]);
+    angelegt += 1;
+  }
+  return { angelegt, zugeordnet: angelegt === 0 ? 0 : await nachordnen(kontext) };
 }
 
 /** Liest einen Katalogeintrag unter Sperre — oder wirft. */

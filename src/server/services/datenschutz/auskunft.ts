@@ -1184,8 +1184,10 @@ export async function erstelleAuskunft(
   for (const o of offen) {
     abschnitte.push({
       schluessel: o.schluessel, titel: o.titel,
-      zweck: 'noch nicht entschieden — der Umfang ist offen',
-      quelle: o.quelle, frist: 'noch nicht entschieden',
+      zweck: 'Voreinstellung (O-113): gehört zur Auskunft und wird von einem Menschen beigefügt '
+        + '— maschinell liest die Auskunft diese Tabellen noch nicht (V-301)',
+      quelle: o.quelle,
+      frist: 'Voreinstellung: Aufbewahrung nach § 147 AO / GoBD, Löschung erst danach',
       recht: null, leseweg: 'offen', gesperrt: false, offen: o.frage,
       kopf: [], zeilen: [],
     });

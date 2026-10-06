@@ -245,10 +245,10 @@ export default async function ProfilBearbeiten(
           </label>
           <p className="text-xs text-text-muted">
             Leer heisst: ohne Einschränkung. Geprüft wird die <strong>Form</strong> — zwei
-            Buchstaben Land und bis zu drei Stellen. Gegen welche Fassung der amtlichen
-            NUTS-Liste die Präfixe zu prüfen wären, ist offen{' '}
-            <strong>(offen — O-721)</strong>: ein Präfix in richtiger Form, das kein Gebiet
-            bezeichnet, engt die Suche still ein.
+            Buchstaben Land und bis zu drei Stellen. Bezugsfassung ist NUTS 2024{' '}
+            <strong>(Voreinstellung, O-721)</strong>; gegen die Liste selbst wird noch nicht
+            geprüft (V-294): ein Präfix in richtiger Form, das kein Gebiet bezeichnet, engt die
+            Suche still ein.
           </p>
 
           <label className="flex flex-col gap-s2 text-xs text-text-muted" htmlFor="positiv">

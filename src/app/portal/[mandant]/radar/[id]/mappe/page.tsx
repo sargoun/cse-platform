@@ -25,12 +25,13 @@ import { Recht } from '@/components/ui/Recht';
  * dafür keine Schnittstelle an (D-07). Der einzige Knopf in diese Richtung
  * heisst „Einreichung erfassen" und hält fest, was ein Mensch getan hat.
  *
- * **Die Liste ist leer, bis jemand sie füllt — mit Absicht.** Es gibt keine
- * Vorlage „die üblichen zwölf Unterlagen": welche Formblätter eine Plattform
- * bei welcher Verfahrensart verlangt, steht in keiner Liste, die hier
- * vorliegt (O-194). Eine geratene Vorlage wäre eine Prüfliste, die vollständig
- * aussieht und es nicht ist — genau der Fehler, der ein Angebot nach § 57 VgV
- * ausschliesst, ohne dass jemand den Preis liest.
+ * **Die Liste beginnt leer; die Voreinstellung füllt sie auf Knopfdruck**
+ * (O-194, D-784): zwölf Unterlagen, die Vergabestellen regelmässig verlangen,
+ * jede `offen`. Die Vergabeunterlagen entscheiden, was davon gilt und was
+ * fehlt — eine Vorlage, die niemand gegen sie liest, wäre eine Prüfliste, die
+ * vollständig aussieht und es nicht ist: genau der Fehler, der ein Angebot
+ * nach § 57 VgV ausschliesst, ohne dass jemand den Preis liest. Deshalb sagt
+ * die Seite es an der Liste.
  *
  * **„Liegt vor" ist nicht „erledigt."** Der Zähler oben verlangt `geprüft`
  * oder eine begründete Nichtzuständigkeit. Die häufigsten Ausschlüsse sind
@@ -277,12 +278,30 @@ export default async function Vergabemappe(
       <section className="mb-s6">
         <h2 className="mb-s3 text-h2 text-text">Prüfliste</h2>
         {m.positionen.length === 0 ? (
-          <p className="max-w-prose text-sm text-text-muted" data-cse="mappe-leer">
-            Noch keine Position. Die geforderten Unterlagen stehen in den Vergabeunterlagen der
-            Vergabestelle — diese Plattform rät sie nicht: welche Formblätter eine Plattform bei
-            welcher Verfahrensart verlangt, ist eine offene Frage (O-194), und eine erfundene
-            Vorlage sähe vollständig aus, ohne es zu sein.
-          </p>
+          <div className="max-w-prose" data-cse="mappe-leer">
+            <p className="text-sm text-text-muted">
+              Noch keine Position. Die geforderten Unterlagen stehen in den Vergabeunterlagen der
+              Vergabestelle. <strong>Voreinstellung (O-194):</strong> die zwölf Unterlagen, die
+              Vergabestellen regelmässig verlangen — Angebotsschreiben, bepreistes
+              Leistungsverzeichnis, Eigenerklärung zur Eignung, Registerauszug, Bescheinigungen
+              von Finanzamt, Berufsgenossenschaft und Krankenkasse, Betriebshaftpflicht,
+              Referenzen, Gewerbezentralregister, Tariftreueerklärung, Nachunternehmererklärung.
+              Sie sind ein Anfang, keine Vergabeunterlage: Was dort nicht gefordert ist, wird
+              entfernt oder begründet als „gilt nicht" markiert; was dort zusätzlich steht, kommt
+              dazu.
+            </p>
+            {darfSchreiben && !gesperrt ? (
+              <form method="post" action="/api/vergabe/mappe" className="mt-s3">
+                <input type="hidden" name="mandant" value={mandant} />
+                <input type="hidden" name="ausschreibung" value={id} />
+                <input type="hidden" name="mappe" value={m.mappeId} />
+                <input type="hidden" name="was" value="pruefliste_voreinstellung" />
+                <Button type="submit" variante="secondary" data-cse="pruefliste-voreinstellung">
+                  Voreinstellung übernehmen
+                </Button>
+              </form>
+            ) : null}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[42rem] border-collapse text-sm" data-cse="mappe-positionen">

@@ -117,8 +117,9 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       'Er steht genau einmal hier; gespeichert ist nur seine Prüfsumme, aus der er sich '
       + 'nicht wiederherstellen lässt. Einen neuen Link für eine offene Einladung stellt '
       + 'das Portal noch nicht aus — eine zweite Einladung derselben Adresse in dieser '
-      + 'Gesellschaft wird abgewiesen. Wie ein verlorener Link ersetzt wird, ist noch offen '
-      + '(O-980).',
+      + 'Gesellschaft wird abgewiesen. Voreinstellung (O-980): die Super-Administration '
+      + 'stellt den Link neu aus und entwertet den alten — gebaut ist dieser Weg noch nicht '
+      + '(V-302).',
     erfolg: {
       eingeladen:
         'Die Einladung ist ausgestellt; den Link zeigt die Seite nur unmittelbar danach — '
@@ -148,8 +149,11 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       schon_eingetragen:
         'Dieses Konto ist in dieser Gesellschaft schon eingetragen; eine zweite Einladung legt '
         + 'nichts an und stellt keinen neuen Link aus. Einen neuen Link für eine offene '
-        + 'Einladung stellt das Portal noch nicht aus (O-980), und die Rolle einer '
-        + 'Mitgliedschaft lässt sich hier noch nicht ändern (O-981).',
+        + 'Einladung stellt das Portal noch nicht aus (Voreinstellung O-980: die '
+        + 'Super-Administration stellt ihn neu aus, der alte verfällt), und die Rolle einer '
+        + 'Mitgliedschaft lässt sich hier noch nicht ändern (Voreinstellung O-981: der Wechsel '
+        + 'geschieht am Benutzerblatt durch die Super-Administration) — beides ist noch nicht '
+        + 'gebaut (V-302).',
       nicht_ausgestellt: 'Die Datenbank hat keine Einladung ausgestellt; es wurde kein Konto '
         + 'angelegt.',
       anbieter_fremd:
@@ -209,7 +213,8 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       'It is shown exactly once; only its checksum is stored, and the link cannot be '
       + 'restored from it. The portal does not yet issue a new link for an open '
       + 'invitation — a second invitation of the same address in this Gesellschaft is '
-      + 'rejected. How a lost link is replaced is still open (O-980).',
+      + 'rejected. Default (O-980): the super administration re-issues the link and the old '
+      + 'one expires — that path is not built yet (V-302).',
     erfolg: {
       eingeladen:
         'The invitation has been issued; the page shows the link only right afterwards — '
@@ -232,8 +237,10 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
       schon_eingetragen:
         'This account is already registered in this Gesellschaft; a second invitation creates '
         + 'nothing and issues no new link. The portal does not yet issue a new link for an '
-        + 'open invitation (O-980), and the role of a membership cannot be changed here yet '
-        + '(O-981).',
+        + 'open invitation (default O-980: the super administration re-issues it, the old one '
+        + 'expires), and the role of a membership cannot be changed here yet (default O-981: '
+        + 'the change is made on the user sheet by the super administration) — neither path is '
+        + 'built yet (V-302).',
       nicht_ausgestellt: 'The database issued no invitation; no account was created.',
       anbieter_fremd:
         'Supabase Auth is active as the provider. An account is then created with the '

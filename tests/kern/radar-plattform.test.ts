@@ -13,8 +13,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  PlattformFehler, REGISTRIERUNG_STAENDE, leseBasisUrl, leseHostmuster, pruefePlattform,
-  pruefeRegistrierung, type PlattformFehlerCode,
+  PLATTFORM_VOREINSTELLUNG, PlattformFehler, REGISTRIERUNG_STAENDE, leseBasisUrl, leseHostmuster,
+  pruefePlattform, pruefeRegistrierung, type PlattformFehlerCode,
 } from '../../src/server/services/radar/plattform.js';
 import { PLATTFORM_PRUEFUNGEN } from '../../src/server/services/radar/vorgang.js';
 import { RADAR_PLATTFORM_TEXTE } from '../../src/lib/i18n/verwaltung/radar-plattform.js';
@@ -135,7 +135,7 @@ describe('(5) jede Abweisung und jeder Stand hat einen Satz — in beiden Sprach
     }
     for (const stand of REGISTRIERUNG_STAENDE) expect(t.stand[stand], stand).toBeTruthy();
     for (const p of PLATTFORM_PRUEFUNGEN) expect(t.pruefung[p], p).toBeTruthy();
-    for (const v of ['angelegt', 'geaendert', 'bestaetigt', 'archiviert', 'registrierung']) {
+    for (const v of ['angelegt', 'voreinstellung', 'geaendert', 'bestaetigt', 'archiviert', 'registrierung']) {
       expect(eigenerEintrag(t.vermerkt, v), v).toBeDefined();
     }
     // Kein Satz nennt einen rohen Schlüssel.
@@ -206,5 +206,40 @@ describe('(7) EINE Frage „freigeschaltet?" für alle Warnungen (V-240)', () =>
     expect(daten).toContain('and m.mandant_id = app.aktiver_mandant()');
     expect(readFileSync('src/app/portal/[mandant]/radar/[id]/mappe/daten.ts', 'utf8'))
       .toContain('and mpr.mandant_id = m.mandant_id');
+  });
+});
+
+describe('(8) die Voreinstellung des Katalogs (O-07, D-784)', () => {
+  it('jeder Eintrag besteht die Prüfung eines Katalogeintrags — Kurzname, Betreiber, Adresse, Hostnamen', () => {
+    expect(PLATTFORM_VOREINSTELLUNG.length).toBeGreaterThanOrEqual(6);
+    const slugs = PLATTFORM_VOREINSTELLUNG.map((p) => p.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+    for (const p of PLATTFORM_VOREINSTELLUNG) {
+      const d = pruefePlattform({
+        name: p.name, slug: p.slug, betreiber: p.betreiber, basisUrl: p.basisUrl,
+        hostMuster: p.hostMuster.join(' '), registrierungErforderlich: p.registrierungErforderlich,
+      });
+      expect(d.slug, p.slug).toBe(p.slug);
+      expect(d.betreiber, p.slug).not.toBeNull();
+      expect(d.basisUrl, p.slug).not.toBeNull();
+      expect(d.hostMuster, p.slug).toEqual([...p.hostMuster]);
+    }
+  });
+
+  it('Berlin verlangt eine Registrierung; die reinen Bekanntmachungsdienste nicht', () => {
+    const je = (slug: string) => PLATTFORM_VOREINSTELLUNG.find((p) => p.slug === slug);
+    expect(je('vergabeplattform-berlin')?.registrierungErforderlich).toBe(true);
+    expect(je('ted')?.registrierungErforderlich).toBe(false);
+    expect(je('bund-de')?.registrierungErforderlich).toBe(false);
+  });
+
+  it('Knopf und Rückmeldung stehen in beiden Sprachen, und der leere Katalog nennt die Voreinstellung', () => {
+    for (const sprache of ['de', 'en'] as const) {
+      const t = RADAR_PLATTFORM_TEXTE[sprache];
+      expect(t.voreinstellungKnopf.trim().length).toBeGreaterThan(0);
+      expect(eigenerEintrag(t.vermerkt, 'voreinstellung')).toContain('O-07');
+      expect(t.leerText).toContain('O-07');
+      expect(t.leerText).not.toMatch(/ist offen|open question/u);
+    }
   });
 });

@@ -219,8 +219,10 @@ export default async function Bewerbungsblatt(
               <strong>Das Karriereformular nimmt heute keine Datei an.</strong>{' '}
               Der Belegspeicher ist nicht verbunden, und ein Feld, das eine
               Datei annimmt und sie nirgends ablegt, ist schlimmer als keines —
-              der Mensch glaubt dann, sie sei angekommen. Die Frage steht als
-              O-375 offen.
+              der Mensch glaubt dann, sie sei angekommen. Voreinstellung (O-375):
+              Unterlagen gehen in den privaten Belegspeicher der Plattform und werden
+              mit der Bewerbung gelöscht — das entsteht, sobald der Betreiber den
+              Speicher verbindet.
             </Hinweis>
 
             {/* ------------------- Strukturierte Angaben (REC-04, V-223, D-717) */}

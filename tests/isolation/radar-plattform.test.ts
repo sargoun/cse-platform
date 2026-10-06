@@ -13,8 +13,8 @@ import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  PlattformFehler, aenderePlattform, archivierePlattform, bestaetigePlattform, legePlattformAn,
-  setzeRegistrierung,
+  PLATTFORM_VOREINSTELLUNG, PlattformFehler, aenderePlattform, archivierePlattform,
+  bestaetigePlattform, legePlattformAn, setzeRegistrierung, uebernimmPlattformVoreinstellung,
 } from '../../src/server/services/radar/plattform.js';
 import {
   VorgangFehler, setzePlattformPruefung, setzeVorgangsstand,
@@ -378,5 +378,50 @@ describe('(4) die Plattformprüfung am Vorgang', () => {
     const falsch = await fehlerVon(als(admin, f.reinigung, (k) =>
       setzePlattformPruefung(k, a, 'vielleicht')));
     expect((falsch as VorgangFehler).code).toBe('plattform');
+  });
+});
+
+describe('(5) die Voreinstellung des Katalogs (O-07, D-784)', () => {
+  it('die Super-Administration übernimmt sie — unbestätigt, idempotent, archivierte kommen nicht zurück', async () => {
+    const vorher = (await sql.unsafe<{ slug: string }[]>(`select slug from vergabeplattform`))
+      .map((z) => z.slug);
+    const fehlend = PLATTFORM_VOREINSTELLUNG.filter((p) => !vorher.includes(p.slug));
+
+    const erste = await als(chef, f.reinigung, (k) => uebernimmPlattformVoreinstellung(k));
+    expect(erste.angelegt).toBe(fehlend.length);
+
+    const zeilen = await sql.unsafe<{ slug: string; platzhalter: boolean; hosts: string[] }[]>(
+      `select slug, ist_platzhalter as platzhalter, host_muster as hosts from vergabeplattform
+        where slug = any($1::text[])`, [PLATTFORM_VOREINSTELLUNG.map((p) => p.slug)]);
+    expect(zeilen).toHaveLength(PLATTFORM_VOREINSTELLUNG.length);
+    for (const z of zeilen) {
+      expect(z.platzhalter, z.slug).toBe(true);
+      expect(z.hosts.length, z.slug).toBeGreaterThan(0);
+    }
+    const [log] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from audit_log
+        where aktion = 'radar.plattform_angelegt' and nachher->>'voreinstellung' = 'O-07'`);
+    expect(log!.n).toBeGreaterThanOrEqual(fehlend.length);
+
+    const zweite = await als(chef, f.reinigung, (k) => uebernimmPlattformVoreinstellung(k));
+    expect(zweite).toEqual({ angelegt: 0, zugeordnet: 0 });
+
+    /* Archiviert gilt als vorhanden: der Eintrag kommt nicht zurück (wie bei den Gewerken, D-782). */
+    const [ted] = await sql.unsafe<{ id: string; archiviert: boolean }[]>(
+      `select id, archiviert_am is not null as archiviert from vergabeplattform where slug = 'ted'`);
+    if (!ted!.archiviert) {
+      await als(chef, f.reinigung, (k) => archivierePlattform(k, ted!.id));
+    }
+    const dritte = await als(chef, f.reinigung, (k) => uebernimmPlattformVoreinstellung(k));
+    expect(dritte.angelegt).toBe(0);
+    const [nachher] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from vergabeplattform where slug = 'ted'`);
+    expect(nachher!.n).toBe(1);
+  });
+
+  it('eine Mandanten-Administration bekommt einen Satz, keinen Katalog', async () => {
+    const e = await fehlerVon(als(admin, f.reinigung, (k) => uebernimmPlattformVoreinstellung(k)));
+    expect(e).toBeInstanceOf(PlattformFehler);
+    expect((e as PlattformFehler).code).toBe('nur_super_admin');
   });
 });

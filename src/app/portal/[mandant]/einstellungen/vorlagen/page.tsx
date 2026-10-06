@@ -250,8 +250,8 @@ export default async function Vorlagen(
           würde. Zustellt wird
           in den Posteingang des Portals; nach draussen geht nichts, solange kein
           EU-gehosteter Versender mit Vertrag zur Auftragsverarbeitung gewählt ist
-          (O-36), und welche Absenderadresse je Gesellschaft gilt sowie ob DKIM und
-          DMARC eingerichtet sind, ist offen (O-501).
+          (O-36); welche Absenderadresse je Gesellschaft gilt und ob DKIM und DMARC
+          eingerichtet sind, trägt der Betreiber ein (O-501).
         </p>
         <div data-cse="benachrichtigungsarten">
           <DataTable

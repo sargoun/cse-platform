@@ -10,7 +10,7 @@ import { withTenant } from '@/server/kontext/index';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import {
   PlattformFehler, archivierePlattform, aenderePlattform, bestaetigePlattform,
-  legePlattformAn, setzeRegistrierung, type PlattformRoh,
+  legePlattformAn, setzeRegistrierung, uebernimmPlattformVoreinstellung, type PlattformRoh,
 } from '@/server/services/radar/plattform';
 import { alsAntwort } from '../../sicherheit/antwort';
 
@@ -18,8 +18,9 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * `POST /api/radar/plattform` — den Plattformkatalog und den
  * Registrierungsstand pflegen (RAD-09, O-07, V-175, D-669).
  *
- * **Fünf Handlungen an einer Adresse, weil sie EINE Seite betreffen**: eine
- * Plattform eintragen, einen Eintrag ändern, bestätigen oder archivieren (nur
+ * **Sechs Handlungen an einer Adresse, weil sie EINE Seite betreffen**: die
+ * Voreinstellung des Katalogs übernehmen (D-784), eine Plattform eintragen,
+ * einen Eintrag ändern, bestätigen oder archivieren (nur
  * die Super-Administration — das prüft der Dienst und die Policy
  * `r_plattform_schreiben`), und den Registrierungsstand dieser Gesellschaft
  * setzen. Das Tor davor ist das Recht der Seite, `radar.plattform_verwalten`.
@@ -89,6 +90,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           case 'plattform_anlegen': {
             const e = await legePlattformAn(kontext, katalog());
             return { vermerkt: 'angelegt', zugeordnet: e.zugeordnet };
+          }
+          case 'plattform_voreinstellung': {
+            const e = await uebernimmPlattformVoreinstellung(kontext);
+            return { vermerkt: 'voreinstellung', zugeordnet: e.zugeordnet };
           }
           case 'plattform_aendern': {
             const e = await aenderePlattform(kontext, plattform, katalog());

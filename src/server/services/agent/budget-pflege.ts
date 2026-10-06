@@ -148,6 +148,20 @@ async function schreibeOderSatz<T>(lauf: Promise<readonly T[]>): Promise<readonl
   }
 }
 
+/**
+ * Die Warnschwelle, mit der die Maske vorbelegt ist und die der Seed setzt
+ * (O-195, D-784): 80 % des Monatsbudgets. Gespeichert wird sie mit der Zeile;
+ * eine Zeile ohne Schwelle bleibt möglich und wird auf der Seite genannt.
+ * Ausgelöst wird durch sie heute nichts (V-292) — sie steht an der Zeile.
+ *
+ * Budget und Preisliste rechnen in Euro (Mikrocent); der Anbieter rechnet in
+ * USD ab, umgerechnet wird beim Eintrag der Preisliste zum Kurs des
+ * Eintragstags (`waehrung_original` hält die Ursprungswährung fest). Ein
+ * Kursdienst ist nicht angebunden.
+ */
+// TODO(client, O-195): Voreinstellung — Warnung ab 80 % des Monatsbudgets; Budget und Preisliste in Euro, Kurs beim Eintrag der Preisliste.
+export const WARNSCHWELLE_VOREINSTELLUNG_PROZENT = 80;
+
 export async function setzeBudget(
   kontext: SchreibKontext, e: BudgetEingabe,
 ): Promise<{ readonly budgetId: string; readonly cent: Cent }> {
@@ -158,8 +172,8 @@ export async function setzeBudget(
   if (schwelle !== null
     && (!Number.isInteger(schwelle) || schwelle < 1 || schwelle > 100)) {
     throw new BudgetFehler(
-      'Die Warnschwelle ist ein Anteil zwischen 1 und 100 Prozent — oder sie bleibt '
-      + 'leer, solange niemand sie entschieden hat (O-195).', 'schwelle');
+      'Die Warnschwelle ist ein Anteil zwischen 1 und 100 Prozent (Voreinstellung 80 %, '
+      + 'O-195) — oder sie bleibt leer.', 'schwelle');
   }
   if (e.bereich === 'agent' && (e.agentId ?? null) === null) {
     throw new BudgetFehler(

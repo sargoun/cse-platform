@@ -361,8 +361,11 @@ export default async function Mahnwesen(
           <p className="mt-s4 text-xs text-text-muted">
             Der Basiszinssatz nach § 247 BGB wird nicht hier gepflegt: er ist eine
             halbjährliche Bekanntmachung der Deutschen Bundesbank und gilt für
-            alle Gesellschaften. Fehlt er, fordert eine Mahnung keinen Zins und
-            sagt es (O-358).
+            alle Gesellschaften. Voreinstellung (O-358): die Buchhaltung der CSE Operations
+            trägt ihn zentral für die Gruppe ein, zum 1. Januar und 1. Juli; der Wächter
+            meldet am 15. Juni und 15. Dezember einen fehlenden Satz als gescheiterten Lauf
+            und benachrichtigt niemanden eigens. Einen Eingabeweg dafür gibt es noch nicht
+            (V-299). Fehlt der Satz, fordert eine Mahnung keinen Zins und sagt es.
           </p>
 
           <button

@@ -164,9 +164,9 @@ export default async function Einreichung(
                 </label>
               ) : (
                 <p className="text-sm text-text-muted" data-cse="einreichung-katalog-leer">
-                  Der Plattformkatalog ist leer: auf welchen Plattformen diese Gruppe registriert
-                  ist, hat noch niemand hinterlegt (O-07). Tragen Sie die Plattform so lange im
-                  Klartext ein.
+                  Der Plattformkatalog ist leer: die Super-Administration übernimmt unter
+                  Radar › Vergabeplattformen die Voreinstellung (O-07) oder trägt die Plattformen
+                  ein. Tragen Sie die Plattform so lange im Klartext ein.
                 </p>
               )}
 

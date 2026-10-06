@@ -310,9 +310,9 @@ export const ANMELDUNG_TEXTE: Readonly<Record<PortalSprache, AnmeldungTexte>> = 
       + 'hinter HTTPS — dann tragen die Anmelde-Merkzeichen wieder das Merkmal „Secure“.',
     smsTitel: 'SMS-Versand: nicht verbunden.',
     smsText:
-      'Es ist kein Gateway hinterlegt (offene Frage O-82: welcher in der EU gehostete '
-      + 'Anbieter mit Auftragsverarbeitungsvertrag, und ab welchem Monatsbetrag gilt ein '
-      + 'harter Stopp).',
+      'Es ist kein Gateway hinterlegt — den Anbieter (in der EU gehostet, mit '
+      + 'Auftragsverarbeitungsvertrag) und den Monatsbetrag für den harten Stopp trägt der '
+      + 'Betreiber ein (O-82).',
     smsEntwicklung:
       'Auf dieser Entwicklungsfläche wird der Code stattdessen sichtbar angezeigt.',
     smsOhne:
@@ -386,8 +386,8 @@ export const ANMELDUNG_TEXTE: Readonly<Record<PortalSprache, AnmeldungTexte>> = 
       + 'HTTPS — then the sign-in cookies carry the “Secure” attribute again.',
     smsTitel: 'SMS sending: not connected.',
     smsText:
-      'No gateway is configured (open question O-82: which EU-hosted provider with a '
-      + 'data processing agreement, and from which monthly amount a hard stop applies).',
+      'No gateway is configured — the operator has to set up the provider (EU-hosted, with a '
+      + 'data processing agreement) and the monthly amount for the hard stop (O-82).',
     smsEntwicklung: 'On this development installation the code is shown on screen instead.',
     smsOhne:
       'Until then no SMS arrives here. Your site manager issues your code in the portal '
@@ -459,8 +459,8 @@ export const ANMELDUNG_TEXTE: Readonly<Record<PortalSprache, AnmeldungTexte>> = 
       + 'الخاصة بتسجيل الدخول السمة «Secure» من جديد.',
     smsTitel: 'إرسال الرسائل القصيرة: غير متصل.',
     smsText:
-      'لم تُحدَّد بوابة إرسال (سؤال مفتوح O-82: أي مزوّد مستضاف في الاتحاد الأوروبي مع عقد '
-      + 'معالجة بيانات، ومن أي مبلغ شهري يُطبَّق إيقاف صارم).',
+      'لم تُحدَّد بوابة إرسال — يضبط المشغّل المزوّد (مستضاف في الاتحاد الأوروبي مع عقد '
+      + 'معالجة بيانات) والمبلغ الشهري للإيقاف الصارم (O-82).',
     smsEntwicklung: 'في نسخة التطوير هذه يُعرض الرمز على الشاشة بدلاً من ذلك.',
     smsOhne:
       'حتى ذلك الحين لن تصل أي رسالة SMS إلى هنا. يُصدر مسؤول العمل الرمز لك في البوابة '
@@ -529,9 +529,8 @@ export const ANMELDUNG_TEXTE: Readonly<Record<PortalSprache, AnmeldungTexte>> = 
       + 'zaman giriş çerezleri yeniden “Secure” özelliğini taşır.',
     smsTitel: 'SMS gönderimi: bağlı değil.',
     smsText:
-      'Tanımlı bir ağ geçidi yok (açık soru O-82: veri işleme sözleşmesi olan, AB’de '
-      + 'barındırılan hangi sağlayıcı ve hangi aylık tutardan itibaren kesin durdurma '
-      + 'uygulanır).',
+      'Tanımlı bir ağ geçidi yok — sağlayıcıyı (AB’de barındırılan, veri işleme sözleşmesi '
+      + 'olan) ve kesin durdurma için aylık tutarı işletmeci tanımlar (O-82).',
     smsEntwicklung: 'Bu geliştirme kurulumunda kod bunun yerine ekranda gösterilir.',
     smsOhne:
       'O zamana kadar buraya SMS gelmez. Ekip yöneticiniz kodunuzu portalda oluşturur '

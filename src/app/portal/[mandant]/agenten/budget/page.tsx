@@ -8,6 +8,7 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { mikrocentNachCent } from '@/server/agent/kosten';
 import { warnschwelleOffen } from '@/server/agent/budget';
+import { WARNSCHWELLE_VOREINSTELLUNG_PROZENT } from '@/server/services/agent/budget-pflege';
 import { monatsName } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -275,7 +276,9 @@ export default async function AgentBudget(
       )}
 
       {/*
-        **Die Warnschwelle wird genannt, nicht erfunden** (O-195, V-245). Die
+        **Die Warnschwelle wird genannt, nicht erfunden** (O-195, V-245) — und
+        seit D-784 ist die Maske mit der Voreinstellung 80 % vorbelegt; eine
+        Zeile ohne Schwelle bleibt möglich und wird unten genannt. Die
         Abfrage oben liest `warnschwelle_prozent`, und bis V-015 stand hier
         unbedingt „nicht hinterlegt". Mit der Maske darunter LÄSST sie sich
         setzen — der Satz fiel dabei ersatzlos weg, und die Seite schwieg
@@ -407,6 +410,7 @@ export default async function AgentBudget(
             <label className="flex flex-col gap-s2 text-sm text-text">
               {t.warnschwelle} <span className="text-text-muted">{t.freiwillig}</span>
               <input type="number" name="warnschwelle" min={1} max={100}
+                     defaultValue={WARNSCHWELLE_VOREINSTELLUNG_PROZENT}
                      className={FELD} data-cse="budget-warnschwelle" />
               <span className="text-xs text-text-muted">{t.warnschwelleErklaerung}</span>
             </label>

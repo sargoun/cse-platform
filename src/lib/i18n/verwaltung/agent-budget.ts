@@ -87,18 +87,19 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
       + 'steht nur im Protokoll.',
     warnschwelle: 'Warnschwelle',
     warnschwelleErklaerung:
-      'Ab welchem Anteil des Monatsbudgets gewarnt wird. Leer lassen, solange es dafür '
-      + 'keine Entscheidung gibt (O-195) — ein erfundener Wert sähe abgestimmt aus.',
+      'Ab welchem Anteil des Monatsbudgets gewarnt wird. Voreinstellung 80 % (O-195) — '
+      + 'vorbelegt, bis der Betreiber einen anderen Wert wählt; leer heisst: keine Schwelle an '
+      + 'dieser Zeile.',
     prozent: 'Prozent',
     freiwillig: '(freiwillig)',
     speichern: 'Obergrenze speichern',
 
     warnungAb: (prozent) => `Warnung ab ${String(prozent)} %`,
     warnschwelleOffen:
-      'Warnschwelle: nicht hinterlegt (offene Frage O-195). AGT-05 nennt eine Obergrenze '
-      + 'und einen harten Stopp; ab welchem Anteil vorher gewarnt wird, ist eine Finanzregel '
-      + 'und wird nicht erfunden. Wer die Obergrenze setzt, trägt sie ein, sobald sie '
-      + 'entschieden ist.',
+      'Warnschwelle: in mindestens einer Zeile nicht hinterlegt. Voreinstellung (O-195): '
+      + '80 % des Monatsbudgets — die Maske belegt sie vor, gespeichert wird sie mit der Zeile. '
+      + 'Gewarnt wird nicht von selbst: die Schwelle steht an ihrer Zeile, eine Benachrichtigung '
+      + 'ist nicht gebaut (V-292).',
 
     gesetzt:
       'Die Obergrenze ist gesetzt. Ein zuvor gesetzter Stopp ist damit aufgehoben — der '
@@ -151,17 +152,17 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
       + 'audit log.',
     warnschwelle: 'Warning threshold',
     warnschwelleErklaerung:
-      'The share of the monthly budget at which to warn. Leave it empty while there is no '
-      + 'decision (O-195) — an invented figure would look agreed.',
+      'The share of the monthly budget at which to warn. Default 80% (O-195) — prefilled until '
+      + 'the operator chooses another value; empty means no threshold on this row.',
     prozent: 'percent',
     freiwillig: '(optional)',
     speichern: 'Save cap',
 
     warnungAb: (prozent) => `Warns at ${String(prozent)}%`,
     warnschwelleOffen:
-      'Warning threshold: not on file (open question O-195). AGT-05 names a cap and a hard '
-      + 'stop; the share at which to warn beforehand is a financial rule and is not '
-      + 'invented. Whoever sets the cap enters it once it has been decided.',
+      'Warning threshold: not on file for at least one row. Default (O-195): 80% of the monthly '
+      + 'budget — the form prefills it, it is stored with the row. Nothing warns by itself: the '
+      + 'threshold stands on its row, a notification is not built (V-292).',
 
     gesetzt:
       'The cap is set. Any earlier stop is lifted with it — the next run sets it again if '

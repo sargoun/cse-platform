@@ -268,14 +268,14 @@ export default async function Vorgangsakte(
       {z.art === 'einschraenkung' && (
         <Hinweis art="warnung" cse="vorgang-art18" className="mb-s7 max-w-prose">
           <strong className="block">
-            Art. 18 DSGVO — Einschränkung: offen (O-647).
+            Art. 18 DSGVO — Einschränkung: organisatorisch (Voreinstellung, O-647).
           </strong>
           Das Datenmodell führt kein Merkmal „eingeschränkt": es gibt keine Spalte,
           die eine Verarbeitung anhält, ohne sie zu beenden. Diese Anfrage wird
           deshalb von einem Menschen beschieden und die Einschränkung
           organisatorisch umgesetzt — ein Haken, der nichts sperrt, wäre die
           schlechtere Antwort.
-          {/* TODO(client, O-647): Wie wird eine Einschränkung nach Art. 18 technisch umgesetzt — Sperrmerkmal je Datensatz oder organisatorisch? */}
+          {/* TODO(client, O-647): Voreinstellung — organisatorisch (ein Mensch bescheidet, der Abschlusstext hält es fest); ein Sperrmerkmal je Datensatz erst, wenn der Betreiber es verlangt. */}
         </Hinweis>
       )}
 
@@ -295,8 +295,8 @@ export default async function Vorgangsakte(
        && (zuordnung.art === 'person' || zuordnung.art === 'bewerbung') && (
         <Hinweis art="warnung" cse="vorgang-art21-ohne-merkmal" className="mb-s7 max-w-prose">
           <strong className="block">
-            Art. 21 DSGVO für diese Personengruppe: kein Merkmal im Datenmodell
-            (O-647).
+            Art. 21 DSGVO für diese Personengruppe: organisatorisch (Voreinstellung,
+            O-647).
           </strong>
           Ein Widerspruchsmerkmal führen nur Ansprechpartner und Kunden — die
           werbliche Ansprache.
@@ -318,7 +318,7 @@ export default async function Vorgangsakte(
             * teilten EINE Entscheidung in zwei Haelften, die niemand getrennt
             * beantworten kann.
             */}
-          {/* TODO(client, O-647): Gilt das Sperrmerkmal auch fuer einen Art.-21-Widerspruch einer Beschaeftigten oder Bewerberin, oder bleibt der organisatorisch? */}
+          {/* TODO(client, O-647): Voreinstellung — auch der Art.-21-Widerspruch einer Beschaeftigten oder Bewerberin wird organisatorisch umgesetzt und im Abschlusstext festgehalten. */}
         </Hinweis>
       )}
 

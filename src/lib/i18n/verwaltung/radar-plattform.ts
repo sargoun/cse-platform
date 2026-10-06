@@ -37,6 +37,7 @@ export interface RadarPlattformTexte {
   readonly leerTitel: string;
   readonly leerText: string;
   readonly leerSuperAdmin: string;
+  readonly voreinstellungKnopf: string;
 
   /* ── Eine Zeile des Katalogs ───────────────────────────────────────── */
   readonly betreiberFehlt: string;
@@ -150,6 +151,9 @@ export const RADAR_PLATTFORM_TEXTE: Readonly<Record<InternSprache, RadarPlattfor
     fehlerSonst: 'Die Eingabe wurde abgewiesen.',
     vermerkt: {
       angelegt: 'Die Plattform ist eingetragen — als unbestätigter Eintrag (O-07).',
+      voreinstellung:
+        'Die Voreinstellung ist übernommen — als unbestätigte Einträge (O-07). Was nicht gilt, '
+        + 'archivieren Sie; was fehlt, tragen Sie ein; was stimmt, bestätigen Sie je Eintrag.',
       geaendert: 'Der Eintrag ist geändert.',
       bestaetigt: 'Der Eintrag ist bestätigt.',
       archiviert: 'Der Eintrag ist archiviert. Neue Bekanntmachungen werden ihm nicht mehr zugeordnet.',
@@ -161,14 +165,15 @@ export const RADAR_PLATTFORM_TEXTE: Readonly<Record<InternSprache, RadarPlattfor
         : `${String(n)} schon eingelesene Bekanntmachung${n === 1 ? '' : 'en'} trägt jetzt `
           + 'eine Plattform.',
 
-    leerTitel: 'Der Plattformkatalog ist leer — mit Absicht.',
+    leerTitel: 'Der Plattformkatalog ist leer.',
     leerText:
-      'Welche Plattformen für diese Gruppe gelten und unter welcher Kennung dort wer registriert '
-      + 'ist, ist offen (O-07). Eine erfundene Liste sähe aus wie ein geprüfter Stand und wäre '
-      + 'eine Behauptung über die Konten dieses Betriebs. Sobald die Antwort da ist, trägt die '
-      + 'Super-Administration die Plattformen hier ein, und Bekanntmachungen werden über ihre '
-      + 'Adresse zugeordnet — auch die schon eingelesenen.',
-    leerSuperAdmin: 'Die erste Plattform tragen Sie unten ein.',
+      'Voreinstellung (O-07): die öffentlichen Vergabeplattformen, auf denen Berliner Aufträge '
+      + 'für Reinigung, Sicherheit und Bau bekannt gemacht werden — jeder Eintrag unbestätigt, '
+      + 'bis die Super-Administration ihn bestätigt, ändert oder archiviert. Unter welcher '
+      + 'Kennung wer dort registriert ist, trägt jede Gesellschaft selbst ein. Nach dem '
+      + 'Übernehmen werden die schon eingelesenen Bekanntmachungen über ihre Adresse zugeordnet.',
+    leerSuperAdmin: 'Übernehmen Sie die Voreinstellung, oder tragen Sie die erste Plattform unten ein.',
+    voreinstellungKnopf: 'Voreinstellung übernehmen',
 
     betreiberFehlt: 'Betreiber nicht hinterlegt',
     kennung: (k) => `Kennung ${k}`,
@@ -306,6 +311,9 @@ export const RADAR_PLATTFORM_TEXTE: Readonly<Record<InternSprache, RadarPlattfor
     fehlerSonst: 'The entry was rejected.',
     vermerkt: {
       angelegt: 'The platform has been entered — as an unconfirmed entry (O-07).',
+      voreinstellung:
+        'The default has been taken over — as unconfirmed entries (O-07). Archive what does not '
+        + 'apply, enter what is missing, and confirm each entry that is right.',
       geaendert: 'The entry has been changed.',
       bestaetigt: 'The entry has been confirmed.',
       archiviert: 'The entry has been archived. New notices are no longer assigned to it.',
@@ -317,14 +325,15 @@ export const RADAR_PLATTFORM_TEXTE: Readonly<Record<InternSprache, RadarPlattfor
         : `${String(n)} notice${n === 1 ? '' : 's'} read in earlier now carr${n === 1 ? 'ies' : 'y'} `
           + 'a platform.',
 
-    leerTitel: 'The platform catalogue is empty — on purpose.',
+    leerTitel: 'The platform catalogue is empty.',
     leerText:
-      'Which platforms apply to this group, and under which login who is registered there, is '
-      + 'an open question (O-07). An invented list would look like a checked status and would be '
-      + 'a claim about this business’s accounts. Once the answer is there, the super '
-      + 'administration enters the platforms here, and notices are assigned by their address — '
-      + 'including those read in earlier.',
-    leerSuperAdmin: 'Enter the first platform below.',
+      'Default (O-07): the public procurement platforms on which Berlin contracts for cleaning, '
+      + 'security and construction are announced — every entry unconfirmed until the super '
+      + 'administration confirms, changes or archives it. Under which login who is registered '
+      + 'there is entered by each Gesellschaft (company) itself. After the takeover, notices read '
+      + 'in earlier are assigned by their address.',
+    leerSuperAdmin: 'Take over the default, or enter the first platform below.',
+    voreinstellungKnopf: 'Take over default',
 
     betreiberFehlt: 'Operator not recorded',
     kennung: (k) => `Login ${k}`,

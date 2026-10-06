@@ -115,9 +115,9 @@ export default async function Antwortseite(
             <Hinweis art="warnung" cse="postausgang" className="mb-s5 max-w-prose">
               <strong className="block">Es ist kein Postausgang verbunden.</strong>
               Ein freigegebener Text bleibt deshalb stehen, und neben ihm steht der
-              Grund. Offen ist O-501: welcher in der EU gehostete Anbieter mit
-              AV-Vertrag, welche Absenderadresse je Gesellschaft, und ob DKIM und
-              DMARC über die bestehenden Domains laufen.
+              Grund. Der Betreiber trägt ein (O-501): welchen in der EU gehosteten
+              Anbieter mit AV-Vertrag, welche Absenderadresse je Gesellschaft, und ob DKIM
+              und DMARC über die bestehenden Domains laufen.
             </Hinweis>
 
             {hinweis === 'versand' && (

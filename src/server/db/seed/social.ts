@@ -175,9 +175,9 @@ export async function seedSocial(
                                   verbunden, hinweis, sortierung)
         values (${mandantId}, ${plattform}::social_plattform,
                 ${PLATTFORM_NAME[plattform]}, ${`@cse-${slug}`}, false,
-                ${'Nicht verbunden: es ist kein Konto hinterlegt. Offen ist O-10 — '
-                  + 'welches Plattformkonto gehört dieser Gesellschaft, wer ist dort '
-                  + 'Administrator, und liegt ein Auftragsverarbeitungsvertrag vor?'},
+                ${'Nicht verbunden: es ist kein Konto hinterlegt. Der Betreiber trägt ein '
+                  + '(O-10), welches Plattformkonto dieser Gesellschaft gehört, wer dort '
+                  + 'Administrator ist, und ob ein Auftragsverarbeitungsvertrag vorliegt.'},
                 ${i})
         on conflict (mandant_id, plattform) do nothing
         returning id`;

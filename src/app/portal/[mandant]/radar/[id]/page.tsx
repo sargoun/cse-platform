@@ -332,7 +332,7 @@ export default async function Bekanntmachung(
         <dd className="text-text">
           {d.loseAnzahl === null ? 'nicht genannt' : String(d.loseAnzahl)}
           {d.loseAnzahl !== null && d.loseAnzahl > 1
-            ? ' — ob Lose einzeln beworben werden, ist offen (O-193)' : ''}
+            ? ' — bewertet und beworben wird die Bekanntmachung als Ganzes (Voreinstellung, O-193)' : ''}
         </dd>
       </dl>
 

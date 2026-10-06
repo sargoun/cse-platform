@@ -11,12 +11,15 @@ import type { SchreibKontext } from '../../kontext/index.js';
  * zählen, was fehlt; ein Freitext kann es nicht — und dieses Zählen ist der
  * ganze Zweck.
  *
- * **Was hier NICHT steht, ist Absicht.** Keine Standardpositionen, keine
- * Vorlage „die üblichen zwölf Unterlagen". Welche Unterlagen eine Plattform
- * bei welcher Verfahrensart verlangt, weiss niemand hier — und eine geratene
- * Vorlage wäre eine Prüfliste, die vollständig aussieht und es nicht ist.
- * Die Positionen kommen aus den Vergabeunterlagen, von Hand oder später aus
- * einer Extraktion, die ein Mensch bestätigt.
+ * **Die Voreinstellung ist ein Anfang, keine Vergabeunterlage** (O-194,
+ * D-784). `PRUEFLISTE_VOREINSTELLUNG` nennt die zwölf Unterlagen, die eine
+ * deutsche Vergabestelle regelmässig verlangt; eine leere Mappe übernimmt sie
+ * mit einem Knopf, jede Zeile startet `offen`. Was die Vergabeunterlagen nicht
+ * fordern, wird entfernt oder begründet als „gilt nicht" markiert; was sie
+ * zusätzlich fordern, kommt dazu — von Hand oder später aus einer Extraktion,
+ * die ein Mensch bestätigt. Bis D-784 war die Liste mit Absicht leer, weil eine
+ * geratene Vorlage vollständig aussähe, ohne es zu sein; dieses Risiko trägt
+ * jetzt der Satz an der Liste, nicht ihre Leere.
  */
 
 export class MappeFehler extends Error {
@@ -104,6 +107,76 @@ export async function ergaenzePosition(
     throw new MappeFehler('nicht_gefunden', 'Die Vergabemappe wurde nicht gefunden.');
   }
   return zeile.id;
+}
+
+/* ---------------------------------------------------------- Voreinstellung */
+
+export interface PrueflisteVoreinstellung {
+  readonly bezeichnung: string;
+  readonly kategorie: 'Angebot' | 'Eignung' | 'Erklärung';
+  readonly pflicht: boolean;
+}
+
+/**
+ * Die Voreinstellung der Prüfliste (O-194, D-784): Unterlagen, die
+ * Vergabestellen bei Reinigungs-, Sicherheits- und Bauleistungen regelmässig
+ * verlangen — Angebot, Eignungsnachweise (§§ 122 ff. GWB, § 6a VOB/A) und die
+ * Berliner Erklärungen (Ausschreibungs- und Vergabegesetz). Die
+ * Nachunternehmererklärung ist freiwillig: ohne Nachunternehmen gibt es sie
+ * nicht.
+ */
+// TODO(client, O-194): Voreinstellung — diese zwölf Unterlagen als Anfang jeder Prüfliste; die Vergabeunterlagen der Vergabestelle entscheiden.
+export const PRUEFLISTE_VOREINSTELLUNG: readonly PrueflisteVoreinstellung[] = [
+  { bezeichnung: 'Angebotsschreiben mit Preisangaben', kategorie: 'Angebot', pflicht: true },
+  { bezeichnung: 'Leistungsverzeichnis, vollständig bepreist', kategorie: 'Angebot', pflicht: true },
+  { bezeichnung: 'Eigenerklärung zur Eignung (Formblatt 124 bei Bauleistungen)',
+    kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Auszug aus dem Handels- oder Gewerberegister', kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Bescheinigung in Steuersachen des Finanzamts', kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Unbedenklichkeitsbescheinigung der Berufsgenossenschaft',
+    kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Unbedenklichkeitsbescheinigung der Krankenkasse (Sozialversicherungsbeiträge)',
+    kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Nachweis der Betriebshaftpflichtversicherung', kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Referenzen vergleichbarer Leistungen der letzten drei Jahre',
+    kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Auszug aus dem Gewerbezentralregister (§ 150a GewO)', kategorie: 'Eignung', pflicht: true },
+  { bezeichnung: 'Verpflichtungserklärung zu Tariftreue und Mindestentgelt (Berliner Ausschreibungs- und Vergabegesetz)',
+    kategorie: 'Erklärung', pflicht: true },
+  { bezeichnung: 'Erklärung zu Nachunternehmen und Eignungsleihe', kategorie: 'Erklärung', pflicht: false },
+];
+
+/**
+ * Übernimmt die Voreinstellung in eine Mappe — idempotent: eine Bezeichnung,
+ * die in der Mappe schon steht, wird nicht noch einmal angelegt. Gibt die Zahl
+ * der neuen Zeilen zurück. Dieselben Schranken wie `ergaenzePosition`
+ * (Mandant, Mappe, Recht); eine eingereichte Mappe nimmt nichts mehr an.
+ */
+export async function uebernimmPrueflisteVoreinstellung(
+  kontext: SchreibKontext, mappeId: string,
+): Promise<number> {
+  const [m] = await kontext.abfrage<{ status: string }>(
+    `select status::text as status from vergabemappe
+      where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null`,
+    [mappeId, kontext.aktiverMandantId]);
+  if (m === undefined) {
+    throw new MappeFehler('nicht_gefunden', 'Die Vergabemappe wurde nicht gefunden.');
+  }
+  if (m.status === 'eingereicht') {
+    throw new MappeFehler('stand', 'Die Mappe ist eingereicht — sie nimmt keine Position mehr an.');
+  }
+  const da = await kontext.abfrage<{ bezeichnung: string }>(
+    `select bezeichnung from vergabemappe_position where vergabemappe_id = $1::uuid`, [mappeId]);
+  const vorhanden = new Set(da.map((z) => z.bezeichnung.trim().toLowerCase()));
+  let angelegt = 0;
+  for (const p of PRUEFLISTE_VOREINSTELLUNG) {
+    if (vorhanden.has(p.bezeichnung.toLowerCase())) continue;
+    await ergaenzePosition(kontext, {
+      mappeId, bezeichnung: p.bezeichnung, kategorie: p.kategorie, pflicht: p.pflicht,
+    });
+    angelegt += 1;
+  }
+  return angelegt;
 }
 
 export interface PositionsstandEingabe {

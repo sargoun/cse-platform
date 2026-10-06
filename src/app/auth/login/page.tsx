@@ -144,14 +144,15 @@ export default async function Login({ searchParams }: {
           {eingerichtet ? (
             <>
               Zugangsdaten für Supabase sind hinterlegt, aber der Weg ist nicht gebaut:
-              die Rückkehr vom Anbieter tauscht keinen Code gegen eine Sitzung, solange
-              O-501 offen ist. Angemeldet wird deshalb weiterhin hausintern — die
+              die Rückkehr vom Anbieter tauscht keinen Code gegen eine Sitzung, solange der
+              Betreiber den Anbieter nicht verbunden hat (O-501). Angemeldet wird deshalb
+              weiterhin hausintern — die
               Umgebungsvariablen allein ändern daran nichts.
             </>
           ) : (
             <>
-              Supabase Auth ist gesetzt, aber kein Projekt hinterlegt (offene Frage O-501:
-              welches EU-Projekt, welcher Auftragsverarbeitungsvertrag).
+              Supabase Auth ist gesetzt, aber kein Projekt hinterlegt — EU-Projekt und
+              Auftragsverarbeitungsvertrag trägt der Betreiber ein (O-501).
             </>
           )}{' '}
           Bis dahin prüft die Plattform das Kennwort selbst — als bcrypt-Hash in der eigenen

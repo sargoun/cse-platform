@@ -246,14 +246,14 @@ export default async function GruppenRadar({ searchParams }: { searchParams: Suc
         </Hinweis>
       ) : null}
 
-      {/* TODO(client, O-870): Wenn zwei Gesellschaften der Gruppe dieselbe Bekanntmachung hoch bewerten — wer bietet? Eine allein, beide getrennt, oder eine Bietergemeinschaft; und wer entscheidet das? Bis zur Antwort zeigt die Seite den Sachverhalt und schlägt nichts vor. */}
+      {/* TODO(client, O-870): Voreinstellung — es bietet die Gesellschaft mit der höheren Bewertung; bei Gleichstand entscheidet die Gruppenleitung, eine Bietergemeinschaft nur auf ihren Beschluss. Die Seite zeigt den Sachverhalt und setzt die Regel nicht durch. */}
       {radar.summe.mehrfach > 0 ? (
         <Hinweis art="warnung" cse="radar-zustaendigkeit" className="mb-s6 max-w-prose">
           <strong>{String(radar.summe.mehrfach)} Bekanntmachungen sind in mehr als einer
-          Gesellschaft im Blick.</strong> Wer davon bietet, ob gemeinsam als Bietergemeinschaft
-          oder ob eine Gesellschaft zurücktritt, ist eine Regel des Hauses und keine, die diese
-          Plattform sich gibt: <strong>offen (O-870)</strong>. Bis sie beantwortet ist, zeigt
-          die Seite den Sachverhalt und schlägt nichts vor.
+          Gesellschaft im Blick.</strong> <strong>Voreinstellung (O-870):</strong> es bietet
+          die Gesellschaft mit der höheren Bewertung; bei Gleichstand entscheidet die
+          Gruppenleitung, und eine Bietergemeinschaft gibt es nur auf ihren Beschluss (§ 124 GWB
+          im Blick). Die Seite zeigt den Sachverhalt und setzt die Regel nicht durch.
         </Hinweis>
       ) : null}
 

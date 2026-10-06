@@ -10,16 +10,16 @@ import { withTenant } from '@/server/kontext/index';
 import {
   MappeFehler, SETZBARER_MAPPENSTAND, POSITIONSSTAENDE,
   entfernePosition, ergaenzePosition, setzeMappenstand, setzePositionsstand,
-  type MappenStand, type Positionsstand,
+  uebernimmPrueflisteVoreinstellung, type MappenStand, type Positionsstand,
 } from '@/server/services/vergabe/mappe';
 import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
  * `POST /api/vergabe/mappe` — die Prüfliste führen (RAD-07).
  *
- * Vier Handlungen an einer Adresse, unterschieden durch `was`: eine Position
- * anlegen, eine Position ENTFERNEN, den Stand einer Position setzen, den Stand
- * der Mappe setzen.
+ * Fünf Handlungen an einer Adresse, unterschieden durch `was`: eine Position
+ * anlegen, die Voreinstellung der Prüfliste übernehmen (D-784), eine Position
+ * ENTFERNEN, den Stand einer Position setzen, den Stand der Mappe setzen.
  * **Einreichen ist keine davon** — das ist eine eigene Route mit einem
  * eigenen Recht, weil es eine andere Aussage ist (D-07).
  */
@@ -78,6 +78,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             kategorie: text(daten, 'kategorie'),
             pflicht: daten.get('pflicht') !== null,
           });
+          return;
+        }
+
+        if (was === 'pruefliste_voreinstellung') {
+          const mappe = text(daten, 'mappe') ?? '';
+          if (!UUID.test(mappe)) throw new MappeFehler('nicht_gefunden', 'Mappe unbekannt.');
+          await uebernimmPrueflisteVoreinstellung(kontext, mappe);
           return;
         }
 

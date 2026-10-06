@@ -5,11 +5,11 @@
  * **Warum diese Datei.** Die Seite zeigt eine gesetzte Schwelle in ihrer
  * Zeile und den Satz „nicht hinterlegt (O-195)" unter der Tabelle, solange
  * eine Zeile keine hat. Der zweite Zweig — der Satz verschwindet, sobald
- * jede Zeile eine Schwelle trägt — lief bis V-254 nirgends: der Seed setzt
- * mit Absicht keine (eine gesetzte Zahl wäre eine still erfundene
- * Finanzregel, `seed/index.ts`), und `agenten.spec.ts` prüft nur den Fall
- * ohne. Hier stehen beide Zweige, und die Schreibweise der Zahl in beiden
- * Sprachen.
+ * jede Zeile eine Schwelle trägt — lief bis V-254 nirgends: der Seed setzte
+ * keine, und `agenten.spec.ts` prüfte nur den Fall ohne. Seit D-784 setzt der
+ * Seed die Voreinstellung 80 % (`WARNSCHWELLE_VOREINSTELLUNG_PROZENT`), und
+ * der Satz unter der Tabelle nennt sie. Hier stehen beide Zweige, und die
+ * Schreibweise der Zahl in beiden Sprachen.
  */
 import { describe, expect, it } from 'vitest';
 import { warnschwelleOffen } from '../../src/server/agent/budget.js';
@@ -45,10 +45,11 @@ describe('die gesetzte Schwelle in ihrer Zeile', () => {
     expect(BUDGET_TEXTE.en.warnungAb(1)).toBe('Warns at 1%');
   });
 
-  it('der Satz darunter bleibt in beiden Sprachen bei O-195 — kein Vorgabewert', () => {
+  it('der Satz darunter nennt in beiden Sprachen O-195 und die Voreinstellung 80 % (D-784)', () => {
     for (const t of [BUDGET_TEXTE.de, BUDGET_TEXTE.en]) {
       expect(t.warnschwelleOffen).toContain('O-195');
-      expect(t.warnschwelleOffen).not.toMatch(/\d+\s?%/u);
+      expect(t.warnschwelleOffen).toMatch(/80\s?%/u);
+      expect(t.warnschwelleOffen).not.toMatch(/offene Frage|open question/u);
     }
   });
 });
