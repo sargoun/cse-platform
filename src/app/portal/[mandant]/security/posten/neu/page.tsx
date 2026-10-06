@@ -19,6 +19,8 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { vorbelegt } from '@/lib/formular/maske';
+import { POSTENART_VOREINSTELLUNG } from '@/server/services/security/arten';
+import { ARTEN_TEXTE } from '@/lib/i18n/verwaltung/security-arten';
 
 /**
  * `/portal/[mandant]/security/posten/neu` — einen Posten anlegen (SEC-01).
@@ -28,10 +30,14 @@ import { vorbelegt } from '@/lib/formular/maske';
  * Datenbank. Eine Seite, die selbst prüft, prüft auf dem Gerät des Aufrufers
  * — also nirgends.
  *
- * **Die Postenart wird NICHT vorgeschlagen.** SEC-01 nennt keine, der Katalog
- * wird leer ausgeliefert (O-148), und eine Auswahlliste mit „Objektschutz,
- * Empfang, Streife" sähe aus wie eine Abstimmung, die es nicht gab (K-17).
- * Solange niemand Arten hinterlegt hat, steht hier der Satz statt der Liste.
+ * **Die Postenart kommt aus dem Katalog, und der Katalog kennt eine
+ * Voreinstellung** (O-148, D-783): sechs Arten eines Berliner Sicherheitsdienstes,
+ * die ein leerer Katalog mit einem Knopf uebernimmt — unbestaetigt, bis die
+ * Gesellschaft bestaetigt oder archiviert (K-17; die Pflege steht auf der
+ * Postenliste, `../Artenkatalog.tsx`). Solange der Katalog leer ist, steht
+ * hier der Satz, die Voreinstellung und der Knopf statt der Liste — der Knopf
+ * als Teil des EINEN Formulars, denn ein Formular im Formular schliesst das
+ * aeussere, und die Felder dahinter gehen verloren.
  *
  * **Ein abgewiesener Anker kommt hierher zurück** (V-192, D-599): der Grund
  * als Satz in der Sprache der Sitzung, die Eingaben vorbelegt — nur mit
@@ -86,6 +92,8 @@ export default async function PostenNeu(
 
   /* Die Rückkehr einer abgewiesenen Anlage (V-192) — vorbelegt wird nur, was angeboten ist. */
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const tA = nachSprache(ARTEN_TEXTE, zugang.sprache);
+  const artenRueckweg = eigenerEintrag(tA.neuRueckweg, vorbelegt(suche, 'arten'));
   const fehler = vorbelegt(suche, 'fehler') ?? null;
   const angeboten = (name: string, werte: readonly string[]): string | undefined => {
     const wert = vorbelegt(suche, name);
@@ -136,6 +144,16 @@ export default async function PostenNeu(
         </Hinweis>
       )}
 
+      {/* Der Rückweg des Knopfs „Voreinstellung übernehmen" (D-783) — ein Satz, kein Schlüssel. */}
+      {artenRueckweg !== undefined && (
+        <Hinweis
+          art={vorbelegt(suche, 'arten') === 'voreinstellung' ? 'erfolg' : 'hinweis'}
+          cse="postenarten-uebernommen" className="mb-s5 max-w-prose"
+        >
+          {artenRueckweg}
+        </Hinweis>
+      )}
+
       {objekte.length === 0 ? (
         <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           In dieser Gesellschaft ist noch kein Objekt angelegt. Ein Posten steht
@@ -148,6 +166,8 @@ export default async function PostenNeu(
           className="max-w-prose rounded-lg border border-line bg-surface p-s5"
         >
           <input type="hidden" name="mandant" value={mandant} />
+          {/* Der Rückweg der Katalog-Handlung: zurück auf diese Maske, nicht auf die Liste. */}
+          <input type="hidden" name="herkunft" value="neu" />
 
           <label className="mb-s4 block">
             <span className={feld}>Objekt</span>
@@ -173,11 +193,25 @@ export default async function PostenNeu(
           <div className="mb-s4">
             <span className={feld}>Postenart</span>
             {arten.length === 0 ? (
-              <p className="m-0 text-sm text-text-muted">
-                Keine Arten hinterlegt. Welche Postenarten geführt werden, ist
-                offen (O-148) — der Posten wird ohne Art angelegt, und das ist
-                die ehrliche Variante.
-              </p>
+              <div className="rounded-md border border-line bg-surface-3 p-s3">
+                <p className="m-0 text-sm text-text-muted">
+                  {tA.neuLeer(POSTENART_VOREINSTELLUNG.map((a) => a.bezeichnung).join(', '))}
+                </p>
+                {/*
+                  * D-783: die Voreinstellung als Katalogzeilen — ein Knopf des ÄUSSEREN
+                  * Formulars mit eigenem `aktion`-Wert, kein Formular im Formular: der
+                  * Browser schlösse sonst das Postenformular, und die Felder dahinter
+                  * würden nicht mehr gesendet. `formNoValidate`, weil die Pflichtfelder
+                  * des Postens für diesen Schritt nicht gelten; die Route prüft `aktion`
+                  * zuerst und rührt den Posten nicht an.
+                  */}
+                <Button
+                  type="submit" name="aktion" value="postenarten_voreinstellung" formNoValidate
+                  variante="secondary" className="mt-s3" data-cse="postenarten-voreinstellung"
+                >
+                  {tA.uebernehmen}
+                </Button>
+              </div>
             ) : (
               <select name="postenart" className={eingabe} defaultValue={vor.postenart}>
                 <option value="">— ohne Art —</option>

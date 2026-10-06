@@ -382,7 +382,8 @@ export default async function Einsatzblatt({
             ? 'Zeitumstellung: die geplante Ortszeit gibt es an diesem Tag nicht — die Schicht '
               + 'beginnt zum Umstellungszeitpunkt.'
             : 'Zeitumstellung: die geplante Ortszeit gibt es an diesem Tag zweimal — gerechnet '
-              + 'wird mit dem früheren Zeitpunkt (offen: O-163).'}
+              + 'wird mit dem früheren Zeitpunkt, vergütet die tatsächlich gearbeitete Zeit '
+              + '(Voreinstellung, O-163).'}
         </p>
       )}
 

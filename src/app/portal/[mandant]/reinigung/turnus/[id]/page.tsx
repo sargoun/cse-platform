@@ -294,11 +294,11 @@ export default async function TurnusBlattSeite(
       </div>
 
       <Hinweis art="hinweis" cse="turnus-nicht-aenderbar" className="mb-s6 max-w-prose">
-        <strong>Regel, Beginn und Dauer sind hier nicht änderbar — offen (O-701).</strong>{' '}
+        <strong>Regel, Beginn und Dauer sind hier nicht änderbar — Voreinstellung (O-701).</strong>{' '}
         Aus diesem Turnus sind Schichten entstanden, an denen Check-in-Links,
-        Leistungsnachweise und Rechnungen hängen. Ob eine Änderung sie nachzieht,
-        nur künftige betrifft oder die Serie beendet, ist nicht entschieden;
-        eine still gewählte Variante verändert rückwirkend bezahlte Schichten.
+        Leistungsnachweise und Rechnungen hängen. Eine Änderung ist deshalb ein neuer
+        Turnus: diesen beenden, den nächsten ab dem Stichtag anlegen — der Bestand
+        bleibt, wie er bezahlt wurde.
         Für einen einzelnen Tag gibt es stattdessen die Ausnahme unten — sie
         ändert die Regel nicht.
       </Hinweis>
@@ -338,9 +338,9 @@ export default async function TurnusBlattSeite(
             <strong>Die Zeitumstellung fällt in dieses Fenster.</strong>{' '}
             {anomalien > 0 && `${String(anomalien)} Termin(e) liegen auf einer Uhrzeit, die es an dem Tag nicht oder zweimal gibt. `}
             {abweichendeDauer > 0 && `${String(abweichendeDauer)} Termin(e) sind länger oder kürzer als die Solldauer. `}
-            Welcher der beiden Zeitpunkte bei doppelt vorhandener Ortszeit gilt
-            und wie die Nacht vergütet wird, ist offen (O-163) — die Vorschau
-            zeigt die Vorgabe (der frühere Zeitpunkt) und sagt es hier.
+            Voreinstellung (O-163): bei doppelt vorhandener Ortszeit gilt der frühere
+            Zeitpunkt, und vergütet wird die tatsächlich gearbeitete Zeit — 7 oder 9
+            Stunden statt 8 —, weil die Dauer die Differenz zweier Zeitpunkte ist.
           </Hinweis>
         )}
 
@@ -485,10 +485,10 @@ export default async function TurnusBlattSeite(
               {
                 schluessel: 'abrechnung',
                 kopf: 'Abrechnungsrelevant',
-                /* NULL heisst UNBEANTWORTET und nicht „nein" — ob ein Ausfall
-                   vom Pauschalbetrag abgeht, steht im Vertrag (O-700). */
+                /* NULL heisst NICHT GESETZT und nicht „nein" — Altbestand vor der
+                   Voreinstellung (O-700, D-783). */
                 zelle: (a) => (a.abrechnungsrelevant === null
-                  ? <span className="text-text-muted">offen (O-700)</span>
+                  ? <span className="text-text-muted">nicht gesetzt (O-700)</span>
                   : a.abrechnungsrelevant ? 'ja' : 'nein'),
               },
               {
@@ -556,15 +556,14 @@ export default async function TurnusBlattSeite(
             <fieldset className="border-0 p-0">
               <legend className="mb-s1 text-sm text-text">Abrechnungsrelevant</legend>
               {/*
-                Der Vorgabewert ist „offen" und nicht „nein". Ob ein Ausfall vom
-                Pauschalbetrag abgeht, steht im Vertrag und nicht in dieser
-                Anwendung (O-700); ein vorausgewähltes „nein" wäre eine
-                Vertragsaussage, die niemand getroffen hat.
+                Voreinstellung (O-700, D-783): „ja" — ein Ausfall mindert die Pauschale,
+                ein Zusatztermin wird berechnet; wer anders vereinbart hat, wählt „nein".
+                „Nicht gesetzt" bleibt wählbar, weil ein Vertrag die Frage offenlassen kann.
               */}
-              <select name="abrechnungsrelevant" className={feld} defaultValue="">
-                <option value="">offen — noch nicht entschieden (O-700)</option>
-                <option value="ja">ja — wirkt auf die Abrechnung</option>
+              <select name="abrechnungsrelevant" className={feld} defaultValue="ja">
+                <option value="ja">ja — wirkt auf die Abrechnung (Voreinstellung, O-700)</option>
                 <option value="nein">nein — ohne Wirkung auf die Abrechnung</option>
+                <option value="">nicht gesetzt — der Vertrag lässt es offen</option>
               </select>
             </fieldset>
             <div>

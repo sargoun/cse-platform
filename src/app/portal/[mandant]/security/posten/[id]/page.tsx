@@ -213,7 +213,9 @@ export default async function PostenBlatt(
       text: eigenerEintrag(tA.fehler, anforderungFehler) ?? tA.fehlerUnbekannt,
     }
     : erfolg === 'angelegt' ? { art: 'erfolg' as const, text: tA.angelegt }
-      : erfolg === 'archiviert' ? { art: 'erfolg' as const, text: tA.archiviert } : null;
+      : erfolg === 'archiviert' ? { art: 'erfolg' as const, text: tA.archiviert }
+        : erfolg === 'voreinstellung'
+          ? { art: 'erfolg' as const, text: tA.voreinstellungUebernommen } : null;
 
   return (
     <PortalRahmen
@@ -245,7 +247,7 @@ export default async function PostenBlatt(
           {/* Als WORT, nicht als Pille — das Pillenvokabular aus DESIGN §5
               kennt „Unbestätigter Wert" noch nicht (03-GEWERKE §2.3 Nr. 5). */}
           {kopf.art_platzhalter === true && (
-            <span className="ml-s2 text-warning">· Art unbestätigt (O-148)</span>
+            <span className="ml-s2 text-warning">· Art unbestätigt (Voreinstellung, O-148)</span>
           )}
         </p>
         <p className="m-0 mt-s2 text-sm tabular-nums text-text-muted">

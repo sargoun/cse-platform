@@ -13,8 +13,10 @@
  * **Was hier entschieden wird und was nicht.** WELCHE Qualifikation ein
  * Posten verlangt, entscheidet die Gesellschaft (O-342) — dieser Dienst legt
  * ab, was ein Mensch mit `security.schreiben` einträgt, und sagt dazu, ob er
- * es als bestätigt eingetragen hat (`ist_platzhalter`, §1.16). Er erfindet
- * keine Anforderung und keine Frist.
+ * es als bestätigt eingetragen hat (`ist_platzhalter`, §1.16). Die
+ * Voreinstellung (D-783, O-342: § 34a-Unterrichtung fuer jede Kraft, bei
+ * Veranstaltungen zusaetzlich eine Sachkunde) legt er nur auf Knopfdruck an —
+ * unbestaetigt, als Warnung, nie als Sperre. Eine Frist erfindet er nicht.
  *
  * **Vier Geltungsbereiche, additiv** (0031): eine Postenanforderung hebt die
  * des Objekts und die mandantenweite nicht auf. Welcher Bereich gemeint ist,
@@ -335,4 +337,78 @@ export async function waehlbareQualifikationen(
       where archiviert_am is null
         and (mandant_id is null or mandant_id = app.aktiver_mandant())
       order by (mandant_id is null) desc, bezeichnung`);
+}
+
+/* ---------------------------------------------------------------------------
+ * Die Voreinstellung (O-342, D-783)
+ * ------------------------------------------------------------------------ */
+
+export interface AnforderungVoreinstellung {
+  /** Schluessel im Qualifikationskatalog (0030): `34a_unterrichtung`, `34a_sachkunde`. */
+  readonly qualifikation: string;
+  readonly geltung: AnforderungGeltung;
+  readonly rechtsgrundlage: string;
+}
+
+/**
+ * Was ein Posten bzw. eine Veranstaltung nach der Voreinstellung verlangt:
+ * die Unterrichtung nach § 34a Abs. 1a GewO fuer jede eingesetzte Kraft; bei
+ * Veranstaltungen zusaetzlich mindestens eine Kraft mit Sachkundepruefung
+ * (Zugangskontrolle, § 34a Abs. 1a Satz 5 GewO). Alles als unbestaetigte
+ * WARNUNG (`zwingend: false`, `bestaetigt: false`) — die Sperre stellt die
+ * Gesellschaft scharf, wenn der Vertrag es sagt.
+ * // TODO(client, O-342): Voreinstellung — Unterrichtung fuer jeden Wachdienst, Sachkunde bei Veranstaltungen; bestaetigt wird je Posten.
+ */
+export const ANFORDERUNG_VOREINSTELLUNG: Readonly<
+  Record<AnforderungHerkunft['art'], readonly AnforderungVoreinstellung[]>
+> = {
+  posten: [
+    { qualifikation: '34a_unterrichtung', geltung: 'jeder', rechtsgrundlage: '§ 34a Abs. 1a GewO' },
+  ],
+  veranstaltung: [
+    { qualifikation: '34a_unterrichtung', geltung: 'jeder', rechtsgrundlage: '§ 34a Abs. 1a GewO' },
+    { qualifikation: '34a_sachkunde', geltung: 'mindestens_einer',
+      rechtsgrundlage: '§ 34a Abs. 1a Satz 5 GewO' },
+  ],
+};
+
+/**
+ * Legt die Anforderungen der Voreinstellung fuer einen Posten oder eine
+ * Veranstaltung an — nur die, die dort noch nicht stehen (lebend, dieselbe
+ * Qualifikation). Fehlt eine Qualifikation im Katalog, wird sie uebersprungen,
+ * nicht erfunden. Gibt die Zahl der angelegten Zeilen zurueck.
+ */
+export async function uebernimmAnforderungVoreinstellung(
+  kontext: SchreibKontext, h: AnforderungHerkunft,
+): Promise<number> {
+  let angelegt = 0;
+  for (const v of ANFORDERUNG_VOREINSTELLUNG[h.art]) {
+    const [q] = await kontext.abfrage<{ id: string }>(
+      `select id from qualifikation
+        where schluessel = $1 and archiviert_am is null
+          and (mandant_id is null or mandant_id = app.aktiver_mandant())
+        order by mandant_id nulls first limit 1`, [v.qualifikation]);
+    if (q === undefined) continue;
+    const [da] = await kontext.abfrage<{ id: string }>(
+      `select id from einsatzanforderung
+        where qualifikation_id = $2::uuid and archiviert_am is null
+          and ((geltungsbereich = 'posten' and posten_id = $1::uuid)
+            or (geltungsbereich = 'veranstaltung' and veranstaltung_id = $1::uuid))
+        limit 1`, [h.id, q.id]);
+    if (da !== undefined) continue;
+    await legeAnforderungAn(kontext, {
+      herkunft: h,
+      bereich: h.art,
+      qualifikationId: q.id,
+      zwingend: false,
+      geltung: v.geltung,
+      mindestanzahl: 1,
+      bewacherregisterPflicht: false,
+      gueltigAb: null,
+      rechtsgrundlage: v.rechtsgrundlage,
+      bestaetigt: false,
+    });
+    angelegt += 1;
+  }
+  return angelegt;
 }

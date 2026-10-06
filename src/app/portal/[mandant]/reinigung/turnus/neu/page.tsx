@@ -561,8 +561,8 @@ export default async function TurnusNeu(
                   <strong>Die Zeitumstellung fällt in dieses Fenster.</strong>{' '}
                   {anomalien.length} Termin(e) liegen auf einer Uhrzeit, die es an
                   dem Tag nicht oder zweimal gibt. Die Spalte „Dauer wirklich"
-                  zeigt, was daraus folgt; wie die Nacht vergütet wird, ist offen
-                  (O-163).
+                  zeigt, was daraus folgt; vergütet wird die tatsächlich gearbeitete
+                  Zeit (Voreinstellung, O-163).
                 </Hinweis>
               )}
 

@@ -117,7 +117,9 @@ export default async function VeranstaltungBlattSeite(
   const meldung = fehler !== null
     ? { art: 'warnung' as const, text: eigenerEintrag(tA.fehler, fehler) ?? tA.fehlerUnbekannt }
     : erfolg === 'angelegt' ? { art: 'erfolg' as const, text: tA.angelegt }
-      : erfolg === 'archiviert' ? { art: 'erfolg' as const, text: tA.archiviert } : null;
+      : erfolg === 'archiviert' ? { art: 'erfolg' as const, text: tA.archiviert }
+        : erfolg === 'voreinstellung'
+          ? { art: 'erfolg' as const, text: tA.voreinstellungUebernommen } : null;
 
   const lebende = schichten?.filter((s) => !s.storniert) ?? [];
   const besetzt = lebende.reduce((summe, s) => summe + s.besetztAnzahl, 0);
@@ -167,7 +169,7 @@ export default async function VeranstaltungBlattSeite(
           </p>
           <p className="m-0 mt-s3 text-sm text-text-muted">
             {kopf.auftragLeistungId === null
-              ? 'Ohne Auftragsleistung erfasst — die Herkunft eines Eventauftrags ist offen (O-703).'
+              ? 'Ohne Auftragsleistung erfasst — Voreinstellung (O-703): von der Wachleitung von Hand, die Position folgt aus dem Vertrieb.'
               : 'Hängt an einer Auftragsleistung.'}
           </p>
         </Card>
@@ -442,12 +444,11 @@ export default async function VeranstaltungBlattSeite(
       </section>
 
       <Hinweis art="hinweis" cse="veranstaltung-o703" className="max-w-prose">
-        <strong>Offen (O-703):</strong> woher ein Veranstaltungsauftrag entsteht —
-        aus einer Auftragsleistung, aus dem Vertrieb oder handerfasst von der
-        Wachleitung — ist nicht entschieden, und die Seitenkarte führt keine
-        Route zum Anlegen. Deshalb gibt es hier keinen Knopf „Veranstaltung
-        anlegen": welche Felder Pflicht sind und wer sie füllen darf, hängt an
-        dieser Antwort.
+        <strong>Voreinstellung (O-703):</strong> ein Veranstaltungsauftrag wird von der
+        Wachleitung von Hand erfasst (unter Veranstaltungen › Neu, hinter dem
+        Schreibrecht der Sicherheit) und mit der Auftragsleistung verbunden, sobald der
+        Vertrieb sie angelegt hat; Pflicht sind Objekt, Zeitraum und Stärke, die Position
+        ist freiwillig. Angelegt wird dort, nicht auf diesem Blatt.
       </Hinweis>
     </PortalRahmen>
   );

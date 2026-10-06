@@ -106,6 +106,19 @@ export function Anforderungsblock({
         </ul>
       )}
 
+      {darfSchreiben && (
+        /* D-783 (O-342): die Voreinstellung als Zeilen — unbestaetigt, als Warnung. */
+        <form method="post" action="/api/sicherheit/anforderungen"
+              data-cse="anforderung-voreinstellung" className="mt-s4 max-w-prose">
+          <input type="hidden" name="aktion" value="voreinstellung" />
+          <input type="hidden" name="herkunft_art" value={herkunft.art} />
+          <input type="hidden" name="herkunft_id" value={herkunft.id} />
+          <input type="hidden" name="zurueck" value={zurueck} />
+          <Button type="submit" variante="secondary">{texte.voreinstellungKnopf}</Button>
+          <p className="m-0 mt-s2 text-xs text-text-subtle">{texte.voreinstellungErklaerung}</p>
+        </form>
+      )}
+
       {darfSchreiben ? (
         <form
           method="post"

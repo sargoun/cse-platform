@@ -55,6 +55,10 @@ export interface AnforderungTexte {
 
   readonly angelegt: string;
   readonly archiviert: string;
+  /** D-783 (O-342): der Knopf, sein Satz und die Meldung danach. */
+  readonly voreinstellungKnopf: string;
+  readonly voreinstellungErklaerung: string;
+  readonly voreinstellungUebernommen: string;
   readonly fehler: Readonly<Record<AnforderungGrund, string>>;
   readonly fehlerUnbekannt: string;
 }
@@ -70,7 +74,7 @@ export const ANFORDERUNG_TEXTE: Readonly<Record<InternSprache, AnforderungTexte>
     jede: 'jede eingesetzte Person',
     mindestens: (n) => (n === 1 ? 'mindestens eine Person' : `mindestens ${String(n)} Personen`),
     register: 'zusätzlich Eintragung im Bewacherregister',
-    unbestaetigt: 'Anforderung unbestätigt (O-342)',
+    unbestaetigt: 'Anforderung unbestätigt (Voreinstellung, O-342)',
     abDatum: (datum) => `gilt ab ${datum}`,
     bereich: {
       posten: 'dieser Posten',
@@ -110,15 +114,25 @@ export const ANFORDERUNG_TEXTE: Readonly<Record<InternSprache, AnforderungTexte>
     rechtsgrundlageBeispiel: '§ 34a GewO',
     bestaetigt: 'Aus Vertrag oder Dienstanweisung bestätigt',
     bestaetigtErklaerung: 'Ohne dieses Häkchen steht die Anforderung als unbestätigt '
-      + 'im Plan — solange offen ist, welche Nachweise der Posten verlangt (O-342).',
+      + 'im Plan, bis die Gesellschaft bestätigt, welche Nachweise der Posten verlangt '
+      + '(O-342). Die Voreinstellung — § 34a-Unterrichtung für jede Kraft, bei '
+      + 'Veranstaltungen eine Sachkunde — legt der Knopf oben als Warnung an.',
     anlegen: 'Nachweis verlangen',
     nachzug: 'Welche Qualifikation ein Posten verlangt, entscheidet die Gesellschaft '
-      + '(O-342) — hier wird eingetragen, nichts vorgeschlagen.',
+      + '(O-342) — hier wird eingetragen; die Voreinstellung gibt es per Knopf, als '
+      + 'unbestätigte Warnung.',
     keinSchreibrecht: 'Eintragen darf, wer die Sicherheit bearbeiten darf.',
 
     angelegt: 'Die Anforderung gilt ab sofort — künftige Schichten sind neu bewertet.',
     archiviert: 'Die Anforderung ist archiviert. Begonnene Schichten behalten sie in '
       + 'ihrem Stand; künftige verlangen sie nicht mehr.',
+    voreinstellungKnopf: 'Voreinstellung übernehmen (§ 34a)',
+    voreinstellungErklaerung: 'Legt die Nachweise der Voreinstellung an (O-342): die '
+      + 'Unterrichtung nach § 34a Abs. 1a GewO für jede eingesetzte Kraft, bei Veranstaltungen '
+      + 'zusätzlich mindestens eine Kraft mit Sachkundeprüfung — als unbestätigte Warnung, '
+      + 'nicht als Sperre. Was schon steht, wird nicht doppelt angelegt.',
+    voreinstellungUebernommen: 'Die Voreinstellung ist übernommen — die Nachweise stehen als '
+      + 'unbestätigte Warnung; künftige Schichten sind neu bewertet.',
     fehler: {
       unvollstaendig: 'Bitte Qualifikation, Wirkung und Geltungsbereich angeben; die '
         + 'Anzahl ist eine ganze Zahl von 1 bis 99.',
@@ -145,7 +159,7 @@ export const ANFORDERUNG_TEXTE: Readonly<Record<InternSprache, AnforderungTexte>
     jede: 'every deployed person',
     mindestens: (n) => (n === 1 ? 'at least one person' : `at least ${String(n)} persons`),
     register: 'plus an entry in the Bewacherregister',
-    unbestaetigt: 'requirement unconfirmed (O-342)',
+    unbestaetigt: 'requirement unconfirmed (default, O-342)',
     abDatum: (datum) => `applies from ${datum}`,
     bereich: {
       posten: 'this Posten',
@@ -185,17 +199,25 @@ export const ANFORDERUNG_TEXTE: Readonly<Record<InternSprache, AnforderungTexte>
     rechtsgrundlageBeispiel: '§ 34a GewO',
     bestaetigt: 'Confirmed by contract or Dienstanweisung',
     bestaetigtErklaerung: 'Without this tick the requirement is shown as unconfirmed '
-      + 'in the plan — as long as it is open which credentials the Posten requires '
-      + '(O-342).',
+      + 'in the plan until the company confirms which credentials the Posten requires '
+      + '(O-342). The default — § 34a instruction for every guard, an expert examination '
+      + 'at events — is created by the button above, as a warning.',
     anlegen: 'Require credential',
     nachzug: 'Which qualification a Posten requires is the company\'s decision (O-342) '
-      + '— this form records it and suggests nothing.',
+      + '— this form records it; the default is one button away, as an unconfirmed warning.',
     keinSchreibrecht: 'Recording requires the right to edit security.',
 
     angelegt: 'The requirement applies from now on — future shifts have been '
       + 're-assessed.',
     archiviert: 'The requirement is archived. Started shifts keep it in their record; '
       + 'future shifts no longer require it.',
+    voreinstellungKnopf: 'Take over the default (§ 34a)',
+    voreinstellungErklaerung: 'Creates the default credentials (O-342): the instruction under '
+      + '§ 34a (1a) GewO for every deployed guard, at events additionally at least one guard '
+      + 'with the expert examination — as an unconfirmed warning, not a block. Existing '
+      + 'requirements are not duplicated.',
+    voreinstellungUebernommen: 'The default has been taken over — the credentials stand as an '
+      + 'unconfirmed warning; future shifts have been re-assessed.',
     fehler: {
       unvollstaendig: 'Please state qualification, effect and scope; the number is a '
         + 'whole number from 1 to 99.',

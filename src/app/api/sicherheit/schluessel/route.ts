@@ -8,6 +8,7 @@ import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { withTenant } from '@/server/kontext/index';
 import { legeSchluesselAn } from '@/server/services/security/schluessel';
+import { artenAktion } from '../arten';
 import { alsAntwort } from '../antwort';
 import { feldText as text } from '../formular';
 
@@ -38,7 +39,18 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   const daten = await anfrage.formData();
-  const mandant = String(daten.get('mandant') ?? '');
+  const mandant = String(daten.get('mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
+
+  /*
+   * D-783 (O-148): Voreinstellung und Pflege der Schlüsselarten — ein Handler
+   * für beide Kataloge (`../arten`), hinter Lesen UND Schreiben des Moduls.
+   */
+  const artenAntwort = await artenAktion(anfrage, sitzung, daten, {
+    tabelle: 'schluesselart', rechtLesen: 'schluessel.lesen', rechtSchreiben: 'schluessel.schreiben',
+    seiten: { liste: `/portal/${mandant}/security/schluessel` },
+  });
+  if (artenAntwort !== null) return artenAntwort;
+
   const objektId = text(daten, 'objekt');
   const bezeichnung = text(daten, 'bezeichnung');
   if (objektId === null || bezeichnung === null) {

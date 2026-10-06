@@ -27,7 +27,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   AnforderungFehler, archiviereAnforderung, legeAnforderungAn, leseAnforderungen,
-  type AnforderungEingabe,
+  uebernimmAnforderungVoreinstellung, type AnforderungEingabe,
 } from '../../src/server/services/security/anforderung.js';
 import { besetzeEinsatz } from '../../src/server/services/dienstplan/einteilung.js';
 import { QualifikationFehlt } from '../../src/server/services/nachweis/tor.js';
@@ -146,6 +146,27 @@ async function qualifikation(): Promise<string> {
      values (null, $1, 'Sachkundeprüfung §34a', 'gesetzlich', '§34a GewO', true, true)
      returning id`, [`34a_${zufall()}`]);
   return q!.id;
+}
+
+/**
+ * Die zwei §34a-Qualifikationen MIT ihren festen Schluesseln, als globale
+ * Katalogzeilen — so wie `seed/qualifikation.ts` sie im Betrieb anlegt. Die
+ * Voreinstellung (`ANFORDERUNG_VOREINSTELLUNG`, O-342) sucht sie ueber genau
+ * diese Schluessel; der Isolations-Seed laedt den vollen Katalog nicht, also
+ * legt der Test sie selbst an (wie Objekt und Posten). `on conflict do nothing`,
+ * weil die Veranstaltung beide braucht und ein zweiter Aufruf nichts doppelt
+ * anlegt.
+ */
+async function qualifikationen34a(): Promise<void> {
+  await sql.unsafe(
+    `insert into qualifikation (mandant_id, schluessel, bezeichnung, kategorie,
+                                rechtsgrundlage, laeuft_ab, blockiert_einsatz)
+     values
+       (null, '34a_unterrichtung', 'Unterrichtung nach §34a GewO', 'gesetzlich',
+        '§34a Abs. 1 GewO', false, true),
+       (null, '34a_sachkunde', 'Sachkundeprüfung nach §34a GewO', 'gesetzlich',
+        '§34a Abs. 1a GewO', false, true)
+     on conflict do nothing`);
 }
 
 async function nachweis(personId: string, q: string, bis: string): Promise<void> {
@@ -459,5 +480,49 @@ describe('(4) von der Veranstaltung aus — und die uebrigen Zweige des Nachzugs
       `select count(*)::int as n from einsatz
         where mandant_id <> $1 and jsonb_array_length(anforderung_snapshot) > 0`, [f.security]);
     expect(fremd!.n).toBe(0);
+  });
+});
+
+/**
+ * D-783 (O-342): die Voreinstellung — § 34a-Unterrichtung fuer jede Kraft, bei
+ * Veranstaltungen dazu mindestens eine Sachkunde — entsteht per Knopf als
+ * unbestaetigte WARNUNG, nie als Sperre, und nie doppelt.
+ */
+describe('(9) die Voreinstellung nach § 34a GewO (D-783, O-342)', () => {
+  it('am Posten: die Unterrichtung für jede Kraft, unbestätigt, als Warnung — einmal', async () => {
+    await qualifikationen34a();
+    const { objektId } = await objekt();
+    const postenId = await posten(objektId);
+    const herkunft = { art: 'posten' as const, id: postenId };
+
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(1);
+    const zeilen = await alsChef((k) => leseAnforderungen(k, { ...herkunft, objektId }));
+    const eigene = zeilen.filter((z) => z.bereich === 'posten');
+    expect(eigene).toHaveLength(1);
+    expect(eigene[0]).toMatchObject({
+      zwingend: false, geltung: 'jeder', platzhalter: true, rechtsgrundlage: '§ 34a Abs. 1a GewO',
+    });
+    expect(eigene[0]!.qualifikation).toMatch(/Unterrichtung/iu);
+
+    // Idempotent: was lebt, wird nicht noch einmal angelegt.
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(0);
+    expect((await alsChef((k) => leseAnforderungen(k, { ...herkunft, objektId })))
+      .filter((z) => z.bereich === 'posten')).toHaveLength(1);
+  });
+
+  it('an der Veranstaltung: Unterrichtung für jede Kraft und mindestens eine Sachkunde', async () => {
+    await qualifikationen34a();
+    const { objektId, kundeId } = await objekt();
+    const veranstaltungId = await veranstaltung(kundeId, objektId);
+    const herkunft = { art: 'veranstaltung' as const, id: veranstaltungId };
+
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(2);
+    const zeilen = (await alsChef((k) => leseAnforderungen(k, { ...herkunft, objektId })))
+      .filter((z) => z.bereich === 'veranstaltung');
+    expect(zeilen).toHaveLength(2);
+    expect(zeilen.every((z) => !z.zwingend && z.platzhalter)).toBe(true);
+    expect(zeilen.map((z) => z.geltung).sort()).toEqual(['jeder', 'mindestens_einer']);
+    expect(zeilen.find((z) => z.geltung === 'mindestens_einer')?.mindestanzahl).toBe(1);
+    expect(await alsChef((k) => uebernimmAnforderungVoreinstellung(k, herkunft))).toBe(0);
   });
 });

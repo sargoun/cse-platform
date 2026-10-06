@@ -887,6 +887,20 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'security.schreiben',
   },
   /**
+   * D-783 (O-148) — Voreinstellung und Pflege der Posten- und Schluesselarten.
+   * Die Postenarten schreibt `security.schreiben`; die Schluesselarten-Haelfte
+   * ruft ihre Route hinter `schluessel.schreiben` (0079 `t_mandant`), und
+   * die Datenbank prueft das Recht je Tabelle noch einmal. Die Routen
+   * verlangen fuer die Katalogpflege dazu das LESErecht des Moduls, weil der
+   * Dienst den Katalog liest und `RETURNING` die Lesepolitik prueft
+   * (`api/sicherheit/arten.ts`). Genannt ist hier das Recht des Moduls, in
+   * dem der Dienst steht.
+   */
+  {
+    modul: 'security', pfad: 'security/arten',
+    schreibend: true, schreibRecht: 'security.schreiben',
+  },
+  /**
    * V-179 — die verlangten Nachweise (SEC-01, SEC-04). Sie SCHREIBEN
    * `einsatzanforderung` mit `security.schreiben`, demselben Recht, das die
    * `WITH CHECK`-Hälfte von `t_mandant` verlangt (0031). Dass eine neue Zeile

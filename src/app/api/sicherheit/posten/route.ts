@@ -10,6 +10,7 @@ import { withTenant } from '@/server/kontext/index';
 import {
   legePostenAn, PostenArchiviert, setzePostenLeistung,
 } from '@/server/services/security/posten';
+import { artenAktion } from '../arten';
 import { legePlanungsserieAn } from '@/server/services/dienstplan/serie';
 import { alsAntwort } from '../antwort';
 import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
@@ -100,6 +101,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     return zurueckMit('leistung', 'gesetzt');
   }
+
+  /*
+   * D-783 (O-148): Voreinstellung und Pflege der Postenarten — ein Handler für
+   * beide Kataloge (`../arten`), hinter Lesen UND Schreiben des Moduls. Der
+   * Rückweg ist die Liste oder, mit `herkunft=neu`, die Anlagemaske.
+   */
+  const arten = await artenAktion(anfrage, sitzung, daten, {
+    tabelle: 'postenart', rechtLesen: 'security.lesen', rechtSchreiben: 'security.schreiben',
+    seiten: {
+      liste: `/portal/${mandant}/security/posten`,
+      neu: `/portal/${mandant}/security/posten/neu`,
+    },
+  });
+  if (arten !== null) return arten;
 
   const objektId = text(daten, 'objekt');
   const bezeichnung = text(daten, 'bezeichnung');
