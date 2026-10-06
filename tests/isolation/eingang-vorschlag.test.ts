@@ -474,3 +474,59 @@ describe('(6) Mandantengrenze', () => {
       .rejects.toSatisfy((e: unknown) => e instanceof VorschlagFehler && e.grund === 'nicht_gefunden');
   });
 });
+
+describe('(9) § 13b: bei zwei passenden Gruppen entscheidet das Gewerk des Lieferanten (D-787, O-363)', () => {
+  /** Dieselbe Beispielrechnung, aber als Reverse-Charge: 0 %, Kategorie AE, Brutto = Netto. */
+  function reverseCharge(xml: string): string {
+    return xml
+      .replaceAll('237.50', '0.00')
+      .replaceAll('1487.50', '1250.00')
+      .replaceAll('<cbc:ID>S</cbc:ID>', '<cbc:ID>AE</cbc:ID>')
+      .replaceAll('<cbc:Percent>19</cbc:Percent>', '<cbc:Percent>0</cbc:Percent>');
+  }
+
+  async function abgelegt13b() {
+    const beispiel: ERechnungBeispiel = { ...BEISPIEL_REINIGUNG, rechnungsnummer: `RC-${zufall()}` };
+    const xml = reverseCharge(beispielERechnungUbl(beispiel));
+    const bytes = new TextEncoder().encode(xml);
+    const extrakt = extrahiereERechnung(xml);
+    return alsApp(sitzung(), (tx) =>
+      legeERechnungAb(kontextAus(tx), new LokalerSpeicher(), {
+        dateiname: `${beispiel.rechnungsnummer}.xml`, bytes, behaupteterTyp: 'application/xml',
+        xml, quelleAnzeige: `${beispiel.rechnungsnummer}.xml`, extrakt, entstehungsJahr: 2026,
+      }));
+  }
+
+  const steuerzeilen = (z: FreigabeZeile): unknown =>
+    (z.vorschau_payload as Record<string, unknown>)['steuerzeilen'];
+
+  it('Gebäudereinigung → ust_0_13b_reinigung, sicher, aus dem Stamm gelesen', async () => {
+    await sql.unsafe(`update lieferant set leistungsart = 'gebaeudereinigung' where id = $1`, [lieferantId]);
+    const a = await abgelegt13b();
+    const z = await freigabe(a.vorschlag.freigabeId);
+    expect(steuerzeilen(z)).toEqual([
+      { steuergruppe: 'ust_0_13b_reinigung', kategorie: 'AE', satzBp: 0, nettoCent: 125_000, steuerCent: 0 },
+    ]);
+    expect(z.betrag_cent).toBe('125000');
+    expect((await felder(a.vorschlag.freigabeId)).get('/steuerzeilen/0')?.unsicher).toBe(false);
+  });
+
+  it('Bau → ust_0_13b_bau', async () => {
+    await sql.unsafe(`update lieferant set leistungsart = 'bau' where id = $1`, [lieferantId]);
+    const a = await abgelegt13b();
+    const z = await freigabe(a.vorschlag.freigabeId);
+    expect(steuerzeilen(z)).toEqual([
+      { steuergruppe: 'ust_0_13b_bau', kategorie: 'AE', satzBp: 0, nettoCent: 125_000, steuerCent: 0 },
+    ]);
+  });
+
+  it('ohne Gewerk im Stamm bleibt die Gruppe offen und das Feld unsicher — ein Mensch wählt', async () => {
+    const a = await abgelegt13b();
+    const z = await freigabe(a.vorschlag.freigabeId);
+    expect(steuerzeilen(z)).toEqual([
+      { steuergruppe: null, kategorie: 'AE', satzBp: 0, nettoCent: 125_000, steuerCent: 0 },
+    ]);
+    expect(z.unsichere).toBeGreaterThan(0);
+    expect((await felder(a.vorschlag.freigabeId)).get('/steuerzeilen/0')?.unsicher).toBe(true);
+  });
+});

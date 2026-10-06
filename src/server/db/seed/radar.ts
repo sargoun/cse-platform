@@ -199,8 +199,13 @@ export interface RadarSeedBefund {
 export async function seedRadar(
   sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,
 ): Promise<RadarSeedBefund> {
-  /* Der Plattformkatalog: die Voreinstellung, unbestätigt, ohne Registrierung (D-784). */
-  let plattformen = 0;
+  /*
+   * Der Plattformkatalog: die Voreinstellung, unbestätigt, ohne Registrierung
+   * (D-784). Gezaehlt wird am Ende der KATALOG, nicht dieser Lauf: beim
+   * zweiten Seed kollidiert jeder Einsatz, und „0 Plattformen im Katalog"
+   * waere eine Luege ueber acht vorhandene Zeilen (Pruefstand PR #34).
+   */
+  let plattformenNeu = 0;
   for (const p of PLATTFORM_VOREINSTELLUNG) {
     const neu = await sql<{ id: string }[]>`
       insert into vergabeplattform
@@ -209,8 +214,11 @@ export async function seedRadar(
               ${sql.array([...p.hostMuster])}, ${p.registrierungErforderlich})
       on conflict (slug) do nothing
       returning id`;
-    plattformen += neu.length;
+    plattformenNeu += neu.length;
   }
+  const [katalog] = await sql<{ n: string }[]>`
+    select count(*)::text as n from vergabeplattform where archiviert_am is null`;
+  const plattformen = Number(katalog?.n ?? plattformenNeu);
 
   for (const v of BEKANNTMACHUNGEN) {
     const [a] = await sql<{ id: string }[]>`

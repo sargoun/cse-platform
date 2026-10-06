@@ -24880,6 +24880,16 @@ derselben Weisung und demselben Prüfstand. Sichtbare Sätze zu schon
 entschiedenen Fragen, die noch „offen" oder „Platzhalter" sagen, werden dort
 auf ihre Voreinstellung zurückgeführt.
 
+**Prüfstand (PR #34).** Zwei Befunde der Durchsicht, beide behoben. (1) Der
+Seed zählte die Plattformen des LAUFS und nannte sie „im Katalog" — beim zweiten
+Seed kollidiert jeder Einsatz, und er meldete „0 Plattformen im Katalog" über
+acht vorhandene Zeilen; jetzt zählt er den Katalog nach dem Einsatz. (2) Die
+Übernahme der Prüfliste las Stand und Zeilen der Mappe ohne Sperre; zwei
+gleichzeitige Klicks hätten beide eine leere Liste gesehen und `max(position) +
+1` doppelt vergeben, und der aufgeschobene Index hätte die zweite Transaktion
+erst beim Commit abgewiesen — jetzt `select … for update` wie in
+`entfernePosition`, womit die Übernahme auch gegen die Einreichung eingereiht ist.
+
 | Betrifft | O-07, O-194, O-195, O-193, O-870, O-721, O-49, O-548, O-681, O-939, O-113, O-647, O-641, O-08, O-206, O-750, O-355, O-358, O-128, O-980, O-981, O-830, O-831, O-850; V-292 … V-302; `src/server/services/radar/plattform.ts`, `src/server/services/vergabe/mappe.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/datenschutz/auskunft.ts`, `src/app/api/radar/plattform/route.ts`, `src/app/api/vergabe/mappe/route.ts`, `src/server/db/seed/{index,radar,social}.ts`, `src/lib/i18n/{texte,konto,vor-anmeldung}.ts`, `src/lib/i18n/verwaltung/{agent-budget,radar-plattform,recruiting-kandidat,social-bild}.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, Seiten unter `website`, `radar`, `datenschutz`, `einstellungen`, `social`, `recruiting`, `agenten`, `gruppe/radar`, `mein/dokumente`, `auth/login`; `tests/kern/{radar-plattform,vergabe-pruefliste-voreinstellung,agent-budget-warnschwelle}.test.ts`, `tests/isolation/{radar-plattform,vergabemappe}.test.ts`, `tests/e2e/{agenten,radar,vergabemappe}.spec.ts` |
 |---|---|
 
@@ -24998,6 +25008,18 @@ Reinigung und Bau im Betrieb, CRM, Website, Social und Recruiting, Auth,
 Datenschutz, Integrationen und System — folgt in weiteren Runden (D-787 ff.),
 Modul für Modul, jede Zeile gegen ihren Dienst gelesen.
 
+**Prüfstand (PR #34).** Zwei Befunde, beide behoben. (1) Die Meldeschwelle
+60 war als unveränderliche Regel gebaut — `ProfilEingabe` kannte das Feld
+nicht, die Seite zeigte es gesperrt —, obwohl die Weisung eine ÄNDERBARE
+Voreinstellung verlangt: jetzt ist `benachrichtigungAbPunkte` ein Feld der
+Stammdaten (`schreibeProfil`, Route `benachrichtigungAb`, Formular 0 bis
+`skala_max`, leer = niemand), geprüft gegen die Skala, im Protokoll, mit
+Isolationstests; 60 bleibt nur der Anfangswert eines neuen Profils. (2) Der
+Satz nach dem Eintragen eines Empfängers sagte „ohne Schwelle, also ohne
+Treffermeldung" — für ein neues Profil falsch, weil der Empfänger die 60 erbt;
+Satz und die Dokumentation von `setzeEmpfaenger` unterscheiden jetzt „keine
+eigene Schwelle" von „keine wirksame Schwelle".
+
 | Betrifft | O-15, O-26, O-47, O-48, O-98, O-105, O-106, O-109, O-110, O-111, O-112, O-121, O-125, O-191, O-192, O-196, O-197, O-198, O-203, O-204, O-366, O-720, O-940; Betreiberdaten O-115, O-509, O-596; V-303 bis V-312; `src/server/services/radar/{gewichte.platzhalter,profil,quelle}.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/freigabe/konfidenz.ts`, `src/server/agent/{limits.platzhalter,laufzeit,orchestrator}.ts`, `src/server/jobs/radarWarnungen.ts`, `src/server/db/seed/{index,radar,akquise}.ts`, `src/lib/i18n/verwaltung/agent-budget.ts`, Seiten unter `radar`, `agenten`, `crm/akquise/quellen`, `gruppe/radar`, `gruppe/agenten`; `tests/kern/{radar-voreinstellung,freigabe-konfidenz}.test.ts`, `tests/isolation/radar-profil-schreiben.test.ts`, `tests/e2e/{radar,agenten}.spec.ts` |
 |---|---|
 
@@ -25056,6 +25078,14 @@ Von diesen sind rund hundert Betreiberdaten; der Rest folgt Modul für Modul
 (Zeit, Personal und Stammdaten; Auth, System, Einstellungen und Datenschutz;
 CRM, Website, Social, Recruiting und Kundenportal; Integrationen, Gewerke,
 Seitenkarte und API-Karte; die zweisprachige Verwaltung) in D-788 ff.
+
+**Prüfstand (PR #34).** Der Kern-Test prüfte nur den reinen Wähler
+(`waehleGruppeNachLeistungsart`), nicht den Datenbankpfad dahinter —
+Spaltenzugriff auf `lieferant.leistungsart`, Lieferantensuche, Einbau in den
+Vorschlag. Jetzt legt `tests/isolation/eingang-vorschlag.test.ts` eine
+Reverse-Charge-Rechnung (0 %, AE) gegen die echte Datenbank ab: Gebäudereinigung
+ergibt `ust_0_13b_reinigung`, Bau `ust_0_13b_bau`, ohne Gewerk bleibt die Gruppe
+offen und das Feld unsicher.
 
 | Betrifft | O-178, O-179, O-180, O-181, O-182, O-184, O-187, O-188, O-190, O-363, O-365, O-600, O-605, O-621, O-982; Betreiberdaten O-603; V-313 bis V-318; `src/server/services/finanz/{rechnung,positionsquelle,versand,kanonisch,eingangsrechnung}.ts`, `src/server/services/finanz/{abrechnungsart/stunden,mahnung/stufen,zahlung/index,eingang/vorschlag,estg48/abzug,estg48/grenzen.platzhalter}.ts`, `src/server/services/buchhaltung/verfahrensdokumentation.ts`, `src/server/services/kalkulation/kostenposition.ts`, `src/server/jobs/kontenRollover.ts`, `src/lib/i18n/texte.ts`, `src/lib/i18n/verwaltung/finanzen/eingangsrechnungen.ts`, Seiten `mein/stundenkonto`, `finanzen/eingangsrechnungen/[id]/steuer`, `buchhaltung/z3-export`; `tests/kern/eingang-steuersatzgruppe.test.ts` |
 |---|---|

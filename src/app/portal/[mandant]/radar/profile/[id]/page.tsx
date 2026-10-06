@@ -39,7 +39,7 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * eine Bekanntmachung damals bewertet wurde.
  *
  * **Vier Felder stehen sichtbar GESPERRT da, statt zu fehlen** (Regel 1):
- * Gewichtung und Benachrichtigungsschwelle (O-15), die Wirkung der
+ * Gewichtung (O-15; die Meldeschwelle dagegen ist seit PR #34 ein Formularfeld), die Wirkung der
  * Negativ-Stichwörter (O-191), die Währung der Wertgrenzen (O-47). Ein freies
  * Zahlenfeld für die Gewichtung täte so, als wäre sie bestätigt — und die
  * Rangfolge, die daraus entsteht, würde geglaubt. Ein weggelassenes Feld sähe
@@ -85,8 +85,10 @@ const VERMERKT_TEXT: Readonly<Record<string, string>> = {
     + 'hochgezählt; der nächste Lauf schreibt neue Bewertungen, die alten bleiben stehen.',
   cpv_hinzu: 'Die CPV-Zeile ist eingetragen — als Voreinstellung, gegen die amtliche Liste unbestätigt (O-98).',
   cpv_weg: 'Die CPV-Zeile ist entfernt.',
-  empfaenger_hinzu: 'Der Empfänger ist eingetragen — ohne Schwelle, also ohne '
-    + 'Treffermeldung, bis O-15 beantwortet ist.',
+  empfaenger_hinzu: 'Der Empfänger ist eingetragen — ohne eigene Schwelle: es gilt die '
+    + `Schwelle des Profils, bei neuen Profilen die Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} `
+    + 'von 100 Punkten (O-15, D-786), oben in den Stammdaten änderbar. Hat das Profil keine '
+    + 'Schwelle, bekommt niemand eine Treffermeldung.',
   empfaenger_weg: 'Der Empfänger ist entfernt.',
   /*
    * Die Umleitung nach dem Anlegen (V-016) landet HIER, auf dem Blatt des
@@ -314,6 +316,14 @@ export default async function ProfilBearbeiten(
                      defaultValue={p.fristMinTage === null ? '' : String(p.fristMinTage)} />
             </label>
             <label className="flex flex-col gap-s2 text-xs text-text-muted"
+                   htmlFor="benachrichtigungAb">
+              Treffermeldung ab Punkten (0 bis {String(p.skalaMax)}; leer = niemand)
+              <input id="benachrichtigungAb" name="benachrichtigungAb" type="number" min={0}
+                     max={p.skalaMax} step={1} className={feld} data-cse="profil-benachrichtigung-ab"
+                     defaultValue={p.benachrichtigungAbPunkte === null
+                       ? '' : String(p.benachrichtigungAbPunkte)} />
+            </label>
+            <label className="flex flex-col gap-s2 text-xs text-text-muted"
                    htmlFor="schwellenwert">
               Schwellenwert (EU-Verfahren)
               <select id="schwellenwert" name="schwellenwert" className={feld}
@@ -394,9 +404,9 @@ export default async function ProfilBearbeiten(
           <dt className="text-text-muted">Benachrichtigung ab</dt>
           <dd className="text-text tabular-nums" data-cse="profil-schwelle">
             {p.benachrichtigungAbPunkte === null
-              ? `nicht gesetzt — es wird niemand benachrichtigt; ein neues Profil bekommt die Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} (gesperrt, O-15)`
+              ? `nicht gesetzt — es wird niemand benachrichtigt; ein neues Profil bekommt die Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} (O-15, D-786), änderbar oben in den Stammdaten`
               : `${String(p.benachrichtigungAbPunkte)} Punkte (${
-                p.benachrichtigungAbPunkte === SCHWELLE_VOREINSTELLUNG ? 'Voreinstellung, ' : ''}gesperrt, O-15)`}
+                p.benachrichtigungAbPunkte === SCHWELLE_VOREINSTELLUNG ? 'Voreinstellung, ' : ''}O-15, D-786 — änderbar oben in den Stammdaten)`}
           </dd>
         </dl>
       </section>

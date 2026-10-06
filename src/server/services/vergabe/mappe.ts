@@ -155,9 +155,18 @@ export const PRUEFLISTE_VOREINSTELLUNG: readonly PrueflisteVoreinstellung[] = [
 export async function uebernimmPrueflisteVoreinstellung(
   kontext: SchreibKontext, mappeId: string,
 ): Promise<number> {
-  const [m] = await kontext.abfrage<{ status: string }>(
+  /*
+   * `for update` wie in `entfernePosition`: die Mappe wird gesperrt, BEVOR
+   * Stand und vorhandene Zeilen gelesen werden. Zwei gleichzeitige Klicks
+   * saehen sonst beide eine leere Liste, und `ergaenzePosition` vergaebe
+   * zweimal `max(position) + 1` — der aufgeschobene Index `vmp_position_uk`
+   * wiese die zweite Transaktion erst beim Commit ab (Pruefstand PR #34).
+   * Die Sperre reiht die Uebernahme auch gegen die Einreichung ein.
+   */
+  const [m] = await kontext.schreibe<{ status: string }>(
     `select status::text as status from vergabemappe
-      where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null`,
+      where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null
+      for update`,
     [mappeId, kontext.aktiverMandantId]);
   if (m === undefined) {
     throw new MappeFehler('nicht_gefunden', 'Die Vergabemappe wurde nicht gefunden.');

@@ -136,6 +136,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           const min = text('wertMin');
           const max = text('wertMax');
           const frist = text('fristMinTage');
+          /* Die Meldeschwelle (RAD-08): leer heisst „niemand", sonst ganze Punkte. */
+          const ab = text('benachrichtigungAb');
           await schreibeProfil(kontext, profil, {
             name: text('name') ?? '',
             nutsPraefixe: teileListe(text('nuts')),
@@ -151,6 +153,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             fristMinTage: frist === null ? null : Number.parseInt(frist, 10),
             oberhalbSchwellenwert: dreiwertig(text('schwellenwert')),
             istAktiv: text('istAktiv') === 'ja',
+            benachrichtigungAbPunkte: ab === null ? null : Number.parseInt(ab, 10),
           });
           return;
         }

@@ -61,7 +61,7 @@ import { SCHWELLE_VOREINSTELLUNG } from './gewichte.platzhalter.js';
 export class ProfilFehler extends Error {
   readonly status = 400;
   constructor(
-    readonly code: 'name' | 'nuts' | 'cpv' | 'wert' | 'frist' | 'nicht_gefunden'
+    readonly code: 'name' | 'nuts' | 'cpv' | 'wert' | 'frist' | 'schwelle' | 'nicht_gefunden'
       | 'empfaenger' | 'gesperrt',
     nachricht: string,
   ) {
@@ -176,6 +176,20 @@ export function pruefeFristMinTage(eingabe: number | null): number | null {
   if (!Number.isInteger(eingabe) || eingabe < 0 || eingabe > 365) {
     throw new ProfilFehler('frist',
       'Die Mindestrestfrist sind ganze Tage zwischen 0 und 365.');
+  }
+  return eingabe;
+}
+
+/**
+ * Die Meldeschwelle: ganze Punkte zwischen 0 und `skala_max`, oder `null`
+ * (niemand wird benachrichtigt). Dieselbe Grenze wie die Pruefbedingung der
+ * Spalte (0145) — hier mit einem Satz statt einer Constraintverletzung.
+ */
+export function pruefeSchwelle(eingabe: number | null, skalaMax: number): number | null {
+  if (eingabe === null) return null;
+  if (!Number.isInteger(eingabe) || eingabe < 0 || eingabe > skalaMax) {
+    throw new ProfilFehler('schwelle',
+      `Die Meldeschwelle sind ganze Punkte zwischen 0 und ${String(skalaMax)}.`);
   }
   return eingabe;
 }
@@ -365,6 +379,13 @@ export interface ProfilEingabe {
   readonly fristMinTage: number | null;
   readonly oberhalbSchwellenwert: boolean | null;
   readonly istAktiv: boolean;
+  /**
+   * Ab wie vielen Punkten die Empfaenger eine Treffermeldung bekommen (RAD-08).
+   * `undefined` laesst den Stand, `null` schaltet die Meldung ab. Ein neues
+   * Profil beginnt mit `SCHWELLE_VOREINSTELLUNG` (O-15, D-786) — als
+   * aenderbare Voreinstellung, nicht als Regel (Pruefstand PR #34).
+   */
+  readonly benachrichtigungAbPunkte?: number | null;
 }
 
 /**
@@ -397,6 +418,8 @@ interface StandRoh {
   readonly frist_min_tage: number | null;
   readonly oberhalb_schwellenwert: boolean | null;
   readonly ist_aktiv: boolean;
+  readonly benachrichtigung_ab_punkte: number | null;
+  readonly skala_max: number;
 }
 
 /** Zwei Listen, gleich wenn gleich lang und Element für Element gleich. */
@@ -538,7 +561,8 @@ export async function schreibeProfil(
   const [alt] = await kontext.schreibe<StandRoh>(
     `select name, nuts_praefixe, positiv_keywords, negativ_keywords,
             wert_min_cent::text as wert_min, wert_max_cent::text as wert_max,
-            frist_min_tage, oberhalb_schwellenwert, ist_aktiv
+            frist_min_tage, oberhalb_schwellenwert, ist_aktiv,
+            benachrichtigung_ab_punkte, skala_max
        from radar_profil
       where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null
       for update`,
@@ -566,6 +590,10 @@ export async function schreibeProfil(
    * `geaendert_von`: dass jemand anderes zuletzt gespeichert hat, ist keine
    * andere Suche.
    */
+  /* Die Schwelle: weggelassen heisst „wie sie ist", `null` heisst „niemand". */
+  const schwelle = e.benachrichtigungAbPunkte === undefined
+    ? alt.benachrichtigung_ab_punkte
+    : pruefeSchwelle(e.benachrichtigungAbPunkte, alt.skala_max);
   const unveraendert = alt.name === name
     && gleich(alt.nuts_praefixe, nuts)
     && gleich(alt.positiv_keywords, positiv)
@@ -574,7 +602,8 @@ export async function schreibeProfil(
     && alt.wert_max === maxText
     && alt.frist_min_tage === frist
     && alt.oberhalb_schwellenwert === e.oberhalbSchwellenwert
-    && alt.ist_aktiv === e.istAktiv;
+    && alt.ist_aktiv === e.istAktiv
+    && alt.benachrichtigung_ab_punkte === schwelle;
   if (unveraendert) return;
 
   const [zeile] = await kontext.schreibe<{ id: string }>(
@@ -583,6 +612,7 @@ export async function schreibeProfil(
             negativ_keywords = $6::text[], wert_min_cent = $7::bigint,
             wert_max_cent = $8::bigint, frist_min_tage = $9::integer,
             oberhalb_schwellenwert = $10::boolean, ist_aktiv = $11,
+            benachrichtigung_ab_punkte = $13::integer,
             -- geaendert_am steht HIER, weil radar_profil keinen
             -- setze_geaendert_am-Trigger traegt (nur den Versionszaehler) und
             -- app.radar_profil_version_bump es nur setzt, wenn eine
@@ -594,7 +624,8 @@ export async function schreibeProfil(
       where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null
       returning id`,
     [id, kontext.aktiverMandantId, name, [...nuts], [...positiv], [...negativ],
-      minText, maxText, frist, e.oberhalbSchwellenwert, e.istAktiv, kontext.benutzerId]);
+      minText, maxText, frist, e.oberhalbSchwellenwert, e.istAktiv, kontext.benutzerId,
+      schwelle]);
 
   /* Nach der Sperre oben kann das nicht mehr eintreten — bleibt aber stehen:
      ein stilles Null-Zeilen-Update darf nie wie ein Erfolg aussehen. */
@@ -611,10 +642,12 @@ export async function schreibeProfil(
       negativ: [...alt.negativ_keywords], wertMinCent: alt.wert_min,
       wertMaxCent: alt.wert_max, fristMinTage: alt.frist_min_tage,
       oberhalbSchwellenwert: alt.oberhalb_schwellenwert, istAktiv: alt.ist_aktiv,
+      benachrichtigungAbPunkte: alt.benachrichtigung_ab_punkte,
     }, {
       name, nuts: [...nuts], positiv: [...positiv], negativ: [...negativ],
       wertMinCent: minText, wertMaxCent: maxText, fristMinTage: frist,
       oberhalbSchwellenwert: e.oberhalbSchwellenwert, istAktiv: e.istAktiv,
+      benachrichtigungAbPunkte: schwelle,
     }]);
 }
 
@@ -709,13 +742,13 @@ export async function entferneCpv(
 /**
  * Einen Empfänger eintragen.
  *
- * **Ohne Schwelle** — `ab_punkte` bleibt `null`, weil ab welcher Punktzahl
- * benachrichtigt wird, niemand entschieden hat (O-15). Ein eingetragener
- * Empfänger ohne Schwelle bekommt nach RAD-08 keine Treffermeldung, und die
- * Oberfläche sagt genau das. Eine Zahl hier zu erfinden hiesse, jemandem
- * Post zu schicken, deren Auswahlregel niemand bestätigt hat — und die
- * Gegenrichtung (eine zu hohe Schwelle) verschweigt Treffer, die niemand
- * sucht.
+ * **Ohne EIGENE Schwelle** — `ab_punkte` bleibt `null`: es gilt die Schwelle
+ * des Profils (`benachrichtigung_ab_punkte`), bei neuen Profilen die
+ * Voreinstellung `SCHWELLE_VOREINSTELLUNG` (O-15, D-786), die das Formular
+ * aendern kann. Nur ein Profil OHNE Schwelle meldet nach RAD-08 nichts, und
+ * die Oberflaeche sagt genau das. Eine Zahl je Empfaenger hat kein Feld
+ * (V-309) — „keine eigene Schwelle" und „keine wirksame Schwelle" sind zwei
+ * verschiedene Saetze, und die Seite unterscheidet sie.
  */
 export async function setzeEmpfaenger(
   kontext: SchreibKontext, profilId: string, benutzerId: string,

@@ -704,3 +704,34 @@ describe('(9) ein Profil anlegen', () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe('(9) die Meldeschwelle ist ein Feld der Stammdaten (O-15, D-786, Prüfstand PR #34)', () => {
+  it('lässt sich setzen, zählt die Fassung hoch und steht im Protokoll', async () => {
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 75 }));
+    const blick = await alsWer(benutzer, (k) => leseProfil(k, profil));
+    expect(blick?.benachrichtigungAbPunkte).toBe(75);
+    expect(await version()).toBe(2);
+    const [z] = await sql.unsafe<{ nachher: Record<string, unknown> | null }[]>(
+      `select nachher from audit_log
+        where objekt_id = $1 and aktion = 'radar.profil_gesetzt'
+        order by zeitpunkt desc limit 1`, [profil]);
+    expect(z?.nachher?.['benachrichtigungAbPunkte']).toBe(75);
+  });
+
+  it('weggelassen bleibt sie, wie sie war; `null` schaltet die Meldung ab', async () => {
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 42 }));
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, name: 'Umbenannt' }));
+    expect((await alsWer(benutzer, (k) => leseProfil(k, profil)))?.benachrichtigungAbPunkte).toBe(42);
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: null }));
+    expect((await alsWer(benutzer, (k) => leseProfil(k, profil)))?.benachrichtigungAbPunkte).toBeNull();
+  });
+
+  it('weist eine Schwelle ausserhalb der Skala mit einem Satz ab', async () => {
+    const blick = await alsWer(benutzer, (k) => leseProfil(k, profil));
+    await expect(alsWer(benutzer, (k) => schreibeProfil(k, profil, {
+      ...STAND, benachrichtigungAbPunkte: (blick?.skalaMax ?? 100) + 1,
+    }))).rejects.toMatchObject({ code: 'schwelle' });
+    await expect(alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 7.5 })))
+      .rejects.toBeInstanceOf(ProfilFehler);
+  });
+});
