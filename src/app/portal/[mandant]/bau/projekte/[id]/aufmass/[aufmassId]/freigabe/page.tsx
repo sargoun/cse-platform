@@ -265,10 +265,11 @@ export default async function AufmassFreigabe(
                   <strong>Einseitige Feststellung (§ 14 Abs. 2 VOB/B).</strong> Der
                   Auftraggeber ist trotz Aufforderung nicht erschienen. Das Blatt trägt
                   danach <strong>anderes Beweisgewicht</strong> als eine gemeinsame
-                  Feststellung — es heisst nicht „gegengezeichnet". Unter welchen
-                  Voraussetzungen ein einseitiges Aufmaß abgerechnet wird
-                  (Ankündigungsfrist, Widerspruchsfrist), ist <strong>offen (O-156)</strong>;
-                  die Plattform prüft keine Frist und erfindet keine.
+                  Feststellung — es heisst nicht „gegengezeichnet". Voreinstellung (O-156): die
+                  Aufforderung zur gemeinsamen Feststellung ergeht in Textform mit einer Woche
+                  Vorlauf; bleibt der Auftraggeber fern, wird einseitig festgestellt und das
+                  Blatt ihm zugestellt. Die Plattform hält den Tag der Aufforderung fest und
+                  prüft die Frist nicht.
                 </p>
                 <label className="block">
                   <span className="mb-s1 block text-micro uppercase tracking-[0.08em] text-text-muted">

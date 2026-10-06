@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   GewerkFehler, pruefeGewerkCode, type GewerkGrund,
+  GEWERK_VOREINSTELLUNG,
 } from '../../src/server/services/bau/gewerk.js';
 import { GEWERK_TEXTE } from '../../src/lib/i18n/verwaltung/gewerke.js';
 import { ROUTEN as API } from '../../src/server/auth/route-manifest.js';
@@ -113,5 +114,26 @@ describe('(4) das Mitarbeiterportal fragt in seiner Sprache (V-185)', () => {
     expect(GEWERK_TEXTE.de.uebersetzungen).toBe('Bezeichnung im Mitarbeiterportal');
     expect(GEWERK_TEXTE.de.uebersetzungenHinweis).toContain('deutsche');
     expect(GEWERK_TEXTE.en.uebersetzungenHinweis).toContain('German');
+  });
+});
+
+describe('die Voreinstellung nach STLB-Bau (D-782, O-159)', () => {
+  it('zwoelf Gewerke, jede mit gueltigem Code, dreistelligem Leistungsbereich und unbestaetigt', () => {
+    expect(GEWERK_VOREINSTELLUNG).toHaveLength(12);
+    const codes = GEWERK_VOREINSTELLUNG.map((g) => g.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const g of GEWERK_VOREINSTELLUNG) {
+      expect(pruefeGewerkCode(g.code), g.code).toBe(g.code);
+      expect(g.leistungsbereich, g.code).toMatch(/^\d{3}$/u);
+      expect(g.bestaetigt, g.code).toBe(false);
+      expect(g.bezeichnung.trim().length, g.code).toBeGreaterThan(0);
+      // Die drei Sprachen des Mitarbeiterportals (EMP-12) stehen daneben.
+      expect(g.uebersetzungen?.en, g.code).toBeTruthy();
+      expect(g.uebersetzungen?.ar, g.code).toBeTruthy();
+      expect(g.uebersetzungen?.tr, g.code).toBeTruthy();
+    }
+    // Die beiden Gewerke, auf die der Seed bucht, sind dabei.
+    expect(codes).toContain('TRO');
+    expect(codes).toContain('EST');
   });
 });

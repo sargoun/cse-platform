@@ -177,6 +177,8 @@ describe('ohne `bau.preis_lesen` (Rolle `leitung`) laeuft JEDE Abfrage', () => {
     expect(d.kennzahlen.nachtraege_offen).toBe(1);
     expect(d.kennzahlen.abnahmen).toBe(0);
     expect(Array.isArray(d.luecken)).toBe(true);
+    // D-782 (O-630): erwartet wird ein Eintrag an Werktagen Mo–Sa — nie an einem Sonntag.
+    expect(d.luecken.every((l) => l.wochentag !== 'Sonntag')).toBe(true);
   });
 
   it('Positionsauswahl: nur Positionen, jede mit ihrem Verzeichnis', async () => {
@@ -235,6 +237,9 @@ describe('ohne `bau.preis_lesen` (Rolle `leitung`) laeuft JEDE Abfrage', () => {
       };
     });
     expect(d.position?.oz).toBe('1.1');
+    // D-782 (O-632): ohne `bau.preis_lesen` ist das Steuerkennzeichen null — kein Fehler, keine Angabe.
+    expect(d.position?.steuer_kennzeichen).toBeNull();
+    expect(d.position?.darf_preis_lesen).toBe(false);
     expect(d.position?.quelle_seite).toBe(4);
     expect(d.position?.konfidenz).toBe('82.00');
     // K-05: der Preis kommt nur ueber `app.lv_preis_lesen`, und ohne das

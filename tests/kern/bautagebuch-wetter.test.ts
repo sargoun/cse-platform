@@ -185,13 +185,27 @@ describe('der Schnappschuss traegt Station und Beobachtungszeit', () => {
     expect(k.niederschlag).toBeNull();
   });
 
-  it('die Belegung ist eine ORDNUNG, keine Tageszeit (O-213)', () => {
+  it('die Belegung folgt den Tageszeiten der Voreinstellung — 07, 12, 17 Uhr Berlin (O-213, D-782)', () => {
+    // September, Sommerzeit: 05:00Z ist 07:00 Berlin, 11:00Z ist 13:00, 17:00Z ist 19:00.
     const b = waehleBelegung(messungen);
     expect(b.frueh).toBe('2026-09-10T05:00:00.000Z');
+    expect(b.mittag).toBe('2026-09-10T11:00:00.000Z');
     expect(b.abend).toBe('2026-09-10T17:00:00.000Z');
     // Bei zwei Beobachtungen gibt es keine Mitte, und es wird keine erfunden.
     const zwei = waehleBelegung(messungen.slice(0, 2));
     expect(zwei.mittag).toBeNull();
+    // Stundenwerte: je Spalte die naechstliegende Beobachtung — nicht erste/mittlere/letzte.
+    const stunden = ['04', '08', '10', '12', '15', '20'].map((h) => messung(`2026-09-10T${h}:00:00.000Z`, 12, 0));
+    const s = waehleBelegung(stunden);
+    expect(s.frueh).toBe('2026-09-10T04:00:00.000Z');   // 06:00 Berlin — naeher an 07 als 10:00
+    expect(s.mittag).toBe('2026-09-10T10:00:00.000Z');  // 12:00 Berlin
+    expect(s.abend).toBe('2026-09-10T15:00:00.000Z');   // 17:00 Berlin
+    // Winterzeit: 06:00Z ist 07:00 Berlin.
+    const winter = ['06', '11', '16'].map((h) => messung(`2026-01-15T${h}:00:00.000Z`, 1, 0));
+    const w = waehleBelegung(winter);
+    expect(w.frueh).toBe('2026-01-15T06:00:00.000Z');
+    expect(w.mittag).toBe('2026-01-15T11:00:00.000Z');
+    expect(w.abend).toBe('2026-01-15T16:00:00.000Z');
   });
 });
 

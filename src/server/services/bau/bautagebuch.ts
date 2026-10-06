@@ -484,7 +484,8 @@ export async function hefteMannstundenAn(
     throw new BautagebuchFehler(
       'kein_gewerk',
       'Dieses Gewerk gibt es in dieser Gesellschaft nicht. Der Gewerkekatalog wird leer '
-      + 'ausgeliefert, bis feststeht, welche Gewerke geführt werden (O-159).',
+      + 'ausgeliefert; die Verwaltung übernimmt unter Bau › Gewerke die Voreinstellung '
+      + 'nach STLB-Bau oder trägt eigene ein (O-159).',
     );
   }
 
@@ -754,6 +755,28 @@ export type AbgleichBefund =
   /** Dieser Zugang darf `zeiteintrag` nicht lesen — es gibt keinen Befund. */
   | 'zeit_nicht_lesbar';
 
+/**
+ * **Die Voreinstellung zur Toleranz** (O-280, D-782): bis 30 Minuten
+ * Differenz je Tag gilt der Abgleich als geringfuegig, darueber als
+ * auffaellig. Gemeldet wird BEIDES — die Toleranz beschriftet, sie glaettet
+ * nicht; eine Differenz ab einer Minute bleibt eine Abweichung.
+ */
+export const ABGLEICH_TOLERANZ_MINUTEN = 30;
+
+/** Liegt die Differenz ueber der Voreinstellung? Das Vorzeichen spielt keine Rolle. */
+export function istAuffaellig(abweichungMinuten: number): boolean {
+  return Math.abs(abweichungMinuten) > ABGLEICH_TOLERANZ_MINUTEN;
+}
+
+/** Der Satz zur Toleranz — er nennt die Zahl und die Nummer, in beide Richtungen. */
+export function toleranzSatz(abweichungMinuten: number): string {
+  return istAuffaellig(abweichungMinuten)
+    ? `Das liegt über der Voreinstellung von ${String(ABGLEICH_TOLERANZ_MINUTEN)} Minuten `
+      + '(O-280) und gilt als auffällig.'
+    : `Das liegt innerhalb der Voreinstellung von ${String(ABGLEICH_TOLERANZ_MINUTEN)} Minuten `
+      + '(O-280) — gemeldet, nicht geglättet.';
+}
+
 export interface MannstundenAbgleich {
   readonly bautagebuchId: string;
   readonly projektId: string;
@@ -771,6 +794,8 @@ export interface MannstundenAbgleich {
   /** Tagebuch minus Zeiterfassung. Das Vorzeichen bleibt stehen. */
   readonly abweichungMinuten: number;
   readonly befund: AbgleichBefund;
+  /** Eine Abweichung ueber der Voreinstellung (O-280) — sonst `false`. */
+  readonly auffaellig: boolean;
   /** Der Satz, der über der Zahl steht. Nie leer. */
   readonly text: string;
 }
@@ -818,13 +843,11 @@ export function alsStunden(minuten: number): string {
  * naheliegende Fassung meldete dann „100 % Abweichung" an einen Menschen, der
  * nichts falsch gemacht hat. Deshalb wird das Recht ZUERST gefragt.
  *
- * // TODO(client, O-280): Ab welcher Abweichung gilt der Abgleich als
- * auffällig — und ist überhaupt eine Toleranz gewollt? Bis zur Antwort wird
- * jede Differenz ab einer Minute gemeldet und keine geglättet.
- * // TODO(client, O-281): Zählen die Mannstunden im Bautagebuch die
- * Anwesenheit auf der Baustelle (brutto) oder die Arbeitszeit ohne Pausen
- * (netto)? Verglichen wird derzeit gegen `dauer_netto_minuten`, und die Seite
- * sagt es dazu.
+ * // TODO(client, O-280): Voreinstellung — auffaellig ab mehr als 30 Minuten
+ * Differenz je Tag (`ABGLEICH_TOLERANZ_MINUTEN`); jede Differenz ab einer
+ * Minute wird weiter gemeldet, die Toleranz beschriftet sie nur.
+ * // TODO(client, O-281): Voreinstellung — die Mannstunden im Bautagebuch sind
+ * Arbeitszeit ohne Pausen (netto), verglichen gegen `dauer_netto_minuten`.
  */
 export async function gleicheMannstundenAb(
   kontext: LeseKontext, bautagebuchId: string,
@@ -883,6 +906,7 @@ export async function gleicheMannstundenAb(
       zeiteintragMinuten: 0, zeiteintraege: 0, laufendeZeiteintraege: 0,
       abweichungMinuten: 0,
       befund: 'zeit_nicht_lesbar',
+      auffaellig: false,
       text:
         'Der Abgleich mit der Zeiterfassung verlangt zusätzlich das Recht „zeit.lesen". '
         + 'Dieser Zugang hat es nicht — es wird deshalb KEIN Befund gezeigt, denn eine '
@@ -925,6 +949,7 @@ export async function gleicheMannstundenAb(
     laufendeZeiteintraege: laufend,
     abweichungMinuten: abweichung,
     befund,
+    auffaellig: befund === 'abweichung' && istAuffaellig(abweichung),
     text: abgleichText(befund, abweichung, laufend, nachunternehmer),
   };
 }
@@ -932,10 +957,10 @@ export async function gleicheMannstundenAb(
 /**
  * Der Satz zum Befund — und er BENENNT die Abweichung.
  *
- * Die Versuchung ist, eine kleine Differenz „im Rahmen" zu nennen. Genau das
- * ist die Stelle, an der aus einem Bericht eine Beruhigung wird: eine
- * Toleranz, die niemand beschlossen hat, verschweigt ab dem ersten Tag genau
- * die Faelle, wegen derer der Abgleich existiert.
+ * Die Versuchung ist, eine kleine Differenz „im Rahmen" zu nennen und zu
+ * verschweigen. Deshalb glaettet die Voreinstellung (O-280, D-782) nichts:
+ * jede Differenz wird genannt, und der Toleranzsatz sagt dazu, ob sie ueber
+ * oder unter 30 Minuten liegt — die Zahl bleibt stehen.
  */
 function abgleichText(
   befund: AbgleichBefund, abweichungMinuten: number,
@@ -958,9 +983,9 @@ function abgleichText(
       ? 'Die eigenen Mannstunden decken sich mit der Zeiterfassung dieses Tages.'
       : abweichungMinuten > 0
         ? `Das Bautagebuch weist ${alsStunden(abweichungMinuten)} h mehr eigene Stunden aus `
-          + 'als die Zeiterfassung dieses Tages.'
+          + `als die Zeiterfassung dieses Tages. ${toleranzSatz(abweichungMinuten)}`
         : `Die Zeiterfassung dieses Tages weist ${alsStunden(-abweichungMinuten)} h mehr aus `
-          + 'als das Bautagebuch.';
+          + `als das Bautagebuch. ${toleranzSatz(abweichungMinuten)}`;
 
   return nachsatz === '' ? kern : `${kern} ${nachsatz}`;
 }

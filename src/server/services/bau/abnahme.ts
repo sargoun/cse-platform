@@ -21,8 +21,9 @@
  *     Abnahme ist keine fehlende Abnahme: § 12 Abs. 3 verlangt die Angabe der
  *     Maengel, auf die sich die Verweigerung stuetzt, und ohne diese Zeile
  *     gaebe es sie nirgends.
- *  3. **Er rechnet die Gewaehrleistungsfrist NICHT.** Siehe
- *     {@link GewaehrleistungsFrist}.
+ *  3. **Er rechnet die Gewaehrleistungsfrist nach der Voreinstellung** (O-154,
+ *     D-782) und schreibt sie ans Projekt — siehe {@link GewaehrleistungsFrist}
+ *     und {@link FRIST_VOREINSTELLUNG}.
  *  4. **Er korrigiert durch Storno mit Ersatz.** Das Protokoll ist ab dem
  *     Einfuegen unveraenderlich (Ausloeser `kern.abnahme_einfrieren` in 0211);
  *     eine Aenderung ist ein neues Protokoll, das auf das alte zeigt.
@@ -91,10 +92,13 @@ export interface FristEingabe {
   /** Berliner Kalendertag `JJJJ-MM-TT` (K-11). */
   readonly abnahmeAm: string;
   readonly art: AbnahmeArt;
+  /** Eine Verweigerung (§ 12 Abs. 3 VOB/B) setzt keine Frist — auch nicht rechnerisch. */
+  readonly abgenommen: boolean;
 }
 
 /**
- * Wie lange die Gewaehrleistung laeuft — **eine offene Frage, kein Rechenweg**.
+ * Wie lange die Gewaehrleistung laeuft — hinter einer Schnittstelle, mit einer
+ * **Voreinstellung** (D-782) statt einer offenen Frage.
  *
  * VOB/B § 13 Abs. 4 nennt vier Jahre fuer Bauwerke, § 634a BGB fuenf. Welches
  * Regime gilt, haengt am Vertrag; ob BGB-Bauvertraege ueberhaupt vorkommen,
@@ -104,12 +108,14 @@ export interface FristEingabe {
  * **Ein geratenes Datum ist hier der teuerste mögliche Fehler.** Eine Frist,
  * die ein Jahr zu kurz notiert ist, laesst einen Anspruch verjaehren, und das
  * faellt genau dann auf, wenn er geltend gemacht werden soll — Jahre spaeter,
- * unwiderruflich. Deshalb liefert die Platzhalterfassung NULL, die Spalte
- * `projekt.gewaehrleistung_bis` bleibt leer, und die Oberflaeche schreibt
- * „offen (O-154)" statt eines Datums.
- * // TODO(client, O-154): Kommen BGB-Bauvertraege vor oder ausschliesslich
- * VOB/B, welche Gewaehrleistungsfrist gilt je Regime, und ab welchem Ereignis
- * laeuft sie (Abnahme, Teilabnahme, Ingebrauchnahme)?
+ * unwiderruflich. Deshalb liefert die Fassung `FRIST_OFFEN` NULL und bleibt
+ * als die „rechnet nichts"-Variante erhalten; eingesetzt ist seit D-782 die
+ * `FRIST_VOREINSTELLUNG`, und die Oberflaeche nennt sie so.
+ * // TODO(client, O-154): Voreinstellung — Bauvertraege der Gruppe nach VOB/B
+ * (BGB wird beim Anlegen ausdruecklich gewaehlt); Gewaehrleistung vier Jahre ab
+ * Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fuenf bei BGB (§ 634a Abs. 1 Nr. 2);
+ * foermliche, fiktive und konkludente Abnahme setzen die Frist ab dem
+ * Abnahmetag, eine Teilabnahme setzt die Projektfrist nicht.
  */
 export interface GewaehrleistungsFrist {
   /** `JJJJ-MM-TT` — oder `null`, solange die Regel offen ist. */
@@ -137,6 +143,48 @@ export const FRIST_OFFEN_TEXT =
   'Die Gewährleistungsfrist wird gespeichert, nicht berechnet: ob vier Jahre '
   + '(§ 13 Abs. 4 VOB/B) oder fünf (§ 634a BGB) gelten und ab welchem Ereignis '
   + 'sie läuft, ist offen (O-154).';
+
+/** Jahre der Gewaehrleistung je Vertragsregime — die Voreinstellung (O-154, D-782). */
+export const GEWAEHRLEISTUNG_JAHRE: Readonly<Record<string, number>> = { vob_b: 4, bgb: 5 };
+
+/**
+ * `JJJJ-MM-TT` plus ganze Jahre nach §§ 187 Abs. 1, 188 Abs. 2 und 3 BGB: der
+ * Ereignistag zaehlt nicht mit, die Frist endet mit Ablauf des Tages, der dem
+ * Ereignistag entspricht — fehlt er im Zieljahr (29. Februar), mit dem letzten
+ * Tag des Monats. Reine Kalenderarithmetik in UTC, keine Zeitzone im Spiel.
+ */
+export function fristEndeNachJahren(tag: string, jahre: number): string {
+  const [j, m, t] = tag.split('-').map(Number) as [number, number, number];
+  const zielJahr = j + jahre;
+  const letzterTag = new Date(Date.UTC(zielJahr, m, 0)).getUTCDate();
+  const tt = Math.min(t, letzterTag);
+  return `${String(zielJahr).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(tt).padStart(2, '0')}`;
+}
+
+/**
+ * **Die eingesetzte Fassung — die Voreinstellung** (O-154, D-782): vier Jahre
+ * ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fuenf Jahre bei BGB (§ 634a Abs. 1
+ * Nr. 2). Foermliche, fiktive und konkludente Abnahme setzen die Frist ab dem
+ * Abnahmetag; eine Teilabnahme setzt die PROJEKTFRIST nicht — sie gilt dem
+ * Teil, und `projekt.gewaehrleistung_bis` kennt nur das Ganze. Eine
+ * Verweigerung rechnet nichts (es gibt keine Abnahme, von der eine Frist
+ * laufen koennte); ein unbekanntes Regime oder ein Datum, das kein Kalendertag
+ * ist, ebenso wenig.
+ */
+export const FRIST_VOREINSTELLUNG: GewaehrleistungsFrist = {
+  fristEnde: (e) => {
+    const jahre = GEWAEHRLEISTUNG_JAHRE[e.vertragsgrundlage];
+    if (!e.abgenommen || jahre === undefined || e.art === 'teilabnahme') return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(e.abnahmeAm)) return null;
+    return fristEndeNachJahren(e.abnahmeAm, jahre);
+  },
+};
+
+/** Was die Oberflaeche zur Frist sagt, solange noch keine Abnahme sie gesetzt hat. */
+export const FRIST_VOREINSTELLUNG_TEXT =
+  'Voreinstellung (O-154): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1 VOB/B), '
+  + 'fünf Jahre bei BGB (§ 634a Abs. 1 Nr. 2 BGB); eine Teilabnahme setzt die Projektfrist '
+  + 'nicht. Gerechnet wird beim Protokollieren der Abnahme und am Projekt gespeichert.';
 
 export const ABNAHME_ART_TEXT: Readonly<Record<AbnahmeArt, string>> = {
   foermlich: 'förmliche Abnahme (§ 12 Abs. 4 VOB/B)',
@@ -459,16 +507,23 @@ export function pruefeAbnahme(eingabe: AbnahmeEingabe): void {
  * Projekt ab (§1.8). Der Wert hier ist also bedeutungslos und steht nur, weil
  * die Spalte `not null` ist — die Kundenzugehoerigkeit ist keine Eingabe.
  *
- * **Die Gewaehrleistungsfrist wird nicht geschrieben.** `frist.fristEnde()`
- * wird gerufen, damit die Schnittstelle einen Aufrufer hat und beim Austausch
- * der Fassung genau EINE Stelle zu aendern ist; solange sie NULL liefert,
- * bleibt `projekt.gewaehrleistung_bis` unberuehrt.
+ * **Die Gewaehrleistungsfrist wird nach der Voreinstellung gerechnet und ans
+ * Projekt geschrieben** (D-782): `frist.fristEnde()` ist die eine Stelle, an
+ * der die Regel haengt; liefert sie NULL (Teilabnahme, unbekanntes Regime,
+ * Verweigerung), bleibt `projekt.gewaehrleistung_bis` unberuehrt.
  */
 export async function protokolliereAbnahme(
   kontext: SchreibKontext,
   eingabe: AbnahmeEingabe,
-  frist: GewaehrleistungsFrist = FRIST_OFFEN,
-): Promise<{ readonly id: string; readonly hash: string; readonly fristEnde: string | null }> {
+  frist: GewaehrleistungsFrist = FRIST_VOREINSTELLUNG,
+): Promise<{
+  readonly id: string;
+  readonly hash: string;
+  /** Die Frist, die danach am Projekt steht — gerechnet oder eingetragen; `null` bei Teilabnahme und Verweigerung. */
+  readonly fristEnde: string | null;
+  /** `true`: am Projekt stand ein eingetragenes Datum, die Voreinstellung wurde NICHT geschrieben. */
+  readonly fristEingetragen: boolean;
+}> {
   pruefeAbnahme(eingabe);
 
   const [projekt] = await kontext.abfrage<{
@@ -633,15 +688,47 @@ export async function protokolliereAbnahme(
     );
   }
 
-  return {
-    id: kopf.id,
-    hash,
-    fristEnde: frist.fristEnde({
-      vertragsgrundlage: projekt.vertragsgrundlage,
-      abnahmeAm: eingabe.abnahmeAm,
-      art: eingabe.art,
-    }),
-  };
+  const fristEnde = frist.fristEnde({
+    vertragsgrundlage: projekt.vertragsgrundlage,
+    abnahmeAm: eingabe.abnahmeAm,
+    art: eingabe.art,
+    abgenommen: eingabe.abgenommen,
+  });
+  let fristAmProjekt: string | null = null;
+  let fristEingetragen = false;
+  if (fristEnde !== null) {
+    /*
+     * Die Frist steht am PROJEKT (`gewaehrleistung_bis`, 0071), nicht am
+     * Protokoll — sie ist eine Eigenschaft des Werks. **Ein eingetragenes
+     * Datum geht vor**: `coalesce` laesst es stehen, und
+     * `gewaehrleistung_aus_abnahme_id` (0493) merkt sich, ob DIESE Abnahme die
+     * Frist gesetzt hat — nur dann nimmt ein Storno sie wieder zurueck. Im
+     * `set` liest `gewaehrleistung_bis` den alten Wert, `returning` den neuen.
+     * `returning` statt blindem UPDATE: ein UPDATE, das die Policy still
+     * verschluckt, gaebe sonst eine Frist zurueck, die nirgends steht; so
+     * traegt die Transaktion dann auch das Protokoll nicht (Invariante 3,
+     * zweite Linie).
+     */
+    const [stand] = await kontext.schreibe<{ bis: string; aus_abnahme: boolean }>(
+      `update projekt
+          set gewaehrleistung_bis = coalesce(gewaehrleistung_bis, $2::date),
+              gewaehrleistung_aus_abnahme_id = case
+                when gewaehrleistung_bis is null then $3::uuid
+                else gewaehrleistung_aus_abnahme_id end
+        where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        returning to_char(gewaehrleistung_bis, 'YYYY-MM-DD') as bis,
+                  coalesce(gewaehrleistung_aus_abnahme_id = $3::uuid, false) as aus_abnahme`,
+      [eingabe.projektId, fristEnde, kopf.id]);
+    if (stand === undefined) {
+      throw new AbnahmeFehler('nicht_gefunden',
+        'Die Gewährleistungsfrist konnte nicht am Projekt gespeichert werden — das Protokoll '
+        + 'wurde deshalb nicht angelegt.', 404);
+    }
+    fristAmProjekt = stand.bis;
+    fristEingetragen = !stand.aus_abnahme;
+  }
+
+  return { id: kopf.id, hash, fristEnde: fristAmProjekt, fristEingetragen };
 }
 
 /**
@@ -706,15 +793,31 @@ export async function storniereAbnahme(
       422,
     );
   }
-  const zeilen = await kontext.schreibe<{ id: string }>(
+  const zeilen = await kontext.schreibe<{ id: string; projekt_id: string; gesamt: boolean }>(
     `update abnahme
         set storniert_am = now(), storniert_von = app.aktueller_benutzer(),
             storno_grund = $2, ersetzt_durch_id = $3::uuid,
             geaendert_von = app.aktueller_benutzer()
       where id = $1 and mandant_id = $4 and storniert_am is null
-      returning id`,
+      returning id, projekt_id, (abgenommen and art <> 'teilabnahme') as gesamt`,
     [eingabe.id, eingabe.grund, eingabe.ersetztDurchId ?? null, kontext.aktiverMandantId],
   );
+  /*
+   * D-782: die Frist am Projekt stammt aus der wirksamen Gesamtabnahme. Wird
+   * sie storniert, faellt die Frist mit — aber NUR die, die diese Abnahme
+   * gesetzt hat (`gewaehrleistung_aus_abnahme_id`, 0493): ein eingetragenes
+   * Datum bleibt stehen. Das Ersatzprotokoll setzt die Voreinstellung neu,
+   * wenn danach keine Frist steht. Eine stehen gebliebene GERECHNETE Frist
+   * ohne Abnahme waere eine erfundene Rechtsfolge.
+   */
+  if (zeilen[0]?.gesamt === true) {
+    await kontext.schreibe(
+      `update projekt
+          set gewaehrleistung_bis = null, gewaehrleistung_aus_abnahme_id = null
+        where id = $1::uuid and mandant_id = app.aktiver_mandant()
+          and gewaehrleistung_aus_abnahme_id = $2::uuid`,
+      [zeilen[0].projekt_id, zeilen[0].id]);
+  }
   return zeilen.length > 0;
 }
 

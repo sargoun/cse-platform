@@ -25,6 +25,7 @@ import { Wechselblatt } from '@/components/portal/Wechselblatt';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { kennungOder404 } from '../../../../../../kennung';
 import { Recht } from '@/components/ui/Recht';
+import { KENNZEICHEN } from '../../../../../leistungskatalog/daten';
 
 /**
  * `/portal/[mandant]/bau/projekte/[id]/lv/[ozId]` — eine LV-Position im
@@ -55,6 +56,10 @@ import { Recht } from '@/components/ui/Recht';
  * und nie eine 0 €.
  */
 export const dynamic = 'force-dynamic';
+
+/** Das Steuerkennzeichen als Wort — dieselbe Liste wie im Leistungskatalog (0022). */
+const STEUER_TEXT: Readonly<Record<string, string>> = Object.fromEntries(
+  KENNZEICHEN.map((k) => [k.wert, k.text]));
 
 const ART_TEXT: Readonly<Record<string, string>> = {
   los: 'Los', titel: 'Titel', untertitel: 'Untertitel',
@@ -241,20 +246,20 @@ export default async function LvPositionSeite(
         )}
 
         {/*
-          * Das Steuerkennzeichen steht NICHT hier, und der Satz sagt warum.
-          * 0071 entzieht `cse_app` die Spalte zusammen mit dem Einheitspreis
-          * (K-05, „OMITTED"); sie zu lesen liess die ganze Abfrage mit einem
-          * Rechtefehler scheitern. Fuer den Preis gibt es einen gepruegten
-          * Leser, fuer das Kennzeichen keinen — und einen zu bauen hiesse zu
-          * entscheiden, wer es sehen darf (O-632, siehe `findeLvPosition`).
+          * Das Steuerkennzeichen kommt ueber `app.lv_steuer_lesen` (0492) — hinter
+          * demselben Recht wie der Preis (Voreinstellung O-632, D-782). Ohne
+          * Recht steht hier „nicht lesbar", nie ein geratenes Kennzeichen.
           */}
-        <p className="mt-s3 text-sm text-text-muted" data-cse="steuerkennzeichen-offen">
+        <p className="mt-s3 text-sm text-text-muted" data-cse="steuerkennzeichen">
           Steuerkennzeichen (§ 13b UStG):{' '}
-          <span className="text-warning">offen (O-632)</span> — die Spalte ist für
-          die Anwendung nicht lesbar (0071 entzieht sie zusammen mit dem
-          Einheitspreis). Ob sie hier erscheint und hinter welchem Recht, ist
-          nicht entschieden; ein geratenes Kennzeichen entschied über den
-          Wechsel der Steuerschuld.
+          {p.darf_preis_lesen
+            ? (p.steuer_kennzeichen === null
+              ? <span className="text-text-subtle">nicht hinterlegt</span>
+              : <strong className="text-text">{STEUER_TEXT[p.steuer_kennzeichen] ?? p.steuer_kennzeichen}</strong>)
+            : <span className="text-warning">nicht lesbar</span>}
+          {' '}— Voreinstellung (O-632): es erscheint hinter demselben Recht wie der
+          Einheitspreis (<Recht schluessel="bau.preis_lesen" />); bei Bauleistungen ist der
+          Wechsel der Steuerschuld (§ 13b UStG) der Regelfall.
         </p>
       </section>
 

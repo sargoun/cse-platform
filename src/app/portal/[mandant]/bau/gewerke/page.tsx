@@ -94,9 +94,21 @@ export default async function Gewerke(
 
       <section data-cse="gewerk-katalog" className="mb-s7">
         {katalog.length === 0 ? (
-          <p className="m-0 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
-            {t.leer}
-          </p>
+          <div className="rounded-lg border border-line bg-surface p-s5">
+            <p className="m-0 text-sm text-text-muted">{t.leer}</p>
+            {schreiben && (
+              /* D-782 (O-159): die Voreinstellung als Katalogzeilen, nicht als Wortlaut. */
+              <form method="post" action="/api/bau/gewerke" className="mt-s4">
+                <input type="hidden" name="aktion" value="voreinstellung" />
+                <Button type="submit" variante="secondary" data-cse="gewerk-voreinstellung">
+                  {t.voreinstellungKnopf}
+                </Button>
+                <p className="m-0 mt-s2 max-w-prose text-xs text-text-subtle">
+                  {t.voreinstellungErklaerung}
+                </p>
+              </form>
+            )}
+          </div>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-s3 p-0">
             {katalog.map((g) => (

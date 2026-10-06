@@ -129,9 +129,9 @@ export const PROJEKT_TEXTE: Readonly<Record<InternSprache, ProjektTexte>> = {
       + 'entscheiden (O-351).',
     grundlageErklaerung:
       'VOB/B oder BGB entscheidet über Fristen, Abnahme, Mängelrechte und den '
-      + 'Umgang mit Nachträgen (§ 2 VOB/B gegen § 631 BGB). Deshalb ist das Feld '
-      + 'nicht vorbelegt: eine stille Voreinstellung wäre eine Rechtswahl, die '
-      + 'niemand getroffen hat.',
+      + 'Umgang mit Nachträgen (§ 2 VOB/B gegen § 631 BGB). Voreinstellung (O-154): '
+      + 'VOB/B — die Gruppe schliesst Bauverträge nach VOB/B; BGB wird hier ausdrücklich '
+      + 'gewählt, wenn der Vertrag es sagt.',
     summeErklaerung:
       'In ganzen Cent, ohne Komma und ohne Punkt. 87.704,07 € sind 8770407. '
       + 'Freiwillig — die Summe entsteht regulär aus dem Leistungsverzeichnis.',
@@ -201,8 +201,9 @@ export const PROJEKT_TEXTE: Readonly<Record<InternSprache, ProjektTexte>> = {
     grundlageErklaerung:
       'VOB/B or BGB decides deadlines, Abnahme (formal acceptance), defect rights '
       + 'and how Nachträge (claims for changed or additional work) are handled '
-      + '(§ 2 VOB/B versus § 631 BGB). That is why this field has no default: a '
-      + 'silent preset would be a choice of law nobody made.',
+      + '(§ 2 VOB/B versus § 631 BGB). Default (O-154): VOB/B — the group concludes '
+      + 'construction contracts under VOB/B; choose BGB here explicitly when the contract '
+      + 'says so.',
     summeErklaerung:
       'In whole cents, no decimal separator. 87,704.07 € is 8770407. Optional — '
       + 'the value normally follows from the Leistungsverzeichnis (bill of '

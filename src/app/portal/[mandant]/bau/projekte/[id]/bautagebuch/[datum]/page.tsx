@@ -604,10 +604,10 @@ export default async function Bautag(
           </p>
           <p className="m-0 mt-s2 max-w-prose text-xs text-text-subtle">
             Verglichen werden die EIGENEN Stunden gegen die Nettozeit dieses Berliner
-            Kalendertags — Nachunternehmer erzeugen keinen Zeiteintrag. Ob die
-            Mannstunden brutto oder netto zählen und ab welcher Differenz der Abgleich
-            als auffällig gilt, ist offen (O-280, O-281); bis dahin wird jede Differenz
-            ab einer Minute gemeldet und keine geglättet.
+            Kalendertags — Nachunternehmer erzeugen keinen Zeiteintrag. Voreinstellung
+            (O-280, O-281): die Mannstunden zählen netto, ohne Pausen; auffällig ist eine
+            Differenz über 30 Minuten — gemeldet wird jede Differenz ab einer Minute,
+            geglättet keine.
           </p>
         </section>
       )}

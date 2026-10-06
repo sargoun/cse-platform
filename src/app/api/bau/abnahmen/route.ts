@@ -158,7 +158,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         | { art: 'storno'; ok: boolean }
         | {
           art: 'protokoll'; id: string; hash: string; fristEnde: string | null;
-          verbunden: boolean;
+          fristEingetragen: boolean; verbunden: boolean;
         };
 
     if (ergebnis.art !== 'protokoll' && !ergebnis.ok) {

@@ -10,11 +10,13 @@
  * echten Bau-Mandanten blieb die Kernangabe des Bautagebuchs damit
  * unerfassbar.
  *
- * **Was hier entschieden wird und was nicht.** WELCHE Gewerke gefuehrt werden
- * und ob die Liste den STLB-Bau-Leistungsbereichen folgt, entscheidet die
- * Gesellschaft (O-159). Dieser Dienst legt ab, was ein Mensch mit
- * `bau.schreiben` eintraegt, und sagt dazu, ob es bestaetigt ist
- * (`ist_platzhalter`, §1.16). Er schlaegt kein Gewerk vor.
+ * **Was hier entschieden wird und was nicht.** WELCHE Gewerke gefuehrt werden,
+ * entscheidet die Gesellschaft (O-159); seit D-782 gibt es eine VOREINSTELLUNG
+ * (`GEWERK_VOREINSTELLUNG`, zwoelf Leistungsbereiche des STLB-Bau fuer Hochbau,
+ * Ausbau und Rueckbau), die `uebernimmGewerkVoreinstellung` in einen leeren
+ * Katalog schreibt — unbestaetigt, bis die Gesellschaft bestaetigt oder
+ * archiviert. Dieser Dienst legt ab, was ein Mensch mit `bau.schreiben`
+ * eintraegt, und sagt dazu, ob es bestaetigt ist (`ist_platzhalter`, §1.16).
  *
  * **Der Code ist fest — und der Name, sobald er an einem abgeschlossenen Tag
  * steht** (D-676 Nr. 2, D-679). Die Mannstunden eines Tages zeigen „Code ·
@@ -150,6 +152,60 @@ async function protokolliere(
   await kontext.schreibe(
     `select app.protokolliere($1, 'gewerk', $2, $3::jsonb, $4::jsonb, app.aktiver_mandant())`,
     [`bau.gewerk_${aktion}`, id, vorher, nachher]);
+}
+
+/**
+ * **Die Voreinstellung** (O-159, D-782): die Leistungsbereiche des STLB-Bau,
+ * die REALTIME Service (Hochbau, Ausbau, Rueckbau) ueblicherweise fuehrt. Die
+ * Codes sind Hauskuerzel, der Leistungsbereich die STLB-Nummer; die
+ * Uebersetzungen gelten dem Mitarbeiterportal (EMP-12). Jede Zeile entsteht
+ * UNBESTAETIGT — bestaetigt oder archiviert wird im Katalog.
+ * // TODO(client, O-159): Voreinstellung — diese zwoelf STLB-Bau-Leistungsbereiche; die Gesellschaft bestaetigt, ergaenzt oder archiviert.
+ */
+export const GEWERK_VOREINSTELLUNG: readonly GewerkEingabe[] = [
+  { code: 'MAU', bezeichnung: 'Mauerarbeiten', leistungsbereich: '012', sortierung: 10, bestaetigt: false,
+    uebersetzungen: { en: 'Masonry', ar: 'أعمال البناء بالطوب', tr: 'Duvar işleri' } },
+  { code: 'BET', bezeichnung: 'Betonarbeiten', leistungsbereich: '013', sortierung: 20, bestaetigt: false,
+    uebersetzungen: { en: 'Concrete works', ar: 'أعمال الخرسانة', tr: 'Beton işleri' } },
+  { code: 'ZIM', bezeichnung: 'Zimmer- und Holzbauarbeiten', leistungsbereich: '016', sortierung: 30, bestaetigt: false,
+    uebersetzungen: { en: 'Carpentry and timber construction', ar: 'أعمال النجارة والبناء بالخشب', tr: 'Ahşap yapı işleri' } },
+  { code: 'DAC', bezeichnung: 'Dachdeckungsarbeiten', leistungsbereich: '020', sortierung: 40, bestaetigt: false,
+    uebersetzungen: { en: 'Roofing', ar: 'أعمال تغطية الأسقف', tr: 'Çatı örtü işleri' } },
+  { code: 'PUT', bezeichnung: 'Putz- und Stuckarbeiten', leistungsbereich: '023', sortierung: 50, bestaetigt: false,
+    uebersetzungen: { en: 'Plastering and stucco', ar: 'أعمال اللياسة والزخرفة', tr: 'Sıva ve alçı işleri' } },
+  { code: 'FLI', bezeichnung: 'Fliesen- und Plattenarbeiten', leistungsbereich: '024', sortierung: 60, bestaetigt: false,
+    uebersetzungen: { en: 'Tiling', ar: 'أعمال البلاط والسيراميك', tr: 'Fayans ve karo işleri' } },
+  { code: 'EST', bezeichnung: 'Estricharbeiten', leistungsbereich: '025', sortierung: 70, bestaetigt: false,
+    uebersetzungen: { en: 'Screed works', ar: 'أعمال طبقة الأرضية (الإستريش)', tr: 'Şap işleri' } },
+  { code: 'TIS', bezeichnung: 'Tischlerarbeiten', leistungsbereich: '027', sortierung: 80, bestaetigt: false,
+    uebersetzungen: { en: 'Joinery', ar: 'أعمال النجارة الداخلية', tr: 'Marangozluk işleri' } },
+  { code: 'MAL', bezeichnung: 'Maler- und Lackierarbeiten', leistungsbereich: '034', sortierung: 90, bestaetigt: false,
+    uebersetzungen: { en: 'Painting and varnishing', ar: 'أعمال الطلاء والدهان', tr: 'Boya ve vernik işleri' } },
+  { code: 'BOD', bezeichnung: 'Bodenbelagarbeiten', leistungsbereich: '036', sortierung: 100, bestaetigt: false,
+    uebersetzungen: { en: 'Flooring', ar: 'أعمال تغطية الأرضيات', tr: 'Zemin kaplama işleri' } },
+  { code: 'TRO', bezeichnung: 'Trockenbauarbeiten', leistungsbereich: '039', sortierung: 110, bestaetigt: false,
+    uebersetzungen: { en: 'Drywall construction', ar: 'أعمال البناء الجاف', tr: 'Alçıpan (kuru yapı) işleri' } },
+  { code: 'ABB', bezeichnung: 'Abbruch- und Rückbauarbeiten', leistungsbereich: '084', sortierung: 120, bestaetigt: false,
+    uebersetzungen: { en: 'Demolition and dismantling', ar: 'أعمال الهدم والتفكيك', tr: 'Yıkım ve söküm işleri' } },
+];
+
+/**
+ * Schreibt die Voreinstellung in den Katalog der Gesellschaft — nur die
+ * Codes, die dort noch nicht stehen; auch ein ARCHIVIERTER Code gilt als
+ * vorhanden (wer ein Gewerk archiviert hat, bekommt es nicht zurueck). Gibt
+ * die Zahl der angelegten Zeilen zurueck; jede steht einzeln im Pruefprotokoll.
+ */
+export async function uebernimmGewerkVoreinstellung(kontext: SchreibKontext): Promise<number> {
+  const lebend = await kontext.abfrage<{ code: string }>(
+    `select code from gewerk where mandant_id = app.aktiver_mandant()`);
+  const codes = new Set(lebend.map((z) => z.code));
+  let angelegt = 0;
+  for (const g of GEWERK_VOREINSTELLUNG) {
+    if (codes.has(g.code)) continue;
+    await legeGewerkAn(kontext, g);
+    angelegt += 1;
+  }
+  return angelegt;
 }
 
 /** Legt ein Gewerk an und gibt seine Kennung zurueck. */

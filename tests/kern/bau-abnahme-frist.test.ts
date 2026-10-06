@@ -2,19 +2,18 @@
  * Die reinen Funktionen der Abnahme (§ 12 VOB/B) — Prüfung, Schnappschuss,
  * Gewährleistungsfrist.
  *
- * **Warum die Frist hier den größten Teil einnimmt, obwohl sie nichts
- * rechnet.** Genau das ist die Zusage: `FRIST_OFFEN.fristEnde()` gibt `null`,
- * und dieser Test friert das ein. Vier Jahre (§ 13 Abs. 4 VOB/B) oder fünf
- * (§ 634a BGB) — die Antwort hängt am Vertragsregime, und ob BGB-Bauverträge
- * überhaupt vorkommen, ist offen (O-154). Eine Frist, die ein Jahr zu kurz
- * notiert ist, lässt einen Anspruch verjähren, und das fällt erst auf, wenn er
- * geltend gemacht werden soll. Wer die Platzhalterfassung eines Tages gegen
- * eine echte tauscht, muss diesen Test ändern — und damit die Entscheidung
- * bewusst treffen.
+ * **Warum die Frist hier den größten Teil einnimmt.** `FRIST_OFFEN` bleibt
+ * die Fassung, die nichts rechnet, und `null` bleibt ihre Zusage. Seit D-782
+ * ist `FRIST_VOREINSTELLUNG` eingesetzt (O-154): vier Jahre ab Abnahme bei
+ * VOB/B (§ 13 Abs. 4 Nr. 1), fünf bei BGB (§ 634a Abs. 1 Nr. 2), nach
+ * §§ 187, 188 BGB gerechnet; eine Teilabnahme setzt die Projektfrist nicht.
+ * Eine Frist, die ein Jahr zu kurz notiert ist, lässt einen Anspruch
+ * verjähren — deshalb stehen die Jahre hier Zeile für Zeile, mit Schaltjahr.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  ABNAHME_ARTEN, AbnahmeFehler, FRIST_OFFEN, FRIST_OFFEN_TEXT,
+  ABNAHME_ARTEN, AbnahmeFehler, FRIST_OFFEN, FRIST_OFFEN_TEXT, FRIST_VOREINSTELLUNG,
+  FRIST_VOREINSTELLUNG_TEXT, GEWAEHRLEISTUNG_JAHRE, fristEndeNachJahren,
   abnahmeSchnappschussHash, baueAbnahmeSchnappschuss, istAbnahmeArt, pruefeAbnahme,
   type AbnahmeEingabe,
 } from '../../src/server/services/bau/abnahme.js';
@@ -33,12 +32,57 @@ const GUELTIG: AbnahmeEingabe = {
   maengel: [],
 };
 
-describe('O-154 — die Gewährleistungsfrist wird NICHT gerechnet', () => {
+describe('O-154 — die Voreinstellung rechnet die Gewährleistungsfrist (D-782)', () => {
+  it('vier Jahre bei VOB/B, fünf bei BGB — ab dem Abnahmetag', () => {
+    expect(GEWAEHRLEISTUNG_JAHRE['vob_b']).toBe(4);
+    expect(GEWAEHRLEISTUNG_JAHRE['bgb']).toBe(5);
+    for (const art of ['foermlich', 'fiktiv', 'konkludent'] as const) {
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art, abgenommen: true }), art)
+        .toBe('2030-09-10');
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'bgb', abnahmeAm: '2026-09-10', art, abgenommen: true }), art)
+        .toBe('2031-09-10');
+    }
+  });
+
+  it('eine Teilabnahme setzt die Projektfrist nicht, ein unbekanntes Regime rechnet nichts', () => {
+    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art: 'teilabnahme', abgenommen: true }))
+      .toBeNull();
+    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'hgb', abnahmeAm: '2026-09-10', art: 'foermlich', abgenommen: true }))
+      .toBeNull();
+    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '10.09.2026', art: 'foermlich', abgenommen: true }))
+      .toBeNull();
+  });
+
+  it('eine Verweigerung rechnet nichts — es gibt keine Abnahme, von der eine Frist liefe', () => {
+    for (const art of ['foermlich', 'fiktiv', 'konkludent'] as const) {
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art, abgenommen: false }), art)
+        .toBeNull();
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'bgb', abnahmeAm: '2026-09-10', art, abgenommen: false }), art)
+        .toBeNull();
+    }
+  });
+
+  it('§ 188 Abs. 3 BGB: fehlt der Tag im Zieljahr, endet die Frist am Monatsletzten', () => {
+    expect(fristEndeNachJahren('2024-02-29', 4)).toBe('2028-02-29');
+    expect(fristEndeNachJahren('2024-02-29', 5)).toBe('2029-02-28');
+    expect(fristEndeNachJahren('2026-12-31', 4)).toBe('2030-12-31');
+    expect(fristEndeNachJahren('2026-01-01', 5)).toBe('2031-01-01');
+  });
+
+  it('der Satz der Voreinstellung nennt beide Regime, beide Fristen und die Nummer', () => {
+    expect(FRIST_VOREINSTELLUNG_TEXT).toContain('§ 13 Abs. 4');
+    expect(FRIST_VOREINSTELLUNG_TEXT).toContain('§ 634a');
+    expect(FRIST_VOREINSTELLUNG_TEXT).toContain('O-154');
+    expect(FRIST_VOREINSTELLUNG_TEXT).toContain('Teilabnahme');
+  });
+});
+
+describe('O-154 — die Fassung FRIST_OFFEN rechnet weiterhin NICHT', () => {
   it('die eingesetzte Fassung gibt für jede Art und jedes Regime `null`', () => {
     for (const art of ABNAHME_ARTEN) {
       for (const vertragsgrundlage of ['vob_b', 'bgb']) {
         expect(
-          FRIST_OFFEN.fristEnde({ vertragsgrundlage, abnahmeAm: '2026-09-10', art }),
+          FRIST_OFFEN.fristEnde({ vertragsgrundlage, abnahmeAm: '2026-09-10', art, abgenommen: true }),
           `${vertragsgrundlage}/${art}`,
         ).toBeNull();
       }

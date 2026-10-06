@@ -1797,7 +1797,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(sec.posten)} Posten, ${String(sec.einsaetze)} Einsaetze aus dem `
     + `Generator, ${String(sec.einteilungen)} Einteilungen, `
-    + `${String(sec.zeiteintraege)} Zeiteintraege (Qualifikationsbedarf offen: O-342)\n`,
+    + `${String(sec.zeiteintraege)} Zeiteintraege (Qualifikationsbedarf: Voreinstellung § 34a, O-342)\n`,
   );
 
   /**
@@ -1858,7 +1858,7 @@ async function main(): Promise<void> {
     + `(${String(reg.ohneEintrag)} Person(en) bewusst ohne Eintrag — die Luecke, SEC-03; `
     + `kein Registerabgleich: nicht verbunden, O-40), `
     + `${String(reg.veranstaltungen)} Veranstaltungen `
-    + `(Herkunft eines Eventauftrags offen: O-703)\n`,
+    + `(handerfasst von der Wachleitung — Voreinstellung O-703, D-783)\n`,
   );
 
   /**
@@ -1868,7 +1868,7 @@ async function main(): Promise<void> {
    */
   const anforderung = await seedAnforderung(sql, ids, sec.postenId);
   process.stdout.write(
-    `  ${String(anforderung)} verlangter Nachweis am Posten (Warnung, unbestätigt: O-342)\n`,
+    `  ${String(anforderung)} verlangte Nachweise am Posten (Warnung, unbestaetigt — Voreinstellung § 34a: O-342, D-783)\n`,
   );
 
   /**
@@ -1984,7 +1984,7 @@ async function main(): Promise<void> {
     process.stdout.write(
       `  ${String(bau.bautage)} Bautage mit ${String(bau.mannstunden)} Mannstundenzeilen `
       + `und ${String(bau.tagespositionen)} Geraete-/Liefer-/Vorkommniszeilen ueber `
-      + `${String(bau.gewerke)} Gewerke (Katalog unbestaetigt: O-159)\n`,
+      + `${String(bau.gewerke)} Gewerke (Voreinstellung STLB-Bau, unbestaetigt: O-159, D-782)\n`,
     );
     process.stdout.write(
       `  \u00b7 DWD Open Data: ${bau.wetterVerbunden ? 'verbunden' : 'NICHT verbunden'} `

@@ -29,7 +29,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  aendereGewerk, archiviereGewerk, GewerkFehler, legeGewerkAn, leseGewerkeKatalog,
+  aendereGewerk, archiviereGewerk, GEWERK_VOREINSTELLUNG, GewerkFehler, legeGewerkAn,
+  leseGewerkeKatalog, uebernimmGewerkVoreinstellung,
 } from '../../src/server/services/bau/gewerk.js';
 import {
   hefteMannstundenAn, legeBautagAn, leseMannstunden, listeGewerke, schliesseBautag,
@@ -374,5 +375,32 @@ describe('(7) jede Katalogaenderung steht im Pruefprotokoll', () => {
     expect(geaendert?.geaendert_felder).toContain('bezeichnung');
     expect(zeilen.find((z) => z.aktion === 'bau.gewerk_archiviert')?.nachher?.['archiviert_am'])
       .not.toBeNull();
+  });
+});
+
+describe('(5) die Voreinstellung nach STLB-Bau (D-782, O-159)', () => {
+  it('fuellt den Katalog mit den zwoelf Gewerken — unbestaetigt — und ein zweites Mal mit keinem', async () => {
+    const erst = await als(bauleitung, f.bau, (k) => uebernimmGewerkVoreinstellung(k));
+    expect(erst).toBeGreaterThan(0);
+    const katalog = await als(bauleitung, f.bau, (k) => leseGewerkeKatalog(k));
+    const lebend = katalog.filter((z) => !z.archiviert);
+    for (const g of GEWERK_VOREINSTELLUNG) {
+      const zeile = lebend.find((z) => z.code === g.code);
+      expect(zeile, g.code).toBeDefined();
+      expect(zeile?.istPlatzhalter, g.code).toBe(true);
+      expect(zeile?.leistungsbereich, g.code).toBe(g.leistungsbereich);
+    }
+    // Idempotent: was lebt, wird nicht noch einmal angelegt.
+    expect(await als(bauleitung, f.bau, (k) => uebernimmGewerkVoreinstellung(k))).toBe(0);
+  });
+
+  it('ein archiviertes Gewerk der Voreinstellung kommt nicht zurueck', async () => {
+    await als(bauleitung, f.bau, (k) => uebernimmGewerkVoreinstellung(k));
+    const vorher = await als(bauleitung, f.bau, (k) => leseGewerkeKatalog(k));
+    const abb = vorher.find((z) => z.code === 'ABB' && !z.archiviert)!;
+    await als(bauleitung, f.bau, (k) => archiviereGewerk(k, abb.id));
+    expect(await als(bauleitung, f.bau, (k) => uebernimmGewerkVoreinstellung(k))).toBe(0);
+    const nachher = await als(bauleitung, f.bau, (k) => leseGewerkeKatalog(k));
+    expect(nachher.filter((z) => z.code === 'ABB' && !z.archiviert)).toHaveLength(0);
   });
 });

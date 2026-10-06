@@ -86,7 +86,7 @@ export function ProjektFormular({ zurueck, auftraege, bauleitung, t }: ProjektFo
           </label>
           <label className="flex flex-col gap-s2 text-sm text-text">
             {t.vertragsgrundlage}
-            <select name="vertragsgrundlage" required className={FELD} defaultValue=""
+            <select name="vertragsgrundlage" required className={FELD} defaultValue="vob_b"
                     data-cse="projekt-grundlage">
               <option value="" disabled>{t.grundlageWaehlen}</option>
               <option value="vob_b">{t.grundlageVob}</option>

@@ -117,15 +117,14 @@ export const BAUTAGEBUCH_LUECKE_TAGE = 7;
  * und der Tag, an dem niemand etwas geschrieben hat, ist genau der, um den
  * gestritten wird. Eine Liste der vorhandenen Tage zeigt ihn nicht.
  *
- * **Welche Tage einen Eintrag erwarten, ist NICHT entschieden.** Diese
- * Funktion nennt jeden Kalendertag im Projektzeitraum ohne Eintrag — auch
- * Samstag, Sonntag und Feiertag. Das ist absichtlich die weite Auslegung: sie
- * nennt zu viel und nichts zu wenig, und die Oberflaeche sagt daneben, dass
- * die Erwartung offen ist. Eine Filterung auf „Werktage" waere eine erfundene
- * Regel — auf einer Berliner Baustelle wird samstags gearbeitet, und ob der
- * Bauzeitenplan oder der Kalender bestimmt, was fehlt, entscheidet der Kunde.
- * // TODO(client, O-630): An welchen Tagen wird ein Bautagebucheintrag
- * erwartet — an jedem Kalendertag, an jedem Werktag oder nach Bauzeitenplan?
+ * **Welche Tage einen Eintrag erwarten — die Voreinstellung (O-630, D-782):**
+ * jeder Werktag im Sinne der VOB/B (§ 11 Abs. 3), Montag bis Samstag — auf
+ * einer Berliner Baustelle wird samstags gearbeitet —, nicht an Sonntagen und
+ * nicht an gesetzlichen Feiertagen Berlins (`feiertag`, Land BE). Ein
+ * Bauzeitenplan, der die Pflichttage nennt, ist nicht hinterlegt; bis dahin
+ * nennt diese Liste jeden Werktag ohne Eintrag.
+ * // TODO(client, O-630): Voreinstellung — Werktage Montag bis Samstag ohne
+ * gesetzliche Feiertage (Berlin); nach Bauzeitenplan erst, wenn einer gefuehrt wird.
  */
 export async function tageOhneBautagebuch(
   kontext: LeseKontext,
@@ -153,6 +152,12 @@ export async function tageOhneBautagebuch(
         and (p.ist_beginn is null or t.datum >= p.ist_beginn)
         and (p.soll_beginn is null or t.datum >= p.soll_beginn)
         and (p.ist_ende is null or t.datum <= p.ist_ende)
+        -- Voreinstellung (O-630): Werktage Mo–Sa, keine Sonntage, keine
+        -- gesetzlichen Feiertage Berlins.
+        and extract(isodow from t.datum) <> 7
+        and not exists (
+              select 1 from feiertag f
+               where f.datum = t.datum and f.bundesland = 'BE' and f.gesetzlich)
         and not exists (
               select 1 from bautagebuch b
                where b.projekt_id = p.id and b.datum = t.datum
