@@ -728,15 +728,22 @@ describe('EMP-10 — die zwei Schreibwege des Menschen ausserhalb der Zeit', () 
   it('eine Abwesenheitsmeldung entsteht — und ohne geklaerte Lohnwirkung nicht', async () => {
     const krank = await artId('abwesenheitsart', 'krankheit');
 
-    // O-139: der Dienst verweigert, solange `bezahlt` NULL ist, und nennt den
-    // Grund. Das ist die ausgelieferte Lage.
+    /*
+     * O-139: der Dienst verweigert, solange `bezahlt` NULL ist, und nennt den
+     * Grund. Seit 0491 (D-781) traegt die Plattformart die Voreinstellung
+     * (bezahlt, § 3 EFZG); die ungeklaerte Lage wird hier eigens hergestellt,
+     * damit der Riegel geprueft bleibt — `seed()` stellt sie vor jedem Test
+     * zurueck.
+     */
+    await sql.unsafe(
+      `update abwesenheitsart set bezahlt = null where id = $1`, [krank]);
     await expect(alsPersonImMandanten(f.fatimaReinigung, async (k) =>
       meldeAbwesenheit(k, {
         anstellungId: f.fatimaReinigung, abwesenheitsartId: krank,
         von: '2026-03-02', bis: '2026-03-04',
       }))).rejects.toThrow(ArtUngeklaertFehler);
 
-    // Mit beantworteter Frage geht derselbe Weg durch.
+    // Mit beantworteter Frage — der Voreinstellung — geht derselbe Weg durch.
     await sql.unsafe(
       `update abwesenheitsart set bezahlt = true where id = $1`, [krank]);
     const gemeldet = await alsPersonImMandanten(f.fatimaReinigung, async (k) =>
