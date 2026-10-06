@@ -523,6 +523,8 @@ export interface ProjektDetailZeile extends ProjektZeile {
   readonly ist_beginn_lokal: string | null;
   readonly ist_ende_lokal: string | null;
   readonly gewaehrleistung_bis_lokal: string | null;
+  /** `true`: die Frist hat eine Abnahme aus der Voreinstellung gesetzt (D-782, 0493); `false`: eingetragen oder keine. */
+  readonly gewaehrleistung_aus_abnahme: boolean;
   /** Cent als Text — nie `number` (Invariante 1). NULL ohne `bau.preis_lesen`. */
   readonly auftragssumme_cent: string | null;
   /** Basispunkte (250 = 2,50 %). NULL ohne `bau.preis_lesen`. */
@@ -567,6 +569,7 @@ export async function findeProjektDetail(
             to_char(p.ist_beginn, 'DD.MM.YYYY') as ist_beginn_lokal,
             to_char(p.ist_ende, 'DD.MM.YYYY') as ist_ende_lokal,
             to_char(p.gewaehrleistung_bis, 'DD.MM.YYYY') as gewaehrleistung_bis_lokal,
+            (p.gewaehrleistung_aus_abnahme_id is not null) as gewaehrleistung_aus_abnahme,
             o.bezeichnung as objekt,
             b.name as verantwortlich,
             s.auftragssumme_netto_cent::text as auftragssumme_cent,

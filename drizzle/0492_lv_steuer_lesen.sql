@@ -28,5 +28,6 @@ comment on function app.lv_steuer_lesen(uuid) is
   'Der eine Weg zum Steuerkennzeichen einer LV-Position (O-632, D-782): prueft '
   'bau.preis_lesen und den aktiven Mandanten; ohne Recht NULL.';
 
+alter function app.lv_steuer_lesen(uuid) owner to cse_definer;
 revoke all on function app.lv_steuer_lesen(uuid) from public;
 grant execute on function app.lv_steuer_lesen(uuid) to cse_app;

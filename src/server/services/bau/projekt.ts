@@ -260,6 +260,12 @@ export async function aendereProjekt(
     readonly verantwortlichBenutzerId?: string | undefined;
     readonly sicherheitseinbehaltBp?: string | undefined;
     readonly auftragssummeNettoCent?: string | undefined;
+    /**
+     * `undefined` laesst die Frist am Projekt stehen — sie kann aus der
+     * Abnahme gerechnet sein (D-782, 0493). Ein Datum traegt sie ein; ein
+     * eingetragenes Datum geht der Voreinstellung vor und ueberlebt den Storno
+     * der Abnahme.
+     */
     readonly gewaehrleistungBis?: string | undefined;
   },
 ): Promise<void> {
@@ -285,7 +291,10 @@ export async function aendereProjekt(
             ist_beginn = $9::date, ist_ende = $10::date,
             sicherheitseinbehalt_bp = $11::int,
             auftragssumme_netto_cent = $12::bigint,
-            gewaehrleistung_bis = $13::date,
+            gewaehrleistung_bis = case when $14::boolean then $13::date
+                                       else gewaehrleistung_bis end,
+            gewaehrleistung_aus_abnahme_id = case when $14::boolean then null
+                                                  else gewaehrleistung_aus_abnahme_id end,
             geaendert_am = now(), geaendert_von = app.aktueller_benutzer()
       where id = $1::uuid and archiviert_am is null
      returning id`,
@@ -295,7 +304,7 @@ export async function aendereProjekt(
       leer(eingabe.istBeginn), leer(eingabe.istEnde),
       pruefeEinbehalt(eingabe.sicherheitseinbehaltBp),
       pruefeCent(eingabe.auftragssummeNettoCent),
-      leer(eingabe.gewaehrleistungBis)],
+      leer(eingabe.gewaehrleistungBis), eingabe.gewaehrleistungBis !== undefined],
   );
   if (zeilen[0] === undefined) {
     throw new ProjektFehler(

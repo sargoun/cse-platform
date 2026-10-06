@@ -182,9 +182,18 @@ export default async function AbnahmeSeite(
         </p>
         <p className="mt-s3 max-w-prose text-sm" data-cse="gewaehrleistung">
           <strong className="text-text">Gewährleistung bis:</strong>{' '}
-          {p.gewaehrleistung_bis_lokal ?? (
+          {p.gewaehrleistung_bis_lokal === null ? (
             <>
-              <span className="text-text-subtle">noch keine Abnahme</span> — {FRIST_VOREINSTELLUNG_TEXT}
+              <span className="text-text-subtle">keine Frist hinterlegt</span> — {FRIST_VOREINSTELLUNG_TEXT}
+            </>
+          ) : (
+            <>
+              {p.gewaehrleistung_bis_lokal}{' '}
+              <span className="text-text-muted">
+                ({p.gewaehrleistung_aus_abnahme
+                  ? 'aus der Abnahme gerechnet — Voreinstellung, O-154'
+                  : 'eingetragen — geht der Voreinstellung vor'})
+              </span>
             </>
           )}
         </p>

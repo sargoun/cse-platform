@@ -28,6 +28,7 @@ import {
   ladeMaengel, listeAbnahmen, protokolliereAbnahme, storniereAbnahme,
   verknuepfeErsatzprotokoll,
 } from '../../src/server/services/bau/abnahme.js';
+import { aendereProjekt } from '../../src/server/services/bau/projekt.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 
 let f: Fixtur;
@@ -760,6 +761,99 @@ describe('zweite Gesamtabnahme und Ersatzprotokoll', () => {
     expect((fehler as AbnahmeFehler).status).toBe(409);
     // Der Satz nennt den Tag, an dem abgenommen wurde — sonst sucht ihn jemand.
     expect((fehler as AbnahmeFehler).message).toMatch(/10\.09\.2026/u);
+  });
+
+  /**
+   * Die Frist am Projekt und ihre Herkunft (0493) — ohne Kontext als
+   * Eigentümer gelesen (nach der Transaktion), mit Kontext als `cse_app`
+   * innerhalb derselben Transaktion.
+   */
+  async function frist(
+    projekt: string, k?: LeseKontext,
+  ): Promise<{ bis: string | null; ausAbnahme: boolean }> {
+    const abfrage = `select to_char(gewaehrleistung_bis, 'YYYY-MM-DD') as bis,
+                            (gewaehrleistung_aus_abnahme_id is not null) as aus
+                       from projekt where id = $1`;
+    const [z] = k === undefined
+      ? await sql.unsafe<{ bis: string | null; aus: boolean }[]>(abfrage, [projekt])
+      : await k.abfrage<{ bis: string | null; aus: boolean }>(abfrage, [projekt]);
+    return { bis: z?.bis ?? null, ausAbnahme: z?.aus ?? false };
+  }
+
+  /*
+   * Vier Befunde aus dem Copilot-Review zu PR 32 (D-782): eine Verweigerung
+   * gab eine Frist zurück, eine Projektänderung löschte die gerechnete Frist,
+   * die Abnahme überschrieb ein eingetragenes Datum, und der Storno nahm es
+   * mit. Jeder Fall steht hier einmal gegen echtes Postgres.
+   */
+  it('eine Verweigerung rechnet keine Frist — weder zurück noch ans Projekt', async () => {
+    const bau = await baueProjekt(f.bau);
+    const verweigert = await alsApp(SCHREIBEND2(bau), async (tx) => protokolliereAbnahme(
+      kontext2(tx, bau), {
+        projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+        abgenommen: false,
+        verweigerungGrund: 'Dach undicht — Abnahme verweigert (§ 12 Abs. 3 VOB/B).',
+      },
+    ));
+    expect(verweigert.fristEnde).toBeNull();
+    expect(verweigert.fristEingetragen).toBe(false);
+    expect(await frist(bau.projekt)).toEqual({ bis: null, ausAbnahme: false });
+  });
+
+  it('eine Projektänderung ohne Fristfeld lässt die gerechnete Frist stehen', async () => {
+    const bau = await baueProjekt(f.bau);
+    await alsApp(SCHREIBEND2(bau), async (tx) => {
+      const kontext = kontext2(tx, bau);
+      await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+      });
+      await aendereProjekt(kontext, {
+        id: bau.projekt, bezeichnung: 'Rohbau Nord — umbenannt', art: 'hochbau',
+        vertragsgrundlage: 'vob_b',
+      });
+    });
+    expect(await frist(bau.projekt)).toEqual({ bis: '2030-09-10', ausAbnahme: true });
+  });
+
+  it('ein eingetragenes Datum geht vor — bei der Abnahme und beim Storno', async () => {
+    const bau = await baueProjekt(f.bau);
+    const stand = await alsApp(SCHREIBEND2(bau), async (tx) => {
+      const kontext = kontext2(tx, bau);
+      await aendereProjekt(kontext, {
+        id: bau.projekt, bezeichnung: 'Rohbau Nord', art: 'hochbau', vertragsgrundlage: 'vob_b',
+        gewaehrleistungBis: '2032-01-31',
+      });
+      const abnahme = await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+      });
+      const nachAbnahme = await frist(bau.projekt, kontext);
+      await storniereAbnahme(kontext, { id: abnahme.id, grund: 'Datum falsch protokolliert' });
+      return { abnahme, nachAbnahme, nachStorno: await frist(bau.projekt, kontext) };
+    });
+    // Zurück kommt die Frist, die am Projekt STEHT — nicht die, die gerechnet wäre.
+    expect(stand.abnahme.fristEnde).toBe('2032-01-31');
+    expect(stand.abnahme.fristEingetragen).toBe(true);
+    expect(stand.nachAbnahme).toEqual({ bis: '2032-01-31', ausAbnahme: false });
+    expect(stand.nachStorno).toEqual({ bis: '2032-01-31', ausAbnahme: false });
+  });
+
+  it('die gerechnete Frist fällt mit dem Storno IHRER Abnahme — und nur mit ihm', async () => {
+    const bau = await baueProjekt(f.bau);
+    const stand = await alsApp(SCHREIBEND2(bau), async (tx) => {
+      const kontext = kontext2(tx, bau);
+      const erste = await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-10', 'foermlich', null),
+      });
+      const teil = await protokolliereAbnahme(kontext, {
+        projektId: bau.projekt, ...EINGABE('2026-09-20', 'teilabnahme', 'Bauteil C'),
+      });
+      await storniereAbnahme(kontext, { id: teil.id, grund: 'Teilabnahme irrtümlich protokolliert' });
+      const nachTeilStorno = await frist(bau.projekt, kontext);
+      await storniereAbnahme(kontext, { id: erste.id, grund: 'Datum falsch protokolliert' });
+      return { nachTeilStorno, nachStorno: await frist(bau.projekt, kontext) };
+    });
+    expect(stand.nachTeilStorno).toEqual({ bis: '2030-09-10', ausAbnahme: true });
+    expect(stand.nachStorno).toEqual({ bis: null, ausAbnahme: false });
   });
 
   it('aber die Teilabnahme eines anderen Teils bleibt möglich (§ 12 Abs. 2)', async () => {

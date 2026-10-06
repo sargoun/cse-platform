@@ -37,20 +37,29 @@ describe('O-154 — die Voreinstellung rechnet die Gewährleistungsfrist (D-782)
     expect(GEWAEHRLEISTUNG_JAHRE['vob_b']).toBe(4);
     expect(GEWAEHRLEISTUNG_JAHRE['bgb']).toBe(5);
     for (const art of ['foermlich', 'fiktiv', 'konkludent'] as const) {
-      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art }), art)
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art, abgenommen: true }), art)
         .toBe('2030-09-10');
-      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'bgb', abnahmeAm: '2026-09-10', art }), art)
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'bgb', abnahmeAm: '2026-09-10', art, abgenommen: true }), art)
         .toBe('2031-09-10');
     }
   });
 
   it('eine Teilabnahme setzt die Projektfrist nicht, ein unbekanntes Regime rechnet nichts', () => {
-    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art: 'teilabnahme' }))
+    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art: 'teilabnahme', abgenommen: true }))
       .toBeNull();
-    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'hgb', abnahmeAm: '2026-09-10', art: 'foermlich' }))
+    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'hgb', abnahmeAm: '2026-09-10', art: 'foermlich', abgenommen: true }))
       .toBeNull();
-    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '10.09.2026', art: 'foermlich' }))
+    expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '10.09.2026', art: 'foermlich', abgenommen: true }))
       .toBeNull();
+  });
+
+  it('eine Verweigerung rechnet nichts — es gibt keine Abnahme, von der eine Frist liefe', () => {
+    for (const art of ['foermlich', 'fiktiv', 'konkludent'] as const) {
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'vob_b', abnahmeAm: '2026-09-10', art, abgenommen: false }), art)
+        .toBeNull();
+      expect(FRIST_VOREINSTELLUNG.fristEnde({ vertragsgrundlage: 'bgb', abnahmeAm: '2026-09-10', art, abgenommen: false }), art)
+        .toBeNull();
+    }
   });
 
   it('§ 188 Abs. 3 BGB: fehlt der Tag im Zieljahr, endet die Frist am Monatsletzten', () => {
@@ -73,7 +82,7 @@ describe('O-154 — die Fassung FRIST_OFFEN rechnet weiterhin NICHT', () => {
     for (const art of ABNAHME_ARTEN) {
       for (const vertragsgrundlage of ['vob_b', 'bgb']) {
         expect(
-          FRIST_OFFEN.fristEnde({ vertragsgrundlage, abnahmeAm: '2026-09-10', art }),
+          FRIST_OFFEN.fristEnde({ vertragsgrundlage, abnahmeAm: '2026-09-10', art, abgenommen: true }),
           `${vertragsgrundlage}/${art}`,
         ).toBeNull();
       }

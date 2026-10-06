@@ -24705,5 +24705,24 @@ Entscheidungen. O-155 (angebotene Positionen in der Summe) und O-282 (Gewerk in
 der Zeiterfassung) bleiben Fragen an den Auftraggeber — sie betreffen
 Vertragsinhalt und Datenmodell, nicht einen Vorgabewert.
 
-| Betrifft | O-154, O-156, O-41, O-630, O-631, O-632, O-633, O-280, O-281, O-213, O-159; V-291; `drizzle/0492_lv_steuer_lesen.sql`, `src/server/services/bau/{abnahme,uebersicht,bautagebuch,wetter,lv,lv-quelle,gewerk,aufmass}.ts`, `src/server/versand/dwd.ts`, `src/app/api/bau/gewerke/route.ts`, `src/server/db/seed/{bau,index}.ts`, `src/lib/i18n/verwaltung/{gewerke,bau}.ts`, `src/lib/i18n/texte.ts` (de/en/ar/tr), Seiten unter `bau` und `mein/schichten/*/bautagebuch`, `tests/kern/{bau-abnahme-frist,bau-abgleich-toleranz,bautagebuch-wetter,gewerk-eingabe}.test.ts`, `tests/isolation/{bau-abnahme,bau-seiten-abfragen,gewerk-katalog}.test.ts` |
+**Prüfstand (06.10.2026, Copilot-Review auf PR 32).** Fünf Befunde, alle
+berechtigt, alle behoben. (1) `app.lv_steuer_lesen` gehört jetzt `cse_definer`
+(0492) — ohne die Zuweisung lief sie als Superuser, und
+`tests/isolation/definer-eigentum.test.ts` war rot. (2) Eine Verweigerung
+rechnet keine Frist mehr: `fristEnde` kennt `abgenommen`, der Endpunkt gibt für
+eine verweigerte Abnahme `null` zurück. (3) Ein eingetragenes Datum geht der
+Voreinstellung vor: `protokolliereAbnahme` schreibt die gerechnete Frist nur,
+wo keine steht, und merkt sich in `projekt.gewaehrleistung_aus_abnahme_id`
+(0493), welche Abnahme sie gesetzt hat; der Storno nimmt nur diese Frist
+zurück, ein eingetragenes Datum bleibt. Zurück kommt die Frist, die am Projekt
+steht (`fristEnde`), mit `fristEingetragen` als Herkunft. (4) `aendereProjekt`
+lässt die Frist stehen, wenn das Feld fehlt — ein Datum trägt sie ein.
+(5) Die Projektseiten sagen „keine Frist hinterlegt" statt „noch keine
+Abnahme" (eine Abnahme vor D-782 hat keine Frist gesetzt) und nennen bei
+gesetzter Frist ihre Herkunft. Prüfungen: `tests/kern/bau-abnahme-frist.test.ts`
+(Verweigerung), `tests/isolation/bau-abnahme.test.ts` (vier neue Fälle:
+Verweigerung, Änderung ohne Feld, eingetragenes Datum bei Abnahme und Storno,
+Storno der Teilabnahme lässt die Frist stehen).
+
+| Betrifft | O-154, O-156, O-41, O-630, O-631, O-632, O-633, O-280, O-281, O-213, O-159; V-291; `drizzle/0492_lv_steuer_lesen.sql`, `drizzle/0493_projekt_gewaehrleistung_herkunft.sql`, `src/server/services/bau/{abnahme,projekt,uebersicht,bautagebuch,wetter,lv,lv-quelle,gewerk,aufmass}.ts`, `src/server/versand/dwd.ts`, `src/app/api/bau/gewerke/route.ts`, `src/server/db/seed/{bau,index}.ts`, `src/lib/i18n/verwaltung/{gewerke,bau}.ts`, `src/lib/i18n/texte.ts` (de/en/ar/tr), Seiten unter `bau` und `mein/schichten/*/bautagebuch`, `tests/kern/{bau-abnahme-frist,bau-abgleich-toleranz,bautagebuch-wetter,gewerk-eingabe}.test.ts`, `tests/isolation/{bau-abnahme,bau-seiten-abfragen,gewerk-katalog}.test.ts` |
 |---|---|

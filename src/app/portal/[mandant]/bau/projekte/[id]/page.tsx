@@ -381,12 +381,19 @@ export default async function ProjektDetail(
 
         <p className="mt-s3 max-w-prose text-sm text-text-muted" data-cse="gewaehrleistung">
           <strong className="text-text">Gewährleistung bis:</strong>{' '}
-          {p.gewaehrleistung_bis_lokal ?? (
+          {p.gewaehrleistung_bis_lokal === null ? (
             <>
-              <span className="text-text-subtle">noch keine Abnahme</span> — Voreinstellung
+              <span className="text-text-subtle">keine Frist hinterlegt</span> — Voreinstellung
               (O-154): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf Jahre bei
               BGB (§ 634a Abs. 1 Nr. 2); gerechnet beim Protokollieren der Abnahme, eine
-              Teilabnahme setzt die Frist nicht.
+              Teilabnahme setzt die Frist nicht, eine Verweigerung auch nicht.
+            </>
+          ) : (
+            <>
+              <span className="text-text">{p.gewaehrleistung_bis_lokal}</span>{' '}
+              ({p.gewaehrleistung_aus_abnahme
+                ? 'aus der Abnahme gerechnet — Voreinstellung, O-154'
+                : 'eingetragen — geht der Voreinstellung vor'})
             </>
           )}
         </p>
