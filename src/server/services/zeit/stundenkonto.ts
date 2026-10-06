@@ -32,6 +32,13 @@ import { berlinKalendertag, ZeitFehler } from './dauer.js';
 import { praegeNachweis } from './milog.js';
 import { monatsErster, verteilePauseAufAnteile } from './monatsanteil.js';
 
+/**
+ * Drei Zustaende im Schema, zwei im Betrieb: `vorlaeufig` setzt kein Weg.
+ * TODO(client, O-143): Voreinstellung — ein Konto ist offen oder gesperrt; der
+ * Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein
+ * Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`,
+ * `einwand.ts`). D-788.
+ */
 export type KontoStatus = 'offen' | 'vorlaeufig' | 'gesperrt';
 
 export type BewegungArt =

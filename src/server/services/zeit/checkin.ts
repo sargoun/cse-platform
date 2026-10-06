@@ -1,6 +1,11 @@
 /**
  * Der tokenisierte Check-in (TIM-07, TIM-08, K-08, K-09).
  *
+ * TODO(client, O-164): Voreinstellung — die Ausstempelmarke gilt bis Schichtende
+ * plus `zeit.checkout_toleranz_minuten` (ausgeliefert 60, Einstellung je
+ * Gesellschaft, 0035); wer laenger arbeitet, meldet es der Planung, die den
+ * Eintrag nacherfasst (`korrektur.ts`). D-788.
+ *
  * Der Dienst ist duenn, und das ist Absicht: die Entscheidung faellt in
  * **einer** SQL-Anweisung (`app.checkin_verbrauchen`), weil Pruefen und danach
  * Schreiben ein Wettlauf ist. Ein doppelt getipptes Feld auf einer langsamen
@@ -131,6 +136,11 @@ export interface CheckinEingabe {
    * Nur uebergeben, wenn die Oberflaeche einen Punkt erhoben hat. Ist
    * `zeit.geolokalisierung` aus, verwirft die Datenbank ihn — die Erfassung
    * findet dann gar nicht erst statt (§9.5, O-06).
+   *
+   * TODO(client, O-172): Voreinstellung — § 87 Abs. 1 Nr. 6 BetrVG deckt auch
+   * Geraeteabweichung, Geraetekennung, Nichterscheinen und Korrekturstatistik;
+   * die Plattform zeigt die Abweichung je Eintrag und wertet nichts je Person
+   * aus, die Geolokalisierung bleibt aus (O-06). D-788.
    */
   readonly geo?: GeoPunkt | null;
 }

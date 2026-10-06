@@ -58,6 +58,10 @@ export interface Schicht {
    * Aussage ohne Grundlage. Und praktisch der teurere von beiden — eine
    * Warnung, die auf jeder Nachtschicht steht und sich nicht auflösen lässt,
    * bringt der Planung bei, Warnungen wegzuklicken.
+   *
+   * TODO(client, O-168): Voreinstellung — Pausen werden als Summe je Schicht
+   * erfasst (`zeiteintrag.pause_minuten`), nicht gestempelt; im Plan heisst
+   * `pause_geplant_minuten` 0 „nicht hinterlegt" und ist keine Pause. D-788.
    */
   readonly pauseMinuten: number | null;
 }

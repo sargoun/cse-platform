@@ -22,6 +22,11 @@ import type { BewegungArt, KontoStatus } from './stundenkonto.js';
  * es im `LIESMICH.txt`: ob eine Abwesenheitsart bezahlt ist und welche
  * Lohnart sie traegt (O-139), heisst „unklar", nicht „nein".
  *
+ * TODO(client, O-171): Voreinstellung — Sonntags- und Feiertagsarbeit weist die
+ * Plattform nicht nach (Ausnahme § 10 ArbZG, Ersatzruhetag § 11 Abs. 3 ArbZG);
+ * das Lohnsystem leitet die Stunden aus zeiten.csv ab, der Ersatzruhetag steht
+ * im Dienstplan (V-322, D-788).
+ *
  * **Das Format ist ein Platzhalter.** Welches Lohnsystem die Gesellschaften
  * nutzen und welches Importformat es erwartet, ist nicht entschieden
  * (O-27). Der Export laeuft deshalb hinter einer Schnittstelle
@@ -351,6 +356,7 @@ function liesmichText(e: Lohnexport): string {
     ...e.hinweise.map((h) => `  ${h}`),
     `  ${HINWEIS_D06}`,
     '  Nacht-, Sonntags- und Feiertagsstunden leitet das Lohnsystem aus zeiten.csv nach der geltenden Vereinbarung ab (O-37).',
+    '  Sonntags- und Feiertagsarbeit: die Ausnahme (§ 10 ArbZG) und den Ersatzruhetag (§ 11 Abs. 3 ArbZG) weist die Plattform nicht nach — Voreinstellung (O-171): das Lohnsystem leitet sie aus zeiten.csv ab, der Ersatzruhetag steht im Dienstplan.',
     '  Das Paket enthält Personalnummer und Name und sonst nichts über die Person; Stundensätze stehen nicht darin (K-05).',
     '  Reproduzierbar: derselbe Monat ergibt denselben SHA-256, solange sich die Daten nicht ändern; der Abruf steht im Protokoll.',
     '',

@@ -46,9 +46,10 @@ import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
  * überschneidet. Unbewacht ist genau der Bereich DAZWISCHEN — zwischen dem
  * Beginn der laufenden Fassung und heute.
  *
- * // TODO(client, O-692): Darf eine Belagsart-Fassung zwischen dem Beginn der
- * laufenden Fassung und heute beginnen, wenn für diesen Zeitraum schon
- * Kalkulationen gerechnet wurden — und wer gibt das frei?
+ * // TODO(client, O-692): Voreinstellung — ein Beginn zwischen dem Beginn der
+ * laufenden Fassung und heute wird angenommen und ändert rückwirkend die
+ * Grundlage der Kalkulationen aus dieser Zeit; frei gibt, wer
+ * `stammdaten.verwalten` hält, eine zweite Zustimmung gibt es nicht (D-788).
  */
 export const dynamic = 'force-dynamic';
 
@@ -392,10 +393,11 @@ export default async function Belagsarten(
               Heute ist der {heute}. Für einen NEUEN Code ist jeder Tag möglich.
               Für einen vorhandenen beginnt die neue Fassung immer NACH dem Beginn
               der laufenden — früher weist der Dienst ab, weil die laufende bis auf
-              Weiteres gilt und jeder frühere Tag sich mit ihr überschneidet. Offen
-              bleibt der Bereich dazwischen: ein Beginn zwischen dem Beginn der
+              Weiteres gilt und jeder frühere Tag sich mit ihr überschneidet. Der Bereich
+              dazwischen ist Voreinstellung (O-692): ein Beginn zwischen dem Beginn der
               laufenden Fassung und heute wird angenommen und ändert rückwirkend die
-              Grundlage jeder Kalkulation aus dieser Zeit (O-692).
+              Grundlage jeder Kalkulation aus dieser Zeit — wer die Stammdaten pflegt,
+              entscheidet das mit dem Datum.
             </p>
 
             <label className="mt-s4 flex min-h-11 items-center gap-s3 text-sm text-text">

@@ -57,6 +57,11 @@ export interface NachweisAufnehmen {
    * und sie steht im Formular daneben, damit der Mensch sieht, was entsteht.
    * Läuft die Qualifikation nicht ab, bleibt das Feld NULL, und das heisst
    * „unbefristet" und nicht „vergessen".
+   *
+   * TODO(client, O-140): Voreinstellung — Sachkunde und Unterrichtung nach § 34a
+   * GewO sind unbefristet (`laeuft_ab = false`); die behördliche
+   * Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) hat keine
+   * Wiedervorlage in der Plattform (V-320, D-788).
    */
   readonly gueltigBis?: string | null;
   readonly nummer?: string | null;

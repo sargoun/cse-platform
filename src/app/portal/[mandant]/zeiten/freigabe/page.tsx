@@ -180,15 +180,15 @@ export default async function Abrechnungsfreigabe({
         * ihm die eine, die es noch ist.
         */}
       <Hinweis art="hinweis" cse="o861-offen" className="mb-s5 max-w-prose">
-        <strong>Offen: O-861 — in welcher Einheit wird freigegeben?</strong> Dass ein
+        <strong>Voreinstellung O-861 — freigegeben wird je Eintrag.</strong> Dass ein
         Mensch wöchentlich freigibt, bevor abgerechnet wird, ist entschieden (D-611) —{' '}
         <Recht schluessel="zeit.abrechnung_freigeben" /> ist seither an die
         Super-Administration und die Administration gebunden und für die Leitung je
-        Gesellschaft anlegbar (D-612). Offen bleibt die <strong>Einheit</strong> (je Eintrag, je Woche,
-        je Person, je Monat) und ob eine erteilte Freigabe zurücknehmbar ist;
-        ausgeliefert ist die feinste Einheit — je Eintrag — und keine Rücknahme
-        (O-861, Invariante 8).
-        {/* TODO(client, O-861): In welcher Einheit wird Zeit zur Abrechnung freigegeben — je Eintrag, je Woche, je Person, je Monat —, und laesst sich eine erteilte Freigabe zuruecknehmen, solange nichts abgerechnet ist? */}
+        Gesellschaft anlegbar (D-612). Die <strong>Einheit</strong> ist der einzelne Eintrag —
+        aus ihm lässt sich jede gröbere (Woche, Person, Monat) bilden —, und eine erteilte
+        Freigabe ist nicht zurücknehmbar: sie kann in ein Stundenkonto geflossen sein
+        (Invariante 8, D-788).
+        {/* TODO(client, O-861): Voreinstellung — freigegeben wird je Eintrag, keine Rücknahme (D-788). */}
       </Hinweis>
 
       {freigegeben !== null && (
