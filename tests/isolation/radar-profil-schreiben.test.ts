@@ -714,7 +714,7 @@ describe('(9) die Meldeschwelle ist ein Feld der Stammdaten (O-15, D-786, Prüfs
     const [z] = await sql.unsafe<{ nachher: Record<string, unknown> | null }[]>(
       `select nachher from audit_log
         where objekt_id = $1 and aktion = 'radar.profil_gesetzt'
-        order by zeitpunkt desc limit 1`, [profil]);
+        order by id desc limit 1`, [profil]);
     expect(z?.nachher?.['benachrichtigungAbPunkte']).toBe(75);
   });
 
