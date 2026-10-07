@@ -516,11 +516,17 @@ describe('(5) Nichts geht ohne passende Freigabe hinaus', () => {
       findeMahnung(kontextAus(tx), mahnungId));
     const erwartet = nutzlastHash(
       mahnungNutzlast(f.reinigung, vorgang!.kopf, vorgang!.positionen));
-    const [schnappschuss] = await sql.unsafe<{ nutzlast_hash: string; entscheidung: string }[]>(
-      `select nutzlast_hash, entscheidung::text as entscheidung
+    const [schnappschuss] = await sql.unsafe<{
+      nutzlast_hash: string; entscheidung: string; typ: string; mahnung: string | null;
+    }[]>(
+      `select nutzlast_hash, entscheidung::text as entscheidung,
+              jsonb_typeof(nutzlast) as typ, nutzlast ->> 'mahnungId' as mahnung
          from freigabe_snapshot where freigabe_id = $1`, [zeile!.freigabe_id]);
     expect(schnappschuss!.entscheidung).toBe('genehmigt');
     expect(schnappschuss!.nutzlast_hash).toBe(erwartet);
+    /* V-397 (D-854): die Nutzlast ist ein Objekt, keine doppelt kodierte Zeichenkette. */
+    expect(schnappschuss!.typ).toBe('object');
+    expect(schnappschuss!.mahnung).toBe(mahnungId);
   });
 
   it('ohne Freigabesatz weist die Datenbank den Zustandswechsel ab (K-13)', async () => {

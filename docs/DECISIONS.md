@@ -3197,8 +3197,8 @@ Beantworten helfen:
 |---|---|
 | O-640 | Does a Werbewiderspruch apply per channel (e-mail blocked, post keeps running) or across all channels? Today it is blanket: the block sits in ONE column (`werbewiderspruch_am`, 0020), and `werbewiderspruch.kanal` only describes what triggered it. Note that `nachricht_kanal` (portal/email/sms, 0231) and the CRM channel list (email/telefon/sms/post/whatsapp, 0020) are two different vocabularies. · **Voreinstellung → D-791** |
 | O-641 | Does an advertising objection raised at one entity also bind the other three? Today it does not — the four are separate controllers, and `/werbewiderspruch` asks which one, exactly as `/datenschutz/anfrage` does. · **Voreinstellung → D-784** |
-| O-642 | Does the internal hourly rate (`anstellung.stundensatz_intern`, K-05) belong in an Art. 15 export, or is it the entity's costing data? The Art.-15 section for `anstellung` omits it today and says so. · **Voreinstellung → D-791** |
-| O-643 | Does the absence TYPE (`abwesenheit.abwesenheitsart_id` — health-adjacent, Art. 9) belong in an Art. 15 export, and behind which additional check? It is readable through `app.abwesenheit_grund_lesen` with its own right; the export lists dates and status only. · **Voreinstellung → D-791** |
+| O-642 | Does the internal hourly rate (`anstellung.stundensatz_intern`, K-05) belong in an Art. 15 export, or is it the entity's costing data? The Art.-15 section for `anstellung` omits it today and says so. · **Voreinstellung → D-791; gebaut → D-855** |
+| O-643 | Does the absence TYPE (`abwesenheit.abwesenheitsart_id` — health-adjacent, Art. 9) belong in an Art. 15 export, and behind which additional check? It is readable through `app.abwesenheit_grund_lesen` with its own right; the export lists dates and status only. · **Voreinstellung → D-791; gebaut → D-855** |
 | O-644 | Who EXECUTES an erasure decision, and how? There is no anonymisation procedure (`app.person_anonymisieren` is described in 02-CRM-OPERATIONS.md and does not exist), no run that writes `anonymisiert_am`, and no tombstone path for an employee, a customer contact or a company. Until there is one, `M/datenschutz/[id]/loeschung` produces a documented PRE-NOTE, not a release — a signed release for an execution nobody performs is worse than none. · **Voreinstellung → D-791** |
 | O-645 | Should the one-click objection link expire, and after how long? § 7 Abs. 3 Nr. 4 UWG says "jederzeit", so `werbewiderspruch_token.gueltig_bis` is NULL today — the choice that is safe for the data subject, not a decided rule. · **Voreinstellung → D-791** |
 | O-646 | Which recipients under Art. 19 DSGVO exist per data class (payroll office, client, authority), and by which route are they informed? The platform holds no recipient list; `berichtigung_feld.art19_empfaenger` records whoever a human names. · **Voreinstellung → D-791** |
@@ -25263,8 +25263,8 @@ gebaut ist (V-332 bis V-336); zwei Seiten sagen „Voreinstellung" statt „offe
 | O-623 | Die Hashkette über `audit_log` entsteht beim Bilden eines Bündels (0204), nicht beim Schreiben — `app.protokolliere` hält keine Zeilensperre, die jede schreibende Transaktion serialisierte; das Manifest nennt die ungeketteten Zeilen. Dazu ein nächtlicher Lauf (`audit_kette_nachtlauf`, 03:25 UTC) über einen eigenen Einstieg nur für `cse_job` (`kern.audit_kette_nachtlauf`, 0516) — gebaut mit V-336 (D-820). Er ist übergreifend, nicht je Gesellschaft gebunden: die Kette ist EINE über alle Gesellschaften und die Plattformzeilen (0204), je Gesellschaft gelaufen wäre es dieselbe Kette viermal. Ein Bruch lässt den Lauf werfen und ruft den Alarm (verwandt O-357; Prüfstand PR #35). | Einstellungen › Protokoll › Export, `audit/buendel.ts`, `jobs/auditKette.ts` |
 | O-625 | Ein Übernahmelauf steht unter `system.einstellung_verwalten` (0202) UND verlangt beim Schreiben das Schreibrecht der Zieldomäne (`zeit.schreiben` für Zeiteinträge, `finanzen.schreiben` für Belege) — wie `/einstellungen/vorlagen` mit `bau.schreiben`. Wirkt erst mit dem Leser (O-128, V-300). | Einstellungen › Import, `migration/uebernahme.ts` |
 | O-640 | Ein Werbewiderspruch gilt pauschal für alle Kanäle der Gesellschaft (eine Spalte `werbewiderspruch_am`, 0020); `werbewiderspruch.kanal` beschreibt den Anlass und wirkt nicht. Wie gebaut. | Datenschutz › Widersprüche |
-| O-642 | Der interne Stundensatz (`anstellung.stundensatz_intern`, K-05) gehört in die Art.-15-Auskunft: ein Satz an einer Beschäftigung ist ein Datum über den Menschen (Art. 4 Nr. 1 DSGVO), auch wenn er zugleich Kalkulationsdatum ist. Gelesen über den beschränkten Leser `app.anstellung_entgelt_lesen` mit `personal.entgelt_lesen`; fehlt das Recht, sagt der Abschnitt es. Nicht gebaut — der Abschnitt `anstellung` lässt den Satz heute aus (V-332). Berichtigt im Prüfstand PR #35: hier stand, er gehöre nicht hinein. | `datenschutz/auskunft.ts` |
-| O-643 | Die Abwesenheitsart (Art. 9) gehört in die Auskunft — aber nur als eigener Abschnitt hinter `app.abwesenheit_grund_lesen` mit eigenem Recht, den die sachbearbeitende Person ausdrücklich mitgibt; nie im Standardexport. Der Abschnitt fehlt (V-332). | `datenschutz/auskunft.ts` |
+| O-642 | Der interne Stundensatz (`anstellung.stundensatz_intern`, K-05) gehört in die Art.-15-Auskunft: ein Satz an einer Beschäftigung ist ein Datum über den Menschen (Art. 4 Nr. 1 DSGVO), auch wenn er zugleich Kalkulationsdatum ist. Gelesen über einen beschränkten Leser mit `personal.entgelt_lesen`; fehlt das Recht, ist der Abschnitt gesperrt. Gebaut (V-332, D-855): Abschnitt „Interner Stundensatz" mit allen datierten Sätzen über `app.auskunft_entgelt`. Berichtigt im Prüfstand PR #35: hier stand, er gehöre nicht hinein. | `datenschutz/auskunft.ts` |
+| O-643 | Die Abwesenheitsart (Art. 9) gehört in die Auskunft — aber nur als eigener Abschnitt mit eigenem Recht (`zeit.abwesenheit_grund_lesen`), den die sachbearbeitende Person ausdrücklich mitgibt; nie im Standardexport. Gebaut (V-332, D-855): Abschnitt „Art der Abwesenheiten (Art. 9 DSGVO)" über `app.auskunft_abwesenheitsgruende`, ohne Mitgabe als „nicht mitgegeben" benannt. | `datenschutz/auskunft.ts` |
 | O-644 | Vollzug der Löschvormerkung durch eine Anonymisierungsprozedur (`app.person_anonymisieren`) im Nachtlauf, erst nach Freigabe eines zweiten Menschen (Vier-Augen), je Tabelle mit Protokollzeile, Tombstone wo eine Aufbewahrungspflicht überlagert. Nichts davon ist gebaut (V-333); die Seite nennt die Voreinstellung und bleibt bei „Vormerkung". | Datenschutz › Vorgang › Löschung, `datenschutz/loeschentscheidung.ts` |
 | O-645 | Der Widerspruchslink läuft nicht ab (`werbewiderspruch_token.gueltig_bis` NULL) — § 7 Abs. 3 Nr. 4 UWG sagt „jederzeit"; ungültig wird er nur durch Einlösung oder Widerruf. Wie gebaut. | `datenschutz/werbewiderspruch.ts` |
 | O-646 | Keine Empfängerliste nach Art. 19 im System: die Empfänger benennt ein Mensch je Vorgang, unterrichtet sie auf dem Weg, auf dem die Daten zu ihnen kamen, und trägt hier ein, wen und wann (`berichtigung_feld.art19_empfaenger`). Wie gebaut. | `datenschutz/berichtigung.ts` |
@@ -29007,4 +29007,79 @@ Konto, nicht genehmigt; ohne beide Rechte nicht, kein direkter Weg, die
 Decken, Art. 9; der Lohnexport.
 
 | Betrifft | V-319, O-138, D-788, EMP-05, EMP-10, LEG-09, ACC-12; `drizzle/0537_krankheit_im_urlaub.sql`, `src/server/services/abwesenheit/{krankheit-im-urlaub,antrag}.ts`, `src/server/services/stammdaten/abwesenheitsart.ts`, `src/server/services/zeit/lohnexport.ts`, `src/app/api/antraege/[id]/krankheit-im-urlaub/route.ts`, `src/app/portal/[mandant]/personal/antraege/[id]/page.tsx`, `src/app/portal/[mandant]/stammdaten/abwesenheitsarten/page.tsx`, `src/lib/i18n/verwaltung/krankheit-im-urlaub.ts`, `src/server/db/seed/zeit.ts`, `tests/kern/krankheit-im-urlaub.test.ts`, `tests/isolation/krankheit-im-urlaub.test.ts` |
+|---|---|
+
+### D-854 · Bauwelle 51: Der Freigabeschnappschuss aus `erteilen.ts` hält seine Nutzlast als Objekt (V-397)
+
+**Der Anlass.** `freigabe/erteilen.ts` übergab `JSON.stringify(e.inhalt)` an
+`$4::jsonb`. Der Treiber kodiert ein jsonb-Argument selbst (D-467); die
+Zeichenkette kam doppelt kodiert an, und `freigabe_snapshot.nutzlast` war
+`jsonb_typeof = string` — anders als die Schnappschüsse des Posteingangs
+(`entscheiden.ts`, `fuerJsonb`) und des Bau-Seeds. Gefunden beim Bau von
+V-287 (D-841).
+
+**Geprüft, bevor geändert wurde.** Kein Leser setzt die Zeichenkette voraus:
+`freigabe/laden.ts` und die Auskunft lesen die Nutzlast dieser Schnappschüsse
+nicht, die Kette (`kette.ts`, `berechneHash`) rechnet über die Bytes von
+`JSON.stringify(e.inhalt)` und über gespeicherte Digests, nicht über die
+gespeicherte jsonb-Form, und das Tor (`agent/policy.ts`) vergleicht
+`nutzlast_hash`. Die Glieder ändern sich also nicht. Vorhandene Zeilen
+bleiben, wie sie sind (`trg_freigabe_snapshot_eingefroren`); die neue Form
+gilt für neue Schnappschüsse.
+
+**Was gebaut ist.** `erteileFreigabe` übergibt das Objekt.
+`tests/isolation/mahnung.test.ts` prüft am Schnappschuss einer freigegebenen
+Mahnung `jsonb_typeof = object` und den Wert eines Schlüssels. Die Regel des
+Vier-Augen-Prinzips (O-183) ist nicht berührt.
+
+| Betrifft | V-397, D-467, D-841; `src/server/services/freigabe/erteilen.ts`, `tests/isolation/mahnung.test.ts` |
+|---|---|
+
+### D-855 · Bauwelle 52: Die Art.-15-Auskunft liest den Stundensatz und — auf Mitgabe — die Art der Abwesenheiten (V-332, O-642, O-643)
+
+**Der Anlass.** Zwei Angaben über den Menschen fehlten still in der
+Auskunft: der interne Stundensatz (`anstellung.stundensatz_intern` und die
+datierten Sätze in `anstellung_kondition`, cse_app entzogen nach K-05) und
+die Art der Abwesenheiten mit AU-Tatsache und Bemerkung (Art. 9, cse_app
+entzogen nach 0073). Die Abschnitte „Anstellungen" und „Abwesenheiten"
+nannten Daten und Status — und die Datei hieß trotzdem vollständig. Die
+Voreinstellungen standen seit D-791: der Satz gehört hinein (O-642), die Art
+auch, aber als eigener Abschnitt hinter eigenem Recht und nur auf
+ausdrückliche Mitgabe (O-643).
+
+**Was gebaut ist.**
+- **0538**: zwei Definer, je einer für einen Abschnitt —
+  `app.auskunft_entgelt(person)` (alle datierten Sätze der Beschäftigungen in
+  der aktiven Gesellschaft; ohne jede Kondition der Spiegel aus den
+  Stammdaten, dieselbe Regel wie `app.entgelt_lesen`) und
+  `app.auskunft_abwesenheitsgruende(person)` (Art, Gesundheitsbezug,
+  AU-Tatsache, gültig bis, Bemerkung, die Gutschrift nach § 9 BUrlG aus
+  D-853). Beide verlangen `datenschutz.auskunft_erstellen` und ihr Fachrecht
+  (`personal.entgelt_lesen` bzw. `zeit.abwesenheit_grund_lesen`), werfen
+  sonst 42501 und schreiben EINE Protokollzeile je Abruf
+  (`entgelt.gelesen`, `personal.abwesenheitsgrund_gelesen`, an der Person,
+  mit dem Zweck Art. 15 und der Zeilenzahl — kein Wert).
+- **`auskunft.ts`**: Abschnitt „Interner Stundensatz" (`entgelt`, Recht
+  `personal.entgelt_lesen`, der Satz als Euro aus ganzen Cent); Abschnitt
+  „Art der Abwesenheiten (Art. 9 DSGVO)" (`abwesenheitsgrund`, Recht
+  `zeit.abwesenheit_grund_lesen`, `mitgabe: 'art9'`). Ohne Mitgabe steht er
+  als „nicht mitgegeben" in Seite und Datei — benannt, nicht gesperrt, nicht
+  leer, und sein Recht macht die Auskunft nicht unvollständig; mit Mitgabe
+  wird er gelesen, und ohne das Recht ist er gesperrt. Die Prüfsumme
+  unterscheidet beide Fassungen. `TODO(client, O-642)` und
+  `TODO(client, O-643)` an den Abschnitten.
+- **Seite und Abruf**: `/datenschutz/[id]/auskunft?art9=1` erstellt die
+  Auskunft mit dem Art.-9-Abschnitt (Verweis am Abschnitt, Hinweis oben,
+  Rückweg ohne); die Abrufe tragen `&art9=mitgeben`, und die Protokollzeile
+  des Abrufs hält die Mitgabe fest.
+
+**Prüfung.** `tests/kern/auskunft-art9.test.ts`: Euro aus Cent, der Satz
+„nicht mitgegeben" in der Datei statt einer leeren Tabelle, Verdrahtung.
+`tests/isolation/auskunft-entgelt-art9.test.ts`: zwei datierte Sätze in
+Euro; ohne Recht gesperrt und unvollständig; der Art.-9-Abschnitt ohne
+Mitgabe benannt und ohne Rechtsbedarf, mit Mitgabe mit Krankheit, AU und
+Bemerkung, mit Mitgabe ohne Recht gesperrt; je Abruf eine Protokollzeile mit
+dem Zweck; beide Definer am Dienst vorbei 42501.
+
+| Betrifft | V-332, O-642, O-643, D-791, D-853, LEG-09; `drizzle/0538_auskunft_entgelt_abwesenheitsart.sql`, `src/server/services/datenschutz/auskunft.ts`, `src/app/api/datenschutz/auskunft/route.ts`, `src/app/portal/[mandant]/datenschutz/[id]/auskunft/page.tsx`, `tests/kern/{auskunft-art9,datenschutz-fristen}.test.ts`, `tests/isolation/auskunft-entgelt-art9.test.ts` |
 |---|---|

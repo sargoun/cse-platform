@@ -36,6 +36,11 @@ import { BERLIN, Vorgangskopf } from '../../Vorgangskopf';
  * **Der Umfang bei Agentenprotokollen, Wissens-Chunks und
  * Freigabe-Snapshots ist offen (O-113)** — und steht als eigener Abschnitt da,
  * statt stillschweigend zu fehlen.
+ *
+ * **Die Art der Abwesenheiten (Art. 9) kommt nur auf ausdrückliche Mitgabe
+ * hinein** (O-643, D-855): `?art9=1` erstellt die Auskunft mit diesem
+ * Abschnitt, und die Abrufe darunter tragen die Mitgabe in ihrer Adresse.
+ * Ohne sie steht der Abschnitt als „nicht mitgegeben" da — benannt, nicht leer.
  */
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +51,7 @@ interface Extra {
   readonly frueher: readonly AuskunftZeile[];
 }
 
-function Abschnitt({ a }: { readonly a: AuskunftAbschnitt }) {
+function Abschnitt({ a, mitArt9 }: { readonly a: AuskunftAbschnitt; readonly mitArt9: string }) {
   const zeilen = a.zeilen.map((z, i) => ({ i, z }));
   return (
     <section data-cse="auskunft-abschnitt" data-gesperrt={String(a.gesperrt)}
@@ -55,13 +60,25 @@ function Abschnitt({ a }: { readonly a: AuskunftAbschnitt }) {
         <h2 className="m-0 text-h3 text-text">{a.titel}</h2>
         {a.gesperrt ? <StatusPill zustand="Fehler" /> : null}
         {a.offen !== null ? <StatusPill zustand="Offen" /> : null}
+        {a.zurueckgehalten !== null ? <StatusPill zustand="Wartet" /> : null}
       </div>
       <p className="mb-s2 text-micro uppercase tracking-[0.08em] text-text-subtle">
         {`Quelle: ${a.quelle} · Aufbewahrung: ${a.frist}`}
       </p>
       <p className="mb-s3 max-w-prose text-sm text-text-muted">{a.zweck}</p>
 
-      {a.offen === 'O-648' ? (
+      {a.zurueckgehalten !== null ? (
+        <Hinweis art="hinweis" cse="auskunft-zurueckgehalten" className="max-w-prose">
+          {a.zurueckgehalten}{' '}
+          <Link href={mitArt9} data-cse="auskunft-art9-mitgeben"
+                className="underline-offset-2 hover:text-text hover:underline">
+            Mit diesem Abschnitt erstellen
+          </Link>
+          <span className="mt-s2 block text-xs">
+            Der Abruf liest die Gründe mit eigenem Recht und steht im Protokoll.
+          </span>
+        </Hinweis>
+      ) : a.offen === 'O-648' ? (
         /* D-791: dieser Abschnitt hat eine Voreinstellung — die Seite sagt sie, statt „offen". */
         <Hinweis art="warnung" cse="auskunft-offen" className="max-w-prose">
           <strong className="block">Voreinstellung (O-648, D-791) — elf Abschnitte fehlen noch.</strong>
@@ -112,9 +129,14 @@ function Abschnitt({ a }: { readonly a: AuskunftAbschnitt }) {
 }
 
 export default async function Auskunftsseite(
-  { params }: { params: Promise<{ mandant: string; id: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string; id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant, id } = await params;
+  /* Die ausdrückliche Mitgabe der Art.-9-Abschnitte (O-643, D-855) — nur der eine Wert. */
+  const art9 = (await searchParams)['art9'] === '1';
   kennungOder404(id);
   const tor = await mandantTor(
     `/portal/${mandant}/datenschutz/${id}/auskunft`, mandant);
@@ -124,7 +146,7 @@ export default async function Auskunftsseite(
   const { z, zuordnung, darf, extra } = await ladeVorgang<Extra>(
     zugang, mandant, id, [],
     async (kontext, v) => ({
-      auskunft: await erstelleAuskunft(kontext, v.z.id, v.zuordnung, new Date()),
+      auskunft: await erstelleAuskunft(kontext, v.z.id, v.zuordnung, new Date(), { art9 }),
       frueher: await erteilte(kontext, v.z.id),
     }),
   );
@@ -132,8 +154,9 @@ export default async function Auskunftsseite(
 
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong '
     + 'px-s5 py-s3 text-sm text-text hover:bg-surface-2';
-  const api = `/api/datenschutz/auskunft?anfrage=${z.id}`;
+  const api = `/api/datenschutz/auskunft?anfrage=${z.id}${a.art9Mitgegeben ? '&art9=mitgeben' : ''}`;
   const fristen = a.offeneFristen.length > 0 ? '&fristen=bestaetigt' : '';
+  const mitArt9 = `/portal/${mandant}/datenschutz/${z.id}/auskunft?art9=1`;
 
   return (
     <PortalRahmen
@@ -255,7 +278,20 @@ export default async function Auskunftsseite(
         </p>
       )}
 
-      {a.abschnitte.map((s) => <Abschnitt key={s.schluessel} a={s} />)}
+      {a.art9Mitgegeben ? (
+        <Hinweis art="hinweis" cse="auskunft-art9" className="mb-s6 max-w-prose">
+          <strong className="block">Mit der Art der Abwesenheiten (Art. 9 DSGVO).</strong>
+          Diese Auskunft enthält Gesundheitsdaten — auf ausdrückliche Mitgabe
+          (Voreinstellung O-643). Das Lesen steht im Protokoll; die Abrufe darunter
+          tragen die Mitgabe.{' '}
+          <Link href={`/portal/${mandant}/datenschutz/${z.id}/auskunft`}
+                className="underline-offset-2 hover:text-text hover:underline">
+            Ohne diesen Abschnitt
+          </Link>
+        </Hinweis>
+      ) : null}
+
+      {a.abschnitte.map((s) => <Abschnitt key={s.schluessel} a={s} mitArt9={mitArt9} />)}
 
       <section aria-labelledby="frueher">
         <h2 id="frueher" className="mb-s2 text-h2 text-text">Bereits erteilt</h2>

@@ -123,13 +123,20 @@ export async function erteileFreigabe(
   }
 
   const bytes = Buffer.from(JSON.stringify(e.inhalt), 'utf8');
+  /*
+   * Die Nutzlast geht als OBJEKT an `$4::jsonb`, nicht als `JSON.stringify`
+   * (V-397, D-854): der Treiber kodiert ein jsonb-Argument selbst, eine
+   * vorher gebaute Zeichenkette kam doppelt kodiert an — `jsonb_typeof` war
+   * `string`, anders als die Schnappschüsse des Posteingangs (D-467). Die
+   * Kette rechnet weiter über die Bytes oben; ihre Glieder ändern sich nicht.
+   */
   await db.abfrage(
     `insert into freigabe_snapshot (mandant_id, freigabe_id, kette_nr, nutzlast,
                                     nutzlast_hash, vorheriger_hash, hash,
                                     entscheidung, entschieden_von)
      values ($1::uuid, $2::uuid, $3::bigint, $4::jsonb, $5, $6, $7,
              $8::freigabe_status, app.aktueller_benutzer())`,
-    [freigabe.mandant_id, freigabe.id, kette.kette_nr, JSON.stringify(e.inhalt),
+    [freigabe.mandant_id, freigabe.id, kette.kette_nr, e.inhalt,
      e.abdruck ?? abdruck(e.aktion, freigabe.mandant_id, e.inhalt), kette.vorheriger_hash,
      berechneHash(bytes, kette.vorheriger_hash), entscheidung]);
 

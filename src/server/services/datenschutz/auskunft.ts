@@ -40,6 +40,7 @@ import { VERARBEITUNGEN, type Verarbeitung } from '@/server/registry/verarbeitun
 import { liesAufbewahrung } from '@/server/services/dokument/aufbewahrung';
 import { fristText } from '@/server/services/datenschutz/verzeichnis';
 import { markdownZelle } from '@/lib/markdown';
+import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { ART_TEXT, type AnfrageArt, type Zuordnung } from './anfrage.js';
 
 /** Wie ein Abschnitt an seine Zeilen kommt. */
@@ -52,6 +53,8 @@ export type Leseweg =
 export interface Spalte {
   readonly kopf: string;
   readonly feld: string;
+  /** `geld`: ganze Cent aus der Datenbank, angezeigt als Euro (Invariante 1). */
+  readonly format?: 'geld';
 }
 
 interface AbschnittDefinition {
@@ -81,6 +84,12 @@ interface AbschnittDefinition {
   readonly spalten: readonly Spalte[];
   /** `$1` ist die Kennung des Betroffenen. */
   readonly sql: string;
+  /**
+   * `art9`: der Abschnitt kommt nur auf ausdrückliche Mitgabe hinein — nie im
+   * Standardexport (O-643, D-791, D-855). Ohne Mitgabe steht er als
+   * „nicht mitgegeben" da, nicht als leer und nicht als gesperrt.
+   */
+  readonly mitgabe?: 'art9';
 }
 
 /**
@@ -169,15 +178,10 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
       { kopf: 'Status', feld: 'status' },
     ],
     /*
-     * Der Stundensatz steht noch NICHT dabei: `anstellung.stundensatz_intern`
-     * ist `cse_app` entzogen (K-05). Voreinstellung (O-642, D-791; Pruefstand
-     * PR #35): er GEHOERT in die Auskunft — ein Satz an einer Beschaeftigung
-     * ist ein Datum ueber den Menschen (Art. 4 Nr. 1, Art. 15 DSGVO), auch wenn
-     * er zugleich Kalkulationsdatum der Gesellschaft ist. Gelesen wird er ueber
-     * den beschraenkten Leser `app.anstellung_entgelt_lesen` mit
-     * `personal.entgelt_lesen`; fehlt das Recht, sagt der Abschnitt das, statt
-     * den Satz still auszulassen. Gebaut ist das nicht (V-332).
-     * // TODO(client, O-642): Voreinstellung — der interne Stundensatz gehoert in die Art.-15-Auskunft, ueber den beschraenkten Leser; nicht gebaut (V-332).
+     * Der Stundensatz steht im eigenen Abschnitt `entgelt` darunter:
+     * `anstellung.stundensatz_intern` ist `cse_app` entzogen (K-05), und ein
+     * eigenes Recht gehoert zu einem eigenen Abschnitt — sonst waere hier
+     * entweder alles gesperrt oder der Satz still weg (V-332, D-855).
      */
     sql: `select personalnummer, eintritt, austritt,
                  arbeitszeitmodell::text as arbeitszeitmodell, wochenstunden,
@@ -186,6 +190,37 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
            where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
              and geloescht_am is null
            order by eintritt`,
+  },
+  {
+    schluessel: 'entgelt',
+    titel: 'Interner Stundensatz',
+    verarbeitung: 'V-01',
+    quelle: 'anstellung_kondition (über app.auskunft_entgelt)',
+    tabellen: ['anstellung_kondition'],
+    leseweg: 'definer',
+    recht: 'personal.entgelt_lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Personalnummer', feld: 'personalnummer' },
+      { kopf: 'Gilt ab', feld: 'gilt_ab' },
+      { kopf: 'Gilt bis', feld: 'gilt_bis' },
+      { kopf: 'Stundensatz (intern)', feld: 'stundensatz_cent', format: 'geld' },
+      { kopf: 'Quelle', feld: 'quelle' },
+    ],
+    /*
+     * Voreinstellung (O-642, D-791; Pruefstand PR #35): der Satz GEHOERT in
+     * die Auskunft — ein Satz an einer Beschaeftigung ist ein Datum ueber den
+     * Menschen (Art. 4 Nr. 1, Art. 15 DSGVO), auch wenn er zugleich
+     * Kalkulationsdatum der Gesellschaft ist. Alle datierten Saetze, nicht nur
+     * der heutige; eine Beschaeftigung ohne Kondition mit dem Spiegel aus den
+     * Stammdaten. Der Definer prueft `personal.entgelt_lesen` und schreibt eine
+     * Protokollzeile je Abruf; fehlt das Recht, ist der Abschnitt gesperrt.
+     * // TODO(client, O-642): Voreinstellung — der interne Stundensatz gehoert in die Art.-15-Auskunft, alle datierten Saetze, ueber den beschraenkten Leser mit eigenem Recht (D-855).
+     */
+    sql: `select personalnummer, gilt_ab, gilt_bis, stundensatz_cent,
+                 case quelle when 'kondition' then 'Kondition'
+                             else 'Stammdaten (vor der datierten Kondition)' end as quelle
+            from app.auskunft_entgelt($1::uuid)`,
   },
   {
     schluessel: 'zeiteintrag',
@@ -233,15 +268,10 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
       { kopf: 'Gemeldet', feld: 'gemeldet_am' },
     ],
     /*
-     * Die ART der Abwesenheit steht NICHT dabei, und das ist nicht Nachlaessig-
-     * keit: `abwesenheit.abwesenheitsart_id` sagt „Krankheit" oder „Kur", und
-     * das ist eine gesundheitsnahe Angabe (Art. 9). Voreinstellung (O-643,
-     * D-791): sie gehoert in die Auskunft — Art. 15 kennt keine Ausnahme fuer
-     * Art.-9-Daten —, aber nur in einem EIGENEN Abschnitt, der ueber
-     * `app.abwesenheit_grund_lesen` mit eigenem Recht liest und den die
-     * sachbearbeitende Person ausdruecklich mitgibt; nie als stiller Beitrag
-     * zum Standardexport. Dieser Abschnitt fehlt noch (V-332).
-     * // TODO(client, O-643): Voreinstellung — die Abwesenheitsart gehoert in die Auskunft, als eigener Abschnitt hinter eigenem Recht, nicht im Standardexport (V-332).
+     * Die ART der Abwesenheit steht NICHT hier: `abwesenheit.abwesenheitsart_id`
+     * sagt „Krankheit" oder „Kur", und das ist eine gesundheitsnahe Angabe
+     * (Art. 9). Sie steht im eigenen Abschnitt `abwesenheitsgrund` darunter —
+     * hinter eigenem Recht und nur auf ausdrueckliche Mitgabe (V-332, D-855).
      */
     sql: `select a.von, a.bis, a.tage_angerechnet, a.status::text as status,
                  a.gemeldet_am
@@ -250,6 +280,40 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
               on an.id = a.anstellung_id and an.mandant_id = a.mandant_id
            where an.person_id = $1::uuid and a.mandant_id = app.aktiver_mandant()
            order by a.von desc`,
+  },
+  {
+    schluessel: 'abwesenheitsgrund',
+    titel: 'Art der Abwesenheiten (Art. 9 DSGVO)',
+    verarbeitung: 'V-04',
+    quelle: 'abwesenheit, abwesenheitsart (über app.auskunft_abwesenheitsgruende)',
+    tabellen: ['abwesenheit', 'abwesenheitsart'],
+    leseweg: 'definer',
+    recht: 'zeit.abwesenheit_grund_lesen',
+    fuer: ['person'],
+    mitgabe: 'art9',
+    spalten: [
+      { kopf: 'Von', feld: 'von' },
+      { kopf: 'Bis', feld: 'bis' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Art', feld: 'art' },
+      { kopf: 'Gesundheitsbezogen', feld: 'gesundheitsbezogen' },
+      { kopf: 'AU-Bescheinigung', feld: 'au_bescheinigung_vorliegt' },
+      { kopf: 'Bescheinigung bis', feld: 'au_bis' },
+      { kopf: 'Bemerkung', feld: 'bemerkung' },
+      { kopf: 'Urlaubstage gutgeschrieben (§ 9 BUrlG)', feld: 'urlaub_gutgeschrieben_tage' },
+    ],
+    /*
+     * Voreinstellung (O-643, D-791): die Art gehoert in die Auskunft — Art. 15
+     * kennt keine Ausnahme fuer Art.-9-Daten —, aber als EIGENER Abschnitt
+     * hinter eigenem Recht, den die sachbearbeitende Person ausdruecklich
+     * mitgibt; nie als stiller Beitrag zum Standardexport. Der Definer prueft
+     * `zeit.abwesenheit_grund_lesen` und schreibt EINE Protokollzeile je
+     * Abruf (dieselbe Aktion wie der Einzelleser).
+     * // TODO(client, O-643): Voreinstellung — die Abwesenheitsart gehoert in die Auskunft, als eigener Abschnitt hinter eigenem Recht und nur auf ausdrueckliche Mitgabe, nicht im Standardexport (D-855).
+     */
+    sql: `select von, bis, status, art, gesundheitsbezogen, au_bescheinigung_vorliegt,
+                 au_bis, bemerkung, urlaub_gutgeschrieben_tage
+            from app.auskunft_abwesenheitsgruende($1::uuid)`,
   },
   {
     schluessel: 'antrag',
@@ -1019,6 +1083,12 @@ export interface AuskunftAbschnitt {
   readonly gesperrt: boolean;
   /** Die offene Frage, wo es eine gibt — `null` sonst. */
   readonly offen: string | null;
+  /**
+   * Warum der Abschnitt NICHT mitgegeben ist — `null`, wenn er es ist.
+   * Nur für Abschnitte, die erst auf ausdrückliche Mitgabe hineinkommen
+   * (Art. 9, O-643, D-855): nicht leer, nicht gesperrt, sondern benannt.
+   */
+  readonly zurueckgehalten: string | null;
   readonly kopf: readonly string[];
   readonly zeilen: readonly (readonly string[])[];
 }
@@ -1045,10 +1115,24 @@ export interface Auskunft {
    */
   readonly offeneFristen: readonly string[];
   readonly vollstaendig: boolean;
+  /** Ob die Abschnitte mit Art.-9-Daten ausdrücklich mitgegeben sind (O-643, D-855). */
+  readonly art9Mitgegeben: boolean;
   readonly zeilen: number;
   readonly sha256: string;
   readonly erstelltAm: string;
 }
+
+/** Was die sachbearbeitende Person ausdrücklich mitgibt (O-643, D-855). */
+export interface AuskunftOptionen {
+  /** Die Art der Abwesenheiten (Art. 9 DSGVO) — nie im Standardexport. */
+  readonly art9?: boolean;
+}
+
+/** Der Satz eines nicht mitgegebenen Art.-9-Abschnitts — ein Satz, keine Lücke. */
+export const ART9_ZURUECKGEHALTEN =
+  'Nicht mitgegeben: Gesundheitsdaten (Art. 9 DSGVO) kommen nur auf ausdrückliche Mitgabe in '
+  + 'die Auskunft (Voreinstellung O-643). Es gibt sie — dieser Abschnitt sagt es, statt sie '
+  + 'still auszulassen.';
 
 const BERLIN = new Intl.DateTimeFormat('de-DE', {
   timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short',
@@ -1081,11 +1165,19 @@ export function alsText(wert: unknown): string {
   return text === '' ? '—' : text;
 }
 
+/** Ganze Cent aus der Datenbank (bigint kommt als Ziffernfolge) als Euro — Invariante 1. */
+export function geldText(wert: unknown): string {
+  if (wert === null || wert === undefined || wert === '') return '—';
+  const text = String(wert);
+  if (!/^-?\d+$/u.test(text)) return alsText(wert);
+  return formatiereGeld(cent(BigInt(text)));
+}
+
 /** Kanonische Form: stabile Reihenfolge, keine Uhr, kein Vermerk über den Leser. */
 function kanonisch(a: readonly AuskunftAbschnitt[]): string {
   return JSON.stringify(a.map((x) => ({
     schluessel: x.schluessel, gesperrt: x.gesperrt, offen: x.offen,
-    kopf: x.kopf, zeilen: x.zeilen,
+    zurueckgehalten: x.zurueckgehalten, kopf: x.kopf, zeilen: x.zeilen,
   })));
 }
 
@@ -1125,7 +1217,9 @@ function verarbeitungOder(nummer: string | null): Verarbeitung | undefined {
  */
 export async function erstelleAuskunft(
   kontext: LeseKontext, anfrageId: string, zuordnung: Zuordnung, jetzt: Date,
+  optionen: AuskunftOptionen = {},
 ): Promise<Auskunft> {
+  const art9 = optionen.art9 === true;
   const [kopf] = await kontext.abfrage<{
     art: AnfrageArt; mandant_id: string; firma: string;
   }>(
@@ -1162,7 +1256,9 @@ export async function erstelleAuskunft(
    * Reihenfolge, was gesperrt aussieht. `app.hat_recht` NIMMT den Mandanten
    * (K-03).
    */
+  const mitgegeben = (d: AbschnittDefinition): boolean => d.mitgabe !== 'art9' || art9;
   const noetig = [...new Set(anwendbar
+    .filter(mitgegeben)
     .map((d) => d.recht)
     .filter((r): r is string => r !== null))];
   const gehalten = new Map<string, boolean>();
@@ -1191,18 +1287,27 @@ export async function erstelleAuskunft(
       : fristText(v, regeln, tageBewerbung);
     if (!istBeziffert(frist)) ohneFrist.push(d.titel);
     const zweck = v === undefined ? 'nicht im Register geführt' : v.zweck;
+    if (!mitgegeben(d)) {
+      abschnitte.push({
+        schluessel: d.schluessel, titel: d.titel, zweck, quelle: d.quelle,
+        frist, recht: d.recht, leseweg: d.leseweg, gesperrt: false, offen: null,
+        zurueckgehalten: ART9_ZURUECKGEHALTEN, kopf: [], zeilen: [],
+      });
+      continue;
+    }
     const gesperrt = d.recht !== null && gehalten.get(d.recht) !== true;
     if (gesperrt && d.recht !== null) fehlend.add(d.recht);
 
     const zeilen = gesperrt || zuordnung.id === null
       ? []
       : (await kontext.abfrage<Record<string, unknown>>(d.sql, [zuordnung.id]))
-        .map((r) => d.spalten.map((s) => alsText(r[s.feld])));
+        .map((r) => d.spalten.map((s) => (s.format === 'geld'
+          ? geldText(r[s.feld]) : alsText(r[s.feld]))));
 
     abschnitte.push({
       schluessel: d.schluessel, titel: d.titel, zweck, quelle: d.quelle,
       frist, recht: d.recht, leseweg: d.leseweg, gesperrt, offen: null,
-      kopf: d.spalten.map((s) => s.kopf), zeilen,
+      zurueckgehalten: null, kopf: d.spalten.map((s) => s.kopf), zeilen,
     });
   }
 
@@ -1221,7 +1326,7 @@ export async function erstelleAuskunft(
       quelle: o.quelle,
       frist: 'Voreinstellung: Aufbewahrung nach § 147 AO / GoBD, Löschung erst danach',
       recht: null, leseweg: 'offen', gesperrt: false, offen: o.frage,
-      kopf: [], zeilen: [],
+      zurueckgehalten: null, kopf: [], zeilen: [],
     });
   }
 
@@ -1238,6 +1343,7 @@ export async function erstelleAuskunft(
     fehlendeRechte: [...fehlend].sort(),
     offeneFristen: ohneFrist,
     vollstaendig: fehlend.size === 0 && zuordnung.art !== 'keine',
+    art9Mitgegeben: art9,
     zeilen: zeilenZahl,
     sha256,
     erstelltAm: new Intl.DateTimeFormat('de-DE', {
@@ -1291,6 +1397,10 @@ export function alsMarkdown(a: Auskunft): string {
     z.push(`## ${s.titel}`, '',
       `*Zweck:* ${s.zweck}`, '',
       `*Quelle:* \`${s.quelle}\` · *Aufbewahrung:* ${s.frist}`, '');
+    if (s.zurueckgehalten !== null) {
+      z.push(`**${s.zurueckgehalten}**`, '');
+      continue;
+    }
     if (s.offen !== null) {
       z.push(`**Der Umfang dieses Abschnitts ist offen (${s.offen}).** Er wird `
         + 'hier benannt und nicht beantwortet — eine Auskunft, die diese Daten '
