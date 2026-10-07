@@ -126,8 +126,19 @@ test.describe('Einstellungen', () => {
   });
 
   test('Rechnungen: die Regel zum Leistungsort sagt, was gilt, und lässt sich setzen (V-373)', async ({ page }) => {
-    await alsKonto(page, KONTO.adminReinigung);
+    /*
+     * Die Seite liest mit `system.einstellung_lesen`, das Setzen verlangt
+     * `system.einstellung_verwalten` — beide gebunden an die
+     * Super-Administration, für die Administration nur bindbar (03-AUTH §12).
+     * Die Administration der Reinigung bekommt hier deshalb 404 (AUT-06), und
+     * der Einstieg zeigt ihr die Karte nicht (Fall oben). Gepflegt wird wie
+     * bei den Unternehmensdaten: aus der Gruppe über das Wechselblatt in genau
+     * eine Gesellschaft (Invariante 10).
+     */
+    await alsKonto(page, KONTO.gruppe);
     await page.goto('/portal/reinigung/einstellungen/rechnungen');
+    await page.locator('[data-cse="wechsel-knopf"]').click();
+    await expect(page).toHaveURL(/\/portal\/reinigung\/einstellungen\/rechnungen$/u);
     await expect(page.getByRole('heading', { name: 'Rechnungen', level: 1 })).toBeVisible();
     const gilt = page.locator('[data-cse="leistungsort-gilt"]');
     // Nichts gesetzt: es gilt die Voreinstellung (O-933), und die Seite sagt es.
