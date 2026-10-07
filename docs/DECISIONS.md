@@ -24940,11 +24940,11 @@ Voreinstellung nicht gebaut ist, steht es dabei, mit V-Zeile.
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-15 (Radar) | Skala und Gewichte aus `gewichte.platzhalter.ts` (CPV 35, Region 25, Stichwort 20, Wert 15, Frist 5) sind die Voreinstellung, vom Betreiber nicht bestätigt. **Treffermeldung ab 60 von 100 Punkten** (`SCHWELLE_VOREINSTELLUNG`): `legeProfilAn` schreibt sie in jedes neue Profil, der Seed in seine; ein Empfänger ohne eigene Schwelle erbt sie (`coalesce` in `warnung.ts`, wie gebaut). Kein Kriterium erreicht die 60 allein, CPV und Region zusammen schon. Profile aus dem Bestand ohne Schwelle melden weiter nichts, und das Profilblatt sagt es; eine eigene Schwelle je Empfänger hat keinen Eingabeweg (V-309). Die Sätze sagen „Voreinstellung", nirgends mehr „Platzhalter (offen)". | `radar/gewichte.platzhalter.ts`, `radar/profil.ts` (`legeProfilAn`), `seed/radar.ts`, Radar › Profile, Profilblatt, Bekanntmachung, `tests/kern/radar-voreinstellung.test.ts`, `tests/isolation/radar-profil-schreiben.test.ts` (6), `tests/e2e/radar.spec.ts` |
+| O-15 (Radar) | Skala und Gewichte aus `gewichte.platzhalter.ts` (CPV 35, Region 25, Stichwort 20, Wert 15, Frist 5) sind die Voreinstellung, vom Betreiber nicht bestätigt. **Treffermeldung ab 60 von 100 Punkten** (`SCHWELLE_VOREINSTELLUNG`): `legeProfilAn` schreibt sie in jedes neue Profil, der Seed in seine; ein Empfänger ohne eigene Schwelle erbt sie (`coalesce` in `warnung.ts`, wie gebaut). Kein Kriterium erreicht die 60 allein, CPV und Region zusammen schon. Profile aus dem Bestand ohne Schwelle melden weiter nichts, und das Profilblatt sagt es; eine eigene Schwelle je Empfänger (1 bis zur Skala) setzt das Profilblatt beim Eintragen und an jeder Empfängerzeile, sie geht der des Profils vor — gebaut mit V-309 (D-809). Die Sätze sagen „Voreinstellung", nirgends mehr „Platzhalter (offen)". | `radar/gewichte.platzhalter.ts`, `radar/profil.ts` (`legeProfilAn`), `seed/radar.ts`, Radar › Profile, Profilblatt, Bekanntmachung, `tests/kern/radar-voreinstellung.test.ts`, `tests/isolation/radar-profil-schreiben.test.ts` (6), `tests/e2e/radar.spec.ts` |
 | O-26 | **50,00 € je Gesellschaft und Monat** (`BUDGET_VOREINSTELLUNG_CENT`), `ist_platzhalter = true`, bis ein Mensch einträgt; kein Budget je Agent als Voreinstellung. Der Seed legt die Zeile des laufenden Monats an, die Budgetmaske belegt den Betrag vor (`formatiereGeld` → `budgetInCent`, Rundlauf geprüft); ohne Zeile läuft kein Agent (`budget_fehlt`, unverändert). Die Zeile heisst „Voreinstellung", nicht „Platzhalter". | `agent/budget-pflege.ts`, `seed/index.ts`, Agenten › KI-Budget, Agentenstart, Gruppe › Agenten, `agent-budget.ts`, `tests/kern/radar-voreinstellung.test.ts`, `tests/e2e/agenten.spec.ts` |
 | O-47 | Fremdwährung wird nicht umgerechnet; das Wertkriterium bleibt unbewertet und sagt es (wie gebaut, `bewertung.ts`). Sobald ein Kursdienst angebunden ist, gilt der EZB-Referenzkurs des Veröffentlichungstags — nicht gebaut (V-303). | Profilblatt, Bekanntmachung |
 | O-48 | Wie O-195 (D-784): die USD-Abrechnung des Anbieters wird beim Eintrag der Preisliste zum Kurs des Eintragstags in Euro umgerechnet (`waehrung_original`); kein Kursdienst. | `agent/budget-pflege.ts` (D-784) |
-| O-98 | Die CPV-Listen der Gewerke und jede von Hand eingetragene CPV-Zeile sind Voreinstellung (`ist_platzhalter = true`), bis die Bereichsleitung sie gegen die amtliche CPV-Liste bestätigt; die Bewertung benutzt sie unverändert. Ein Bestätigungsweg ist nicht gebaut (V-312). | Profilblatt, `seed/index.ts`, `radar/profil.ts` |
+| O-98 | Die CPV-Listen der Gewerke und jede von Hand eingetragene CPV-Zeile sind Voreinstellung (`ist_platzhalter = true`), bis die Bereichsleitung sie gegen die amtliche CPV-Liste bestätigt; die Bewertung benutzt sie unverändert. Bestätigt wird je Zeile am Profilblatt („Bestätigen", protokolliert; die Plattform führt die amtliche Liste nicht, geprüft wird von einem Menschen) — gebaut mit V-312 (D-809). | Profilblatt, `seed/index.ts`, `radar/profil.ts` |
 | O-105 | Nur der interne Kalendereintrag; keine Terminbestätigung an den Kunden ohne Freigabe (Invariante 7). Heute legt kein Agentenwerkzeug Termine an — die Voreinstellung bindet den Tag, an dem eines es tut. | — |
 | O-106 | 20.000 € netto; darüber gibt die Geschäftsführung frei, nicht die Bereichsleitung; aus dieser Frage folgt keine zusätzliche Vier-Augen-Pflicht (O-183 bleibt, wie entschieden). Nicht gebaut: alle Aufrufer von `stufeRisikoEin` übergeben `wirksameGrenzeCent: null`, nur der Eingangsrechnungs-Vorschlag einen Betrag (V-306). | `freigabe/posteingang.ts` |
 | O-109 | Routine ist nur, was gegenüber der Vorperiode unverändert ist: `diffLeer && hatVergleich` bei Monatsrechnung und Anfrageantwort → `niedrig`; Toleranz 0 € und 0 %, jede Abweichung ist `mittel`, ein Fall ohne Vergleich `hoch`. Die Stapelmappe zeigt jeden Fall einzeln. Wie gebaut. | `freigabe/posteingang.ts`, `freigabe/stapel-mappe.ts` |
@@ -26265,14 +26265,16 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789) und der Eingabeweg für das
 | Betrifft | V-326, V-381, V-353, V-328, V-323; O-740, O-211, O-852, O-853, O-30, O-895, O-158, O-151; `drizzle/0499_schichtende_toleranz.sql`, `drizzle/0500_abwesenheit_ruecknahme_melden.sql`, `src/server/services/mitarbeiter/schichten.ts`, `src/app/portal/mein/bausteine.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,leistungsnachweis,fotos,bautagebuch}/page.tsx`, `src/lib/i18n/texte.ts`, `src/server/jobs/nachtragWache.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/server/services/abwesenheit/benachrichtigung.ts`, `src/app/api/mein/abwesenheit/[id]/zurueckziehen/route.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `drizzle/0501_bautag_wetter_einfrieren.sql`, `src/server/services/bau/bautagebuch.ts`, `src/app/api/bau/bautagebuch/route.ts`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/behinderungen/[bid]/page.tsx`, `src/server/services/security/uebergabefenster.ts`, `src/app/api/security/uebergabefenster/route.ts`, `src/app/portal/[mandant]/security/wachbuch/page.tsx`, `src/lib/i18n/verwaltung/wachbuch.ts`, `src/server/auth/route-manifest.ts` |
 |---|---|
 
-### D-809 · Bauwelle 5: Eingabewege für Modulbuchung, Basiszinssatz und Sicherheitskontakt (V-298, V-299, V-392)
+### D-809 · Bauwelle 5: Eingabewege für Modulbuchung, Basiszinssatz, Sicherheitskontakt, Empfängerschwelle und CPV-Bestätigung (V-298, V-299, V-392, V-309, V-312)
 
 **Der Anlass.** Drei Werte las die Plattform, und keiner hatte einen
 Eingabeweg: die gebuchten Gewerke einer Gesellschaft (`mandant.module`,
 `module_gepflegt`, O-355, D-784), der Basiszinssatz nach § 247 BGB
 (`basiszinssatz`, O-358, D-784) und das Postfach für Sicherheitsmeldungen
 (`plattform_einstellung` `sicherheit.kontakt`, O-35, D-803). Gesetzt wurden
-sie vom Seed oder per SQL.
+sie vom Seed oder per SQL. Im Radar fehlten zwei Schreibwege an Spalten, die
+gelesen werden: die eigene Schwelle eines Empfängers (`ab_punkte`, O-15,
+D-786) und die Bestätigung einer CPV-Zeile (`ist_platzhalter`, O-98, D-786).
 
 **Was gebaut ist.**
 - **Modulbuchung (V-298).** 0502: `app.mandant_module_buchen(text[])` trägt
@@ -26318,6 +26320,24 @@ sie vom Seed oder per SQL.
   Einstellungen › Betrieb, protokolliert mit vorher und nachher. Postfach, wer
   es liest und die Antwortfrist bleiben Betreiberdaten (O-35, D-803) — bis zum
   Eintrag steht dort „nicht verbunden".
+- **Empfängerschwelle im Radar (V-309).** Das Profilblatt nimmt beim
+  Eintragen eines Empfängers eine eigene Schwelle an und ändert sie an jeder
+  Empfängerzeile (`empfaenger_schwelle`, `setzeEmpfaengerSchwelle`): ganze
+  Punkte von 1 bis zur Skala, leer heißt die Schwelle des Profils. Die
+  Änderung zählt die Fassung hoch (`trg_rpe_version_upd`, 0146) und steht mit
+  altem und neuem Wert im Protokoll. `warnung.ts` liest sie unverändert vor
+  der des Profils.
+- **CPV-Zeile bestätigen (V-312).** „Bestätigen" an einer CPV-Zeile setzt
+  `ist_platzhalter = false` (`cpv_bestaetigen`, `bestaetigeCpv`), protokolliert
+  mit vorher und nachher. Bestätigt wird, dass der Code so in der amtlichen
+  Liste steht (Verordnung (EG) Nr. 213/2008) und die Leistung meint — die
+  Plattform führt die Liste nicht, die Prüfung macht ein Mensch, und Punkte
+  ändern sich nicht. Die Bestätigung zählt wie jede Änderung der Zeile die
+  Fassung hoch; die Trefferquittung hängt an der Bekanntmachung, eine Meldung
+  kommt also nicht zweimal. Eine geänderte Wirkung lässt die Bestätigung
+  stehen (sie gilt dem Code); wer sie zurücknehmen will, entfernt die Zeile
+  und trägt sie neu ein. Das Platzhalterkennzeichen des Profils bleibt,
+  solange die Gewichte unbestätigt sind (O-15).
 
 **Voreinstellungen** (Regel 1, D-778).
 
@@ -26326,12 +26346,16 @@ sie vom Seed oder per SQL.
 | O-355 | Die Super-Administration trägt die gebuchten Gewerke beim Vertragsschluss ein — wie D-784, jetzt mit Eingabeweg; die Gesellschaft bucht nicht selbst. | `drizzle/0502`, `system/mandant-module.ts`, Einstellungen › Module |
 | O-358 | Zentral für die Gruppe, je Kalenderhalbjahr nach der Bekanntmachung der Bundesbank, eingetragen von der Super-Administration — wie D-784, jetzt mit Eingabeweg; der Wächter benachrichtigt weiterhin niemanden eigens. | `finanz/mahnung/basiszinssatz.ts`, Einstellungen › Mahnwesen |
 | O-35 | Betreiberdaten: das Postfach trägt der Betreiber ein — jetzt unter Einstellungen › Betrieb; ohne Eintrag bleibt die Datei ein 404. | `drizzle/0503`, `inhalt/sicherheitskontakt.ts` |
+| O-15 | Ein Empfänger ohne eigene Schwelle erbt die des Profils (60 von 100 bei neuen Profilen) — wie D-786; die eigene Schwelle hat jetzt ein Feld. | `radar/profil.ts`, Profilblatt |
+| O-98 | Die Bereichsleitung bestätigt je CPV-Zeile gegen die amtliche Liste, protokolliert; nur die Markierung ändert sich — wie D-786, jetzt mit Knopf. | `radar/profil.ts`, Profilblatt |
 
 **Prüfung.** `tests/isolation/mandant-module-buchen.test.ts`,
 `tests/isolation/basiszinssatz-eingabe.test.ts`, `tests/isolation/sicherheitskontakt.test.ts`,
 `tests/isolation/seed.test.ts` (eine eingetragene Buchung übersteht den zweiten Lauf; in der CI), `tests/kern/modulbuchung-route.test.ts`,
 `tests/kern/basiszinssatz-eingabe.test.ts`, `tests/kern/sicherheitskontakt-route.test.ts`,
-`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+`tests/isolation/radar-profil-schreiben.test.ts` (10) und (11) (in der CI),
+`tests/kern/radar-profil-handlungen.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
 
-| Betrifft | V-298, V-299, V-392; O-355, O-356, O-358, O-35; `drizzle/0502_mandant_module_buchen.sql`, `drizzle/0503_sicherheitskontakt_pflegen.sql`, `src/server/services/system/mandant-module.ts`, `src/app/api/einstellungen/module/route.ts`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/modulbuchung.ts`, `src/server/db/seed/index.ts`, `src/server/services/finanz/mahnung/basiszinssatz.ts`, `src/app/api/finanzen/basiszinssatz/route.ts`, `src/app/portal/[mandant]/einstellungen/mahnwesen/page.tsx`, `src/server/jobs/basiszinssatz.ts`, `src/server/services/inhalt/sicherheitskontakt.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `src/app/api/einstellungen/sicherheitskontakt/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts` |
+| Betrifft | V-298, V-299, V-392, V-309, V-312; O-355, O-356, O-358, O-35, O-15, O-98; `src/server/services/radar/profil.ts`, `src/app/api/radar/profil/route.ts`, `src/app/portal/[mandant]/radar/profile/[id]/page.tsx`, `drizzle/0502_mandant_module_buchen.sql`, `drizzle/0503_sicherheitskontakt_pflegen.sql`, `src/server/services/system/mandant-module.ts`, `src/app/api/einstellungen/module/route.ts`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/modulbuchung.ts`, `src/server/db/seed/index.ts`, `src/server/services/finanz/mahnung/basiszinssatz.ts`, `src/app/api/finanzen/basiszinssatz/route.ts`, `src/app/portal/[mandant]/einstellungen/mahnwesen/page.tsx`, `src/server/jobs/basiszinssatz.ts`, `src/server/services/inhalt/sicherheitskontakt.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `src/app/api/einstellungen/sicherheitskontakt/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts` |
 |---|---|

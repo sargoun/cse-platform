@@ -10,8 +10,8 @@ import { withTenant } from '@/server/kontext/index';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import {
-  ProfilFehler, archiviereProfil, entferneCpv, entferneEmpfaenger, legeProfilAn, schreibeProfil,
-  setzeCpv, setzeEmpfaenger, teileListe,
+  ProfilFehler, archiviereProfil, bestaetigeCpv, entferneCpv, entferneEmpfaenger, legeProfilAn,
+  schreibeProfil, setzeCpv, setzeEmpfaenger, setzeEmpfaengerSchwelle, teileListe,
 } from '@/server/services/radar/profil';
 import type { Wirkung } from '@/server/services/radar/bewertung';
 import { alsAntwort } from '../../sicherheit/antwort';
@@ -57,6 +57,16 @@ const WIRKUNGEN: readonly string[] = ['positiv', 'abzug', 'ausschluss'];
 /** Die drei Zustände von `oberhalb_schwellenwert`: ja, nein, gleichgültig. */
 function dreiwertig(wert: string | null): boolean | null {
   return wert === 'ja' ? true : wert === 'nein' ? false : null;
+}
+
+/**
+ * Die eigene Schwelle eines Empfängers (V-309): leer heißt `null` — die des
+ * Profils. Alles, was keine ganze Zahl ist, wird `NaN` und vom Dienst mit
+ * einem Satz abgewiesen; `Number` und nicht `parseInt`: „12 Punkte" ist
+ * keine Zwölf.
+ */
+function schwelle(wert: string | null): number | null {
+  return wert === null ? null : (/^\d+$/u.test(wert) ? Number(wert) : Number.NaN);
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -189,12 +199,30 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           return;
         }
 
+        /* V-312 (O-98): die Markierung, nicht die Bewertung. */
+        if (was === 'cpv_bestaetigen') {
+          const cpv = text('cpv') ?? '';
+          if (!UUID.test(cpv)) throw new ProfilFehler('cpv', 'Keine CPV-Kennung.');
+          await bestaetigeCpv(kontext, profil, cpv);
+          return;
+        }
+
         if (was === 'empfaenger_hinzu') {
           const benutzer = text('benutzer') ?? '';
           if (!UUID.test(benutzer)) {
             throw new ProfilFehler('empfaenger', 'Kein Konto ausgewählt.');
           }
-          await setzeEmpfaenger(kontext, profil, benutzer);
+          await setzeEmpfaenger(kontext, profil, benutzer, schwelle(text('abPunkte')));
+          return;
+        }
+
+        /* V-309 (O-15): leer heißt — die Schwelle des Profils. */
+        if (was === 'empfaenger_schwelle') {
+          const eintrag = text('empfaenger') ?? '';
+          if (!UUID.test(eintrag)) {
+            throw new ProfilFehler('empfaenger', 'Kein Eintrag ausgewählt.');
+          }
+          await setzeEmpfaengerSchwelle(kontext, profil, eintrag, schwelle(text('abPunkte')));
           return;
         }
 
