@@ -268,6 +268,24 @@ test.describe('(7) barrierefrei in beiden Sprachen', () => {
     test(`axe: ${pfad}`, async ({ page }) => {
       const antwort = await page.goto(pfad);
       expect(antwort?.status(), pfad).toBe(200);
+      /*
+       * **Erst die Einblendung abwarten, dann messen** (DESIGN §7). Der Hero
+       * blendet beim Laden ein (`cse-auftritt`: Deckkraft 0→1 über `--base`,
+       * gestaffelt bis 120 ms), und wenn `goto` zurückkehrt, steht sie erst
+       * bei 0 bis 80 ms. axe mass deshalb manchmal mitten im Fade: der weiße
+       * Angebotsknopf auf `bg-brand` hat in Ruhe 4,88:1, halb eingeblendet
+       * 3,3:1 — `color-contrast (1×)` auf `/en`, in einem CI-Lauf dreimal
+       * hintereinander, im Lauf davor grün. Mit gedrosselter Animation lokal
+       * nachgestellt. `a11y.spec.ts` trifft das Fenster nie, weil es vor der
+       * Messung durch die Seite rollt. Gemessen wird die Seite, wie sie
+       * steht: jede endliche Animation ist durchgelaufen (eine abgebrochene
+       * zählt als beendet).
+       */
+      await page.evaluate(async () => {
+        await Promise.all(document.getAnimations()
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished.catch(() => undefined)));
+      });
       const ergebnis = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
       expect(
