@@ -3105,7 +3105,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-127 | `int-anhang-schadsoftware` | Should incoming attachments be scanned for malware, and with which EU-hosted service? · **Voreinstellung → D-802** |
 | O-128 | `int-altsystem-export` | In which format can Aplano, Lexware and the existing Excel files be exported, which period is migrated, and must the historical data be archived GoBD-compliant? · **Voreinstellung → D-784** |
 | O-129 | `int-datev-periodensperre` | Does a completed DATEV export lock the period against new bookings, or do late entries go into the next open period? · **Voreinstellung → D-796** |
-| O-130 | `int-48b-bescheinigung` | Does each entity hold a valid §48b EStG exemption certificate, for what term, and who renews it? |
+| O-130 | `int-48b-bescheinigung` | Does each entity hold a valid §48b EStG exemption certificate, for what term, and who renews it? · **Betreiberdaten → D-803; Ort und Erinnerung (Voreinstellung) → D-846** |
 | O-131 | `int-kundenpostfach` | Should incoming customer correspondence be taken into the history automatically, from a mailbox per entity, or does capture stay manual? · **Voreinstellung → D-802** |
 
 ### Raised while building · Phase 2
@@ -25900,7 +25900,7 @@ es verbunden.
 | O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Antwortentwürfe im Recruiting und die Akquiseentwürfe schliessen mit der Signatur (V-391, D-829), den Absender trägt erst der Postausgang (O-116); versendet wird ohne ihn nichts. | Einstellungen › Identität |
 | O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
 | O-119 | Unabhängige, verschlüsselte Sicherung: gesichert wird beim Anbieter (Supabase, Frankfurt; Verfahrensdokumentation 4.3); ein eigenes Sicherungsziel, seine Frist und der Schlüsselhalter fehlen, der Wiederherstellungstest ist eingeplant und nicht erbracht (Abschnitt 5 nennt jetzt O-119). | Sicherungsziel und Schlüssel; Test in ROADMAP Phase 10 |
-| O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: die Plattform führt Bescheinigungen der Kunden und Lieferanten, nicht die eigenen (V-388). | — (V-388) |
+| O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: ob die Gesellschaft eine hält und bis wann, trägt der Betreiber unter Finanzen › Freistellungsbescheinigungen ein (V-388, D-846). Sie entscheidet den Einbehalt auf Ausgangsrechnungen über Bauleistungen und steht im Beleg; Voreinstellung: Buchhaltung und Geschäftsführung werden 60, 30 und 7 Tage vor dem Ablauf erinnert, solange keine Nachfolgerin erfasst ist. | `finanz/freistellung-ablauf.ts`, `jobs/freistellungAblauf.ts` |
 | O-132 | Karten- und Geokodierungsdienst: nicht verbunden; Objekte stehen als Liste, Koordinaten trägt ein Mensch ein (O-122, D-802). | Anbieter und Vertrag |
 | O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | Einstellungen › Unternehmensdaten, danach „Angaben bestätigen" (seit D-804, V-390) |
 | O-374 | Jobbörse und Vertrag: keine verbunden; „Veröffentlichen" vermerkt den Versuch als nicht verbunden. | Vertrag und Kennung je Börse; Anbindung in `versand/stellenboerse.ts` |
@@ -28504,4 +28504,71 @@ Karte, die Steuerseite, 0530. Dazu `pnpm guards`, `pnpm typecheck`,
 `pnpm lint`.
 
 | Betrifft | V-283, O-604, D-779, FIN-10, LEG-06; `drizzle/0530_freistellung_fest.sql`, `src/server/services/finanz/freistellung.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/{freistellungen/page.tsx,page.tsx,eingangsrechnungen/[id]/steuer/page.tsx}`, `src/lib/i18n/verwaltung/finanzen/{freistellungen,uebersicht,eingangsrechnungen}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/lib/i18n/verwaltung/crm-rueckweg.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/finanz-ausgabe.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/freistellung.test.ts`, `tests/kern/freistellung.test.ts` |
+|---|---|
+
+### D-846 · Bauwelle 43: Die eigene Freistellungsbescheinigung hat einen Ort — und die Ausgangsrechnung fragt sie statt der des Kunden (V-388, O-130)
+
+**Der Anlass.** `freistellungsbescheinigung` (0118) verlangte genau einen
+Träger, einen Kunden oder einen Lieferanten; die eigene Bescheinigung der
+Gesellschaft hatte keinen Ort, und die kanonische Ausgangsrechnung schrieb
+`freistellungsbescheinigung: null` (V-388). **Beim Bau fiel ein Befund auf,
+der schwerer wiegt:** der Steuerfall der Ausgangsrechnung (`steuerfall.ts`,
+PR 51) las die Bescheinigung des KUNDEN. § 48 Abs. 2 EStG stellt aber auf
+die des LEISTENDEN ab — bei einer Ausgangsrechnung die der Gesellschaft. Ein
+Kunde mit eigener Bescheinigung ergab eine Rechnung ohne Einbehalt, obwohl er
+bei fehlender Bescheinigung der Gesellschaft 15 % kürzt; eine Gesellschaft
+mit gültiger Bescheinigung bekam den Einbehalt ausgewiesen, wenn der Kunde
+keine hatte. Die Voreinstellung zu O-67 sagte schon, wo Bescheinigungen
+hingehören: an den Nachunternehmer (Lieferanten).
+
+**Was gebaut ist.**
+- **0531:** `fsb_genau_ein_traeger` wird `fsb_hoechstens_ein_traeger` — eine
+  Zeile ohne Kunde und ohne Lieferant ist die eigene Bescheinigung der
+  Gesellschaft. Alles andere gilt auch für sie: Nummer je Gesellschaft
+  einmal, Umfang mit Auftrag, 0530 hält sie nach dem Anlegen fest. Ob die
+  Gesellschaft eine hält und bis wann, trägt der Betreiber ein (O-130,
+  D-803).
+- **Der Steuerfall der Ausgangsrechnung** liest die EIGENEN Bescheinigungen
+  der Gesellschaft (unbeschränkt, oder auftragsbezogen für den Auftrag der
+  Rechnung — `giltAm`); die des Kunden zählt dort nicht mehr.
+- **Der Beleg nennt sie:** `ladeRechnungVollstaendig` liest die Bescheinigung
+  hinter `rechnung.freistellungsbescheinigung_id` — nur eine eigene —, und
+  die Nutzlast trägt Nummer, Finanzamt, Zeitraum und Umfang (im Hash; das PDF
+  druckt sie als Hinweis). Festgeschriebene Rechnungen behalten ihre
+  Nutzlast; ein Entwurf aus der Zeit davor, der noch auf die Bescheinigung
+  eines Kunden zeigt, bekommt `null` statt einer fremden als unserer.
+- **`/finanzen/freistellungen`** erfasst die eigene (Vorgabe) und die eines
+  Lieferanten; die eines Kunden nicht mehr (die Liste zeigt sie mit dem Satz,
+  dass sie auf Rechnungen der Gesellschaft nicht wirken). Läuft die eigene in
+  60 Tagen ohne Nachfolgerin ab, steht ein Hinweis da; gilt heute keine, auch.
+- **Der Nachtlauf `freistellung_ablauf`** (02:35, übergreifend) erinnert
+  Buchhaltung und Geschäftsführung (`kern.kette_meldung_empfaenger`, 0507)
+  60, 30 und 7 Tage vor dem Ablauf der eigenen, einmal je Stufe
+  (`waechter_meldung`), nicht mit erfasster Nachfolgerin, nie für fremde.
+  Neue Art `finanzen.freistellung_laeuft_ab` (Portal und E-Mail, nicht
+  sammelbar). `TODO(client, O-130)` am Dienst.
+- **Das Steuerblatt des Kunden** zeigt im Lagekasten die eigene Bescheinigung
+  am Stichtag („dieser Kunde behält nichts ein" bzw. „behält 15 % ein") und
+  verweist auf die Pflege; die Bescheinigungen des Kunden stehen darunter mit
+  dem Satz, dass sie auf unsere Rechnungen nicht wirken.
+- **Seed:** die eigene Bescheinigung der Bau-Gesellschaft
+  (`DEMO-48b-EIGEN`, Demodaten), die in 50 Tagen abläuft — Seite und
+  Nachtlauf führen den Hinweis vor.
+
+**Prüfung.** `tests/isolation/steuerfall.test.ts`: die Fixtur legt die
+EIGENE an (bis D-846 die des Kunden), die Beträge sind dieselben; neu: die
+Bescheinigung des Kunden befreit unsere Rechnung nicht (15 % einbehalten,
+kein Verweis, `null` im Beleg), eine auftragsbezogene eigene befreit keine
+Rechnung ohne ihren Auftrag, und der Beleg nennt die eigene mit Nummer,
+Finanzamt und Zeitraum. `tests/isolation/freistellung.test.ts` (8, 9): die
+eigene ohne Träger, in der Liste mit dem Namen der Gesellschaft; die Nummer
+über alle Arten; der Nachtlauf erinnert 20 Tage vorher an die
+Geschäftsführung mit Ziel und Nummer, einmal je Stufe, eine Woche vor dem
+Ablauf wieder, nicht mit Nachfolgerin, nicht für fremde.
+`tests/kern/eigene-freistellung.test.ts` (Stufen, Nachfolge, Art,
+Verdrahtung), `tests/kern/jobs-bootstrap.test.ts`,
+`tests/kern/kettenmeldung.test.ts` (fünf Wachenarten). Dazu `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`, `pnpm jobs:plan`.
+
+| Betrifft | V-388, O-130, O-67, D-803, D-845; `drizzle/0531_eigene_freistellung.sql`, `src/server/services/finanz/{steuerfall,rechnung,freistellung,freistellung-ablauf,kunde-steuer}.ts`, `src/server/jobs/{freistellungAblauf,bootstrap}.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/lib/i18n/konto.ts`, `src/lib/i18n/verwaltung/finanzen/freistellungen.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/freistellungen/page.tsx`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/{crm,index}.ts`, `docs/JOB-AUSLOESER.sql`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/{steuerfall,freistellung}.test.ts`, `tests/kern/{eigene-freistellung,jobs-bootstrap,kettenmeldung}.test.ts` |
 |---|---|

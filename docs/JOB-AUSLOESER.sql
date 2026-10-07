@@ -150,6 +150,18 @@ select cron.schedule('cse_freigabe_fenster', '*/5 * * * *', $cse$
   );
 $cse$);
 
+-- Hinweis vor dem Ablauf der eigenen § 48b-Freistellungsbescheinigung (60/30/7 Tage) (uebergreifend)
+select cron.unschedule('cse_freistellung_ablauf')
+  where exists (select 1 from cron.job where jobname = 'cse_freistellung_ablauf');
+select cron.schedule('cse_freistellung_ablauf', '35 2 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/freistellung_ablauf',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Nächtliche Prüfung der Rechnungs-Hashkette (FIN-06) (je_mandant)
 select cron.unschedule('cse_kette_pruefen')
   where exists (select 1 from cron.job where jobname = 'cse_kette_pruefen');

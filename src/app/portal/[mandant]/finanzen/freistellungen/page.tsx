@@ -18,6 +18,7 @@ import {
   ladeFreistellungAuswahl, listeFreistellungen, type FreistellungAuswahl,
   type FreistellungListe, type FreistellungStand,
 } from '@/server/services/finanz/freistellung';
+import { eigeneAblaeufe } from '@/server/services/finanz/freistellung-ablauf';
 
 /**
  * `/portal/[mandant]/finanzen/freistellungen` — die Freistellungsbescheinigungen
@@ -28,6 +29,11 @@ import {
  * die zwei Rechte der Policy auf `freistellungsbescheinigung` (0118). Die
  * Voreinstellung zu O-604 (D-779): die Buchhaltung pflegt sie; die
  * Steuerseite der Eingangsrechnung liest sie nur.
+ *
+ * **Zwei Arten werden erfasst** (V-388, D-846): die EIGENE der Gesellschaft
+ * — sie steht auf der Ausgangsrechnung, und an ihren Ablauf erinnert der
+ * Nachtlauf `freistellung_ablauf` — und die eines LIEFERANTEN. Bescheinigungen
+ * von Kunden zeigt die Liste; erfasst werden sie am Steuerblatt des Kunden.
  *
  * **Erfasst, nie geändert** (0530). Nummer, Finanzamt, Zeitraum und Umfang
  * stehen auf festgeschriebenen Belegen; eine falsch erfasste Bescheinigung
@@ -80,6 +86,18 @@ export default async function Freistellungen(
     }))) as Promise<{ liste: FreistellungListe; auswahl: FreistellungAuswahl | null }>);
   const { heute, zeilen } = liste;
   const tag = (d: string): string => tagInSprache(d, zugang.sprache);
+  /*
+   * Die EIGENE Bescheinigung (V-388): läuft sie in den nächsten 60 Tagen ab
+   * ohne Nachfolgerin, sagt die Seite es — dieselbe Prüfung wie der Nachtlauf
+   * (`freistellung_ablauf`, O-130). Gilt heute keine, sagt sie das auch.
+   */
+  const eigene = zeilen.filter((z) => z.traeger === 'eigene');
+  const ablaeufe = eigeneAblaeufe(eigene.map((z) => ({
+    id: z.id, nummer: z.nummer, gueltigVon: z.gueltigVon, gueltigBis: z.gueltigBis,
+    widerrufenAm: z.widerrufenAm, umfang: z.umfang, auftragId: z.auftragId,
+  })), heute);
+  const eigeneGilt = eigene.some((z) => z.stand === 'gueltig');
+  const kundenZeilen = zeilen.some((z) => z.traeger === 'kunde');
 
   return (
     <PortalRahmen
@@ -108,6 +126,21 @@ export default async function Freistellungen(
         </Hinweis>
       )}
 
+      {ablaeufe.map((a) => (
+        <Hinweis key={a.id} art="warnung" cse="freistellung-ablauf" className="mb-s5 max-w-prose">
+          {t.ablaufHinweis(a.nummer, tag(a.gueltigBis), a.tage)}
+        </Hinweis>
+      ))}
+      {eigene.length === 0 ? (
+        <Hinweis art="hinweis" cse="freistellung-eigene-fehlt" className="mb-s5 max-w-prose">
+          {t.eigeneFehlt}
+        </Hinweis>
+      ) : !eigeneGilt && (
+        <Hinweis art="warnung" cse="freistellung-keine-eigene" className="mb-s5 max-w-prose">
+          {t.keineEigeneGueltig}
+        </Hinweis>
+      )}
+
       <Hinweis art="warnung" cse="freistellung-voreinstellung" className="mb-s6 max-w-prose">
         {t.voreinstellung}
       </Hinweis>
@@ -119,6 +152,11 @@ export default async function Freistellungen(
       )}
 
       <section data-cse="freistellung-liste" className="mb-s7">
+        {kundenZeilen && (
+          <p className="mb-s3 mt-0 max-w-prose text-xs text-text-muted" data-cse="freistellung-kunden">
+            {t.kundenHinweis}
+          </p>
+        )}
         {zeilen.length === 0 ? (
           <p className="m-0 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
             {t.leer}
@@ -135,7 +173,7 @@ export default async function Freistellungen(
                   <span className="flex flex-col">
                     <span className="text-text">{z.traegerName ?? '—'}</span>
                     <span className="text-xs text-text-muted">
-                      {z.traeger === 'kunde' ? t.kunde : t.lieferant}
+                      {z.traeger === 'eigene' ? t.eigene : z.traeger === 'kunde' ? t.kunde : t.lieferant}
                     </span>
                   </span>
                 ),
@@ -267,41 +305,35 @@ export default async function Freistellungen(
             <input type="hidden" name="aktion" value="anlegen" />
             <input type="hidden" name="zurueck" value={pfad} />
 
+            {/*
+              * Wessen Bescheinigung: die EIGENE oder die eines LIEFERANTEN (V-388,
+              * D-846). Die eines Kunden wirkt auf keine Rechnung der Gesellschaft;
+              * sie steht auf dem Steuerblatt am Kunden und wird hier nicht erfasst.
+              */}
             <fieldset className="flex flex-col gap-s2 border-0 p-0">
               <legend className="mb-s2 text-sm font-semibold text-text">{t.feldTraeger}</legend>
               <label className="flex min-h-11 items-start gap-s2 text-sm text-text">
-                <input type="radio" name="traeger" value="lieferant" className="mt-s1"
-                       defaultChecked={v('traeger') !== 'kunde'} />
-                <span>{t.lieferantErklaerung}</span>
+                <input type="radio" name="traeger" value="eigene" className="mt-s1"
+                       defaultChecked={v('traeger') !== 'lieferant'} data-cse="freistellung-eigene" />
+                <span>{t.eigeneErklaerung}</span>
               </label>
               <label className="flex min-h-11 items-start gap-s2 text-sm text-text">
-                <input type="radio" name="traeger" value="kunde" className="mt-s1"
-                       defaultChecked={v('traeger') === 'kunde'} />
-                <span>{t.kundeErklaerung}</span>
+                <input type="radio" name="traeger" value="lieferant" className="mt-s1"
+                       defaultChecked={v('traeger') === 'lieferant'} />
+                <span>{t.lieferantErklaerung}</span>
               </label>
             </fieldset>
 
-            <div className="flex flex-wrap gap-s4">
-              <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
-                {t.feldLieferant}
-                <select name="lieferant_id" defaultValue={v('lieferant_id')} className={FELD}>
-                  <option value="">{t.keineAuswahl}</option>
-                  {auswahl.lieferanten.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-1 flex-col gap-s2 text-sm text-text">
-                {t.feldKunde}
-                <select name="kunde_id" defaultValue={v('kunde_id')} className={FELD}>
-                  <option value="">{t.keineAuswahl}</option>
-                  {auswahl.kunden.map((k) => (
-                    <option key={k.id} value={k.id}>{k.name}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <span className="text-xs text-text-muted">{t.traegerHinweis}</span>
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {t.feldLieferant}
+              <select name="lieferant_id" defaultValue={v('lieferant_id')} className={FELD}>
+                <option value="">{t.keineAuswahl}</option>
+                {auswahl.lieferanten.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+              <span className="text-xs text-text-muted">{t.traegerHinweis}</span>
+            </label>
 
             <label className="flex flex-col gap-s2 text-sm text-text">
               {t.feldNummer}

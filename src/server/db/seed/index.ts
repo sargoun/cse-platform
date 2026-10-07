@@ -2367,7 +2367,8 @@ async function main(): Promise<void> {
       + '(ozg_re, in dieser Installation NICHT verbunden — O-22), '
       + `${String(crm.zeitscheiben)} §-13b-Zeitscheiben `
       + '(erst kein Bauleistender, dann einer — der Stichtag entscheidet, O-21), '
-      + `${String(crm.bescheinigungen)} §-48b-Bescheinigung, `
+      + `${String(crm.bescheinigungen)} §-48b-Bescheinigungen (die eines Kunden und die eigene `
+      + 'der Bau-Gesellschaft, V-388), '
       + `${String(crm.wiedervorlagen)} Wiedervorlagen in allen vier Faechern und `
       + `${String(crm.aehnlicheLeistung)} begruendete §-7-Abs.-3-Wertung `
       + '(Voreinstellung O-660: das Tor verlangt sie fuer Werbung per E-Mail, V-342)\n');

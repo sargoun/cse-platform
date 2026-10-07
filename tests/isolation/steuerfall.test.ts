@@ -13,7 +13,7 @@ import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import { cent } from '../../src/server/services/finanz/geld.js';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import {
-  fuegePositionHinzu, legeEntwurfAn, vonHand, type Abfrage,
+  fuegePositionHinzu, ladeRechnungVollstaendig, legeEntwurfAn, vonHand, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import { ermittleSteuerfall, schreibeSteuerfall }
   from '../../src/server/services/finanz/steuerfall.js';
@@ -87,16 +87,35 @@ async function setzeStatus(
     [f.bau, kundeId, art, ja, ab, bis] as never[]);
 }
 
+/**
+ * Die EIGENE Bescheinigung der Gesellschaft (V-388, D-846): sie entscheidet
+ * bei einer Ausgangsrechnung, ob der Kunde einbehält (§ 48 Abs. 2 EStG) —
+ * weder Kunde noch Lieferant (0531). Bis D-846 legte diese Fixtur die des
+ * KUNDEN an, und der Steuerfall las sie; das war die falsche Seite.
+ */
 async function legeBescheinigungAn(
   von: string, bis: string, umfang: 'unbeschraenkt' | 'auftragsbezogen' = 'unbeschraenkt',
-): Promise<void> {
+): Promise<string> {
+  const nummer = `FSB-${zufall()}`;
+  await sql.unsafe(
+    `insert into freistellungsbescheinigung
+       (mandant_id, bescheinigung_nummer, finanzamt, gueltig_von, gueltig_bis,
+        umfang, erstellt_von_art, erstellt_von_dienst)
+     values ($1,$2,'Finanzamt Berlin-Mitte',$3::date,$4::date,
+             $5::freistellung_umfang,'system','job:test')`,
+    [f.bau, nummer, von, bis, umfang] as never[]);
+  return nummer;
+}
+
+/** Die Bescheinigung des KUNDEN — sie befreit ihn, wenn er selbst baut, nicht unsere Rechnung. */
+async function legeKundenbescheinigungAn(von: string, bis: string): Promise<void> {
   await sql.unsafe(
     `insert into freistellungsbescheinigung
        (mandant_id, kunde_id, bescheinigung_nummer, finanzamt, gueltig_von, gueltig_bis,
         umfang, erstellt_von_art, erstellt_von_dienst)
      values ($1,$2,$3,'Finanzamt Berlin-Mitte',$4::date,$5::date,
-             $6::freistellung_umfang,'system','job:test')`,
-    [f.bau, kundeId, `FSB-${zufall()}`, von, bis, umfang] as never[]);
+             'unbeschraenkt','system','job:test')`,
+    [f.bau, kundeId, `FSB-K-${zufall()}`, von, bis] as never[]);
 }
 
 beforeEach(async () => {
@@ -259,7 +278,7 @@ describe('§48 EStG — der Einbehalt steht auf dem Beleg', () => {
 
   it('mit gültiger Bescheinigung wird nichts einbehalten, und sie steht am Beleg', async () => {
     await setzeStatus('bau', true, '2026-01-01', null);
-    await legeBescheinigungAn('2026-01-01', '2026-12-31');
+    const nummer = await legeBescheinigungAn('2026-01-01', '2026-12-31');
     const id = await entwurf(1_000_000n, 'bau', 'ust_0_13b_bau');
     await alsApp(sitzung(), (tx) => schreibeSteuerfall(alsDienst(tx), id));
 
@@ -268,6 +287,61 @@ describe('§48 EStG — der Einbehalt steht auf dem Beleg', () => {
               freistellungsbescheinigung_id::text as fsb from rechnung where id = $1`, [id]);
     expect(r!.einbehalt).toBe('0');
     expect(r!.fsb).not.toBeNull();
+
+    // Und sie steht im Beleg, den die Festschreibung hasht (V-388): Nummer, Finanzamt, Zeitraum.
+    const beleg = await alsApp(sitzung(), (tx) => ladeRechnungVollstaendig(alsDienst(tx), id));
+    expect(beleg.bauabzugsteuer.freistellungsbescheinigung).toEqual({
+      nummer, finanzamt: 'Finanzamt Berlin-Mitte', gueltigVon: '2026-01-01',
+      gueltigBis: '2026-12-31', umfang: 'unbeschraenkt',
+    });
+  });
+
+  /**
+   * **Die Bescheinigung des KUNDEN befreit unsere Rechnung nicht** (§ 48 Abs. 2
+   * EStG, V-388, D-846). Es zählt die des Leistenden — bei einer
+   * Ausgangsrechnung die der Gesellschaft. Bis D-846 las der Steuerfall die
+   * des Kunden und rechnete dann ohne Einbehalt: der Kunde hätte 15 % gekürzt,
+   * und die Rechnung hätte sie verlangt.
+   */
+  it('die Bescheinigung des Kunden befreit unsere Rechnung nicht', async () => {
+    await setzeStatus('bau', true, '2026-01-01', null);
+    await legeKundenbescheinigungAn('2026-01-01', '2026-12-31');
+    const id = await entwurf(1_000_000n, 'bau', 'ust_0_13b_bau');
+    const fall = await alsApp(sitzung(), (tx) => schreibeSteuerfall(alsDienst(tx), id));
+    expect(fall.bauabzug.einbehalten).toBe(true);
+
+    const [r] = await sql.unsafe<{ einbehalt: string; fsb: string | null }[]>(
+      `select einbehalt_bauabzugsteuer_cent::text as einbehalt,
+              freistellungsbescheinigung_id::text as fsb from rechnung where id = $1`, [id]);
+    expect(r!.einbehalt).toBe('150000');
+    expect(r!.fsb).toBeNull();
+    const beleg = await alsApp(sitzung(), (tx) => ladeRechnungVollstaendig(alsDienst(tx), id));
+    expect(beleg.bauabzugsteuer.freistellungsbescheinigung).toBeNull();
+  });
+
+  /** Eine auftragsbezogene EIGENE befreit nur ihren Auftrag — hier hat die Rechnung keinen. */
+  it('eine auftragsbezogene eigene Bescheinigung befreit keine Rechnung ohne ihren Auftrag', async () => {
+    await setzeStatus('bau', true, '2026-01-01', null);
+    // Der Verantwortliche eines Auftrags gehört zur Gesellschaft — die Buchhaltung wird Mitglied.
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, (select id from rolle where schluessel = 'leitung' and mandant_id is null))`,
+      [benutzer, f.bau]);
+    const [a] = await sql.unsafe<{ id: string }[]>(
+      `insert into auftrag (mandant_id, auftragsnummer, kunde_id, art, status, bezeichnung,
+                            verantwortlich_benutzer_id, start_datum)
+       values ($1, $2, $3, 'projekt', 'aktiv', 'Rückbau Nord', $4, '2026-01-01')
+       returning id`, [f.bau, `AU-${zufall()}`, kundeId, benutzer] as never[]);
+    await sql.unsafe(
+      `insert into freistellungsbescheinigung
+         (mandant_id, bescheinigung_nummer, finanzamt, gueltig_von, gueltig_bis,
+          umfang, auftrag_id, erstellt_von_art, erstellt_von_dienst)
+       values ($1,$2,'Finanzamt Berlin-Mitte','2026-01-01','2026-12-31',
+               'auftragsbezogen',$3,'system','job:test')`,
+      [f.bau, `FSB-A-${zufall()}`, a!.id] as never[]);
+    const id = await entwurf(1_000_000n, 'bau', 'ust_0_13b_bau');
+    const fall = await alsApp(sitzung(), (tx) => schreibeSteuerfall(alsDienst(tx), id));
+    expect(fall.bauabzug.einbehalten).toBe(true);
   });
 
   /**

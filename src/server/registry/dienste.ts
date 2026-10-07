@@ -329,6 +329,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'finanzen', pfad: 'finanz/freistellung',
     schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
+  /** V-388 — wann die eigene Bescheinigung erinnert (O-130, D-846); rein, schreibt nichts. */
+  { modul: 'finanzen', pfad: 'finanz/freistellung-ablauf', schreibend: false },
   /**
    * V-011 — der Schreibweg der Ausgabe.
    *

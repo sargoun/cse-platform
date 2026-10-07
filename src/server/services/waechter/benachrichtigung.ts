@@ -23,6 +23,7 @@ export const ART_SCHICHT_OHNE_ZEIT = `${DIENSTPLAN}.schicht_ohne_zeiteintrag`;
 export const ART_MORGEN_UNBESETZT = `${DIENSTPLAN}.morgen_unbesetzt`;
 export const ART_NACHTRAG_OFFEN = `${BAU}.nachtrag_ueberfaellig`;
 export const ART_KETTE_GEBROCHEN = `${FINANZEN}.kette_gebrochen`;
+export const ART_FREISTELLUNG_LAEUFT_AB = `${FINANZEN}.freistellung_laeuft_ab`;
 
 function ziel(slug: unknown, pfad: string): string | null {
   return typeof slug === 'string' && slug !== '' ? `/portal/${slug}${pfad}` : null;
@@ -152,6 +153,31 @@ function ketteGebrochen(): ArtDefinition {
 }
 
 /**
+ * „Eigene Freistellungsbescheinigung läuft ab" (V-388, O-130, D-846) — 60, 30
+ * und 7 Tage vorher, solange keine Nachfolgerin erfasst ist. An Buchhaltung
+ * und Geschäftsführung wie der Kettenbruch (`kern.kette_meldung_empfaenger`):
+ * die Meldung führt auf `/finanzen/freistellungen`, und die öffnet mit
+ * `finanzen.lesen`.
+ */
+function freistellungLaeuftAb(): ArtDefinition {
+  return ({
+    schluessel: ART_FREISTELLUNG_LAEUFT_AB,
+    titel: (k) => `Eigene Freistellungsbescheinigung läuft ab: ${String(k.daten['nummer'] ?? '?')}, `
+      + `${String(k.daten['bis'] ?? '')}`,
+    text: (k) =>
+      `Die Freistellungsbescheinigung nach § 48b EStG Nr. ${String(k.daten['nummer'] ?? '?')} `
+      + `der Gesellschaft gilt noch bis ${String(k.daten['bis'] ?? '')} `
+      + `(${String(k.daten['tage'] ?? '?')} Tage). Danach behalten Kunden bei Bauleistungen `
+      + '15 % ein (§ 48 EStG), bis eine neue vorliegt. Die neue beantragt die Buchhaltung beim '
+      + 'Finanzamt und erfasst sie unter Finanzen › Freistellungsbescheinigungen — dann endet '
+      + 'dieser Hinweis.',
+    ziel: (k) => ziel(k.mandantSlug, '/finanzen/freistellungen'),
+    kanaeleVorgabe: ['app', 'email'],
+    sammelbar: false,
+  });
+}
+
+/**
  * Idempotent, wie bei den Radararten (D-493): der Bootstrap läuft im Test
  * mehrfach — und `sicherRegistriert` prüft je Schlüssel. Die frühere
  * Fassung fragte nur die erste Art; fehlte danach eine der beiden anderen,
@@ -161,5 +187,6 @@ function ketteGebrochen(): ArtDefinition {
 export function registriereWaechterArten(): readonly ArtDefinition[] {
   return sicherRegistriert([
     schichtOhneZeit(), morgenUnbesetzt(), nachtragOffen(), ketteGebrochen(),
+    freistellungLaeuftAb(),
   ]);
 }
