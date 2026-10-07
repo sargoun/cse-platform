@@ -20,6 +20,7 @@ const zustand = vi.hoisted(() => ({
   sitzung: null as null | Record<string, unknown>,
   findeAbwesenheit: vi.fn(),
   storniereAbwesenheit: vi.fn(),
+  meldeRuecknahme: vi.fn(),
   findeAntrag: vi.fn(),
   zieheAntragZurueck: vi.fn(),
   mandantDerAnstellung: vi.fn(),
@@ -39,6 +40,10 @@ vi.mock('@/server/services/abwesenheit/index', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   findeAbwesenheit: zustand.findeAbwesenheit,
   storniereAbwesenheit: zustand.storniereAbwesenheit,
+}));
+/* V-353 — die Meldung an die Personalstelle hängt an derselben Transaktion. */
+vi.mock('@/server/services/abwesenheit/benachrichtigung', () => ({
+  meldeRuecknahme: zustand.meldeRuecknahme,
 }));
 vi.mock('@/server/services/abwesenheit/antrag', async (original) => ({
   ...(await original<Record<string, unknown>>()),
@@ -121,10 +126,13 @@ describe('Rücknahme einer Abwesenheit', () => {
   it('Erfolg: auf `zurueck`', async () => {
     zustand.findeAbwesenheit.mockResolvedValue({ anstellungId: ANSTELLUNG });
     zustand.storniereAbwesenheit.mockResolvedValue(undefined);
+    zustand.meldeRuecknahme.mockResolvedValue(1);
     const r = await abwesenheit.POST(anfrage(PFAD, {
       grund: 'x', zurueck: '/portal/mein/antraege', fehlerweg: BLATT,
     }), params);
     expect(r.headers.get('location')).toBe(`${HIER}/portal/mein/antraege`);
+    // V-353: nach der Rücknahme die Meldung, mit derselben Kennung.
+    expect(zustand.meldeRuecknahme).toHaveBeenCalledWith(expect.anything(), ID);
   });
 });
 

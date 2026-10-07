@@ -5,6 +5,7 @@ import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
   AbwesenheitNichtGefunden, AuBisVorBeginn, meldeAbwesenheit, storniereAbwesenheit,
 } from '../../src/server/services/abwesenheit/index.js';
+import { meldeRuecknahme } from '../../src/server/services/abwesenheit/benachrichtigung.js';
 
 /**
  * **Die eigene Abwesenheit zurücknehmen — und halbe Tage melden**
@@ -321,5 +322,90 @@ describe('§3 die eigene Rücknahme (V-056)', () => {
         where id = $1::uuid`, [id, buero]));
     await alsPlanung((k) => storniereAbwesenheit(k, id, 'Vom Büro zurückgenommen'));
     expect((await roh(id)).status).toBe('storniert');
+  });
+});
+
+/**
+ * **Die Rücknahme meldet sich bei der Personalstelle** (V-353, O-895, D-795,
+ * D-808, 0500).
+ *
+ * Bis hierher wusste von einer Selbstrücknahme nur das Protokoll. Standen
+ * die Tage schon in einem Lohnexport, merkte es niemand. Jetzt bekommt jedes
+ * Konto, das in der Gesellschaft Abwesenheiten entscheidet und liest, eine
+ * Meldung — in derselben Transaktion wie die Rücknahme, wie die Route es tut.
+ */
+describe('§4 die Rücknahme meldet sich (V-353)', () => {
+  /*
+   * Die Mitgliedschaft der Planung gilt seit GESTERN: der Vorgabewert ist
+   * `app.berlin_heute()`, die Rechteauflösung vergleicht mit `current_date` —
+   * zwischen 22:00 UTC und Mitternacht hielte sie das Recht sonst erst morgen.
+   */
+  beforeAll(async () => {
+    await sql.unsafe(
+      `update benutzer_mandant set gueltig_ab = current_date - 1 where benutzer_id = $1`,
+      [buero]);
+  });
+
+  async function posteingang(benutzer: string): Promise<readonly {
+    art: string; titel: string; text: string; ziel: string;
+  }[]> {
+    return sql.unsafe(
+      `select art, titel, text, ziel from benachrichtigung
+        where empfaenger_id = $1 and art = 'personal.abwesenheit_zurueckgenommen'
+        order by erstellt_am`, [benutzer]);
+  }
+
+  it('die Planung bekommt Name und Zeitraum — nicht die Art, und der Mensch selbst nichts', async () => {
+    const vorher = (await posteingang(buero)).length;
+    const id = await melde({ von: '2026-11-02', bis: '2026-11-03' });
+    const anzahl = await alsMensch(f.jonas, jonasKonto, async (k) => {
+      await storniereAbwesenheit(k, id, 'Datum vertippt');
+      return meldeRuecknahme(k, id);
+    });
+    expect(anzahl).toBeGreaterThanOrEqual(1);
+
+    const meldungen = await posteingang(buero);
+    expect(meldungen).toHaveLength(vorher + 1);
+    const m = meldungen[meldungen.length - 1]!;
+    const [slug] = await sql.unsafe<{ slug: string }[]>(
+      `select slug from mandant where id = $1`, [f.reinigung]);
+    expect(m.ziel).toBe(`/portal/${slug!.slug}/personal/abwesenheiten/${id}`);
+    expect(m.text).toContain('02.11.2026');
+    expect(m.text).toContain('03.11.2026');
+    // Art. 9 DSGVO: ob es eine Krankheit war, steht nicht in der Meldung.
+    expect(`${m.titel} ${m.text}`).not.toMatch(/krank/iu);
+    expect(await posteingang(jonasKonto)).toEqual([]);
+    expect(await posteingang(fatimaKonto)).toEqual([]);
+  });
+
+  it('der Definer meldet nur die EIGENE, zurückgenommene Abwesenheit', async () => {
+    // Noch nicht zurückgenommen: keine Meldung.
+    const offen = await melde({ von: '2026-11-09', bis: '2026-11-10' });
+    await expect(alsMensch(f.jonas, jonasKonto, (k) => k.schreibe(
+      `select app.abwesenheit_ruecknahme_melden($1::uuid, 'T', 'X', '/portal/x')`, [offen])))
+      .rejects.toThrow(/eigene, zurueckgenommene/u);
+
+    // Fremd: Fatimas Rücknahme meldet Jonas nicht in ihrem Namen.
+    const fremd = await melde({
+      anstellung: f.fatimaReinigung, von: '2026-11-16', bis: '2026-11-17',
+    });
+    await alsMensch(f.fatima, fatimaKonto, (k) => storniereAbwesenheit(k, fremd, 'Vertippt'));
+    await expect(alsMensch(f.jonas, jonasKonto, (k) => k.schreibe(
+      `select app.abwesenheit_ruecknahme_melden($1::uuid, 'T', 'X', '/portal/x')`, [fremd])))
+      .rejects.toThrow(/eigene, zurueckgenommene/u);
+
+    // Ohne Text aus dem Register gibt es keine Meldung (NOT-03).
+    const eigen = await melde({ von: '2026-11-23', bis: '2026-11-24' });
+    await alsMensch(f.jonas, jonasKonto, (k) => storniereAbwesenheit(k, eigen, 'Vertippt'));
+    await expect(alsMensch(f.jonas, jonasKonto, (k) => k.schreibe(
+      `select app.abwesenheit_ruecknahme_melden($1::uuid, 'T', '  ', '/portal/x')`, [eigen])))
+      .rejects.toThrow(/nicht leer/u);
+  });
+
+  it('`cse_app` schreibt weiter nicht selbst in fremde Posteingänge', async () => {
+    await expect(alsMensch(f.jonas, jonasKonto, (k) => k.schreibe(
+      `insert into benachrichtigung (mandant_id, empfaenger_id, art, titel, text, ziel)
+       values ($1::uuid, $2::uuid, 'personal.abwesenheit_zurueckgenommen', 'T', 'X', '/x')`,
+      [f.reinigung, buero]))).rejects.toThrow(/permission denied/u);
   });
 });

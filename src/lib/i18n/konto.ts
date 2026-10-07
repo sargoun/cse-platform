@@ -433,6 +433,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
         frist_knapp: 'Ausschreibung: Frist wird knapp',
         treffer: 'Ausschreibung: neuer Treffer',
         einwand_entschieden: 'Entscheidung über Ihre Zeitmeldung',
+        abwesenheit_zurueckgenommen: 'Abwesenheit zurückgenommen',
       },
     },
     en: {

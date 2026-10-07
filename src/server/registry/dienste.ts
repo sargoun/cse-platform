@@ -555,6 +555,18 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /** Die Tagesrechnung kennt keine Datenbank — sie rechnet Kalendertage. */
   { modul: 'zeit', pfad: 'abwesenheit/tage', schreibend: false },
   /**
+   * Die Meldung einer Selbstrücknahme an die Personalstelle (V-353). Sie
+   * schreibt nur über `app.abwesenheit_ruecknahme_melden` (0500), und das
+   * ist Selbstzugriff wie die Rücknahme selbst — es gibt kein Modulrecht
+   * dafür; der Definer prüft, dass es die EIGENE, gerade zurückgenommene
+   * Abwesenheit ist. Genannt ist wie bei `abwesenheit/index` das Recht des
+   * gefährlichsten Zugriffs auf denselben Vorgang.
+   */
+  {
+    modul: 'zeit', pfad: 'abwesenheit/benachrichtigung',
+    schreibend: true, schreibRecht: 'zeit.abwesenheit_genehmigen',
+  },
+  /**
    * Die Einteilung SCHREIBT `einsatz_zuordnung` — und ist der einzige Weg
    * dorthin. Genannt ist `dienstplan.schreiben`; die beiden Tore, die sie
    * durchlaeuft, haben ihre eigenen Rechte an ihren eigenen Diensten
