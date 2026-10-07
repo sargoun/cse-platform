@@ -25260,7 +25260,7 @@ gebaut ist (V-332 bis V-336); zwei Seiten sagen „Voreinstellung" statt „offe
 |---|---|---|
 | O-620 | Kartentext (PUB-03) und Profiltext (PRO-01) kommen aus `unternehmensprofil` je Sprache (D-82); `mandant_identitaet.kurzbeschreibung` und `.beschreibung` bleiben leer und ohne Schreibpfad (0200), bis jemand sie entfernt — kein zweiter Editor auf einem Text. Wie gebaut. | Einstellungen › Identität, `mandant/identitaet.ts` |
 | O-622 | Die fünf fail-closed gebauten Aufrufer von `gate()` (Anfrage, Mahnung, Behinderungsanzeige in Route und Dienst) laden keine Richtlinie — dort gilt immer Freigabe; `auto_erlaubt` wirkt nur bei Aktionen mit Zeile in `/einstellungen/agent-richtlinien`. Eine Richtlinie an diese Stellen zu reichen ist eine Entscheidung mit eigenen Tests (Invariante 7). Wie gebaut. | `server/agent/policy.ts`, Einstellungen › Agent-Richtlinien |
-| O-623 | Die Hashkette über `audit_log` entsteht beim Bilden eines Bündels (0204), nicht beim Schreiben — `app.protokolliere` hält keine Zeilensperre, die jede schreibende Transaktion serialisierte; das Manifest nennt die ungeketteten Zeilen. Dazu ein nächtlicher Lauf über einen eigenen, je Gesellschaft gebundenen Einstieg für `cse_job`: `app.audit_kette_fortschreiben` und `app.audit_kette_pruefen` verlangen `system.audit_exportieren` und liefern einem Job 0 bzw. nichts (V-336, verwandt O-357; Prüfstand PR #35). | Einstellungen › Protokoll › Export, `audit/buendel.ts` |
+| O-623 | Die Hashkette über `audit_log` entsteht beim Bilden eines Bündels (0204), nicht beim Schreiben — `app.protokolliere` hält keine Zeilensperre, die jede schreibende Transaktion serialisierte; das Manifest nennt die ungeketteten Zeilen. Dazu ein nächtlicher Lauf (`audit_kette_nachtlauf`, 03:25 UTC) über einen eigenen Einstieg nur für `cse_job` (`kern.audit_kette_nachtlauf`, 0516) — gebaut mit V-336 (D-820). Er ist übergreifend, nicht je Gesellschaft gebunden: die Kette ist EINE über alle Gesellschaften und die Plattformzeilen (0204), je Gesellschaft gelaufen wäre es dieselbe Kette viermal. Ein Bruch lässt den Lauf werfen und ruft den Alarm (verwandt O-357; Prüfstand PR #35). | Einstellungen › Protokoll › Export, `audit/buendel.ts`, `jobs/auditKette.ts` |
 | O-625 | Ein Übernahmelauf steht unter `system.einstellung_verwalten` (0202) UND verlangt beim Schreiben das Schreibrecht der Zieldomäne (`zeit.schreiben` für Zeiteinträge, `finanzen.schreiben` für Belege) — wie `/einstellungen/vorlagen` mit `bau.schreiben`. Wirkt erst mit dem Leser (O-128, V-300). | Einstellungen › Import, `migration/uebernahme.ts` |
 | O-640 | Ein Werbewiderspruch gilt pauschal für alle Kanäle der Gesellschaft (eine Spalte `werbewiderspruch_am`, 0020); `werbewiderspruch.kanal` beschreibt den Anlass und wirkt nicht. Wie gebaut. | Datenschutz › Widersprüche |
 | O-642 | Der interne Stundensatz (`anstellung.stundensatz_intern`, K-05) gehört in die Art.-15-Auskunft: ein Satz an einer Beschäftigung ist ein Datum über den Menschen (Art. 4 Nr. 1 DSGVO), auch wenn er zugleich Kalkulationsdatum ist. Gelesen über den beschränkten Leser `app.anstellung_entgelt_lesen` mit `personal.entgelt_lesen`; fehlt das Recht, sagt der Abschnitt es. Nicht gebaut — der Abschnitt `anstellung` lässt den Satz heute aus (V-332). Berichtigt im Prüfstand PR #35: hier stand, er gehöre nicht hinein. | `datenschutz/auskunft.ts` |
@@ -26926,4 +26926,56 @@ Freigabe, Seed und Gruppenansicht, `sql-schema`, `definer-eigentum`,
 `tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-376; O-369, O-513; `drizzle/0515_freigabe_vorlegen.sql`, `src/server/services/freigabe/vorlegen.ts`, `src/server/services/social/dienst.ts`, `src/server/services/recruiting/dienst.ts`, `src/server/services/recruiting/antwort.ts`, `src/server/services/finanz/eingang/vorschlag.ts`, `src/server/agent/orchestrator.ts`, `src/server/agent/tools/ergebnis-freigabe.ts`, `src/server/db/seed/freigaben.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-820 · Bauwelle 17: Die Prüfprotokoll-Kette hat einen Nachtlauf (V-336)
+
+**Der Anlass.** Die Hashkette über das Prüfprotokoll (0204) wuchs nur, wenn
+jemand ein Beweismittelbündel bildete; zwischen zwei Bündeln blieben Zeilen
+ungekettet, und nachgerechnet hat sie niemand regelmässig. Beide Einstiege
+verlangen `system.audit_exportieren` — ein Nachtlauf hat keinen Benutzer und
+bekam 0 Glieder und keinen Befund, was aussah wie „alles in Ordnung".
+Voreinstellung zu O-623 (D-791): nächtlich fortschreiben und nachrechnen.
+
+**Was gebaut ist.**
+- **Eine Formel statt zwei** (0516): `kern.audit_glied_hash` ist die
+  Gliedformel aus 0204, Feld für Feld, Trenner für Trenner. 0204 schrieb sie
+  in `fortschreiben` und `pruefen` je einmal aus; der Nachtlauf hätte die
+  dritte Fassung gebracht. Ein Test rechnet die alte Fassung wörtlich gegen
+  die neue Funktion.
+- **Der Rumpf ohne Tor** (`kern.audit_kette_schreiben`,
+  `kern.audit_kette_rechnen`, nur `cse_definer`), beide hinter einer
+  Advisory-Sperre: ein Bündel und der Nachtlauf läsen sonst dieselben
+  ungeketteten Zeilen, und der zweite liefe in den Eindeutigkeitsschlüssel
+  auf `audit_id`. `app.audit_kette_fortschreiben` und `app.audit_kette_pruefen`
+  behalten ihre Tore aus 0204 und rufen den Rumpf.
+- **Der Einstieg für den Lauf** (`kern.audit_kette_nachtlauf`, nur `cse_job`,
+  weist eine nur lesende Sitzung ab): kettet, was fehlt, und rechnet nach —
+  die in diesem Lauf berührten Ketten, die beiden jüngsten, jede schon einmal
+  gebrochene und die am längsten nicht geprüfte. So kommt jede Kette reihum
+  wieder dran, ohne dass jede Nacht zehn Jahre Protokoll gerechnet werden.
+- **Der Job** `audit_kette_nachtlauf` (`jobs/auditKette.ts`, 03:25 UTC, nach
+  dem Rechnungs-Kettenprüfer): übergreifend — die Kette ist eine über alle
+  Gesellschaften und die Plattformzeilen; die Voreinstellung nannte einen je
+  Gesellschaft gebundenen Einstieg, und das wäre dieselbe Kette viermal.
+  `versuche: 0`; ein Bruch lässt den Lauf werfen, mit Kette und Stelle im
+  Nachtlauf-Protokoll, und ruft den Alarm (nach draussen erst mit dem
+  Versanddienst, V-374). `docs/JOB-AUSLOESER.sql` führt ihn.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-623 | Nächtlich fortschreiben und nachrechnen, der Befund im Nachtlauf-Protokoll, ein Bruch ist ein Alarm — wie D-791, jetzt gebaut; übergreifend statt je Gesellschaft, weil die Kette eine ist. | `drizzle/0516`, `jobs/auditKette.ts` |
+
+**Prüfung.** `tests/isolation/audit-kette.test.ts` §V-336 (5, unter der echten
+Jobrolle: ketten und nachrechnen, zweite Nacht ohne Doppel; eine nachgetragene
+Vormonatszeile kommt an den Vormonat und bricht nichts; eine veränderte
+Protokollzeile lässt den Lauf mit Kette und Stelle werfen; nur lesend
+abgewiesen, `cse_app` ohne Ausführungsrecht; die Formel aus 0204 gegen
+`kern.audit_glied_hash`), die übrigen Fälle der Datei über die Einstiege aus
+0204, `tests/kern/jobs-bootstrap.test.ts`, `definer-eigentum`, `sql-schema`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-336; O-623; `drizzle/0516_audit_kette_nachtlauf.sql`, `src/server/jobs/auditKette.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql`, `tests/isolation/audit-kette.test.ts`, `tests/kern/jobs-bootstrap.test.ts` |
 |---|---|

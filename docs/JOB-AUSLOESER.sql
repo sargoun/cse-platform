@@ -30,6 +30,18 @@ select cron.schedule('cse_angebot_ablauf', '10 2 * * *', $cse$
   );
 $cse$);
 
+-- Prüfprotokoll-Hashkette nächtlich fortschreiben und nachrechnen (SEC-A9) (uebergreifend)
+select cron.unschedule('cse_audit_kette_nachtlauf')
+  where exists (select 1 from cron.job where jobname = 'cse_audit_kette_nachtlauf');
+select cron.schedule('cse_audit_kette_nachtlauf', '25 3 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/audit_kette_nachtlauf',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Deckt ein Basiszinssatz die kommende Jahreshälfte? (§ 247 BGB) (plattform)
 select cron.unschedule('cse_basiszinssatz_pruefen')
   where exists (select 1 from cron.job where jobname = 'cse_basiszinssatz_pruefen');
