@@ -416,12 +416,14 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
       speichern: 'Speichern',
       modul: {
         agent: 'KI-Agenten', bau: 'Bau', crm: 'Vertrieb', dienstplan: 'Dienstplan',
-        nachweis: 'Nachweise', personal: 'Personal', radar: 'Vergaberadar', zeit: 'Zeiterfassung',
+        finanzen: 'Finanzen', nachweis: 'Nachweise', personal: 'Personal', radar: 'Vergaberadar',
+        zeit: 'Zeiterfassung',
       },
       art: {
         budget_erschoepft: 'KI-Budget erschöpft',
         budget_warnschwelle: 'KI-Budget: Warnschwelle erreicht',
         nachtrag_ueberfaellig: 'Nachtrag überfällig',
+        kette_gebrochen: 'Rechnungs-Hashkette gebrochen',
         wiedervorlage_erinnerung: 'Erinnerung an eine Wiedervorlage',
         neuer_lead: 'Neue Anfrage',
         lead_sla_ueberschritten: 'Reaktionszeit einer Anfrage überschritten',

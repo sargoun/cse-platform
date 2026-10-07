@@ -35,11 +35,31 @@ import { pruefeKette } from '../../src/server/services/finanz/kettenlauf.js';
 import { alsJobSitzung } from '../../src/server/jobs/sitzung.js';
 import { KetteGebrochen, registriereKettenpruefer } from '../../src/server/jobs/kettenpruefer.js';
 import { leereRegister, type JobDefinition } from '../../src/server/jobs/registry.js';
+import { ART_KETTE_GEBROCHEN } from '../../src/server/services/waechter/benachrichtigung.js';
 
 let f: Fixtur;
 let benutzer: string;
 let nummern: string[] = [];
 let job: JobDefinition;
+let buchhaltung = '';
+let leitung = '';
+let mitarbeiter = '';
+
+/** Ein Konto mit Systemrolle in der Reinigung — für die Empfänger der Kettenmeldung. */
+async function konto(praefix: string, rolle: string): Promise<string> {
+  const email = `${praefix}-kette@cse.test`;
+  const [u] = await sql.unsafe<{ id: string }[]>(
+    `insert into auth.users (email) values ($1) returning id`, [email]);
+  await sql.unsafe(
+    `insert into benutzer (id, email, name, status) values ($1, $2, $2, 'aktiv')`, [u!.id, email]);
+  await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+  await sql.unsafe(
+    `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+     values ($1, $2, (select id from rolle where schluessel = $3 and mandant_id is null),
+             current_date - 1)`,
+    [u!.id, f.reinigung, rolle]);
+  return u!.id;
+}
 
 function alsDienst(tx: postgres.TransactionSql): Abfrage {
   return {
@@ -114,6 +134,10 @@ beforeAll(async () => {
     }));
   }
 
+  buchhaltung = await konto('buchhaltung', 'admin');
+  leitung = await konto('leitung', 'leitung');
+  mitarbeiter = await konto('mitarbeiter', 'mitarbeiter');
+
   leereRegister();
   job = registriereKettenpruefer(sql);
 }, 180_000);
@@ -178,5 +202,52 @@ describe('der Kettenprüfer läuft als JOB — nicht als Portalsitzung', () => {
     expect(job.bereich).toBe('je_mandant');
     // Ein gebrochener Hash wird beim zweiten Hinsehen nicht heil.
     expect(job.versuche).toBe(0);
+  });
+});
+
+describe('V-286 — der Bruch erreicht Buchhaltung und Geschäftsführung', () => {
+  it('der Definer nennt Buchhaltung und Leitung, jedes Konto einmal, nie die Belegschaft', async () => {
+    const zeilen = await sql.unsafe<{ benutzer_id: string; als: string }[]>(
+      `select benutzer_id, als from kern.kette_meldung_empfaenger($1::uuid)`, [f.reinigung]);
+    const als = new Map(zeilen.map((z) => [z.benutzer_id, z.als]));
+    expect(als.get(buchhaltung)).toBe('buchhaltung');
+    expect(als.get(leitung)).toBe('leitung');
+    expect(als.has(mitarbeiter)).toBe(false);
+    // Die globale Super-Administration hält das Recht, ist aber kein Mitglied:
+    // sie hat in der Gesellschaft keinen Posteingang (0146/0149).
+    expect(als.has(benutzer)).toBe(false);
+    expect(new Set(zeilen.map((z) => z.benutzer_id)).size).toBe(zeilen.length);
+  });
+
+  it('jeder Empfänger hat den Bruch genau einmal im Posteingang — auch nach drei Läufen', async () => {
+    // Der Fall oben ist zweimal gelaufen; ein dritter Lauf meldet nichts Neues.
+    await expect(job.ausfuehren({
+      mandantId: f.reinigung, laufId: 'test-lauf-4', versuch: 1,
+    })).rejects.toThrow(/0 neu, \d+ schon früher gemeldet/u);
+
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `select id from rechnung where nummer = $1`, [nummern[1]!]);
+    const empfaenger = (await sql.unsafe<{ benutzer_id: string }[]>(
+      `select benutzer_id from kern.kette_meldung_empfaenger($1::uuid)`, [f.reinigung]))
+      .map((z) => z.benutzer_id);
+    const zeilen = await sql.unsafe<{
+      empfaenger_id: string; ziel: string; titel: string; objekt_typ: string;
+      objekt_id: string; sammelbar: boolean;
+    }[]>(
+      `select empfaenger_id, ziel, titel, objekt_typ, objekt_id, sammelbar
+         from benachrichtigung where art = $1 and mandant_id = $2`,
+      [ART_KETTE_GEBROCHEN, f.reinigung]);
+
+    expect(zeilen.map((z) => z.empfaenger_id).sort()).toEqual([...empfaenger].sort());
+    expect(zeilen.map((z) => z.empfaenger_id)).toEqual(
+      expect.arrayContaining([buchhaltung, leitung]));
+    expect(zeilen.map((z) => z.empfaenger_id)).not.toContain(mitarbeiter);
+    for (const z of zeilen) {
+      expect(z.ziel).toBe('/portal/reinigung/finanzen/hashkette');
+      expect(z.titel).toContain(nummern[1]!);
+      expect(z.objekt_typ).toBe('rechnung');
+      expect(z.objekt_id).toBe(r!.id);
+      expect(z.sammelbar).toBe(false);
+    }
   });
 });
