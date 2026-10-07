@@ -66,7 +66,8 @@ export default async function Sicherheit(
   const k = await leseKonto(sitzung);
 
   const suche = searchParams === undefined ? {} : await searchParams;
-  const beendet = suche['beendet'] === '1';
+  const beendet = suche['beendet'] === '1' || suche['beendet'] === 'alle';
+  const alleBeendet = suche['beendet'] === 'alle';
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
 
   const aktuell = k.sprache ?? 'de';
@@ -118,7 +119,7 @@ export default async function Sicherheit(
 
         {beendet && (
           <Hinweis art="erfolg" rolle="status" cse="sitzung-beendet" className="mb-s5 max-w-[72ch]">
-            {t.beendet}
+            {alleBeendet ? t.alleBeendet : t.beendet}
           </Hinweis>
         )}
         {fehler !== null && (
@@ -162,6 +163,15 @@ export default async function Sicherheit(
             {t.keine}
           </p>
         ) : (
+          <>
+          {/* V-331: wer nicht weiss, welche Zeile das verlorene Telefon war. */}
+          <form method="post" action="/api/konto/sitzung" className="mb-s4">
+            <input type="hidden" name="sitzung" value="alle_anderen" />
+            <input type="hidden" name="zurueck" value="/portal/konto/sicherheit" />
+            <Button type="submit" variante="secondary" data-cse="alle-anderen-beenden">
+              {t.alleAnderen}
+            </Button>
+          </form>
           <ul data-cse="sitzungsliste" className="m-0 flex max-w-[72ch] list-none flex-col gap-s3 p-0">
             {sitzungen.map((s) => (
               <li key={s.id} data-cse="sitzung" data-diese={s.istDiese ? '1' : '0'}
@@ -195,6 +205,7 @@ export default async function Sicherheit(
               </li>
             ))}
           </ul>
+          </>
         )}
       </PortalRahmen>
     </div>

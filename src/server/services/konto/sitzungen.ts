@@ -125,3 +125,26 @@ export async function beendeEigeneSitzung(
       'nicht_gefunden', 404);
   }
 }
+
+/**
+ * **Alle ANDEREN eigenen Anmeldungen auf einmal beenden** (V-331, AUT-05).
+ *
+ * Für den Fall, für den die Liste da ist: ein Telefon ist weg, und welche
+ * Zeile es war, weiss niemand mehr genau. Die laufende Anmeldung bleibt —
+ * aus demselben Grund, aus dem sie oben keinen Knopf trägt. Die Policy
+ * `t_sitzung_eigene_schreiben` deckelt das UPDATE auf die eigenen Zeilen;
+ * eine fremde Anmeldung erreicht dieser Weg nicht. Gezählt wird, was beendet
+ * wurde — null ist kein Fehler, sondern der Stand.
+ */
+export async function beendeAndereSitzungen(
+  kontext: SchreibKontext, dieseSitzungId: string,
+): Promise<number> {
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update benutzer_sitzung
+        set beendet_am = now(), ende_grund = 'abmeldung'
+      where id <> $1::uuid and beendet_am is null and ablauf_am > now()
+     returning id`,
+    [dieseSitzungId],
+  );
+  return zeilen.length;
+}

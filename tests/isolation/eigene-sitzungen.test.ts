@@ -22,7 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  beendeEigeneSitzung, meineSitzungen, SitzungFehler,
+  beendeAndereSitzungen, beendeEigeneSitzung, meineSitzungen, SitzungFehler,
 } from '../../src/server/services/konto/sitzungen.js';
 
 let f: Fixtur;
@@ -162,5 +162,28 @@ describe('§2 beenden', () => {
     await als(ich, (tx) => beendeEigeneSitzung(kontextAus(tx, ich), weg, meineA));
     await expect(als(ich, (tx) =>
       beendeEigeneSitzung(kontextAus(tx, ich), weg, meineA))).rejects.toThrow(SitzungFehler);
+  });
+});
+
+describe('§3 alle anderen auf einmal (V-331)', () => {
+  it('beendet jede andere eigene Anmeldung — die laufende und die fremde bleiben', async () => {
+    const zwei = await anmeldung(ich, 'Verlorenes Telefon');
+    const drei = await anmeldung(ich, 'Tablet im Lager');
+    const beendet = await als(ich, (tx) => beendeAndereSitzungen(kontextAus(tx, ich), meineA));
+    expect(beendet).toBeGreaterThanOrEqual(2);
+
+    const stand = await sql.unsafe<{ id: string; offen: boolean; grund: string | null }[]>(
+      `select id::text as id, beendet_am is null as offen, ende_grund::text as grund
+         from benutzer_sitzung where id = any($1::uuid[])`,
+      [[meineA, zwei, drei, fremde]] as never[]);
+    const offen = (id: string): boolean | undefined => stand.find((z) => z.id === id)?.offen;
+    expect(offen(meineA), 'die laufende Anmeldung').toBe(true);
+    expect(offen(zwei)).toBe(false);
+    expect(offen(drei)).toBe(false);
+    expect(offen(fremde), 'die Policy hält die fremde Anmeldung heraus').toBe(true);
+    expect(stand.find((z) => z.id === zwei)?.grund).toBe('abmeldung');
+
+    // Ein zweiter Klick findet nichts mehr — und ist kein Fehler.
+    expect(await als(ich, (tx) => beendeAndereSitzungen(kontextAus(tx, ich), meineA))).toBe(0);
   });
 });

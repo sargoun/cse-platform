@@ -26,6 +26,7 @@ import { SICHERHEIT_TEXTE, SITZUNG_FEHLER_GRUENDE } from '../../src/lib/i18n/kon
 const zustand = vi.hoisted(() => ({
   sitzung: null as null | Record<string, unknown>,
   beende: vi.fn(),
+  beendeAndere: vi.fn(),
 }));
 
 vi.mock('@/server/auth/anfrage-sitzung', () => ({
@@ -38,6 +39,7 @@ vi.mock('@/server/kontext/index', () => ({ bindePersoenlich: () => Promise.resol
 vi.mock('@/server/services/konto/sitzungen', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   beendeEigeneSitzung: zustand.beende,
+  beendeAndereSitzungen: zustand.beendeAndere,
 }));
 
 const { SitzungFehler } = await import('../../src/server/services/konto/sitzungen.js');
@@ -64,6 +66,7 @@ beforeEach(() => {
     sitzungId: '00000000-0000-4000-8000-000000000003',
   };
   zustand.beende.mockReset();
+  zustand.beendeAndere.mockReset();
 });
 
 describe('POST /api/konto/sitzung — der Rückweg trägt einen Grund', () => {
@@ -98,6 +101,15 @@ describe('POST /api/konto/sitzung — der Rückweg trägt einen Grund', () => {
     expect(r.headers.get('location')).toBe(`${HIER}${SEITE}?beendet=1`);
   });
 
+  it('„alle anderen" beendet alle übrigen eigenen Anmeldungen — mit der laufenden als Grenze (V-331)', async () => {
+    zustand.beendeAndere.mockResolvedValue(2);
+    const r = await route.POST(formular({ sitzung: 'alle_anderen', zurueck: SEITE }));
+    expect(r.headers.get('location')).toBe(`${HIER}${SEITE}?beendet=alle`);
+    expect(zustand.beendeAndere).toHaveBeenCalledWith(expect.anything(),
+      '00000000-0000-4000-8000-000000000003');
+    expect(zustand.beende).not.toHaveBeenCalled();
+  });
+
   it('ein anderer Fehler bleibt ein Fehler — keine erfundene Abweisung', async () => {
     zustand.beende.mockRejectedValue(new Error('Verbindung weg'));
     await expect(route.POST(formular({ sitzung: FREMDE, zurueck: SEITE }))).rejects.toThrow('Verbindung weg');
@@ -126,6 +138,10 @@ describe('die Sätze — in jeder Sprache der Seite', () => {
       const t = SICHERHEIT_TEXTE[sprache];
       expect(t.nichtBeendet.trim(), sprache).not.toBe('');
       expect(t.fehlerSonst.trim(), sprache).not.toBe('');
+      // V-331: der Knopf und seine Bestätigung — in jeder Sprache eigene Worte.
+      expect(t.alleAnderen.trim(), sprache).not.toBe('');
+      expect(t.alleBeendet.trim(), sprache).not.toBe('');
+      if (sprache !== 'de') expect(t.alleBeendet, sprache).not.toBe(SICHERHEIT_TEXTE.de.alleBeendet);
       for (const g of SITZUNG_FEHLER_GRUENDE) {
         const satz = eigenerEintrag(t.fehler, g);
         expect(satz, `${sprache}.${g}`).toBeTruthy();

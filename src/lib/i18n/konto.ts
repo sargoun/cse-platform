@@ -40,11 +40,14 @@ export interface SicherheitTexte {
   readonly anmeldungenText: string;
   readonly diese: string;
   readonly beenden: string;
+  /** Ein Knopf für alle anderen Anmeldungen auf einmal (V-331). */
+  readonly alleAnderen: string;
   readonly keine: string;
   readonly zuletzt: string;
   readonly seit: string;
   readonly laeuftAb: string;
   readonly beendet: string;
+  readonly alleBeendet: string;
   /** Die fett gesetzten ersten Worte des Warnkastens (DESIGN §5 „Notices"). */
   readonly nichtBeendet: string;
   /** Der Satz zu `?fehler=<grund>` — nachgeschlagen mit `eigenerEintrag()`. */
@@ -72,11 +75,13 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
       + 'Kennwort.',
     diese: 'diese hier',
     beenden: 'Beenden',
+    alleAnderen: 'Alle anderen beenden',
     keine: 'Nur diese eine Anmeldung.',
     zuletzt: 'zuletzt aktiv',
     seit: 'angemeldet seit',
     laeuftAb: 'läuft ab',
     beendet: 'Die Anmeldung ist beendet.',
+    alleBeendet: 'Alle anderen Anmeldungen sind beendet. Diese hier läuft weiter.',
     nichtBeendet: 'Nicht beendet.',
     fehler: {
       diese_sitzung: 'Das ist die Anmeldung, in der Sie gerade sind. Zum Abmelden nehmen Sie '
@@ -102,11 +107,13 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
       + 'unfamiliar, end it and then change your password.',
     diese: 'this one',
     beenden: 'End',
+    alleAnderen: 'End all others',
     keine: 'Only this one session.',
     zuletzt: 'last active',
     seit: 'signed in since',
     laeuftAb: 'expires',
     beendet: 'The session has been ended.',
+    alleBeendet: 'All other sessions have been ended. This one continues.',
     nichtBeendet: 'Not ended.',
     fehler: {
       diese_sitzung: 'This is the session you are in right now. To leave it, use “Sign out” — '
@@ -129,11 +136,13 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
       + 'غيّر كلمة المرور.',
     diese: 'هذه الجلسة',
     beenden: 'إنهاء',
+    alleAnderen: 'إنهاء كل الجلسات الأخرى',
     keine: 'هذه الجلسة فقط.',
     zuletzt: 'آخر نشاط',
     seit: 'مسجّل منذ',
     laeuftAb: 'ينتهي',
     beendet: 'تم إنهاء الجلسة.',
+    alleBeendet: 'تم إنهاء كل الجلسات الأخرى. هذه الجلسة مستمرة.',
     nichtBeendet: 'لم تُنهَ الجلسة.',
     fehler: {
       diese_sitzung: 'هذه هي الجلسة التي تستخدمها الآن. للخروج استخدم «تسجيل الخروج» — '
@@ -158,11 +167,13 @@ export const SICHERHEIT_TEXTE: Readonly<Record<PortalSprache, SicherheitTexte>> 
       + 'varsa sonlandırın ve ardından parolanızı değiştirin.',
     diese: 'bu oturum',
     beenden: 'Sonlandır',
+    alleAnderen: 'Diğer tümünü sonlandır',
     keine: 'Yalnızca bu oturum.',
     zuletzt: 'son etkinlik',
     seit: 'giriş zamanı',
     laeuftAb: 'bitiş',
     beendet: 'Oturum sonlandırıldı.',
+    alleBeendet: 'Diğer tüm oturumlar sonlandırıldı. Bu oturum devam ediyor.',
     nichtBeendet: 'Sonlandırılmadı.',
     fehler: {
       diese_sitzung: 'Bu, şu anda içinde bulunduğunuz oturumdur. Çıkmak için „Çıkış yap"ı '

@@ -5,7 +5,7 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { bindePersoenlich } from '@/server/kontext/index';
-import { beendeEigeneSitzung, SitzungFehler }
+import { beendeAndereSitzungen, beendeEigeneSitzung, SitzungFehler }
   from '@/server/services/konto/sitzungen';
 import type { SitzungFehlerGrund } from '@/lib/i18n/konto';
 import { grundAufsFormular } from '../../formular-antwort';
@@ -34,6 +34,9 @@ import { grundAufsFormular } from '../../formular-antwort';
  * ihn roh — auch einem Konto mit englischer, arabischer oder türkischer
  * Portalsprache, und jeden Text, den ein präparierter Link mitbrachte. Den
  * Satz hat jetzt die Seite, in der Sprache des Kontos (`SICHERHEIT_TEXTE`).
+ *
+ * **`sitzung=alle_anderen` beendet jede andere eigene Anmeldung** (V-331) —
+ * die laufende bleibt; zurück mit `?beendet=alle`.
  */
 export const dynamic = 'force-dynamic';
 
@@ -57,18 +60,21 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'keine_anmeldung' }, { status: 400 });
   }
 
+  const alleAnderen = ziel === 'alle_anderen';
   try {
     await db().begin(async (tx: postgres.TransactionSql) => {
       await bindePersoenlich(tx, sitzung);
-      await beendeEigeneSitzung(
-        {
-          abfrage: async <T,>(sql: string, werte: readonly unknown[] = []) =>
-            (await tx.unsafe(sql, werte as never[])) as readonly T[],
-          schreibe: async <T,>(sql: string, werte: readonly unknown[] = []) =>
-            (await tx.unsafe(sql, werte as never[])) as readonly T[],
-        } as never,
-        ziel, sitzung.sitzungId,
-      );
+      const kontext = {
+        abfrage: async <T,>(sql: string, werte: readonly unknown[] = []) =>
+          (await tx.unsafe(sql, werte as never[])) as readonly T[],
+        schreibe: async <T,>(sql: string, werte: readonly unknown[] = []) =>
+          (await tx.unsafe(sql, werte as never[])) as readonly T[],
+      } as never;
+      if (alleAnderen) {
+        await beendeAndereSitzungen(kontext, sitzung.sitzungId);
+        return;
+      }
+      await beendeEigeneSitzung(kontext, ziel, sitzung.sitzungId);
     });
   } catch (fehler) {
     if (fehler instanceof SitzungFehler) {
@@ -81,5 +87,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.redirect(internesZiel(
-    `${zurueck}${zurueck.includes('?') ? '&' : '?'}beendet=1`, '/portal', anfrage), 303);
+    `${zurueck}${zurueck.includes('?') ? '&' : '?'}beendet=${alleAnderen ? 'alle' : '1'}`,
+    '/portal', anfrage), 303);
 }
