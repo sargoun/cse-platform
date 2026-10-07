@@ -985,6 +985,9 @@ describe('die Frist läuft ab der Absage (V-365)', () => {
       await tx.unsafe(
         `update bewerbung set aufbewahrung_bis = app.berlin_heute() + 10
           where id = any($1::uuid[])`, [[alt, angenommen]]);
+      // Eine Entscheidung trägt den Namen dessen, der sie schreibt — auch beim
+      // Zurückdatieren im Aufbau (`kern.entscheidung_ist_menschlich`, 0166).
+      await tx.unsafe(`select set_config('app.benutzer_id', $1, true)`, [konto]);
       await tx.unsafe(
         `update einstellungsentscheidung set entschieden_am = now() - interval '5 days'
           where bewerbung_id = any($1::uuid[])`, [[alt, lang, angenommen]]);
