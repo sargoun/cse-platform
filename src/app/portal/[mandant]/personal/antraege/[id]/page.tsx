@@ -19,6 +19,9 @@ import { berlinAnzeige } from '@/server/services/zeit/dauer';
 import { mengeNachPostgres } from '@/server/services/finanz/menge';
 import { rechneTage, ZeitraumFehler } from '@/server/services/abwesenheit/tage';
 import { findeAntrag, type AntragZeile } from '@/server/services/abwesenheit/antrag';
+import { findeAbwesenheit, type AbwesenheitStatus } from '@/server/services/abwesenheit/index';
+import { urlaubUnterbrechendeArten } from '@/server/services/abwesenheit/krankheit-im-urlaub';
+import { KRANKHEIT_IM_URLAUB_TEXTE } from '@/lib/i18n/verwaltung/krankheit-im-urlaub';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import { kennungOder404 } from '../../../../kennung';
 
@@ -44,6 +47,12 @@ import { kennungOder404 } from '../../../../kennung';
  * **Das Urlaubskonto haengt an `zeit.konto_lesen`**, diese Seite an
  * `zeit.antrag_entscheiden`. Das Recht wird deshalb VORHER gefragt — null
  * Zeilen saehen sonst aus wie „kein Anspruch hinterlegt".
+ *
+ * **Krankheit im Urlaub (V-319, D-853, § 9 BUrlG).** Am genehmigten
+ * Urlaubsantrag steht der Weg, der die Krankheit erfasst und die kranken
+ * Urlaubstage dem Urlaubskonto gutschreibt — in einer Transaktion. Hier und
+ * nicht am Abwesenheitsblatt, weil nur der Antrag sagt, dass es ein Urlaub
+ * ist: die Art einer Abwesenheit ist `cse_app` entzogen (Art. 9 DSGVO, 0073).
  */
 export const dynamic = 'force-dynamic';
 
@@ -97,18 +106,22 @@ export default async function Antragsblatt({
      entscheidet zusaetzlich, ob das Urlaubskonto gelesen wird. */
   const darf = await haeltRechte(
     zugang.sitzung,
-    'zeit.konto_lesen', 'zeit.abwesenheit_lesen', 'personal.lesen', 'dienstplan.lesen');
+    'zeit.konto_lesen', 'zeit.abwesenheit_lesen', 'personal.lesen', 'dienstplan.lesen',
+    'zeit.abwesenheit_melden', 'zeit.abwesenheit_genehmigen');
 
   const suche = await searchParams;
   /* Der Grund eines abgewiesenen Formulars, als Satz nachgeschlagen (D-753) —
      nie Text aus der Adresse und nie der rohe Schlüssel. */
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
   const fehlerTexte = nachSprache(ENTSCHEIDUNG_FEHLER_TEXTE, zugang.sprache);
+  const krankTexte = nachSprache(KRANKHEIT_IM_URLAUB_TEXTE, zugang.sprache);
+  const krankErfasst = suche['krankheit'] === 'erfasst';
+  const krankFehler = typeof suche['krankheit_fehler'] === 'string' ? suche['krankheit_fehler'] : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
       const antrag = await findeAntrag(kontext, id);
-      if (antrag === null) return { antrag: null, konto: null };
+      if (antrag === null) return { antrag: null, konto: null, urlaubStatus: null, arten: [] };
       const jahr = antrag.vonDatum === null ? null : Number(antrag.vonDatum.slice(0, 4));
       const konto = darf['zeit.konto_lesen'] === true && jahr !== null
         ? (await kontext.abfrage<Urlaubsstand>(
@@ -119,11 +132,20 @@ export default async function Antragsblatt({
             where anstellung_id = $1::uuid and jahr = $2`,
           [antrag.anstellungId, jahr]))[0] ?? null
         : null;
-      return { antrag, konto };
-    })) as Promise<{ antrag: AntragZeile | null; konto: Urlaubsstand | null }>);
+      /* Krankheit im Urlaub: der Stand der Abwesenheit (ohne Art, die ist
+         entzogen) und die Arten, die einen Urlaub unterbrechen (Katalog). */
+      const urlaub = antrag.abwesenheitId !== null && darf['zeit.abwesenheit_lesen'] === true
+        ? await findeAbwesenheit(kontext, antrag.abwesenheitId) : null;
+      const arten = await urlaubUnterbrechendeArten(kontext);
+      return { antrag, konto, urlaubStatus: urlaub?.status ?? null, arten };
+    })) as Promise<{
+      antrag: AntragZeile | null; konto: Urlaubsstand | null;
+      urlaubStatus: AbwesenheitStatus | null;
+      arten: readonly { id: string; bezeichnung: string }[];
+    }>);
 
   if (daten.antrag === null) notFound();
-  const { antrag, konto } = daten;
+  const { antrag, konto, urlaubStatus, arten } = daten;
 
   /*
    * Die Arbeitstage kommen aus dem getesteten Dienst und nicht aus einer
@@ -173,6 +195,10 @@ export default async function Antragsblatt({
   const urlaubsantrag = antrag.erzeugtAbwesenheit && antrag.zaehltAufUrlaubskonto === true;
   const kontoFehlt = urlaubsantrag && darf['zeit.konto_lesen'] === true
     && (konto === null || konto.abgeschlossen);
+  /* Krankheit im Urlaub: nur am genehmigten Urlaubsantrag mit Abwesenheit. */
+  const zeigtKrankheit = urlaubsantrag && antrag.status === 'genehmigt' && antrag.abwesenheitId !== null;
+  const darfKrankheit = darf['zeit.abwesenheit_melden'] === true
+    && darf['zeit.abwesenheit_genehmigen'] === true;
 
   const verweis = 'inline-flex min-h-11 items-center rounded-md border border-line px-s3 text-sm text-text-muted transition-colors duration-fast hover:border-line-strong hover:text-text';
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text';
@@ -381,6 +407,83 @@ export default async function Antragsblatt({
             Arbeiterportal, nicht hier.
           </p>
         </form>
+      )}
+
+      {zeigtKrankheit && (
+        <>
+          <h2 className="mb-s3 mt-s6 text-h2 text-text">{krankTexte.titel}</h2>
+          {krankErfasst && (
+            <Hinweis art="erfolg" cse="krankheit-erfasst" className="mb-s5 max-w-prose">
+              {krankTexte.erfolg}
+            </Hinweis>
+          )}
+          {krankFehler !== null && (
+            <Hinweis art="warnung" cse="krankheit-fehler" rolle="alert" className="mb-s5 max-w-prose">
+              <strong>{krankTexte.fehlerTitel}</strong>{' '}
+              {eigenerEintrag(krankTexte.fehler, krankFehler) ?? krankTexte.sonst}
+            </Hinweis>
+          )}
+          {urlaubStatus !== null && urlaubStatus !== 'genehmigt' ? (
+            <p data-cse="krankheit-nicht-genehmigt" className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+              {krankTexte.nichtGenehmigt}
+            </p>
+          ) : !darfKrankheit ? (
+            <p data-cse="krankheit-kein-recht" className="max-w-prose rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
+              {krankTexte.rechteVor} <Recht schluessel="zeit.abwesenheit_melden" />{' '}
+              {krankTexte.rechteUnd} <Recht schluessel="zeit.abwesenheit_genehmigen" />{' '}
+              {krankTexte.rechteNach}
+            </p>
+          ) : (
+            <form
+              method="post"
+              action={`/api/antraege/${id}/krankheit-im-urlaub`}
+              data-cse="krankheit-im-urlaub"
+              className="flex max-w-prose flex-col gap-s3 rounded-lg border border-line bg-surface p-s5"
+            >
+              <input type="hidden" name="mandant" value={mandant} />
+              <input type="hidden" name="zurueck" value={pfad} />
+              <p className="m-0 text-sm text-text">{krankTexte.einleitung}</p>
+              <div className="grid gap-s3 sm:grid-cols-2">
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {krankTexte.krankVon}
+                  <input type="date" name="von" required className={feld}
+                         defaultValue={antrag.vonDatum ?? undefined}
+                         min={antrag.vonDatum ?? undefined} max={antrag.bisDatum ?? undefined} />
+                </label>
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {krankTexte.krankBis}
+                  <input type="date" name="bis" required className={feld}
+                         defaultValue={antrag.bisDatum ?? undefined}
+                         min={antrag.vonDatum ?? undefined} />
+                </label>
+              </div>
+              <label className="flex min-h-11 items-center gap-s3 text-sm text-text">
+                <input type="checkbox" name="au" value="ja" required />
+                {krankTexte.au}
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {krankTexte.auBis}
+                <input type="date" name="au_bis" className={feld} min={antrag.vonDatum ?? undefined} />
+              </label>
+              {arten.length > 1 && (
+                <label className="flex flex-col gap-s2 text-sm text-text">
+                  {krankTexte.art}
+                  <select name="art" required className={feld} defaultValue={arten[0]?.id}>
+                    {arten.map((a) => <option key={a.id} value={a.id}>{a.bezeichnung}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="flex flex-col gap-s2 text-sm text-text">
+                {krankTexte.bemerkung}
+                <input name="bemerkung" className={feld} />
+              </label>
+              <div>
+                <Button type="submit" variante="primary">{krankTexte.knopf}</Button>
+              </div>
+              <p className="m-0 text-xs text-text-subtle">{krankTexte.fussnote}</p>
+            </form>
+          )}
+        </>
       )}
     </PortalRahmen>
   );

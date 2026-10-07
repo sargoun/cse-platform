@@ -47,6 +47,8 @@ export interface AbwesenheitsartZeile {
   /** `null` heisst UNGEKLAERT (O-139), nie „nein". */
   readonly bezahlt: boolean | null;
   readonly zaehltAufUrlaubskonto: boolean;
+  /** § 9 BUrlG: Tage dieser Art im genehmigten Urlaub werden gutgeschrieben (V-319, D-853). */
+  readonly unterbrichtUrlaub: boolean;
   readonly erzeugtStundenkontoBewegung: boolean;
   readonly istGesundheitsbezogen: boolean;
   readonly nachweisPflichtAbTagen: number | null;
@@ -58,7 +60,7 @@ export interface AbwesenheitsartZeile {
 interface Roh {
   id: string; ist_plattform: boolean; schluessel: string; bezeichnung: string;
   bezeichnung_i18n: Record<string, string> | null;
-  bezahlt: boolean | null; zaehlt_auf_urlaubskonto: boolean;
+  bezahlt: boolean | null; zaehlt_auf_urlaubskonto: boolean; unterbricht_urlaub: boolean;
   erzeugt_stundenkonto_bewegung: boolean; ist_gesundheitsbezogen: boolean;
   nachweis_pflicht_ab_tagen: number | null; lohnart_schluessel: string | null;
   farbe_token: string | null; archiviert_am: string | null;
@@ -70,6 +72,7 @@ function zuZeile(r: Roh): AbwesenheitsartZeile {
     bezeichnung: r.bezeichnung, bezeichnungI18n: r.bezeichnung_i18n ?? {},
     bezahlt: r.bezahlt,
     zaehltAufUrlaubskonto: r.zaehlt_auf_urlaubskonto,
+    unterbrichtUrlaub: r.unterbricht_urlaub,
     erzeugtStundenkontoBewegung: r.erzeugt_stundenkonto_bewegung,
     istGesundheitsbezogen: r.ist_gesundheitsbezogen,
     nachweisPflichtAbTagen: r.nachweis_pflicht_ab_tagen === null
@@ -93,7 +96,7 @@ export async function ladeAbwesenheitsarten(
 ): Promise<readonly AbwesenheitsartZeile[]> {
   const roh = await kontext.abfrage<Roh>(
     `select id, (mandant_id is null) as ist_plattform, schluessel, bezeichnung,
-            bezeichnung_i18n, bezahlt, zaehlt_auf_urlaubskonto,
+            bezeichnung_i18n, bezahlt, zaehlt_auf_urlaubskonto, unterbricht_urlaub,
             erzeugt_stundenkonto_bewegung, ist_gesundheitsbezogen,
             nachweis_pflicht_ab_tagen, lohnart_schluessel, farbe_token,
             archiviert_am::text as archiviert_am
@@ -127,6 +130,7 @@ export interface ArtEingabe {
   /** `undefined` heisst „nicht angegeben" und bleibt NULL (O-139). */
   readonly bezahlt: boolean | null;
   readonly zaehltAufUrlaubskonto: boolean;
+  readonly unterbrichtUrlaub: boolean;
   readonly erzeugtStundenkontoBewegung: boolean;
   readonly istGesundheitsbezogen: boolean;
   readonly nachweisPflichtAbTagen: number | null;
@@ -161,12 +165,21 @@ export function pruefeArtEingabe(
     throw new StammdatenFehler('ungueltig',
       'Nachweis ab Tag: eine ganze Zahl bis 999999999 oder leer.');
   }
+  const zaehltAufUrlaubskonto = lies('zaehltAufUrlaubskonto') === 'ja';
+  const unterbrichtUrlaub = lies('unterbrichtUrlaub') === 'ja';
+  // aa_unterbricht_nicht_sich_selbst (0537): ein Urlaub unterbricht keinen Urlaub.
+  if (zaehltAufUrlaubskonto && unterbrichtUrlaub) {
+    throw new StammdatenFehler('ungueltig',
+      'Eine Art, die auf das Urlaubskonto zählt, unterbricht keinen Urlaub — „unterbricht '
+      + 'genehmigten Urlaub" gilt für Krankheit (§ 9 BUrlG), nicht für Urlaub.');
+  }
   return {
     schluessel: pruefeSchluessel(lies('schluessel') ?? ''),
     bezeichnung,
     i18n: i18nAus(lies, bezeichnung),
     bezahlt: bezahltRoh === 'offen' ? null : bezahltRoh === 'ja',
-    zaehltAufUrlaubskonto: lies('zaehltAufUrlaubskonto') === 'ja',
+    zaehltAufUrlaubskonto,
+    unterbrichtUrlaub,
     erzeugtStundenkontoBewegung: lies('erzeugtStundenkontoBewegung') === 'ja',
     istGesundheitsbezogen: lies('istGesundheitsbezogen') === 'ja',
     nachweisPflichtAbTagen: tage === '' ? null : Number.parseInt(tage, 10),
@@ -197,7 +210,7 @@ export function pruefeArtEingabe(
  * haben.
  */
 const PROTOKOLL_SPALTEN = `schluessel, bezeichnung, bezeichnung_i18n, bezahlt,
-            zaehlt_auf_urlaubskonto, erzeugt_stundenkonto_bewegung,
+            zaehlt_auf_urlaubskonto, unterbricht_urlaub, erzeugt_stundenkonto_bewegung,
             ist_gesundheitsbezogen, nachweis_pflicht_ab_tagen,
             lohnart_schluessel, farbe_token, archiviert_am`;
 
@@ -272,15 +285,15 @@ export async function legeAbwesenheitsartAn(
          (mandant_id, schluessel, bezeichnung, bezeichnung_i18n, bezahlt,
           zaehlt_auf_urlaubskonto, erzeugt_stundenkonto_bewegung,
           ist_gesundheitsbezogen, nachweis_pflicht_ab_tagen, lohnart_schluessel,
-          farbe_token, erstellt_von)
+          farbe_token, erstellt_von, unterbricht_urlaub)
        values (case when $11::boolean then null else app.aktiver_mandant() end,
                $1, $2, $3::jsonb, $4::boolean, $5::boolean, $6::boolean,
-               $7::boolean, $8::int, $9, $10, $12::uuid)
+               $7::boolean, $8::int, $9, $10, $12::uuid, $13::boolean)
        returning id, ${PROTOKOLL_SPALTEN}`,
       [e.schluessel, e.bezeichnung, e.i18n, e.bezahlt,
         e.zaehltAufUrlaubskonto, e.erzeugtStundenkontoBewegung,
         e.istGesundheitsbezogen, e.nachweisPflichtAbTagen, e.lohnartSchluessel,
-        e.farbeToken, e.plattform, kontext.benutzerId]);
+        e.farbeToken, e.plattform, kontext.benutzerId, e.unterbrichtUrlaub]);
     const id = zeile?.['id'];
     if (typeof id !== 'string') {
       throw new StammdatenFehler('plattform',
@@ -321,13 +334,14 @@ export async function aendereAbwesenheitsart(
               erzeugt_stundenkonto_bewegung = $6::boolean,
               ist_gesundheitsbezogen = $7::boolean, nachweis_pflicht_ab_tagen = $8::int,
               lohnart_schluessel = $9, farbe_token = $10,
+              unterbricht_urlaub = $12::boolean,
               geaendert_am = now(), geaendert_von = $11::uuid
         where id = $1 and archiviert_am is null
         returning ${PROTOKOLL_SPALTEN}`,
       [id, e.bezeichnung, e.i18n, e.bezahlt,
         e.zaehltAufUrlaubskonto, e.erzeugtStundenkontoBewegung,
         e.istGesundheitsbezogen, e.nachweisPflichtAbTagen, e.lohnartSchluessel,
-        e.farbeToken, kontext.benutzerId]);
+        e.farbeToken, kontext.benutzerId, e.unterbrichtUrlaub]);
     if (nachher === undefined) throw nichtAenderbar(vorher !== null);
     await kontext.schreibe(
       `select app.protokolliere('stammdaten.abwesenheitsart_geaendert',

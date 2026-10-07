@@ -588,6 +588,17 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /** Die Tagesrechnung kennt keine Datenbank — sie rechnet Kalendertage. */
   { modul: 'zeit', pfad: 'abwesenheit/tage', schreibend: false },
   /**
+   * Krankheit im Urlaub (V-319, D-853, § 9 BUrlG): schreibt über
+   * `app.krankheit_im_urlaub_erfassen` (0537) die Krankheit und die
+   * Gutschrift aufs Urlaubskonto. Genannt ist das Recht der Gutschrift —
+   * sie ändert, was der genehmigte Urlaub kostet; die Funktion verlangt
+   * zusätzlich `zeit.abwesenheit_melden`.
+   */
+  {
+    modul: 'zeit', pfad: 'abwesenheit/krankheit-im-urlaub',
+    schreibend: true, schreibRecht: 'zeit.abwesenheit_genehmigen',
+  },
+  /**
    * Die Meldung einer Selbstrücknahme an die Personalstelle (V-353). Sie
    * schreibt nur über `app.abwesenheit_ruecknahme_melden` (0500), und das
    * ist Selbstzugriff wie die Rücknahme selbst — es gibt kein Modulrecht

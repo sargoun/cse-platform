@@ -116,6 +116,13 @@ export interface LohnexportAbwesenheit {
   readonly bisHalbtags: boolean;
   readonly tageAngerechnet: string | null;
   readonly status: string;
+  /**
+   * § 9 BUrlG (V-319, D-853): an einer Krankheit im Urlaub die Urlaubstage, die
+   * sie zurückgibt; an einem Urlaub die Summe der geltenden Gutschriften —
+   * sonst `null`. Ohne sie stünden für dieselben Tage Urlaub und Krankheit im
+   * Export, und das Urlaubskonto sagte etwas anderes.
+   */
+  readonly gutgeschriebenTage: string | null;
 }
 
 export interface LohnexportZeit {
@@ -239,6 +246,10 @@ const ABWESENHEIT_SPALTEN: readonly Spalte[] = [
   { name: 'lohnart', typ: 'text', text: 'Lohnartenschlüssel (Starttabelle, O-139)' },
   { name: 'status', typ: 'text', text: 'genehmigt oder erfasst' },
   { name: 'gesundheitsbezogen', typ: 'text', text: 'ja/nein' },
+  {
+    name: 'gutgeschrieben_tage', typ: 'text',
+    text: 'Krankheit im Urlaub (§ 9 BUrlG): an der Krankheit die zurückgegebenen Urlaubstage, am Urlaub ihre Summe',
+  },
 ];
 
 const ZEITEN_SPALTEN: readonly Spalte[] = [
@@ -290,6 +301,7 @@ export const GENERISCH_CSV: LohnexportFormat = {
       von: a.von, bis: a.bis, von_halbtags: jaNein(a.vonHalbtags), bis_halbtags: jaNein(a.bisHalbtags),
       tage_angerechnet: a.tageAngerechnet, bezahlt: jaNeinUnklar(a.bezahlt), lohnart: a.lohnart,
       status: a.status, gesundheitsbezogen: jaNein(a.gesundheitsbezogen),
+      gutgeschrieben_tage: a.gutgeschriebenTage,
     }));
     const zeiten = d.zeiten.map((z) => ({
       zeiteintrag_id: z.zeiteintragId, personalnummer: z.personalnummer, kalendertag: z.kalendertag,
@@ -330,6 +342,7 @@ interface AbwesenheitRoh {
   readonly art: string; readonly bezeichnung: string; readonly bezahlt: boolean | null; readonly lohnart: string | null;
   readonly gesundheitsbezogen: boolean; readonly von: string; readonly bis: string;
   readonly von_halbtags: boolean; readonly bis_halbtags: boolean; readonly tage: string | null; readonly status: string;
+  readonly gutgeschrieben: string | null;
 }
 
 function monatsgrenzen(monat: string): { von: string; bis: string; erster: string } {
@@ -357,7 +370,8 @@ function liesmichText(e: Lohnexport): string {
     'INHALT',
     '  monate.csv         je Beschäftigung: Stundenkonto des Monats (Soll, Ist, Korrektur, Saldo, Urlaub, Krank),',
     '                     Bewegungen je Art, Zahl der Zeiteinträge, Quelle und Hash des MiLoG-Nachweises',
-    '  abwesenheiten.csv  jede genehmigte oder erfasste Abwesenheit mit Anteil im Monat, mit Art, bezahlt/unbezahlt und Lohnart',
+    '  abwesenheiten.csv  jede genehmigte oder erfasste Abwesenheit mit Anteil im Monat, mit Art, bezahlt/unbezahlt und Lohnart;',
+    '                     bei Krankheit im Urlaub die nach § 9 BUrlG gutgeschriebenen Urlaubstage',
     '  zeiten.csv         jeder Zeiteintrag mit Anteil im Monat: Beginn, Ende, Pause, Brutto, Netto (Europe/Berlin)',
     '  pruefsummen.txt    SHA-256 jeder Datei; prüfen mit: sha256sum -c pruefsummen.txt',
     '',
@@ -435,7 +449,8 @@ export async function erstelleLohnexport(
     `select x.id, x.anstellung_id, an.personalnummer, (p.vorname || ' ' || p.nachname) as person,
             x.art, x.bezeichnung, x.bezahlt, x.lohnart, x.gesundheitsbezogen,
             x.von::text as von, x.bis::text as bis, x.von_halbtags, x.bis_halbtags,
-            replace(x.tage_angerechnet::text, '.', ',') as tage, x.status
+            replace(x.tage_angerechnet::text, '.', ',') as tage, x.status,
+            replace(x.gutgeschrieben_tage::text, '.', ',') as gutgeschrieben
        from app.lohnexport_abwesenheiten($1::date, $2::date) x
        join anstellung an on an.id = x.anstellung_id
        join person p on p.id = an.person_id
@@ -480,6 +495,7 @@ export async function erstelleLohnexport(
     art: a.art, bezeichnung: a.bezeichnung, bezahlt: a.bezahlt, lohnart: a.lohnart,
     gesundheitsbezogen: a.gesundheitsbezogen, von: a.von, bis: a.bis,
     vonHalbtags: a.von_halbtags, bisHalbtags: a.bis_halbtags, tageAngerechnet: a.tage, status: a.status,
+    gutgeschriebenTage: a.gutgeschrieben,
   }));
 
   const daten: LohnexportDaten = {

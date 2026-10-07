@@ -2888,7 +2888,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 |---|---|---|
 | O-136 | Which sector wage agreement applies per entity (Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau), and is it tracked in the platform at all? | `anstellung.tarifvertrag` · **Voreinstellung → D-788** |
 | O-137 | May one person hold two concurrent employments with the **same** entity — a main contract plus a marginal one? | `anstellung` uniqueness · **Voreinstellung → D-788** |
-| O-138 | Are sick days during approved leave credited back to the Urlaubskonto automatically (§9 BUrlG), or only on presentation of the AU certificate? | `abwesenheit`, `urlaubskonto` · **Voreinstellung → D-788** |
+| O-138 | Are sick days during approved leave credited back to the Urlaubskonto automatically (§9 BUrlG), or only on presentation of the AU certificate? | `abwesenheit`, `urlaubskonto` · **Voreinstellung → D-788; gebaut → D-853** |
 | O-139 | Paid/unpaid status per absence type, the proof-required-from-day-N rule, and the payroll wage-type mapping for every `abwesenheitsart` and `bewegung_art` | ACC-12 export · **Voreinstellung → D-781** |
 | O-140 | Is the §34a Unterrichtung/Sachkunde unbefristet, and what triggers a re-check — only the reliability-check interval? | the SEC-02 watchdog has nothing to warn on until this is answered · **Voreinstellung → D-788** |
 | O-141 | Does the entity that first recorded a person keep read access once the person works exclusively for another entity, or does the anchor lapse? | `app.person_sichtbar()` · **Voreinstellung → D-788** |
@@ -25105,7 +25105,7 @@ gebaut ist, steht es dabei (V-319 bis V-322).
 |---|---|---|
 | O-136 | Tarifbindung je Gesellschaft: Reinigung nach dem RTV Gebäudereinigung, Security nach dem Manteltarifvertrag Wach- und Sicherheitsgewerbe Berlin/Brandenburg, Bau nach dem BRTV — unbestätigt. Der Tarif selbst ist kein Feld: die Tarifgruppe steht als Text an der Kondition (`anstellung_kondition.tarifgruppe`, K-05), die Pausenregel in `tarifvereinbarung` (O-50, D-781), das Entgelt rechnet das Lohnsystem (D-06). Wie gebaut. | `personal/anstellung.ts`, Einstellungen › Arbeitszeit |
 | O-137 | Zwei gleichzeitige Beschäftigungen desselben Menschen bei derselben Gesellschaft (Hauptvertrag plus Minijob) sind zulässig: `anstellung` kennt keine Eindeutigkeit über (Gesellschaft, Person); die ArbZG-Last zählt je Mensch über alle Beschäftigungen (Invariante 9). Wie gebaut. | `personal/einstellung.ts` |
-| O-138 | Krankheitstage im genehmigten Urlaub werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG) — von Hand: `ab_keine_dublette` lässt keine zweite Abwesenheit über den Urlaub, also kürzt ein Mensch den Urlaub und erfasst die Krankheit. Automatisch geschieht nichts (V-319). | `abwesenheit/antrag.ts` |
+| O-138 | Krankheitstage im genehmigten Urlaub werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG). Gebaut (V-319, D-853): „Krankheit im Urlaub" am genehmigten Urlaubsantrag erfasst die Krankheit und gibt die kranken Arbeitstage dem Urlaubskonto zurück, in einer Transaktion; ohne Bescheinigung keine Gutschrift. (Der frühere Satz hier, `ab_keine_dublette` sperre eine zweite Abwesenheit über dem Urlaub, stimmte nicht — die Sperre gilt nur für dieselbe Art.) | `abwesenheit/krankheit-im-urlaub.ts` |
 | O-140 | Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet (`laeuft_ab = false`, Katalog); die behördliche Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) ist der einzige Anlass einer Nachprüfung; ihre Wiedervorlage ist die eingetragene nächste Prüfung, sonst die letzte plus fünf Jahre (`ZUVERLAESSIGKEIT_JAHRE`), 60 Tage vorher gemeldet — gebaut mit V-320 (D-815). | `nachweis/aufnahme.ts`, `seed/qualifikation.ts` |
 | O-141 | Der Anker bleibt: `app.person_sichtbar` sieht einen Menschen, solange in der Gesellschaft eine nicht gelöschte Beschäftigung steht — auch eine beendete (Personalakte); die Sicht fällt erst mit dem Löschen der Beschäftigung. Wie gebaut (0030). | `personal/einstellung.ts` |
 | O-143 | Ein Stundenkonto ist offen oder gesperrt; `vorlaeufig` steht im Enum und setzt kein Weg — der Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`). Wie gebaut. | `zeit/stundenkonto.ts`, `zeit/einwand.ts` |
@@ -28933,4 +28933,78 @@ im Angebotspreis, und Kalkulationssumme, Angebotssumme und Positionen sagen
 dasselbe.
 
 | Betrifft | V-338, O-57, D-792, OPS-07, O-16, O-208; `drizzle/0536_kostenart_nachunternehmer.sql`, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/server/services/katalog/index.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/app/portal/[mandant]/leistungskatalog/daten.ts`, `src/lib/i18n/verwaltung/kalkulation.ts`, `tests/kern/kalkulation-material.test.ts`, `tests/isolation/kalkulation-kostenposition.test.ts` |
+|---|---|
+
+### D-853 · Bauwelle 50: Krankheit im Urlaub gibt die Urlaubstage zurück (V-319, O-138, § 9 BUrlG)
+
+**Der Anlass.** § 9 BUrlG: die durch ärztliches Zeugnis nachgewiesenen Tage
+der Arbeitsunfähigkeit werden auf den Jahresurlaub nicht angerechnet; die
+Voreinstellung O-138 (D-788) sagt dasselbe. Gebaut war nichts davon. Der
+Registertext behauptete, `ab_keine_dublette` lasse keine zweite Abwesenheit
+über einem genehmigten Urlaub zu — das stimmte nicht: die Sperre gilt nur
+für dieselbe Art (0073 nennt genau diesen Fall). Die Krankmeldung ließ sich
+erfassen, aber `kern.abwesenheit_urlaubskonto` bucht nur Genehmigung und
+Stornierung: das Konto behielt die vollen Urlaubstage abgezogen. Der einzige
+Weg war, den ganzen Urlaub zu stornieren und neu zu beantragen.
+
+**Was gebaut ist.**
+- **0537**: `abwesenheitsart.unterbricht_urlaub` (Voreinstellung: nur die
+  Plattformart „Krankheit"; „Kind krank" nicht, § 9 BUrlG kennt nur die
+  Erkrankung des Arbeitnehmers; nie zusammen mit „zählt auf das
+  Urlaubskonto"). An der Krankheit `unterbrochener_urlaub_id` und
+  `urlaub_gutgeschrieben_tage` (paarweise, positiv, nur mit
+  AU-Bescheinigung). `app.krankheit_im_urlaub_erfassen` (Definer) prüft
+  beide Rechte (`zeit.abwesenheit_melden` und `zeit.abwesenheit_genehmigen`
+  — die Gutschrift ändert, was der genehmigte Urlaub kostet), sperrt den
+  Urlaub (`FOR UPDATE` über `d_urlaub_sperren`, das nie ändern darf) und
+  legt die Krankheit an (`d_krankheit_im_urlaub`). Der Auslöser
+  `kern.abwesenheit_gutschrift_anlegen` lässt den Verweis nur über die
+  Funktion zu (nicht für cse_app) und hält die Decken: der Urlaub gehört
+  derselben Beschäftigung, ist genehmigt und zählt aufs Konto; die Art
+  unterbricht ihn; nie mehr Tage als Kalendertage im Urlaub krank, nie mehr,
+  als der Urlaub noch kostet. `kern.abwesenheit_gutschrift_schuetzen`:
+  Verweis und Tage bleiben, was die Gutschrift begründet auch, und ein
+  Urlaub mit geltender Gutschrift behält Zeitraum und Tage.
+  `kern.abwesenheit_urlaubskonto` bucht die Gutschrift auf das Konto des
+  Urlaubsjahres zurück (ohne offenes Konto: abgewiesen), ihre Stornierung
+  wieder ab (solange der Urlaub genehmigt ist), und die Stornierung des
+  Urlaubs gibt nur zurück, was er noch kostet — nie zweimal. cse_app liest
+  die zwei Spalten nicht (Art. 9 DSGVO, Spaltenliste 0073). Der Lohnexport
+  (`app.lohnexport_abwesenheiten`, `abwesenheiten.csv`) trägt
+  `gutgeschrieben_tage` an der Krankheit und am Urlaub.
+- **Dienst `abwesenheit/krankheit-im-urlaub.ts`**: `gutschriftTage` rechnet
+  (Invariante 6), was der Urlaub nach `rechneTage` kostet, weniger seine
+  Teile vor und nach der Krankheit — Wochenenden und Berliner Feiertage
+  geben nichts zurück, die halben Tage am Urlaubsrand kommen halb zurück.
+  `erfasseKrankheitImUrlaub` verlangt die Bescheinigung und sagt jeden
+  anderen Grund als Schlüssel. `TODO(client, O-138)` dort und in 0537.
+- **Der Weg am Antrag**: `/personal/antraege/[id]` zeigt am genehmigten
+  Urlaubsantrag den Abschnitt „Krankheit im Urlaub" (zweisprachig) —
+  Zeitraum, Bescheinigung, gültig bis, Bemerkung —, Route
+  `POST /api/antraege/[id]/krankheit-im-urlaub`. Am Antrag und nicht am
+  Abwesenheitsblatt, weil nur der Antrag sagt, dass es ein Urlaub ist (die
+  Art einer Abwesenheit ist cse_app entzogen). Der Urlaub verlängert sich
+  nicht; er bleibt, wie er genehmigt wurde.
+- **Katalog**: Stammdaten › Abwesenheitsarten zeigt und pflegt
+  „unterbricht genehmigten Urlaub (§ 9 BUrlG)".
+- **Seed**: ein genehmigter Zwei-Wochen-Urlaub mit drei Krankheitstagen
+  darin, über den Dienst erfasst — das Urlaubskonto steht auf 7 statt 10.
+
+**Was bleibt, und warum.** Eine Krankmeldung, die vor der Bescheinigung ohne
+Gutschrift erfasst wurde, wird storniert und hier neu erfasst (die Route
+sagt das als Grund `schon_erfasst`); ein „Nachreichen" der Bescheinigung an
+derselben Zeile gibt es nicht. Ein abgeschlossenes Urlaubsjahr wird nicht
+rückwirkend geändert (O-18).
+
+**Prüfung.** `tests/kern/krankheit-im-urlaub.test.ts`: drei Tage mitten im
+Urlaub, Wochenende und Feiertag geben nichts, nur im Urlaub, halbe Tage
+halb, eine andere Arbeitswoche; die Gegenprobe Gutschrift plus Rest gleich
+Urlaub; Verdrahtung. `tests/isolation/krankheit-im-urlaub.test.ts`: das
+Konto von 10 auf 7 und beim Stornieren zurück; die Stornierung des Urlaubs
+danach nie doppelt; die eigene Rücknahme der Arbeitnehmerin; abgewiesen
+ohne Bescheinigung, außerhalb, nur Wochenende, schon erfasst, kein offenes
+Konto, nicht genehmigt; ohne beide Rechte nicht, kein direkter Weg, die
+Decken, Art. 9; der Lohnexport.
+
+| Betrifft | V-319, O-138, D-788, EMP-05, EMP-10, LEG-09, ACC-12; `drizzle/0537_krankheit_im_urlaub.sql`, `src/server/services/abwesenheit/{krankheit-im-urlaub,antrag}.ts`, `src/server/services/stammdaten/abwesenheitsart.ts`, `src/server/services/zeit/lohnexport.ts`, `src/app/api/antraege/[id]/krankheit-im-urlaub/route.ts`, `src/app/portal/[mandant]/personal/antraege/[id]/page.tsx`, `src/app/portal/[mandant]/stammdaten/abwesenheitsarten/page.tsx`, `src/lib/i18n/verwaltung/krankheit-im-urlaub.ts`, `src/server/db/seed/zeit.ts`, `tests/kern/krankheit-im-urlaub.test.ts`, `tests/isolation/krankheit-im-urlaub.test.ts` |
 |---|---|
