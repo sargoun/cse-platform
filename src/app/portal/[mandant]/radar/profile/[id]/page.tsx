@@ -50,12 +50,14 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * es gibt keine Liste im Haus, gegen die zu prüfen wäre. Dasselbe gilt für
  * die NUTS-Präfixe (O-721): geprüft wird die FORM, nicht die Existenz.
  *
- * **Gelöscht wird das Profil hier nicht** (O-720). Abgeschaltet wird über
- * „aktiv": der Lauf bewertet dann nichts mehr damit, und die alten
- * Bewertungen bleiben mit ihrem Profilnamen lesbar. Die Kindtabellen
- * (CPV, Empfänger) tragen weder `geloescht_am` noch `ist_aktiv` — ein Entfernen
- * dort löscht wirklich, und das ist zulässig: Invariante 8 nennt Finanzen,
- * Zeiterfassung und Audit, nicht Radar.
+ * **Gelöscht wird das Profil hier nicht — archiviert schon** (O-720, V-304).
+ * Abgeschaltet wird über „aktiv", für eine Pause; archiviert wird ganz unten,
+ * hinter einem zweiten Klick: danach bewertet der Lauf nichts mehr damit, das
+ * Blatt öffnet sich nicht mehr, und die alten Bewertungen bleiben mit ihrem
+ * Profilnamen lesbar. Die Kindtabellen (CPV, Empfänger) tragen weder
+ * `geloescht_am` noch `ist_aktiv` — ein Entfernen dort löscht wirklich, und das
+ * ist zulässig: Invariante 8 nennt Finanzen, Zeiterfassung und Audit, nicht
+ * Radar.
  */
 export const dynamic = 'force-dynamic';
 
@@ -591,6 +593,39 @@ export default async function ProfilBearbeiten(
             </div>
           </form>
         )}
+      </section>
+
+      {/* ------------------------------------------------------ Archivieren */}
+      {/*
+        * V-304 (O-720, D-786): hinter einem zweiten Klick, weil das Blatt
+        * danach nicht mehr aufgeht. Zurückgeholt wird hier nicht.
+        * TODO(client, O-720): Voreinstellung — Archivieren setzt
+        * `geloescht_am`, die Bewertungen bleiben unter dem Profilnamen lesbar,
+        * der Lauf bewertet nicht mehr damit (D-806).
+        */}
+      <section aria-labelledby="archiv-titel" className="mt-s7 max-w-prose"
+               data-cse="profil-archivieren">
+        <h2 id="archiv-titel" className="mb-s3 text-h2 text-text">Archivieren</h2>
+        <details className="rounded-lg border border-line bg-surface p-s5">
+          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
+            Dieses Profil archivieren …
+          </summary>
+          <p className="mt-s3 text-sm text-text-muted">
+            Archivieren nimmt das Profil aus der Liste und aus dem Nachtlauf: es bewertet nichts
+            mehr, und niemand bekommt mehr eine Treffermeldung daraus. Seine{' '}
+            {String(p.bewertungen)} Bewertungen bleiben im Radar unter dem Namen „{p.name}"
+            lesbar, und das Protokoll hält fest, wer archiviert hat. Gelöscht wird nichts —
+            zurückholen lässt es sich hier aber nicht. Für eine Pause genügt es, oben „aktiv"
+            abzuschalten.
+          </p>
+          <form method="post" action="/api/radar/profil" className="mt-s3">
+            <input type="hidden" name="profil" value={p.id} />
+            <input type="hidden" name="was" value="archivieren" />
+            <Button type="submit" variante="danger" data-cse="profil-archivieren-knopf">
+              Archivieren
+            </Button>
+          </form>
+        </details>
       </section>
     </PortalRahmen>
   );

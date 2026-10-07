@@ -46,6 +46,10 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * in der nächsten Nacht für jede Bekanntmachung in Euro das volle Wert- und
  * Fristkriterium (`bewertung.ts`) — die Rangfolge am Morgen wäre eine, der
  * jemand glaubt und die nichts aussagt.
+ *
+ * **Archivierte Profile stehen unter `?archiv=1`** (V-304, O-720): ohne Blatt,
+ * nur mit Namen, Tag und Zahl der Bewertungen — damit der Name, den eine
+ * alte Bewertung im Radar trägt, hier noch aufzufinden ist.
  */
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +61,8 @@ const WIRKUNG: Readonly<Record<string, string>> = {
 const FEHLER_TEXT: Readonly<Record<string, string>> = {
   name: 'Ein Profil braucht einen Namen (bis 120 Zeichen).',
   // `gesperrt` setzt die Seite selbst: das Recht steht als Satz (`<Recht>`, V-250).
+  /* Nur das Archivieren endet mit diesem Grund auf der Liste (V-304). */
+  nicht_gefunden: 'Das Profil ist schon archiviert, oder diese Sitzung darf es nicht ändern.',
 };
 
 export default async function Profile(
@@ -68,13 +74,22 @@ export default async function Profile(
   const { mandant } = await params;
   const suche = await searchParams;
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const archiviert = suche['vermerkt'] === 'archivieren';
+  const archiv = suche['archiv'] === '1';
   const tor = await mandantTor(`/portal/${mandant}/radar/profile`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const darf = await haeltRechte(zugang.sitzung, 'radar.lesen');
 
   const profile = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, zugang.sitzung, (kontext) => leseProfile(kontext))) as Promise<readonly ProfilZeile[]>);
+    withTenant(tx, zugang.sitzung, (kontext) => leseProfile(kontext, { archiviert: archiv }))) as
+    Promise<readonly ProfilZeile[]>);
+  /* Dieselbe Pille wie die Filter im Gruppenkalender. */
+  const pille = (istAktiv: boolean): string => [
+    'inline-flex min-h-11 shrink-0 items-center rounded-full px-s4 text-sm',
+    'transition-colors duration-fast ease-brand',
+    istAktiv ? 'bg-text text-ink' : 'bg-surface-3 text-text-muted hover:text-text',
+  ].join(' ');
 
   return (
     <PortalRahmen
@@ -122,9 +137,17 @@ export default async function Profile(
         Richtung, weil ein Ausschluss still verwirft, was nie ein Mensch gesehen hat).
       </Hinweis>
 
+      {archiviert ? (
+        <Hinweis art="erfolg" rolle="status" cse="radar-profil-archiviert" className="mb-s5 max-w-prose">
+          Das Profil ist archiviert. Der Nachtlauf bewertet nicht mehr damit, und niemand bekommt
+          mehr eine Treffermeldung daraus; seine Bewertungen bleiben im Radar unter seinem Namen
+          lesbar. Es steht jetzt unter „Archivierte Profile".
+        </Hinweis>
+      ) : null}
+
       {fehler !== null ? (
         <Hinweis art="warnung" cse="radar-profil-fehler" className="mb-s5 max-w-prose">
-          <strong>Nicht angelegt.</strong>{' '}
+          <strong>{fehler === 'nicht_gefunden' ? 'Nicht archiviert.' : 'Nicht angelegt.'}</strong>{' '}
           {fehler === 'gesperrt' ? (
             <>
               Das Profil wurde nicht angelegt. Fehlt{' '}
@@ -170,7 +193,40 @@ export default async function Profile(
         </form>
       </section>
 
-      {profile.length === 0 ? (
+      <nav aria-label="Laufende oder archivierte Profile" className="mb-s4 flex flex-wrap gap-s2"
+           data-cse="radar-profile-umschalter">
+        <Link href={`/portal/${mandant}/radar/profile`} aria-current={archiv ? undefined : 'page'}
+              data-cse="radar-profile-laufend" className={pille(!archiv)}>
+          Laufende Profile
+        </Link>
+        <Link href={`/portal/${mandant}/radar/profile?archiv=1`} aria-current={archiv ? 'page' : undefined}
+              data-cse="radar-profile-archiv" className={pille(archiv)}>
+          Archivierte Profile
+        </Link>
+      </nav>
+
+      {archiv ? (
+        profile.length === 0 ? (
+          <Hinweis art="hinweis" cse="radar-archiv-leer" className="max-w-prose">
+            Kein Profil archiviert.
+          </Hinweis>
+        ) : (
+          <ul data-cse="radar-archiv-liste" className="flex flex-col gap-s3">
+            {profile.map((p) => (
+              <li key={p.id} data-cse="radar-profil-archiviert-zeile"
+                  className="rounded-lg border border-line bg-surface p-s5 text-sm">
+                <p className="m-0 text-text">
+                  <strong>{p.name}</strong>
+                  <span className="ml-s2 text-text-muted">
+                    archiviert am {p.archiviertAm ?? '—'} · {String(p.bewertungen)} Bewertungen,
+                    im Radar weiter unter diesem Namen lesbar
+                  </span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : profile.length === 0 ? (
         <Hinweis art="hinweis" cse="radar-profile-leer" className="max-w-prose">
           <strong>Kein Profil angelegt.</strong> Ohne Profil bewertet der Lauf nichts, und die
           Radarliste bleibt leer. Das Formular darüber legt eines an; die CPV-Codes dieses

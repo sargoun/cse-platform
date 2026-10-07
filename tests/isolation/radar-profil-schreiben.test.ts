@@ -20,15 +20,19 @@
  *     dass das geht UND dass es die Fassung bewegt.
  *  5. **Was gesperrt ist, bleibt gesperrt**: eine neue CPV-Zeile ist
  *     `ist_platzhalter` (O-98), ein neuer Empfänger hat keine Schwelle (O-15).
+ *  6. **Archivieren** (V-304, O-720): `geloescht_am` mit Protokoll, nichts
+ *     gelöscht; danach liest es weder das Blatt noch der Lauf, und die
+ *     Wände gelten wie beim Schreiben.
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
-import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  ProfilFehler, entferneCpv, entferneEmpfaenger, legeProfilAn, leseProfil, schreibeProfil,
-  setzeCpv, setzeEmpfaenger,
+  ProfilFehler, archiviereProfil, entferneCpv, entferneEmpfaenger, legeProfilAn, leseProfil,
+  schreibeProfil, setzeCpv, setzeEmpfaenger,
 } from '../../src/server/services/radar/profil.js';
+import { bewerteLauf } from '../../src/server/services/radar/lauf.js';
 import { SCHWELLE_VOREINSTELLUNG } from '../../src/server/services/radar/gewichte.platzhalter.js';
 import { cent, type Cent } from '../../src/server/services/finanz/geld.js';
 
@@ -733,5 +737,58 @@ describe('(9) die Meldeschwelle ist ein Feld der Stammdaten (O-15, D-786, Prüfs
     }))).rejects.toMatchObject({ code: 'schwelle' });
     await expect(alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 7.5 })))
       .rejects.toBeInstanceOf(ProfilFehler);
+  });
+});
+
+describe('(10) archivieren (V-304, O-720, D-806)', () => {
+  /** Wie viele Profile der Nachtlauf liest — er fragt `ist_aktiv` UND `geloescht_am`. */
+  async function profileImLauf(): Promise<number> {
+    const e = await alsRolle('cse_job', async (tx) => bewerteLauf(
+      { unsafe: (a, w) => tx.unsafe(a, (w ?? []) as never[]) as Promise<readonly unknown[]> },
+      { seit: new Date(), jetzt: new Date() }));
+    return e.profile;
+  }
+
+  it('setzt `geloescht_am` und `geloescht_von` und schreibt das Protokoll — gelöscht wird nichts', async () => {
+    await alsWer(benutzer, (k) => archiviereProfil(k, profil));
+    const [z] = await sql.unsafe<{ archiviert: boolean; von: string | null }[]>(
+      `select geloescht_am is not null as archiviert, geloescht_von::text as von
+         from radar_profil where id = $1`, [profil] as never[]);
+    expect(z!.archiviert).toBe(true);
+    expect(z!.von).toBe(benutzer);
+    const [p] = await sql.unsafe<{ n: number; vorher: Record<string, unknown> | null }[]>(
+      `select (count(*) over ())::int as n, vorher from audit_log
+        where objekt_id = $1 and aktion = 'radar.profil_archiviert'`, [profil] as never[]);
+    expect(p?.n).toBe(1);
+    expect(p?.vorher?.['name']).toBe(STAND.name);
+  });
+
+  it('danach liest es weder das Blatt noch der Lauf — und ein zweites Archivieren ist ein Satz', async () => {
+    expect(await profileImLauf()).toBe(1);
+    await alsWer(benutzer, (k) => archiviereProfil(k, profil));
+    expect(await alsWer(benutzer, (k) => leseProfil(k, profil))).toBeNull();
+    expect(await profileImLauf()).toBe(0);
+    await expect(alsWer(benutzer, (k) => archiviereProfil(k, profil)))
+      .rejects.toMatchObject({ code: 'nicht_gefunden' });
+  });
+
+  it('ohne `radar.profil_schreiben`, aus einem fremden Bereich und in der Gruppenansicht: nicht', async () => {
+    const ohne = await konto(f.reinigung, ['objekt']);
+    await expect(alsWer(ohne, (k) => archiviereProfil(k, profil)))
+      .rejects.toMatchObject({ code: 'nicht_gefunden' });
+    const imBau = await konto(f.bau, null);
+    await expect(alsWer(imBau, (k) => archiviereProfil(k, profil), f.bau))
+      .rejects.toMatchObject({ code: 'nicht_gefunden' });
+    const ergebnis = await alsApp(
+      { scope: 'gruppe', mandantIds: [f.reinigung, f.bau], benutzerId: benutzer, readonly: true },
+      (tx) => tx.unsafe(
+        `update radar_profil set geloescht_am = now() where id = $1 returning id`,
+        [profil] as never[]),
+    ) as unknown[];
+    expect(ergebnis).toHaveLength(0);
+    const [z] = await sql.unsafe<{ archiviert: boolean }[]>(
+      `select geloescht_am is not null as archiviert from radar_profil where id = $1`,
+      [profil] as never[]);
+    expect(z!.archiviert).toBe(false);
   });
 });

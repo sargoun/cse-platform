@@ -35,17 +35,18 @@ import { SCHWELLE_VOREINSTELLUNG } from './gewichte.platzhalter.js';
  * „die Gewichte und die CPV-Codes dieses Profils sind unbestätigt"; es zu
  * entfernen wäre eine Behauptung über O-15 und O-98, nicht eine Eingabe.
  *
- * **Und das Profil selbst wird von hier nie archiviert.** `radar_profil` trägt
- * `geloescht_am`/`geloescht_von`, also war ein Archivieren vorgesehen — nur
- * sagt niemand, was dann mit den `bewertung`-Zeilen geschieht, die es erzeugt
- * hat: sie nennen den Profilnamen in ihrer Begründung, und die Radarliste
- * verbindet sie weiter mit `radar_profil` (ohne Filter auf `geloescht_am`).
- * Die sichere Richtung ist deshalb `ist_aktiv = false`: der Lauf bewertet
- * nichts mehr damit, und nichts wird unlesbar.
+ * **Und ein Profil lässt sich archivieren** (`archiviereProfil`, V-304).
+ * `radar_profil` trägt `geloescht_am`/`geloescht_von`; gesetzt werden sie mit
+ * Protokoll, gelöscht wird nichts. Danach bewertet der Lauf nichts mehr damit
+ * (`lauf.ts` und die Warnungen lesen nur `geloescht_am is null`), das Blatt
+ * öffnet es nicht mehr — und die `bewertung`-Zeilen, die es erzeugt hat,
+ * bleiben unter seinem Namen lesbar: die Radarliste verbindet sie weiter mit
+ * `radar_profil`, ohne Filter auf `geloescht_am`. Abschalten (`ist_aktiv`)
+ * bleibt der Weg für eine Pause.
  *
- * // TODO(client, O-720): Soll ein Suchprofil archiviert werden können — und
- * // was geschieht dann mit den Bewertungen, die es erzeugt hat: bleiben sie
- * // mit dem Profilnamen lesbar, oder verschwinden sie aus dem Radar?
+ * // TODO(client, O-720): Voreinstellung — Archivieren setzt `geloescht_am`,
+ * // die Bewertungen bleiben unter dem Profilnamen lesbar, der Lauf bewertet
+ * // nicht mehr damit; zurückgeholt wird hier nicht (D-786, D-806).
  *
  * **Die beiden Kindtabellen werden HART gelöscht** — und das ist zulässig.
  * Invariante 8 nennt Finanzen, Zeiterfassung und Audit; Radar steht nicht
@@ -649,6 +650,49 @@ export async function schreibeProfil(
       oberhalbSchwellenwert: e.oberhalbSchwellenwert, istAktiv: e.istAktiv,
       benachrichtigungAbPunkte: schwelle,
     }]);
+}
+
+/**
+ * **Ein Suchprofil archivieren** (V-304, O-720, D-786).
+ *
+ * Setzt `geloescht_am`/`geloescht_von` und schreibt das Protokoll — nichts
+ * wird gelöscht. Erst sperren, dann ändern, wie `schreibeProfil`: das
+ * `select … for update` wendet das `using` der UPDATE-Policy an, also findet
+ * eine Sitzung ohne `radar.profil_schreiben`, ein fremder Bereich und die
+ * Gruppenansicht (Invariante 10) die Zeile gar nicht erst — und ein
+ * Null-Zeilen-Update sähe nie wie ein Erfolg aus.
+ *
+ * `ist_aktiv` bleibt, wie es war: das Archiv sagt, dass es das Profil nicht
+ * mehr gibt, und der Lauf fragt beides. Die Fassung zählt dabei hoch (der
+ * Trigger sieht eine geänderte Zeile) — bewertet wird mit ihr ohnehin nicht
+ * mehr.
+ */
+export async function archiviereProfil(kontext: SchreibKontext, id: string): Promise<void> {
+  const [alt] = await kontext.schreibe<{ name: string; ist_aktiv: boolean }>(
+    `select name, ist_aktiv
+       from radar_profil
+      where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null
+      for update`,
+    [id, kontext.aktiverMandantId]);
+  if (alt === undefined) {
+    throw new ProfilFehler('nicht_gefunden',
+      'Das Profil wurde nicht gefunden, ist schon archiviert, oder diese Sitzung darf es '
+      + 'nicht ändern.');
+  }
+  const [zeile] = await kontext.schreibe<{ id: string }>(
+    `update radar_profil
+        set geloescht_am = now(), geloescht_von = $3::uuid,
+            geaendert_am = now(), geaendert_von = $3::uuid
+      where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null
+      returning id`,
+    [id, kontext.aktiverMandantId, kontext.benutzerId]);
+  if (zeile === undefined) {
+    throw new ProfilFehler('nicht_gefunden', 'Das Profil liess sich nicht archivieren.');
+  }
+  await kontext.schreibe(
+    `select app.protokolliere('radar.profil_archiviert', 'radar_profil', $1, $2::jsonb,
+                              $3::jsonb, app.aktiver_mandant())`,
+    [id, { name: alt.name, istAktiv: alt.ist_aktiv }, { name: alt.name, archiviert: true }]);
 }
 
 export interface CpvEingabe {

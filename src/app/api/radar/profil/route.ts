@@ -10,8 +10,8 @@ import { withTenant } from '@/server/kontext/index';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { GeldFehler, parseGeld } from '@/server/services/finanz/geld';
 import {
-  ProfilFehler, entferneCpv, entferneEmpfaenger, legeProfilAn, schreibeProfil, setzeCpv,
-  setzeEmpfaenger, teileListe,
+  ProfilFehler, archiviereProfil, entferneCpv, entferneEmpfaenger, legeProfilAn, schreibeProfil,
+  setzeCpv, setzeEmpfaenger, teileListe,
 } from '@/server/services/radar/profil';
 import type { Wirkung } from '@/server/services/radar/bewertung';
 import { alsAntwort } from '../../sicherheit/antwort';
@@ -20,11 +20,15 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * `POST /api/radar/profil` — ein Suchprofil des Vergaberadars pflegen
  * (RAD-04, RAD-05).
  *
- * **Sechs Handlungen an einer Adresse, weil sie EIN Profil betreffen**: eins
+ * **Sieben Handlungen an einer Adresse, weil sie EIN Profil betreffen**: eins
  * anlegen, seine Stammdaten setzen, eine CPV-Zeile anlegen oder ändern, eine
- * entfernen, einen Empfänger eintragen, einen entfernen. Jede geht durch
- * dasselbe Tor (`radar.profil_schreiben`) und durch dieselbe Transaktion —
- * sechs Routen wären sechs Stellen, an denen jemand das `authorize` vergisst.
+ * entfernen, einen Empfänger eintragen, einen entfernen — und das Profil
+ * archivieren (V-304). Jede geht durch dasselbe Tor (`radar.profil_schreiben`)
+ * und durch dieselbe Transaktion — sieben Routen wären sieben Stellen, an
+ * denen jemand das `authorize` vergisst.
+ *
+ * **`archivieren` endet auf der LISTE**, im Erfolg wie im Fehler: das Blatt
+ * eines archivierten Profils öffnet sich nicht mehr (`leseProfil`).
  *
  * **`anlegen` ist die einzige Handlung ohne Profilkennung** (V-016) und wird
  * deshalb VOR der Kennungsprüfung entschieden. Sie landet danach auf dem
@@ -113,7 +117,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    */
   const seite = (): string => angelegt !== ''
     ? `${liste()}/${angelegt}`
-    : was === 'anlegen' ? liste() : `${liste()}/${profil}`;
+    : was === 'anlegen' || was === 'archivieren' ? liste() : `${liste()}/${profil}`;
 
   try {
     await db().begin(async (tx: postgres.TransactionSql) =>
@@ -155,6 +159,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             istAktiv: text('istAktiv') === 'ja',
             benachrichtigungAbPunkte: ab === null ? null : Number.parseInt(ab, 10),
           });
+          return;
+        }
+
+        if (was === 'archivieren') {
+          await archiviereProfil(kontext, profil);
           return;
         }
 

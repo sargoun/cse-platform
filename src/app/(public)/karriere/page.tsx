@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Hinweis } from '@/components/ui/Hinweis';
-import { offeneStellen } from './daten';
+import { bereiche, offeneStellen } from './daten';
 import { bewerbungsMeldung } from './meldung';
 
 /**
@@ -21,9 +21,14 @@ import { bewerbungsMeldung } from './meldung';
  * Initiativbewerbung steht deshalb immer da, und nicht nur dann, wenn nichts
  * ausgeschrieben ist.
  *
+ * **Der Bereichsfilter steht in der Adresse** (`?bereich=<slug>`, V-364): ein
+ * Verweis je Gesellschaft, kein Skript — die Auswahl lässt sich teilen und
+ * zurückblättern. Ein unbekannter Bereich zeigt alle Stellen, eine leere
+ * Auswahl sagt es in einem Satz.
+ *
  * TODO(client, O-38): Voreinstellung — eine Karriereseite der Gruppe mit
- * Bereichsfilter (SEITENKARTE); die Seite ist gebaut, der Filter fehlt
- * (V-364) — bis dahin nennt jede Karte die Gesellschaft. D-797.
+ * Bereichsfilter (SEITENKARTE); gebaut mit V-364, jede Karte nennt weiter die
+ * Gesellschaft. D-797, D-806.
  */
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +44,13 @@ export default async function KarriereSeite(
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
-  const stellen = await offeneStellen();
+  const suche = await searchParams;
+  const gesellschaften = await bereiche();
+  const gewaehlt = typeof suche['bereich'] === 'string'
+    ? gesellschaften.find((g) => g.slug === suche['bereich']) ?? null : null;
+  const stellen = await offeneStellen(gewaehlt?.slug ?? null);
+  const filterKlasse = 'inline-flex min-h-11 items-center rounded-md border border-line px-s4 '
+    + 'text-sm text-text hover:bg-surface-3';
   /*
    * V-158: eine Bewerbung auf eine Stelle, die inzwischen geschlossen ist,
    * landet hier — mit einem Satz, statt `{"fehler":"nicht_gefunden"}` auf
@@ -64,6 +75,26 @@ export default async function KarriereSeite(
         </Hinweis>
       )}
 
+      <nav aria-label="Stellen nach Gesellschaft" data-cse="bereichsfilter">
+        <ul className="m-0 flex list-none flex-wrap gap-s2 p-0">
+          <li>
+            <Link href="/karriere" data-cse="bereich-filter" data-bereich=""
+                  aria-current={gewaehlt === null ? 'page' : undefined}
+                  className={`${filterKlasse}${gewaehlt === null ? ' bg-surface-3 font-semibold' : ''}`}>
+              Alle Gesellschaften
+            </Link>
+          </li>
+          {gesellschaften.map((g) => (
+            <li key={g.slug}>
+              <Link href={`/karriere?bereich=${g.slug}`} data-cse="bereich-filter" data-bereich={g.slug}
+                    aria-current={gewaehlt?.slug === g.slug ? 'page' : undefined}
+                    className={`${filterKlasse}${gewaehlt?.slug === g.slug ? ' bg-surface-3 font-semibold' : ''}`}>
+                {g.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
       <section className="flex flex-col gap-s4">
         <h2 className="m-0 text-h2 text-text">
           {stellen.length === 1 ? 'Eine offene Stelle' : `${String(stellen.length)} offene Stellen`}
@@ -74,8 +105,12 @@ export default async function KarriereSeite(
             data-cse="keine-stellen"
             className="m-0 max-w-prose rounded-lg border border-line bg-surface p-s5 text-base text-text-muted"
           >
-            Zurzeit ist nichts ausgeschrieben. Das heisst nicht, dass wir
-            niemanden suchen — schicken Sie uns eine Initiativbewerbung.
+            {gewaehlt === null
+              ? 'Zurzeit ist nichts ausgeschrieben. Das heisst nicht, dass wir niemanden '
+                + 'suchen — schicken Sie uns eine Initiativbewerbung.'
+              : `Bei ${gewaehlt.name} ist zurzeit nichts ausgeschrieben. Die übrigen `
+                + 'Gesellschaften stehen unter „Alle Gesellschaften", und eine '
+                + 'Initiativbewerbung nehmen wir jederzeit entgegen.'}
           </p>
         ) : (
           <ul data-cse="stellenliste" className="m-0 grid list-none grid-cols-1 gap-s4 p-0 md:grid-cols-2">

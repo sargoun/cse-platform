@@ -248,9 +248,19 @@ export interface ProfilZeile {
   readonly empfaenger: readonly {
     readonly name: string; readonly abPunkte: number | null;
   }[];
+  /** Berliner Tag der Archivierung (V-304) — `null` für ein laufendes Profil. */
+  readonly archiviertAm: string | null;
 }
 
-export async function leseProfile(kontext: LeseKontext): Promise<readonly ProfilZeile[]> {
+/**
+ * Die Profile dieser Gesellschaft — die laufenden, oder mit `archiviert` die
+ * archivierten (V-304, O-720). Ein archiviertes Profil öffnet kein Blatt
+ * mehr; die Liste zeigt es nur, damit sein Name zu den Bewertungen im Radar
+ * auffindbar bleibt.
+ */
+export async function leseProfile(
+  kontext: LeseKontext, optionen: { readonly archiviert?: boolean } = {},
+): Promise<readonly ProfilZeile[]> {
   const zeilen = await kontext.abfrage<Record<string, unknown>>(
     `select p.id, p.name, p.version, p.ist_aktiv, p.ist_platzhalter, p.nuts_praefixe,
             p.positiv_keywords, p.negativ_keywords, p.negativ_wirkung::text as negativ_wirkung,
@@ -267,12 +277,14 @@ export async function leseProfile(kontext: LeseKontext): Promise<readonly Profil
                       order by u.name)
                         from radar_profil_empfaenger e
                         join benutzer u on u.id = e.benutzer_id
-                       where e.radar_profil_id = p.id), '[]') as empfaenger
+                       where e.radar_profil_id = p.id), '[]') as empfaenger,
+            to_char(p.geloescht_am at time zone 'Europe/Berlin', 'DD.MM.YYYY') as archiviert_am
        from radar_profil p
        left join radar_profil_cpv c on c.radar_profil_id = p.id
-      where p.geloescht_am is null
+      where (p.geloescht_am is not null) = $1::boolean
       group by p.id
-      order by p.ist_aktiv desc, p.name`);
+      order by p.geloescht_am desc nulls first, p.ist_aktiv desc, p.name`,
+    [optionen.archiviert === true]);
   return zeilen.map((z) => ({
     id: String(z['id']),
     name: String(z['name']),
@@ -293,6 +305,7 @@ export async function leseProfile(kontext: LeseKontext): Promise<readonly Profil
     bewertungen: Number(z['bewertungen']),
     empfaenger: (z['empfaenger'] as { name: string; abPunkte: number | null }[] | null ?? [])
       .map((e) => ({ name: e.name, abPunkte: e.abPunkte })),
+    archiviertAm: typeof z['archiviert_am'] === 'string' ? z['archiviert_am'] : null,
   }));
 }
 

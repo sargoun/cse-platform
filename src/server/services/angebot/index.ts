@@ -386,6 +386,36 @@ export async function gibPreisFrei(
 export interface Versandergebnis {
   readonly angebotsnummer: string;
   readonly versendetAm: Date;
+  /** Bis wann das Angebot bindet — eingetragen oder beim Versand gesetzt (V-359). */
+  readonly gueltigBis: string;
+}
+
+/**
+ * Voreinstellung der Bindefrist (O-350, D-796): vier Wochen ab Versand.
+ * Sie gilt, solange die Gesellschaft `angebot.bindefrist_tage_standard`
+ * nicht trägt.
+ */
+export const BINDEFRIST_VOREINSTELLUNG_TAGE = 28;
+
+/**
+ * Die Bindefrist dieser Gesellschaft in Tagen (V-359, D-806).
+ *
+ * Aus `app.einstellung('angebot.bindefrist_tage_standard')`; ohne sie die
+ * Voreinstellung. Ein Wert, der keine ganze Zahl von 1 bis 9999 Tagen ist,
+ * gilt als nicht gesetzt: an einer verstellten Einstellung soll kein Versand
+ * scheitern — und ein `::integer` auf ein Wort risse jeden Versand der
+ * Gesellschaft mit einem rohen Postgres-Fehler mit.
+ *
+ * TODO(client, O-350): Voreinstellung — vier Wochen (28 Tage) ab Versand,
+ * je Gesellschaft über die Einstellung angebot.bindefrist_tage_standard
+ * änderbar. D-796, D-806.
+ */
+export async function bindefristTage(db: Abfrage): Promise<number> {
+  const [e] = await db.abfrage<{ tage: number | null }>(
+    `select case when w #>> '{}' ~ '^[1-9][0-9]{0,3}$' then (w #>> '{}')::integer end as tage
+       from (select app.einstellung('angebot.bindefrist_tage_standard') as w) e`,
+  );
+  return e?.tage ?? BINDEFRIST_VOREINSTELLUNG_TAGE;
 }
 
 /**
@@ -403,8 +433,16 @@ export interface Versandergebnis {
  * `freigegeben_von`, und das war moeglicherweise ein anderer Mensch — genau
  * darum geht es.
  *
- * TODO(client, O-350): Voreinstellung — Bindefrist vier Wochen ab Versand,
- * hier gesetzt, wenn kein Datum eingetragen ist; nicht gebaut (V-359). D-796.
+ * **Und er setzt die Bindefrist, wenn keine eingetragen ist** (V-359). Ohne
+ * `gueltig_bis` liefe das Angebot nie ab — der Nachtlauf `angebot_ablauf`
+ * greift nur bei gesetztem Datum —, und der Kunde läse „ohne Frist
+ * vereinbart". Gesetzt wird sie im SELBEN UPDATE wie `versendet_am`: danach
+ * friert 0024 sie mit allem anderen ein. Ein von Hand eingetragenes Datum
+ * bleibt stehen.
+ *
+ * TODO(client, O-350): Voreinstellung — Bindefrist vier Wochen ab Versand
+ * (Berliner Versandtag plus `bindefristTage`), wenn kein Datum eingetragen
+ * ist. D-796, D-806.
  */
 export async function versendeAngebot(
   db: Abfrage & NummernAbfrage, angebotId: string, versenderBenutzerId: string,
@@ -450,22 +488,31 @@ export async function versendeAngebot(
       + '(Recht angebot.preis_freigeben), dann versenden', 'ohne_freigabe');
   }
 
+  /* Vor der Nummer gelesen: eine Lesung braucht keine Zaehlersperre. */
+  const bindefrist = await bindefristTage(db);
   const nummer = await vergebeNummer(db as NummernAbfrage, { kreisTyp: 'angebot' });
 
-  const [nachher] = await db.abfrage<{ angebotsnummer: string; versendet_am: Date }>(
+  const [nachher] = await db.abfrage<{
+    angebotsnummer: string; versendet_am: Date; gueltig_bis: string;
+  }>(
     `update angebot
         set status = 'versendet',
             angebotsnummer = $2,
             versendet_von = $3,
-            versendet_am = now()
+            versendet_am = now(),
+            gueltig_bis = coalesce(gueltig_bis, app.berlin_heute() + $4::integer)
       where id = $1
-      returning angebotsnummer, versendet_am`,
-    [angebotId, nummer.formatiert, versenderBenutzerId],
+      returning angebotsnummer, versendet_am, gueltig_bis::text as gueltig_bis`,
+    [angebotId, nummer.formatiert, versenderBenutzerId, bindefrist],
   );
   if (nachher === undefined) {
     throw new AngebotFehler('Der Versand hat keine Zeile getroffen', 'nicht_gefunden');
   }
-  return { angebotsnummer: nachher.angebotsnummer, versendetAm: nachher.versendet_am };
+  return {
+    angebotsnummer: nachher.angebotsnummer,
+    versendetAm: nachher.versendet_am,
+    gueltigBis: nachher.gueltig_bis,
+  };
 }
 
 export interface AuftragAnlegen {

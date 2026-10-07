@@ -44,6 +44,8 @@ vi.mock('next/link', () => ({
 }));
 vi.mock('../../src/app/(public)/karriere/daten.js', () => ({
   offeneStellen: () => Promise.resolve([]),
+  // Der Bereichsfilter (V-364) liest die Gesellschaften.
+  bereiche: () => Promise.resolve([]),
 }));
 
 const { WerbewiderspruchSeiteFuer } =
