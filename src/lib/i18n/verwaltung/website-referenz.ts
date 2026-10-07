@@ -114,7 +114,8 @@ export interface WebsiteReferenzTexte {
   readonly herkunftZumAuftrag: string;
   readonly herkunftUnlesbar: string;
   readonly herkunftAltbestand: string;
-  readonly herkunftWiderrufen: (am: string) => string;
+  /** `werktage`: die Frist der Herausnahme (`HERAUSNAHME_WERKTAGE`, O-735). */
+  readonly herkunftWiderrufen: (am: string, werktage: number) => string;
   readonly adresseTitel: string;
   readonly adresseOeffentlich: string;
   readonly adresseNochNicht: string;
@@ -184,6 +185,11 @@ export interface WebsiteReferenzTexte {
   readonly ausAuftragAnlegen: string;
   readonly erstNachAbschluss: string;
   readonly ausDiesemAuftragAnzahl: (anzahl: number) => string;
+  /** Die Aufgaben „Referenz herausnehmen" nach einem Widerruf (V-287, D-841). */
+  readonly herausnahmeTitel: string;
+  readonly herausnahmeEinleitung: (werktage: number) => string;
+  readonly herausnahmeFaellig: (tag: string) => string;
+  readonly herausnahmeOhneFrist: string;
 
   /*
    * ── Veröffentlichen / Zurückziehen abgewiesen ───────────────────────────
@@ -395,10 +401,11 @@ const DE: WebsiteReferenzTexte = {
   herkunftAltbestand:
     'Ohne Herkunft: diese Referenz entstand, bevor eine Referenz ihren Auftrag festhielt '
     + '(V-161). Ihre Kundenfreigabe steht allein im Block unten.',
-  herkunftWiderrufen: (am) =>
-    `Die Kundenfreigabe am Auftrag wurde am ${am} widerrufen. Was das für eine schon `
-    + 'veröffentlichte Referenz heisst, ist beim Auftraggeber angefragt (O-735); '
-    + 'entfernt wird nichts von selbst.',
+  herkunftWiderrufen: (am, werktage) =>
+    `Die Kundenfreigabe am Auftrag wurde am ${am} widerrufen. Voreinstellung (O-735): `
+    + `eine veröffentlichte Referenz nimmt die Website-Pflege binnen ${String(werktage)} `
+    + 'Arbeitstagen von Hand heraus — die Aufgabe „Referenz herausnehmen" entstand mit dem '
+    + 'Widerruf. Entfernt wird nichts von selbst; die Zeile bleibt.',
   adresseTitel: 'Öffentliche Adresse',
   adresseOeffentlich:
     'Ein geänderter Slug bricht jeden eingehenden Verweis und jeden Eintrag im Index einer '
@@ -503,6 +510,14 @@ const DE: WebsiteReferenzTexte = {
     : n === 1
       ? 'Aus diesem Auftrag ist 1 Referenz angelegt.'
       : `Aus diesem Auftrag sind ${String(n)} Referenzen angelegt.`),
+  herausnahmeTitel: 'Referenz herausnehmen',
+  herausnahmeEinleitung: (werktage) =>
+    'Mit dem Widerruf entstand je veröffentlichter Referenz aus diesem Auftrag eine '
+    + `Aufgabe in der Aufgabenliste dieser Gesellschaft — Frist ${String(werktage)} `
+    + 'Arbeitstage (Voreinstellung O-735). Herausgenommen wird von Hand; die Referenzzeile '
+    + 'bleibt.',
+  herausnahmeFaellig: (tag) => `fällig am ${tag}`,
+  herausnahmeOhneFrist: 'ohne Frist',
 
   statusNichtGesetzt: 'Der Stand auf der Website hat sich nicht geändert.',
   statusFehler: {
@@ -711,10 +726,11 @@ const EN: WebsiteReferenzTexte = {
   herkunftAltbestand:
     'No origin: this reference was created before a reference recorded its Auftrag '
     + '(V-161). Its Kundenfreigabe stands on its own in the block below.',
-  herkunftWiderrufen: (am) =>
-    `The Kundenfreigabe on the Auftrag was revoked on ${am}. What that means for a `
-    + 'reference that is already published has been asked of the client (O-735); nothing is '
-    + 'removed automatically.',
+  herkunftWiderrufen: (am, werktage) =>
+    `The Kundenfreigabe on the Auftrag was revoked on ${am}. Default (O-735): website `
+    + `maintenance takes a published reference down by hand within ${String(werktage)} `
+    + 'working days — the task "Referenz herausnehmen" (take the reference down) was created '
+    + 'with the revocation. Nothing is removed automatically; the row stays.',
   adresseTitel: 'Public address',
   adresseOeffentlich:
     'A changed slug breaks every incoming link and every entry in a search engine’s index. '
@@ -819,6 +835,13 @@ const EN: WebsiteReferenzTexte = {
     : n === 1
       ? '1 reference has been created from this Auftrag.'
       : `${String(n)} references have been created from this Auftrag.`),
+  herausnahmeTitel: 'Take the reference down',
+  herausnahmeEinleitung: (werktage) =>
+    'The revocation created one task per published reference from this Auftrag in this '
+    + `company's task list — deadline ${String(werktage)} working days (default O-735). `
+    + 'The reference is taken down by hand; its row stays.',
+  herausnahmeFaellig: (tag) => `due ${tag}`,
+  herausnahmeOhneFrist: 'no deadline',
 
   statusNichtGesetzt: 'Its state on the website did not change.',
   statusFehler: {

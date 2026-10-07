@@ -85,8 +85,10 @@ export function fristlage(frist: Frist, jetzt: Date): Fristlage {
  * Die Bezuege, die dieser Dienst AUFLOESEN kann — und die Liste ist bewusst
  * kurz.
  *
- * `bezug_typ` hat sechsundzwanzig Werte (§7.2); sechs davon haben heute eine
- * Detailseite im Portal, deren Adresse das Register fuehrt. Ein Typ ohne
+ * `bezug_typ` hat sechsundzwanzig Werte (§7.2); sieben davon haben heute eine
+ * Detailseite im Portal, deren Adresse das Register fuehrt — die siebte, die
+ * Referenz, setzt nur ein Ereignis (V-287), das Formular bietet sie nicht
+ * an (`bezugskandidaten`). Ein Typ ohne
  * Eintrag hier ergibt eine Zeile MIT Bezugsnamen und OHNE Verweis — nie eine
  * tote Verknuepfung und nie einen Fehler. Ein Verweis auf eine Adresse, die
  * es nicht gibt, ist der sichtbarste 404 im Portal.
@@ -106,6 +108,24 @@ const AUFLOESER: Readonly<Record<string, Aufloeser>> = {
   kunde: { tabelle: 'kunde', titel: `z.kundennummer || ' — ' || z.name`, pfad: 'crm/kunden' },
   rechnung: { tabelle: 'rechnung', titel: `coalesce(z.nummer, 'Entwurf')`, pfad: 'finanzen/rechnungen' },
   angebot: { tabelle: 'angebot', titel: `z.angebotsnummer || ' — ' || z.titel`, pfad: 'angebote' },
+  /**
+   * **Die Referenz — nur aus einem Ereignis, nicht aus dem Formular** (V-287,
+   * D-841). Der Widerruf einer Kundenfreigabe stellt „Referenz herausnehmen"
+   * mit diesem Bezug; die Detailseite führt auf das Blatt der Referenz.
+   *
+   * Der Name steht hier hinter `referenz.lesen` und der aktiven Gesellschaft,
+   * nicht nur hinter der RLS: `t_referenz_oeffentlich` gibt jede
+   * veröffentlichte Referenz JEDER Sitzung heraus, und ohne die Bedingung
+   * führte der Verweis eine Sitzung ohne Pflegerecht auf ein Blatt, das sie
+   * nicht öffnen darf.
+   */
+  referenz: {
+    tabelle: 'referenz',
+    titel: `case when z.mandant_id = app.aktiver_mandant()
+                   and (select app.hat_recht('referenz.lesen', app.aktiver_mandant()))
+                 then z.titel end`,
+    pfad: 'website/referenzen',
+  },
 };
 
 export interface Bezug {
@@ -143,9 +163,12 @@ export interface Bezugskandidat {
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * `bezug_typ` hat sechsundzwanzig Werte; `AUFLOESER` kennt die sechs, die
- * eine Detailseite haben. Einen siebten anzubieten hiesse, eine Aufgabe an
- * etwas zu haengen, das die Aufgabenseite danach nur als Wort zeigen kann —
- * ein Bezug, dem man nicht folgen kann, ist eine Notiz mit Kennung.
+ * eine Detailseite haben und an die ein Mensch eine Aufgabe haengt. Einen
+ * weiteren anzubieten hiesse, eine Aufgabe an etwas zu haengen, das die
+ * Aufgabenseite danach nur als Wort zeigen kann — ein Bezug, dem man nicht
+ * folgen kann, ist eine Notiz mit Kennung. (Die Referenz loest `AUFLOESER`
+ * seit V-287 ebenfalls auf; gesetzt wird sie nur vom Widerruf einer
+ * Kundenfreigabe, nicht von Hand.)
  *
  * **Die RLS entscheidet, was ein Mensch waehlen kann.** Jede Abfrage laeuft
  * unter der Sitzung; wer `crm.lesen` nicht haelt, bekommt keine Kunden zur

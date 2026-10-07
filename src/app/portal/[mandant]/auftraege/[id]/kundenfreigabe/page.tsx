@@ -4,13 +4,14 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import {
-  freigabeGilt, ladeFreigabestand, listeAnsprechpartner, listeKundendokumente,
-  referenzfaehig, referenzHindernis,
+  freigabeGilt, HERAUSNAHME_WERKTAGE, ladeFreigabestand, ladeHerausnahmeAufgaben,
+  listeAnsprechpartner, listeKundendokumente, referenzfaehig, referenzHindernis,
 } from '@/server/services/auftrag/kundenfreigabe';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
-import { StatusPill } from '@/components/ui/StatusPill';
+import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
@@ -41,6 +42,17 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * `kern.auftrag_freigabe_stempeln` setzt es aus der Serveruhr (Invariante 5).
  */
 export const dynamic = 'force-dynamic';
+
+/** Der Zustand einer Herausnahme-Aufgabe als Pille — wie in der Aufgabenliste. */
+function aufgabePille(status: string): PillZustand {
+  switch (status) {
+    case 'erledigt': return 'Abgeschlossen';
+    case 'abgebrochen': return 'Archiviert';
+    case 'in_arbeit': return 'In Arbeit';
+    case 'wartend': return 'Wartet';
+    default: return 'Offen';
+  }
+}
 
 export default async function Kundenfreigabe(
   { params, searchParams }: {
@@ -77,15 +89,22 @@ export default async function Kundenfreigabe(
       const dokumente = stand.darf_dokument_lesen
         ? await listeKundendokumente(kontext, stand.kunde_id)
         : [];
-      return { stand, ansprechpartner, dokumente };
+      /*
+       * Die Aufgaben „Referenz herausnehmen" aus einem Widerruf (V-287) —
+       * die RLS auf `aufgabe` entscheidet, welche diese Sitzung sieht.
+       */
+      const herausnahme = stand.widerrufen_am === null
+        ? [] : await ladeHerausnahmeAufgaben(kontext, id);
+      return { stand, ansprechpartner, dokumente, herausnahme };
     })) as Promise<{
       stand: NonNullable<Awaited<ReturnType<typeof ladeFreigabestand>>>;
       ansprechpartner: Awaited<ReturnType<typeof listeAnsprechpartner>>;
       dokumente: Awaited<ReturnType<typeof listeKundendokumente>>;
+      herausnahme: Awaited<ReturnType<typeof ladeHerausnahmeAufgaben>>;
     } | null>);
 
   if (daten === null) notFound();
-  const { stand, ansprechpartner, dokumente } = daten;
+  const { stand, ansprechpartner, dokumente, herausnahme } = daten;
 
   const widerrufen = stand.widerrufen_am !== null;
   const gilt = freigabeGilt(stand);
@@ -213,6 +232,35 @@ export default async function Kundenfreigabe(
           </dl>
         </Hinweis>
       ) : null}
+
+      {/* Die Herausnahme veröffentlichter Referenzen (V-287) -------------- */}
+      {herausnahme.length > 0 && (
+        <section aria-labelledby="herausnahme" className="mb-s6" data-cse="herausnahme-aufgaben">
+          <h2 id="herausnahme" className="text-h2 text-text">{tReferenz.herausnahmeTitel}</h2>
+          <p className="mt-s2 max-w-prose text-sm text-text-muted">
+            {tReferenz.herausnahmeEinleitung(HERAUSNAHME_WERKTAGE)}
+          </p>
+          <ul className="m-0 mt-s3 list-none p-0">
+            {herausnahme.map((h) => (
+              <li key={h.aufgabeId} className="flex flex-wrap items-center gap-s3 py-s2"
+                  data-cse="herausnahme-aufgabe">
+                <Link
+                  href={`/portal/${mandant}/aufgaben/${h.aufgabeId}`}
+                  className="text-sm text-text underline underline-offset-2 hover:text-brand"
+                >
+                  {h.titel}
+                </Link>
+                <span className="text-sm text-text-muted">
+                  {h.faelligAm === null
+                    ? tReferenz.herausnahmeOhneFrist
+                    : tReferenz.herausnahmeFaellig(tagInSprache(h.faelligAm, zugang.sprache))}
+                </span>
+                <StatusPill zustand={aufgabePille(h.status)} sprache={zugang.sprache} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Das Formular ----------------------------------------------------- */}
       {gilt ? null : kannErfassen ? (
@@ -366,10 +414,11 @@ export default async function Kundenfreigabe(
               Der Beleg, <em>dass</em> einmal freigegeben wurde, bleibt stehen —
               er zählt im Streit genauso wie der Widerruf. Für eine{' '}
               <strong>bereits veröffentlichte</strong> Referenz gilt die Voreinstellung
-              (O-735): die Website-Pflege nimmt sie binnen 5 Arbeitstagen von Hand heraus,
-              nicht rückwirkend — eine Aufgabe dafür entsteht noch nicht von selbst (V-287);
-              das Referenzblatt zeigt den Widerruf am Ursprungsauftrag. Diese Seite entfernt
-              keine Referenzzeile.
+              (O-735): mit dem Widerruf entsteht je Referenz die Aufgabe „Referenz
+              herausnehmen“ mit einer Frist von {HERAUSNAHME_WERKTAGE} Arbeitstagen in der
+              Aufgabenliste dieser Gesellschaft, und die Website-Pflege nimmt sie von Hand
+              heraus, nicht rückwirkend; das Referenzblatt zeigt den Widerruf am
+              Ursprungsauftrag. Diese Seite entfernt keine Referenzzeile.
             </p>
             <button
               type="submit"

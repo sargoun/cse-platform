@@ -23,7 +23,7 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { WEBSITE_REFERENZ_TEXTE } from '@/lib/i18n/verwaltung/website-referenz';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import {
-  freigabeGilt, ladeFreigabestand, type Freigabestand,
+  freigabeGilt, HERAUSNAHME_WERKTAGE, ladeFreigabestand, type Freigabestand,
 } from '@/server/services/auftrag/kundenfreigabe';
 
 /**
@@ -210,7 +210,7 @@ export default async function WebsiteReferenz(
                 {t.herkunftAuftrag(herkunft.auftragsnummer, herkunft.kunde)}
               </p>
               {herkunft.widerrufen_am !== null && (
-                <p className="mb-0 mt-s2">{t.herkunftWiderrufen(herkunft.widerrufen_am)}</p>
+                <p className="mb-0 mt-s2">{t.herkunftWiderrufen(herkunft.widerrufen_am, HERAUSNAHME_WERKTAGE)}</p>
               )}
               {darf['referenz.kundenfreigabe_erfassen'] === true && (
                 <p className="mb-0 mt-s2">

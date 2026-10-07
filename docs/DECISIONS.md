@@ -3296,7 +3296,7 @@ Beantworten helfen:
 | O-731 | **Which Zeitwerte (minutes per unit) and which Standardeinzelpreise apply per Leistungskatalog position, and who releases them?** This is the position side of the same gap as O-17 (Leistungswerte per Belagsart) and additionally covers the time value and the standard price. The CHECK `lkp_kalkulierbar` does not allow a position without any of the three values, so „do not invent a value" cannot mean „leave it NULL": every position carries a clearly marked placeholder with `ist_platzhalter = true` (the column's default), the list shows the placeholder share per Fassung, and the confirm tick says explicitly „for THIS Fassung" — it does not answer O-17 or this row. | `services/katalog/index.ts`, `/leistungskatalog`, `/leistungskatalog/[id]`, OPS-06, CLN-05, O-17, O-16, O-37 · **Voreinstellung → D-780** |
 | O-732 | **May a granted Preisfreigabe be revoked while the offer has not yet been sent — and if so, by whom and under what logging duty?** The release became its own step when `versendeAngebot` was split (`angebot.preis_freigeben` vs `angebot.versenden`), and with it the question of taking it back. Until answered it is **immutable**: `kern.angebot_preisfreigabe_pruefen` rejects any change to `freigegeben_von`/`freigegeben_am` once set, and a different price needs a new offer version — the same shape as invariant 4. Allowing a revocation would be an invented rule; allowing it silently would be an invented rule without a trace. | `drizzle/0295`, `services/angebot/index.ts` (`gibPreisFrei`), `/angebote/[id]/freigabe`, invariant 4, invariant 7 · **Voreinstellung → D-780** |
 | O-734 | **Must a closed order be re-openable (Nachtrag, warranty case) — and what then happens to the FIN-18 warning the closure armed?** `pruefeZeiterfassung` reads `status = 'abgeschlossen' or abgeschlossen_am is not null` as the signal that arms the FIN-18 block in the invoice path (D-366). A silent re-opening would therefore disarm a warning somebody deliberately decided on, and leave no trace. Until answered the closure is **one-way**: `abgeschlossen_am` is immutable and the status cannot leave `abgeschlossen`; correction runs through a Nachtrag or a new order. | `drizzle/0296`, `services/auftrag/abschluss.ts`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367 · **Voreinstellung → D-780** |
-| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart. Since V-161 (`drizzle/0410`, D-654) a new `referenz` records the `auftrag` it was created from (`auftrag_id`, composite FK over the Gesellschaft, immutable) — as PROVENANCE, not coupling: nothing cascades, no trigger on `auftrag` reads it, and the reference keeps its own release; the reference sheet shows a revocation on its origin order as information. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 · **Voreinstellung → D-780** |
+| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart. Since V-161 (`drizzle/0410`, D-654) a new `referenz` records the `auftrag` it was created from (`auftrag_id`, composite FK over the Gesellschaft, immutable) — as PROVENANCE, not coupling: nothing cascades, no trigger on `auftrag` reads it, and the reference keeps its own release; the reference sheet shows a revocation on its origin order as information. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. Since V-287 (D-841) the revocation also creates, per published reference from the order, the task „Referenz herausnehmen" (five Berlin working days, `app.referenz_herausnahme_aufgabe`, 0528) — still no row is removed and no status set automatically. | `drizzle/0296`, `drizzle/0528`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 · **Voreinstellung → D-780, D-841** |
 | O-736 | **Which document categories may EVER be released to a customer?** DOC-01 lists `mitarbeiter` and `buchhaltung` alongside the customer-facing ones; releasing a payslip or a bank statement to a customer must be impossible, not merely unusual. Today the database checks only the right (`dokument.kunde_freigeben`, `drizzle/0297`), so the release screen names the category prominently and the audit entry records it with every switch. A release without `kunde_id` is rejected outright. | `drizzle/0297`, `services/dokument/kundenfreigabe.ts`, `/dokumente/[id]/kundenfreigabe`, DOC-01, DOC-03, DOC-04, O-671 · **Voreinstellung → D-780** |
 | O-737 | **Does a later change to `raum.flaeche_qm` or `raum.belagsart_id` affect running offers and orders** — must the Kalkulation be recomputed and the customer informed — **or does it apply only to future calculations?** Both values feed every cleaning price (OPS-02, OPS-07) and every Revier target time, so one measurement moves numbers in several other places. Until answered the room sheet changes only the room, and it shows underneath **what hangs on it**: the Richtzeit this room contributes, its Reviere with their overrides, and its import history. Blocking the change would be wrong — a re-measured room is the truth, and the numbers beside it are what must follow. | `services/raumbuch/raum.ts`, `services/kalkulation/raumbuch.ts` (`ladeRaumRichtzeit`), `/objekte/[id]/raumbuch/[raumId]`, OPS-02, OPS-03, OPS-07 · **Voreinstellung → D-780** |
 **Mitarbeiterportal**
@@ -24571,7 +24571,7 @@ und eine Frist: Reklamationen bekommen beim Anlegen `faellig_am`.
 | O-730 | Befunde vor dem Abschluss warnen, sperren nicht; die Buchhaltung sieht sie und entscheidet. | Auftrag › Abschluss |
 | O-732 | Eine erteilte Preisfreigabe wird nicht widerrufen; ein anderer Preis braucht eine neue Angebotsversion. | Angebot › Freigabe |
 | O-734 | Ein abgeschlossener Auftrag wird nicht wieder geöffnet; Korrektur über Nachtrag oder neuen Auftrag. | `auftrag/status.ts`, `auftrag/aendern.ts` |
-| O-735 | Widerruf einer Referenzfreigabe: die Website-Pflege nimmt eine veröffentlichte Referenz binnen 5 Arbeitstagen VON HAND heraus, nicht rückwirkend; die Referenzzeile bleibt, das Referenzblatt zeigt den Widerruf am Ursprungsauftrag. Eine Aufgabe dafür entsteht noch nicht von selbst (V-287) — die Frist ist eine Dienstpflicht, keine Automatik. | Auftrag › Kundenfreigabe |
+| O-735 | Widerruf einer Referenzfreigabe: die Website-Pflege nimmt eine veröffentlichte Referenz binnen 5 Arbeitstagen VON HAND heraus, nicht rückwirkend; die Referenzzeile bleibt, das Referenzblatt zeigt den Widerruf am Ursprungsauftrag. Seit V-287 (D-841) entsteht mit dem Widerruf je veröffentlichter Referenz die Aufgabe „Referenz herausnehmen" (Priorität hoch, Frist 5 Arbeitstage, Aufgabenliste der Gesellschaft); herausgenommen wird weiter von Hand. | Auftrag › Kundenfreigabe |
 | O-737 | Eine Flächenänderung im Raumbuch lässt laufende Angebote und Aufträge unverändert; sie steht am Raum, die Kalkulation zeigt sie zur Prüfung. | Raumbuch |
 | O-907 | Von Hand erfasste Kontakte, Empfehlungen und Bekanntmachungen sind keine Anfrage; nur was der Kontakt selbst an die Gesellschaft richtet (Formular, E-Mail, Anruf mit Datum und Quelle), begründet eine. | `crm-lead.ts` |
 | O-941 | Pipeline-Bericht: „gefunden" ist eine nicht ausgeschlossene Bewertung, in der eine Regel zur LEISTUNG positiv trifft — ein CPV-Code des Profils mit Wirkung positiv oder ein Positiv-Stichwort (`FUND_PLATZHALTER`, Regeln `cpv` und `stichwort`) —, und jede Bekanntmachung, zu der ein Mensch einen Vorgang eröffnet hat (`pipelineZahlen`). Region, Wert, Frist und Schwellenwert bewerten einen Fund, sie begründen keinen; eine Bewertung allein ist kein Fund. | `radar/fund.platzhalter.ts`, `bericht/kennzahlen.ts`, Berichte › Pipeline |
@@ -28193,4 +28193,80 @@ Wörter in beiden Sprachen). Dazu `tests/kern` komplett, `pnpm guards`,
 `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-313, V-084, O-181, D-787; `drizzle/0527_mahnung_erledigt_erreichbar.sql`, `src/server/services/finanz/mahnung/folgeaktion.ts`, `src/server/registry/dienste.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts`, `tests/kern/mahnung-folgeaktion.test.ts` |
+|---|---|
+
+### D-841 · Bauwelle 38: Der Widerruf einer Referenzfreigabe stellt die Aufgabe „Referenz herausnehmen" (V-287, O-735)
+
+**Der Anlass.** `widerrufeKundenfreigabe` stempelte den Auftrag und
+protokollierte den Grund. Eine schon veröffentlichte Referenz aus diesem
+Auftrag blieb auf der Website, bis jemand daran dachte. Die Voreinstellung zu
+O-735 (D-780) sagt: die Website-Pflege nimmt sie binnen fünf Arbeitstagen von
+Hand heraus, nicht rückwirkend — eine Frist ohne Aufgabe ist eine Pflicht, an
+die niemand erinnert wird.
+
+**Was gebaut ist.**
+- **`lib/datum/werktage.ts`:** `werktageNach(tag, anzahl)` — das Gegenstück zu
+  `werktageVor` (D-839), dieselbe Zählung: Montag bis Freitag ohne
+  gesetzlichen Feiertag in Berlin, der Ausgangstag zählt nicht mit.
+- **`auftrag/kundenfreigabe.ts`:** `HERAUSNAHME_WERKTAGE = 5` mit
+  `TODO(client, O-735)`, `herausnahmeFrist` (fünf Arbeitstage nach dem
+  Berliner Tag des Widerrufs), `herausnahmeText` (Titel „Referenz
+  herausnehmen: <Titel>", Beschreibung mit Auftrag, Tag, dem Knopf
+  „Zurückziehen" und „gelöscht wird nichts"). `widerrufeKundenfreigabe` liest
+  in derselben Transaktion die Referenzen aus dem Auftrag, die die Website
+  zeigt (freigegeben, veröffentlicht, nicht gelöscht — `t_referenz_oeffentlich`
+  gibt sie jeder Sitzung heraus), und stellt je Referenz die Aufgabe; das
+  Protokoll nennt Grund und Aufgaben. `ladeHerausnahmeAufgaben` für die Seite.
+- **0528, `app.referenz_herausnahme_aufgabe`:** ein Definer, weil das Recht
+  zum Widerruf (`referenz.kundenfreigabe_erfassen`) und `aufgabe.schreiben`
+  verschiedene Rechte sind — eine Modulbeschränkung der Mitgliedschaft
+  (AUT-01) oder eine Rolle je Gesellschaft nimmt das zweite weg, und unter
+  FORCE RLS schlüge das Anlegen fehl und nähme den Widerruf mit. Die Funktion
+  legt genau eine Art an (offen, hoch, Frist als Kalendertag, Bezug
+  `referenz`, Quelle `ereignis`, Schlüssel `ereignis:referenz_widerruf`) und
+  prüft selbst: Sitzung mit Gesellschaft und Konto, nicht lesend, mit
+  Freigaberecht; Text nicht leer; Frist nach heute und höchstens einen Monat
+  weit; die Referenz gehört zur Gesellschaft, steht auf der Website, und ihr
+  Auftrag wurde IN DIESER TRANSAKTION widerrufen (`freigabe_widerrufen_am =
+  now()`). Eine offene Aufgabe je Referenz (`aufgabe_job_uk`); die Kennung
+  vergibt die Funktion selbst, damit sie ohne Leserecht auf `aufgabe`
+  auskommt. `cse_definer` liest die Referenz und legt die Aufgabe an — beides
+  auf den aktiven Mandanten begrenzt, das Anlegen auf genau diese Art.
+- **An wen.** Niemandem einzeln: die Aufgabe steht in der Aufgabenliste der
+  Gesellschaft, die jeder mit `aufgabe.lesen` sieht — und damit jeder, der
+  eine Referenz zurückziehen darf (`referenz.veroeffentlichen`). Wer sie
+  übernimmt, weist sie sich zu. Wer widerrufen hat, steht in `erstellt_von`
+  und sieht sie auch ohne `aufgabe.lesen`. Voreinstellung, mit der Frist
+  (O-735).
+- **Die Seiten.** Die Kundenfreigabe am Auftrag zeigt nach einem Widerruf die
+  Aufgaben mit Frist und Zustand und sagt beim Widerrufen, was entsteht (der
+  Satz „entsteht noch nicht von selbst" ist fort). Das Referenzblatt nennt die
+  Voreinstellung statt „beim Auftraggeber angefragt" (zweisprachig, mit der
+  Frist des Dienstes). Die Detailseite der Aufgabe führt auf das Blatt der
+  Referenz (`AUFLOESER.referenz`) — nur mit `referenz.lesen`, weil eine
+  veröffentlichte Referenz über die öffentliche Policy jeder Sitzung lesbar
+  ist und der Verweis sonst auf ein Blatt führte, das sie nicht öffnen darf.
+- **Nebenbefund, behoben.** Das Protokoll des Widerrufs übergab den Grund als
+  `JSON.stringify(...)` an `$2::jsonb`; der Treiber kodiert ein zweites Mal,
+  und `audit_log.nachher` hielt eine jsonb-ZEICHENKETTE (`nachher ->> 'grund'`
+  war NULL) — derselbe Fehler wie D-467. Jetzt das Objekt.
+- **Kein Seed.** Die Demoreferenz aus dem Auftrag ist ein Entwurf ohne eigene
+  Freigabe (O-913); ein Widerruf im Seed widerriefe eine Demozustimmung, die
+  die übrigen Abläufe brauchen. Der Weg wird im Isolationstest gegangen.
+
+**Prüfung.** `tests/isolation/referenz-herausnahme.test.ts`: je
+veröffentlichter Referenz eine Aufgabe mit allen Feldern und im Protokoll;
+Entwurf, Referenz ohne eigene Freigabe, gelöschte und fremde Herkunft
+bekommen keine; ohne `aufgabe.schreiben` und `aufgabe.lesen` entsteht sie
+trotzdem (von Hand legt dasselbe Konto keine an) und der Widerrufende sieht
+sie; ein zweiter Widerruf bei offener Aufgabe stellt keine zweite, nach
+Erledigung eine neue; die Funktion weist alten Widerruf, fremde Gesellschaft,
+Entwurf, fehlendes Freigaberecht, Gruppenansicht, falsche Frist und leeren
+Text ab; die Policy ist an Mandant und Art gebunden; der Verweis der
+Detailseite folgt `referenz.lesen`. `tests/kern/referenz-herausnahme.test.ts`
+(`werktageNach` über Wochenende, Ostern, Weihnachten, Frauentag; Frist; die
+Wörter; die Seiten). Dazu `pnpm guards`, `pnpm typecheck`, `pnpm lint`,
+`pnpm db:triggers --check`.
+
+| Betrifft | V-287, O-735, D-780, D-467; `drizzle/0528_referenz_herausnahme_aufgabe.sql`, `src/lib/datum/werktage.ts`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/server/services/kern/aufgabe.ts`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/app/portal/[mandant]/website/referenzen/[id]/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `tests/isolation/referenz-herausnahme.test.ts`, `tests/kern/referenz-herausnahme.test.ts` |
 |---|---|
