@@ -7,7 +7,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  ArtFehler, ZielFehler, arten, erzeuge, findeArt, leereArten, registriereArt,
+  ArtFehler, ZielFehler, arten, erzeuge, findeArt, istInternesZiel, leereArten, registriereArt,
   sicherRegistriert, teileFuerZusammenfassung,
   type ArtDefinition, type BenachrichtigungsKontext,
 } from '../../src/server/benachrichtigung/registry.js';
@@ -53,6 +53,33 @@ describe('(1) ohne aufloesbares Ziel entsteht die Benachrichtigung gar nicht (NO
 
   it('eine unbekannte Art ist ein Fehler, keine stille Nichtzustellung', () => {
     expect(() => erzeuge('gibt.esnicht', KONTEXT)).toThrow(ArtFehler);
+  });
+});
+
+/**
+ * V-394, D-814: `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel
+ * weiter — ein Ziel ausserhalb der Plattform waere eine offene Weiterleitung.
+ */
+describe('(1a) das Ziel ist ein Pfad dieser Plattform (V-394)', () => {
+  it('ein Pfad mit einem Schraegstrich vorn ist es', () => {
+    for (const ziel of [
+      '/portal/reinigung/rechnungen/r1', '/portal/mein/zeiten/x/einwand',
+      '/portal/bau/projekte/p?tab=nachtraege', '/a',
+    ]) expect(istInternesZiel(ziel), ziel).toBe(true);
+  });
+
+  it('eine Adresse auf einem fremden Wirt nie — auch nicht verkleidet', () => {
+    for (const ziel of [
+      '//boese.example/x', '/\\boese.example/x', 'https://boese.example/x',
+      'javascript:alert(1)', 'portal/x', '/', '',
+      '/\t/boese.example', '/\n/boese.example', '/portal/x\u0000', '/portal/\u007f',
+    ]) expect(istInternesZiel(ziel), JSON.stringify(ziel)).toBe(false);
+  });
+
+  it('erzeuge weist ein fremdes Ziel ab, bevor eine Zeile entsteht', () => {
+    registriereArt(art({ ziel: () => '//boese.example/rechnung' }));
+    expect(() => erzeuge('finanzen.rechnung_faellig', KONTEXT)).toThrow(ZielFehler);
+    expect(() => erzeuge('finanzen.rechnung_faellig', KONTEXT)).toThrow(/kein Pfad dieser Plattform/u);
   });
 });
 

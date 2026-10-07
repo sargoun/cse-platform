@@ -160,3 +160,38 @@ describe('(3) eine fremde Benachrichtigung ist nicht da — auch nicht per id', 
     expect(gesehen).toHaveLength(0);
   });
 });
+
+/**
+ * V-394, D-814: das Ziel ist ein Pfad dieser Plattform — geprueft von der
+ * Datenbank selbst (0510), nicht nur von der Registry. Bis hierher pruefte
+ * `benachrichtigung.ziel` nur `length(ziel) > 1`, und
+ * `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel weiter.
+ */
+describe('V-394 — kein Ziel ausserhalb der Plattform', () => {
+  async function mitZiel(ziel: string): Promise<unknown> {
+    const a = await konto(`ziel-${String(Math.random()).slice(2, 10)}@cse.test`);
+    return sql.unsafe(
+      `insert into benachrichtigung
+         (mandant_id, empfaenger_id, art, titel, text, ziel, objekt_typ, objekt_id, sammelbar)
+       values ($1,$2,'finanzen.rechnung_faellig','Fällig','Text',$3,'rechnung','1',true)`,
+      [f.reinigung, a, ziel]);
+  }
+
+  it('ein fremder Wirt — auch verkleidet — verletzt den CHECK, selbst fuer den Eigentuemer', async () => {
+    for (const ziel of [
+      '//boese.example/x', '/\\boese.example/x', 'https://boese.example/x',
+      '/\t/boese.example', 'portal/x',
+    ]) {
+      await expect(mitZiel(ziel), JSON.stringify(ziel))
+        .rejects.toThrow(/benachrichtigung_ziel_intern/u);
+    }
+  });
+
+  it('ein Pfad der Plattform geht durch, und der CHECK ist validiert', async () => {
+    await expect(mitZiel('/portal/reinigung/rechnungen/1')).resolves.toBeDefined();
+    const [c] = await sql.unsafe<{ gueltig: boolean }[]>(
+      `select convalidated as gueltig from pg_constraint
+        where conname = 'benachrichtigung_ziel_intern'`);
+    expect(c!.gueltig).toBe(true);
+  });
+});

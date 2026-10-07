@@ -26635,3 +26635,41 @@ komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-378; O-650; `drizzle/0509_team_pflege.sql`, `src/server/services/kern/team.ts`, `src/app/api/kalender/teams/route.ts`, `src/app/portal/[mandant]/kalender/teams/page.tsx`, `src/app/portal/[mandant]/kalender/teams/felder.ts`, `src/app/portal/[mandant]/kalender/page.tsx`, `src/lib/i18n/verwaltung/kalender-teams.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/gruppe/kalender.ts`, `src/server/db/seed/kern.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts` |
 |---|---|
+
+### D-814 · Das Ziel einer Benachrichtigung ist ein Pfad dieser Plattform (V-394)
+
+**Der Anlass.** In der Durchsicht von PR #40 fand Copilot, dass
+`app.abwesenheit_ruecknahme_melden` (0500) sein Ziel vom Aufrufer übernahm.
+Behoben ist das dort (D-808) und in 0505/0506 (D-810). Der Befund dahinter
+gilt für jeden Schreibweg: `benachrichtigung.ziel` prüfte seit 0011 nur
+`length(ziel) > 1`, und `/api/benachrichtigungen/[id]/oeffnen` leitete mit
+`new URL(ziel, ursprung)` weiter. Der Kommentar der Route versprach einen
+CHECK auf den führenden Schrägstrich, den es nie gab. Ein Ziel
+`//boese.example` wäre eine offene Weiterleitung hinter einer echten Anmeldung
+gewesen.
+
+**Was gebaut ist — dreifach, weil jede Stufe eine andere Lücke schließt.**
+- **Die Datenbank** (`0510`): `benachrichtigung_ziel_intern` verlangt einen
+  `/`, danach weder `/` noch `\` (für den Browser beides der Anfang einer
+  Adresse auf einem fremden Wirt; in http und https gilt der Rückstrich als
+  Schrägstrich) und kein Steuerzeichen (Tabulator und Zeilenumbruch streicht
+  der URL-Parser, bevor er liest — aus `/<Tab>/boese.example` wird
+  `//boese.example`). Der Bestand wird geprüft, nicht umgeschrieben: besteht
+  er die Regel, wird der CHECK validiert, sonst gilt er für jede neue und
+  geänderte Zeile, und eine Meldung nennt die Zahl. Seed und Demodaten
+  bestehen ihn.
+- **Die Registry**: `erzeuge` weist ein fremdes Ziel ab, bevor eine Zeile
+  entsteht (`istInternesZiel`, dieselbe Regel; `ZielFehler` mit eigenem Satz).
+- **Die Route**: sie prüft die Form noch einmal und dann, ob die aufgelöste
+  Adresse auf DIESEM Ursprung liegt. Ein Ziel, das eines davon nicht besteht
+  (eine Altzeile), führt auf den Start des eigenen Portals
+  (`PORTAL_START`); gelesen ist die Meldung trotzdem.
+
+**Prüfung.** `tests/kern/benachrichtigung.test.ts` (1a),
+`tests/kern/benachrichtigung-oeffnen-route.test.ts`,
+`tests/isolation/benachrichtigung.test.ts` (V-394, an echten Zeilen und mit
+validiertem CHECK), `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-394; NOT-03; `drizzle/0510_benachrichtigung_ziel_intern.sql`, `src/server/benachrichtigung/registry.ts`, `src/app/api/benachrichtigungen/[id]/oeffnen/route.ts`, `tests/kern/benachrichtigung.test.ts`, `tests/kern/benachrichtigung-oeffnen-route.test.ts`, `tests/isolation/benachrichtigung.test.ts` |
+|---|---|

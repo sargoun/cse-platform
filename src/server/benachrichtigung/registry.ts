@@ -177,14 +177,36 @@ export function findeArt(schluessel: string): ArtDefinition | undefined {
 export function leereArten(): void { ARTEN.clear(); }
 
 export class ZielFehler extends Error {
-  constructor(schluessel: string) {
-    super(
-      `Die Benachrichtigung ${schluessel} hat kein aufloesbares Ziel (NOT-03). `
-      + 'Eine Mitteilung, die nirgendwohin fuehrt, ist eine ueber ein Problem, '
-      + 'das man nicht ansehen kann.',
-    );
+  constructor(schluessel: string, fremd = false) {
+    super(fremd
+      ? `Das Ziel der Benachrichtigung ${schluessel} ist kein Pfad dieser Plattform `
+        + '(V-394). `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel weiter; '
+        + 'ein fremdes Ziel waere eine offene Weiterleitung hinter einer echten Anmeldung.'
+      : `Die Benachrichtigung ${schluessel} hat kein aufloesbares Ziel (NOT-03). `
+        + 'Eine Mitteilung, die nirgendwohin fuehrt, ist eine ueber ein Problem, '
+        + 'das man nicht ansehen kann.');
     this.name = 'ZielFehler';
   }
+}
+
+/**
+ * Ist `ziel` ein Pfad DIESER Plattform? (NOT-03, V-394, D-814)
+ *
+ * `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel weiter. Fuer den
+ * Browser ist `//boese.example` eine Adresse auf einem fremden Wirt, `/\…`
+ * ebenso (in http und https gilt der Rueckstrich als Schraegstrich), und
+ * Tabulator und Zeilenumbruch streicht der URL-Parser, bevor er liest — aus
+ * `/<Tab>/boese.example` wird `//boese.example`. Deshalb: ein `/`, danach
+ * weder `/` noch `\`, und kein Steuerzeichen. Dieselbe Regel prueft die
+ * Datenbank (`benachrichtigung_ziel_intern`, 0510).
+ */
+export function istInternesZiel(ziel: string): boolean {
+  if (!/^\/[^/\\]/u.test(ziel)) return false;
+  for (let i = 0; i < ziel.length; i += 1) {
+    const zeichen = ziel.charCodeAt(i);
+    if (zeichen < 0x20 || zeichen === 0x7f) return false;
+  }
+  return true;
 }
 
 export interface ErzeugteBenachrichtigung {
@@ -220,6 +242,7 @@ export function erzeuge(
   }
   const ziel = art.ziel(kontext);
   if (ziel === null || ziel === '') throw new ZielFehler(schluessel);
+  if (!istInternesZiel(ziel)) throw new ZielFehler(schluessel, true);
 
   const gewuenscht = praeferenz[schluessel] ?? art.kanaeleVorgabe;
   return {
