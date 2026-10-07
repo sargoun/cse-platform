@@ -46,8 +46,9 @@ export type AnordnungForm = 'schriftlich' | 'muendlich' | 'e_mail' | 'unbekannt'
 /**
  * TODO(client, O-30): Voreinstellung — 14 Tage (SPEC §14), gemeldet an die
  * verantwortliche Bauleitung des Projekts; fehlt sie, an die Leitung der
- * Gesellschaft. Das Zweite ist nicht gebaut: der Lauf zaehlt den Fall als
- * `ohne_bauleitung` (V-381). D-800.
+ * Gesellschaft — an alle, die Nachtraege einreichen duerfen
+ * (`ERSATZ_RECHT_OHNE_BAULEITUNG` in `jobs/nachtragWache.ts`; gebaut mit
+ * V-381, D-808). D-800.
  */
 export const NACHTRAG_WACHFRIST_TAGE = 14;
 
