@@ -134,7 +134,7 @@ export async function meldeKettenbruch(
 /** Der Satz, den der Lauf an den Befund hängt. */
 function zustellsatz(z: Kettenzustellung): string {
   if (z.empfaenger === 0) {
-    return ' Niemand in der Gesellschaft hält buchhaltung.lesen oder die Rolle leitung — '
+    return ' Niemand in der Gesellschaft liest die Buchhaltung oder hat die Rolle Leitung — '
       + 'der Befund steht nur im Lauf.';
   }
   return ` Gemeldet an Buchhaltung und Geschäftsführung: ${String(z.zugestellt)} neu, `
