@@ -36,6 +36,7 @@ import { eroeffneFaden } from '../kern/nachricht.js';
 import { erzeuge, findeArt } from '../../benachrichtigung/registry.js';
 import { tagDeutsch } from '../../../lib/datum/kalendertag.js';
 import { ART_NACHERFASSUNG_SPAET, registriereZeitArten } from './benachrichtigung.js';
+import { ANKERBARE_AUFTRAGSZUSTAENDE } from '../dienstplan/leistungsanker.js';
 
 export class KeinNachrichtenRechtFehler extends Error {
   constructor() {
@@ -104,6 +105,35 @@ export interface KorrekturEingabe {
    */
   readonly zeitEinwandId?: string | null;
   readonly ipAdresse?: string | null;
+  /**
+   * Die neue Zuordnung — nur mit der Art `zuordnung_korrektur` (V-351,
+   * Voreinstellung O-927 (1), D-827). Fehlt ein Feld, bleibt es, wie es war;
+   * gelöst wird über eine Korrektur nichts.
+   */
+  readonly zuordnung?: {
+    readonly objektId?: string;
+    readonly auftragLeistungId?: string;
+  };
+}
+
+/**
+ * Warum eine Korrektur die Zuordnung NICHT ändert (V-351, D-827) — als
+ * Schlüssel, den die Korrekturseite nachschlägt.
+ */
+export const ZUORDNUNG_ABWEISUNGEN = [
+  'zuordnung_falsche_art', 'zuordnung_unveraendert', 'zuordnung_gesperrt',
+  'zuordnung_abgerechnet', 'zuordnung_in_rechnung', 'objekt_unbekannt', 'objekt_aus_schicht',
+  'leistung_unbekannt', 'leistung_ausserhalb', 'leistung_auftrag_laeuft_nicht',
+] as const;
+export type ZuordnungAbweisung = (typeof ZUORDNUNG_ABWEISUNGEN)[number];
+
+export class ZuordnungsFehler extends Error {
+  readonly code = 'ungueltiger_zustand';
+  readonly status = 409;
+  constructor(readonly grund: ZuordnungAbweisung) {
+    super(`Die Zuordnung wurde nicht geändert: ${grund}.`);
+    this.name = 'ZuordnungsFehler';
+  }
 }
 
 export class KeinAktuellerEintragFehler extends Error {
@@ -178,7 +208,77 @@ interface EintragZeile {
   geraete_zeit_beginn: Date | null;
   geraete_zeit_ende: Date | null;
   gesperrt_am: Date | null;
+  abgerechnet_am: Date | null;
   dauer_netto_minuten: number | null;
+}
+
+/**
+ * **Die neue Zuordnung prüfen** (V-351, Voreinstellung O-927 (1), O-891,
+ * D-795, D-827).
+ *
+ * Im offenen, nicht abgerechneten Monat ändert die Korrekturfassung Objekt
+ * und Leistungszeile; im gesperrten Monat nicht — dort berichtigt die
+ * Rechnung (Storno und neue Position), nicht der Zeiteintrag (O-891). Nicht
+ * abgerechnet heisst: `abgerechnet_am` ist leer, und kein Rechnungsentwurf
+ * führt eine Fassung dieser Kette schon (`app.zeit_in_rechnung`, 0520).
+ *
+ * - **Objekt** nur ohne Schicht: eine Zeit auf einer Schicht hängt an deren
+ *   Objekt und Revier, und der Auslöser `z_erben` füllte ein geleertes
+ *   Revier aus der Schicht wieder auf. Ein anderes Objekt heisst dort eine
+ *   andere Schicht. Das Revier bleibt nur, wenn es am neuen Objekt liegt.
+ * - **Leistungszeile**: sie muss am Berliner Tag der Zeit gelten, und ihr
+ *   Auftrag muss neue Zeit annehmen (`ANKERBARE_AUFTRAGSZUSTAENDE`) — eine
+ *   Korrektur ist für die Abrechnung neue Zeit.
+ */
+async function pruefeZuordnung(
+  kontext: SchreibKontext, alt: EintragZeile, art: KorrekturArt,
+  z: NonNullable<KorrekturEingabe['zuordnung']>,
+): Promise<{ objektId: string | null; auftragLeistungId: string | null; revierId: string | null }> {
+  if (art !== 'zuordnung_korrektur') throw new ZuordnungsFehler('zuordnung_falsche_art');
+  const objektNeu = z.objektId !== undefined && z.objektId !== alt.objekt_id;
+  const leistungNeu = z.auftragLeistungId !== undefined
+    && z.auftragLeistungId !== alt.auftrag_leistung_id;
+  if (!objektNeu && !leistungNeu) throw new ZuordnungsFehler('zuordnung_unveraendert');
+  if (alt.gesperrt_am !== null) throw new ZuordnungsFehler('zuordnung_gesperrt');
+  if (alt.abgerechnet_am !== null) throw new ZuordnungsFehler('zuordnung_abgerechnet');
+  const [rechnung] = await kontext.abfrage<{ ja: boolean }>(
+    `select app.zeit_in_rechnung($1::uuid) as ja`, [alt.id]);
+  if (rechnung?.ja === true) throw new ZuordnungsFehler('zuordnung_in_rechnung');
+
+  let objektId = alt.objekt_id;
+  let revierId = alt.revier_id;
+  if (objektNeu) {
+    if (alt.einsatz_id !== null) throw new ZuordnungsFehler('objekt_aus_schicht');
+    const [o] = await kontext.abfrage<{ id: string; revier_bleibt: boolean }>(
+      `select o.id,
+              exists (select 1 from revier r
+                       where r.mandant_id = o.mandant_id and r.objekt_id = o.id
+                         and r.id = $2::uuid) as revier_bleibt
+         from objekt o
+        where o.id = $1::uuid and o.mandant_id = app.aktiver_mandant()
+          and o.archiviert_am is null`, [z.objektId, alt.revier_id]);
+    if (o === undefined) throw new ZuordnungsFehler('objekt_unbekannt');
+    objektId = o.id;
+    if (!o.revier_bleibt) revierId = null;
+  }
+
+  let auftragLeistungId = alt.auftrag_leistung_id;
+  if (leistungNeu) {
+    const [l] = await kontext.abfrage<{ gilt: boolean; laeuft: boolean }>(
+      `select (al.gueltig_ab <= t.tag and (al.gueltig_bis is null or al.gueltig_bis >= t.tag))
+                as gilt,
+              (a.status::text = any($3::text[])) as laeuft
+         from auftrag_leistung al
+         join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
+         cross join (select ($2::timestamptz at time zone 'Europe/Berlin')::date as tag) t
+        where al.id = $1::uuid and al.mandant_id = app.aktiver_mandant()`,
+      [z.auftragLeistungId, alt.beginn_zeitpunkt.toISOString(), [...ANKERBARE_AUFTRAGSZUSTAENDE]]);
+    if (l === undefined) throw new ZuordnungsFehler('leistung_unbekannt');
+    if (!l.laeuft) throw new ZuordnungsFehler('leistung_auftrag_laeuft_nicht');
+    if (!l.gilt) throw new ZuordnungsFehler('leistung_ausserhalb');
+    auftragLeistungId = z.auftragLeistungId ?? null;
+  }
+  return { objektId, auftragLeistungId, revierId };
 }
 
 export interface KorrekturErgebnis {
@@ -225,7 +325,7 @@ export async function korrigiereZeiteintrag(
             revier_id, beginn_zeitpunkt, ende_zeitpunkt, pause_minuten, status,
             ersetzt_am, checkin_token_id, checkout_token_id,
             geraete_zeit_beginn, geraete_zeit_ende,
-            gesperrt_am, dauer_netto_minuten
+            gesperrt_am, abgerechnet_am, dauer_netto_minuten
        from zeiteintrag where id = $1`,
     [eingabe.zeiteintragId],
   );
@@ -242,6 +342,17 @@ export async function korrigiereZeiteintrag(
   const pause = eingabe.pauseMinuten ?? alt.pause_minuten;
 
   const storno = eingabe.art === 'storno';
+
+  /*
+   * V-351: die Zuordnung der neuen Fassung — die alte, solange niemand eine
+   * andere nennt. Geprüft wird, BEVOR etwas geschrieben ist.
+   */
+  const zuordnung = eingabe.zuordnung === undefined
+    || (eingabe.zuordnung.objektId === undefined
+      && eingabe.zuordnung.auftragLeistungId === undefined)
+    ? { objektId: alt.objekt_id, auftragLeistungId: alt.auftrag_leistung_id,
+      revierId: alt.revier_id }
+    : await pruefeZuordnung(kontext, alt, eingabe.art, eingabe.zuordnung);
 
   /**
    * Die Ersatzfassung — `quelle_* = 'planer_entscheidung'`, weil ein benannter
@@ -283,7 +394,7 @@ export async function korrigiereZeiteintrag(
       [
         alt.mandant_id, alt.kette_id, alt.version + 1, alt.id,
         alt.anstellung_id, alt.person_id, alt.einsatz_id, alt.einsatz_zuordnung_id,
-        alt.objekt_id, alt.auftrag_leistung_id, alt.revier_id,
+        zuordnung.objektId, zuordnung.auftragLeistungId, zuordnung.revierId,
         beginn.toISOString(), ende?.toISOString() ?? null, pause,
         alt.geraete_zeit_beginn?.toISOString() ?? null,
         alt.geraete_zeit_ende?.toISOString() ?? null,
@@ -337,7 +448,7 @@ export async function korrigiereZeiteintrag(
    * hier ist die Grenze zwischen „nichts zu verschieben" und „Differenz ins
    * Nichts": die erste Lage kommt vor, und sie braucht eine Antwort.
    *
-   * // TODO(client, O-891): Voreinstellung — im gesperrten Monat ist eine Korrektur ohne Minutendifferenz nicht zulässig (der Auslöser weist ab, wie gebaut): eine falsche Zuordnung eines abgeschlossenen Monats berichtigt die Rechnung (Storno und neue Position), nicht der Zeiteintrag. Im offenen Monat ändert eine Korrektur die Zuordnung (O-927) — das kann sie noch nicht (V-351). D-795.
+   * // TODO(client, O-891): Voreinstellung — im gesperrten Monat ist eine Korrektur ohne Minutendifferenz nicht zulässig (der Auslöser weist ab, wie gebaut): eine falsche Zuordnung eines abgeschlossenen Monats berichtigt die Rechnung (Storno und neue Position), nicht der Zeiteintrag. Im offenen Monat ändert eine Korrektur die Zuordnung (O-927, `pruefeZuordnung`, V-351, D-827). D-795.
    */
   let ausgleich = eingabe.ausgleichBewegungId ?? null;
   if (ausgleich === null && alt.gesperrt_am !== null) {

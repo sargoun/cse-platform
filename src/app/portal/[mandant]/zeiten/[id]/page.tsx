@@ -166,6 +166,16 @@ export default async function Zeiteintragsblatt(
               Korrigieren
             </Link>
           )}
+          {/* V-351: Zeit ohne Auftrag wird über eine Korrektur zugeordnet (O-927 (1)). */}
+          {korrigierbar && e.auftragsnummer === null && (
+            <Link
+              href={`/portal/${mandant}/zeiten/${id}/korrektur?art=zuordnung_korrektur`}
+              data-cse="zur-zuordnung"
+              className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"
+            >
+              Auftrag zuordnen
+            </Link>
+          )}
           <Link
             href={`/portal/${mandant}/zeiten`}
             className="rounded-md border border-line px-s3 py-s1 text-sm text-text-muted hover:border-line-strong hover:text-text"

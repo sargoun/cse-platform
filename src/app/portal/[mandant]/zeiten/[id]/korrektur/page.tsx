@@ -21,6 +21,9 @@ import { beschriftung as wortFuer } from '@/lib/i18n/beschriftung/basis';
 import { EINWAND_STATUS_TEXT } from '@/lib/i18n/beschriftung/zeit';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import type { ReactNode } from 'react';
+import {
+  listeLeistungenAmTag, type AnkerbareLeistung,
+} from '@/server/services/dienstplan/leistungsanker';
 
 /**
  * `/portal/[mandant]/zeiten/[id]/korrektur` — wer korrigiert, wann und
@@ -54,8 +57,7 @@ const ART_TEXT: readonly { readonly wert: string; readonly text: string }[] = [
   { wert: 'pause_korrektur', text: 'Pause korrigieren' },
   {
     wert: 'zuordnung_korrektur',
-    text: 'Zuordnung korrigieren — falsches Objekt, falscher Auftrag (vermerkt den Grund; '
-      + 'die Zuordnung selbst ändert eine Korrektur noch nicht)',
+    text: 'Zuordnung korrigieren — falsches Objekt, falscher Auftrag (Felder unten)',
   },
   { wert: 'nacherfassung', text: 'Nacherfassung — die Aufzeichnung war unvollständig' },
   { wert: 'storno', text: 'Storno — die Aufzeichnung gehört ganz weg' },
@@ -113,6 +115,31 @@ const FEHLER_TEXT: Readonly<Record<string, ReactNode>> = {
   nicht_gefunden: 'Diesen Zeiteintrag gibt es in dieser Gesellschaft nicht.',
   zweiter_faktor: 'Für diesen Schritt fehlt die zweite Anmeldestufe.',
   keine_sitzung: 'Die Anmeldung ist abgelaufen. Bitte neu anmelden.',
+  /* V-351 (D-827): warum die Zuordnung nicht geändert wurde. */
+  zuordnung_falsche_art:
+    'Objekt und Leistungszeile ändert nur eine Korrektur der Art „Zuordnung korrigieren".',
+  zuordnung_unveraendert:
+    'Objekt und Leistungszeile sind dieselben wie bisher — es gibt nichts zu ändern.',
+  zuordnung_gesperrt:
+    'Der Monat dieses Eintrags ist gesperrt. Eine falsche Zuordnung eines abgeschlossenen '
+    + 'Monats berichtigt die Rechnung (Storno und neue Position), nicht der Zeiteintrag '
+    + '(Voreinstellung O-891).',
+  zuordnung_abgerechnet:
+    'Diese Zeit steht in einer festgeschriebenen Rechnung. Berichtigt wird die Rechnung, '
+    + 'nicht die Zuordnung der Zeit.',
+  zuordnung_in_rechnung:
+    'Diese Zeit steht in einem Rechnungsentwurf, der sie mit der bisherigen Zuordnung führt. '
+    + 'Erst den Entwurf verwerfen, dann korrigieren.',
+  objekt_unbekannt: 'Dieses Objekt gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
+  objekt_aus_schicht:
+    'Diese Zeit hängt an einer Schicht und damit an deren Objekt. Ein anderes Objekt heisst '
+    + 'eine andere Schicht — die Leistungszeile lässt sich hier trotzdem korrigieren.',
+  leistung_unbekannt:
+    'Diese Leistungszeile gibt es in dieser Gesellschaft nicht, oder Ihrem Konto fehlt das '
+    + 'Recht, Aufträge zu lesen.',
+  leistung_ausserhalb: 'Diese Leistungszeile galt am Tag der Zeit nicht.',
+  leistung_auftrag_laeuft_nicht:
+    'Der Auftrag dieser Leistungszeile nimmt keine Zeit an (nur aktive und ruhende Aufträge).',
 };
 
 export default async function Korrekturblatt({
@@ -183,6 +210,34 @@ export default async function Korrekturblatt({
       withTenant(tx, sitzung, async (kontext) => leseEinwand(kontext, einwandId)),
     ) as Promise<EinwandBlatt | null>);
   const einwandUnlesbar = einwandId !== null && einwand === null;
+
+  /*
+   * V-351 (D-827): was eine Korrektur der Zuordnung anbieten kann — die
+   * Leistungszeilen, die am Berliner Tag der Zeit galten (nur mit
+   * `auftrag.lesen`, sonst kein Feld), und Objekte nur für eine Zeit ohne
+   * Schicht (mit `objekt.lesen`).
+   */
+  const zuordnungRechte = await haeltRechte(sitzung, 'auftrag.lesen', 'objekt.lesen');
+  const auswahl = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => {
+      const [t] = await kontext.abfrage<{ tag: string }>(
+        `select (beginn_zeitpunkt at time zone 'Europe/Berlin')::date::text as tag
+           from zeiteintrag where id = $1::uuid`, [id]);
+      const leistungen = t !== undefined && zuordnungRechte['auftrag.lesen'] === true
+        ? await listeLeistungenAmTag(kontext, t.tag) : null;
+      const objekte = e.einsatzId === null && zuordnungRechte['objekt.lesen'] === true
+        ? await kontext.abfrage<{ id: string; bezeichnung: string }>(
+          `select id, bezeichnung from objekt where archiviert_am is null
+            order by bezeichnung limit 500`)
+        : null;
+      return { leistungen, objekte };
+    })) as Promise<{
+      leistungen: readonly AnkerbareLeistung[] | null;
+      objekte: readonly { readonly id: string; readonly bezeichnung: string }[] | null;
+    }>);
+  /* `?art=zuordnung_korrektur` — der Weg vom Zeitblatt „ohne Auftrag" hierher. */
+  const artVor = typeof frage['art'] === 'string'
+    && ART_TEXT.some((a) => a.wert === frage['art']) ? frage['art'] : 'zeit_korrektur';
 
   const abgeloest = e.ersetztDurchId !== null;
   const laeuft = e.status === 'laufend';
@@ -354,7 +409,7 @@ export default async function Korrekturblatt({
           <div className="grid grid-cols-1 gap-s4 sm:grid-cols-2">
             <div>
               <label className={beschriftung} htmlFor="art">Art der Korrektur</label>
-              <select id="art" name="art" required defaultValue="zeit_korrektur" className={eingabe}>
+              <select id="art" name="art" required defaultValue={artVor} className={eingabe}>
                 {ART_TEXT.map((a) => (
                   <option key={a.wert} value={a.wert}>{a.text}</option>
                 ))}
@@ -399,6 +454,57 @@ export default async function Korrekturblatt({
             Umstellungsnacht ist das der Unterschied zwischen einer erfundenen und einer
             gearbeiteten Stunde (Invariante 2).
           </p>
+
+          <fieldset className="m-0 grid grid-cols-1 gap-s4 border-0 p-0 sm:grid-cols-2"
+                    data-cse="korrektur-zuordnung">
+            <legend className="mb-s2 text-sm text-text">
+              Zuordnung — nur mit „Zuordnung korrigieren"
+            </legend>
+            <div>
+              <label className={beschriftung} htmlFor="auftrag_leistung">Leistungszeile</label>
+              {auswahl.leistungen === null ? (
+                <p className="m-0 mt-s1 text-sm text-text-muted">
+                  Leistungszeilen sieht nur, wer Aufträge lesen darf:{' '}
+                  <Recht schluessel="auftrag.lesen" />. Die Leistungszeile bleibt, wie sie ist.
+                </p>
+              ) : (
+                <select id="auftrag_leistung" name="auftrag_leistung" defaultValue=""
+                        className={eingabe} data-cse="korrektur-leistung">
+                  <option value="">unverändert ({e.auftragsnummer ?? 'ohne Auftrag'})</option>
+                  {auswahl.leistungen.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.auftragsnummer} · Pos. {l.positionNr} · {l.bezeichnung}
+                      {l.kunde === null ? '' : ` · ${l.kunde}`}
+                      {l.objekt === null ? '' : ` · ${l.objekt}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className={beschriftung} htmlFor="objekt">Objekt</label>
+              {auswahl.objekte === null ? (
+                <p className="m-0 mt-s1 text-sm text-text-muted">
+                  {e.einsatzId !== null
+                    ? 'Die Zeit hängt an einer Schicht und damit an deren Objekt.'
+                    : 'Objekte sieht nur, wer sie lesen darf — das Objekt bleibt, wie es ist.'}
+                </p>
+              ) : (
+                <select id="objekt" name="objekt" defaultValue="" className={eingabe}
+                        data-cse="korrektur-objekt">
+                  <option value="">unverändert ({e.objekt ?? 'ohne Objekt'})</option>
+                  {auswahl.objekte.map((o) => (
+                    <option key={o.id} value={o.id}>{o.bezeichnung}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <p className="m-0 max-w-prose text-sm text-text-muted sm:col-span-2">
+              Angeboten werden die Leistungszeilen, die am Tag dieser Zeit galten. Im
+              gesperrten oder abgerechneten Monat ändert eine Korrektur die Zuordnung
+              nicht — dort berichtigt die Rechnung (Voreinstellung O-891).
+            </p>
+          </fieldset>
 
           <div>
             <label className={beschriftung} htmlFor="begruendung">Begründung (Pflicht)</label>

@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { ROUTEN } from '../../src/server/auth/route-manifest.js';
 import { ROUTEN as SEITEN } from '../../src/server/registry/routen.generiert.js';
 import { ohneKommentareMitTexten } from './hilfen/quelltext.js';
+import { ZUORDNUNG_ABWEISUNGEN } from '../../src/server/services/zeit/korrektur.js';
 
 const ROUTE = 'src/app/api/zeit/korrektur/route.ts';
 const SEITE = 'src/app/portal/[mandant]/zeiten/[id]/korrektur/page.tsx';
@@ -190,6 +191,23 @@ describe('die Antworten der Datenbank werden richtig übersetzt', () => {
     const s = quelle(SEITE);
     const erklaert = /const FEHLER_TEXT[\s\S]*?\n\};/u.exec(s)?.[0] ?? '';
     for (const w of alle) expect(erklaert).toContain(`${w}:`);
+  });
+
+  it('V-351: jeder Grund einer abgewiesenen Zuordnung hat einen Satz, und die Route reicht ihn durch', () => {
+    const r = quelle(ROUTE);
+    expect(r).toContain('fehler instanceof ZuordnungsFehler');
+    expect(r).toMatch(/wort: fehler\.grund/u);
+    const erklaert = /const FEHLER_TEXT[\s\S]*?\n\};/u.exec(quelle(SEITE))?.[0] ?? '';
+    expect(ZUORDNUNG_ABWEISUNGEN.length).toBeGreaterThan(5);
+    for (const w of ZUORDNUNG_ABWEISUNGEN) expect(erklaert, w).toContain(`${w}:`);
+  });
+
+  it('V-351: die Maske schickt Leistungszeile und Objekt, und „Auftrag zuordnen" führt mit der Art hin', () => {
+    const s = quelle(SEITE);
+    expect(s).toContain('name="auftrag_leistung"');
+    expect(s).toContain('name="objekt"');
+    expect(s).not.toContain('die Zuordnung selbst ändert eine Korrektur noch nicht');
+    expect(quelle(BLATT)).toContain('/korrektur?art=zuordnung_korrektur');
   });
 });
 
