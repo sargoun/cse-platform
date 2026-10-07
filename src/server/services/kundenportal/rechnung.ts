@@ -453,6 +453,30 @@ export async function mandantZurRechnung(
   return z?.mandant_id ?? null;
 }
 
+/** Die beiden Dateien, die der Kunde zu einem Beleg abrufen kann. */
+export type Kundendatei = 'zugferd' | 'xrechnung';
+
+/**
+ * **Jeder Abruf hinterlässt VOR der Auslieferung eine Spur** (V-347, O-843,
+ * D-794, D-835).
+ *
+ * Eine Zeile im Prüfprotokoll mit der Gesellschaft DES BELEGS — der
+ * Kunden-Scope hat keinen aktiven Mandanten (K-20). Geprüft wird in der
+ * Datenbank (`app.kunde_rechnung_abruf_vermerken`, 0525): Kundensitzung,
+ * bekannte Datei, eigener festgeschriebener Beleg. Ein fremder Beleg wirft
+ * dort — die Route hat ihn vorher schon mit 404 abgewiesen
+ * (`mandantZurRechnung`), die Datenbank prüft es ein zweites Mal.
+ *
+ * In DERSELBEN Transaktion wie die Erzeugung der Datei: scheitert sie, fällt
+ * die Spur mit ihr — es wurde nichts ausgeliefert.
+ */
+export async function vermerkeKundenabruf(
+  kontext: KundenAbfrage, id: string, datei: Kundendatei,
+): Promise<void> {
+  await kontext.abfrage(
+    `select app.kunde_rechnung_abruf_vermerken($1::uuid, $2)`, [id, datei]);
+}
+
 function alsZeile(z: ListenZeile): Kundenrechnung {
   return {
     id: z.id,

@@ -491,5 +491,21 @@ describe('die Kundenausgaberouten binden den Kunden-Scope, nicht den Mandanten',
       expect(text).toContain('KeinKundenzugangFehler');
       expect(text).toContain('NichtGefundenFehler');
     });
+
+    it(`${pfad} hinterlässt die Spur NACH authorize und VOR der Datei (V-347)`, () => {
+      /**
+       * O-843 (D-794, D-835): jeder Kundenabruf hinterlässt VOR der
+       * Auslieferung eine Spur. Vor `authorize` stünde ein Vermerk für einen
+       * Abruf, der gar nicht erlaubt war; nach der Erzeugung der Datei ein
+       * Abruf, dessen Spur fehlt, wenn der Vermerk scheitert.
+       */
+      const spur = text.indexOf('vermerkeKundenabruf(');
+      expect(spur, 'kein Vermerk').toBeGreaterThan(-1);
+      expect(spur).toBeGreaterThan(text.indexOf('authorize('));
+      const datei = Math.max(text.indexOf('zugferdZurRechnung(kontext'),
+        text.indexOf('ublZurRechnung(kontext'));
+      expect(datei, 'keine Erzeugung gefunden').toBeGreaterThan(-1);
+      expect(spur).toBeLessThan(datei);
+    });
   }
 });

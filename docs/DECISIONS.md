@@ -27811,3 +27811,48 @@ Datenschutz-Isolationsdateien, `tests/kern` komplett, `pnpm guards`,
 
 | Betrifft | V-340, O-71, O-373, O-514, D-792, D-797, D-798; `src/server/services/datenschutz/loeschentscheidung.ts`, `src/app/portal/[mandant]/datenschutz/[id]/loeschung/page.tsx`, `src/server/db/seed/datenschutz.ts`, `tests/kern/datenschutz-fristen.test.ts`, `tests/isolation/datenschutz-dienste.test.ts` |
 |---|---|
+
+### D-835 · Bauwelle 32: Jeder Kundenabruf einer Rechnungsdatei hinterlässt eine Spur (V-347, O-843)
+
+**Der Anlass.** Die beiden gebauten Abrufe des Kundenportals
+(`/api/kunde/rechnungen/[id]/zugferd.pdf`, `/api/kunde/rechnungen/[id]/xrechnung.xml`)
+erzeugten die Datei aus `rechnung_snapshot` und vermerkten nichts. Voreinstellung
+(O-843, D-794): jeder Kundenabruf hinterlässt VOR der Auslieferung eine Spur.
+`dokument_zugriff` passt nicht — die Rechnungsdateien sind keine Zeile in
+`dokument`, und die Policy dort verlangt einen aktiven Mandanten, den der
+Kunden-Scope nicht hat (K-20).
+
+**Was gebaut ist.**
+- **0525, `app.kunde_rechnung_abruf_vermerken(p_rechnung, p_datei)`:** prüft die
+  Kundensitzung, die Datei (`zugferd`, `xrechnung`) und den Beleg — eigener,
+  festgeschriebener, gelesen unter der RLS des Kunden (`t_kunde`, 0075) — und
+  schreibt eine Zeile ins Prüfprotokoll über `app.protokolliere`:
+  `kundenportal.rechnung_abgerufen`, Objekt die Rechnung, mit Datei, Kunde und
+  Nummer, und mit der Gesellschaft DES BELEGS. Zeit, Konto und Sitzung setzt
+  `app.protokolliere` selbst; die Zeile steht damit unter Einstellungen ›
+  Protokoll der Gesellschaft und in der Hashkette (V-336).
+- **Als Aufrufer, nicht als Definer** — abweichend vom Wortlaut der V-Zeile
+  („security definer, Bauart 0266/0325"). Ein Definer müsste `rechnung` im
+  Kunden-Scope lesen dürfen; das wäre eine neue Leseerlaubnis für
+  `cse_definer` auf einer Finanztabelle (`tests/isolation/rechnung.test.ts`
+  zählt jede, aus gutem Grund). Die Policy des Kunden IST die Prüfung, die
+  hier gebraucht wird, und geschrieben wird über den bestehenden Definer.
+- **Die Routen** rufen `vermerkeKundenabruf` (`kundenportal/rechnung.ts`) nach
+  `authorize` und vor der Erzeugung der Datei, in derselben Transaktion:
+  scheitert die Erzeugung (fehlender Snapshot, unvollständiger Beleg), fällt
+  die Spur mit ihr — es wurde nichts ausgeliefert.
+- **Der Dokumentabruf** des Kundenportals ist nicht gebaut (V-282); wenn er
+  kommt, gilt dieselbe Zusage — vermerkt vor der Auslieferung, mit der
+  Gesellschaft des Dokuments. Die V-282-Zeile sagt es.
+
+**Prüfung.** `tests/isolation/kundenportal.test.ts` (24)–(27): zwei Abrufe des
+eigenen Belegs ergeben zwei Zeilen mit der Gesellschaft des Belegs, dem
+Kundenkonto, der Datei und dem Kunden; ein fremder Beleg wird abgewiesen und
+hinterlässt nichts; aus dem internen Portal und mit einer unbekannten Datei
+geht nichts; scheitert die Datei danach, ist auch die Spur weg.
+`tests/kern/kundenportal.test.ts`: beide Routen vermerken nach `authorize` und
+vor der Erzeugung. Dazu `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-347, V-282, O-843, D-794; `drizzle/0525_kundenabruf_spur.sql`, `src/server/services/kundenportal/rechnung.ts`, `src/app/api/kunde/rechnungen/[id]/{zugferd.pdf,xrechnung.xml}/route.ts`, `tests/isolation/kundenportal.test.ts`, `tests/kern/kundenportal.test.ts` |
+|---|---|

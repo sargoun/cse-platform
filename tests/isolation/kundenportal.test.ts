@@ -47,7 +47,7 @@ import {
   fuegePositionHinzu, legeEntwurfAn, finalisiere, vonHand, type Abfrage,
 } from '../../src/server/services/finanz/rechnung.js';
 import {
-  belegAusgabe, findeKundenrechnung, mandantZurRechnung,
+  belegAusgabe, findeKundenrechnung, mandantZurRechnung, vermerkeKundenabruf,
 } from '../../src/server/services/kundenportal/rechnung.js';
 import { zugferdZurRechnung } from '../../src/server/services/finanz/xrechnung/dienst.js';
 
@@ -728,6 +728,74 @@ describe('0256 · aus dem eigenen Snapshot wird wirklich ein Dokument', () => {
        * mit „gibt es nicht", noch bevor ein Recht gefragt wird.
        */
       expect(mandantId).toBeNull();
+    });
+});
+
+/**
+ * **V-347 (D-835): jeder Kundenabruf hinterlässt VOR der Auslieferung eine
+ * Spur** (O-843, D-794).
+ *
+ * Die Routen rufen `vermerkeKundenabruf` nach `authorize` und vor der
+ * Erzeugung der Datei (die Quelltextwache in `tests/kern/kundenportal.test.ts`
+ * hält die Reihenfolge). Hier: was die Datenbank daraus macht.
+ */
+describe('V-347 · ein Kundenabruf hinterlässt eine Spur im Prüfprotokoll', () => {
+  async function spuren(rechnungId: string) {
+    return sql.unsafe<{
+      mandant_id: string | null; akteur_id: string | null; datei: string | null;
+      kunde_id: string | null; ebene: string;
+    }[]>(
+      `select mandant_id::text, akteur_id::text, nachher ->> 'datei' as datei,
+              nachher ->> 'kunde_id' as kunde_id, ebene::text
+         from audit_log
+        where aktion = 'kundenportal.rechnung_abgerufen' and objekt_typ = 'rechnung'
+          and objekt_id = $1
+        order by id`, [rechnungId]);
+  }
+
+  it('(24) der eigene Beleg: eine Zeile je Abruf, mit der Gesellschaft des Belegs', async () => {
+    const id = await festeRechnung(kunde);
+    await alsApp(kundensitzung(), (tx) => vermerkeKundenabruf(alsDienst(tx), id, 'zugferd'));
+    await alsApp(kundensitzung(), (tx) => vermerkeKundenabruf(alsDienst(tx), id, 'xrechnung'));
+    // Der Kunden-Scope hat keinen aktiven Mandanten (K-20) — die Zeile trägt
+    // trotzdem die Gesellschaft, und zwar die des BELEGS.
+    expect(await spuren(id)).toEqual([
+      { mandant_id: f.reinigung, akteur_id: kundenkonto, datei: 'zugferd',
+        kunde_id: kunde, ebene: 'mandant' },
+      { mandant_id: f.reinigung, akteur_id: kundenkonto, datei: 'xrechnung',
+        kunde_id: kunde, ebene: 'mandant' },
+    ]);
+  });
+
+  it('(25) ein FREMDER Beleg: abgewiesen, und es bleibt keine Spur', async () => {
+    const fremd = await festeRechnung(fremderKunde);
+    await expect(alsApp(kundensitzung(), (tx) =>
+      vermerkeKundenabruf(alsDienst(tx), fremd, 'zugferd')))
+      .rejects.toThrow(/nicht im Zugang dieses Kunden/u);
+    expect(await spuren(fremd)).toEqual([]);
+  });
+
+  it('(26) nur die Kundensitzung vermerkt, nur die zwei Dateien gibt es', async () => {
+    const id = await festeRechnung(kunde);
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: chef,
+        portal: 'intern', readonly: false },
+      (tx) => vermerkeKundenabruf(alsDienst(tx), id, 'zugferd')))
+      .rejects.toThrow(/nur eine Kundensitzung/u);
+    await expect(alsApp(kundensitzung(), (tx) =>
+      tx.unsafe(`select app.kunde_rechnung_abruf_vermerken($1::uuid, 'pdf')`, [id])))
+      .rejects.toThrow(/Unbekannte Datei/u);
+    expect(await spuren(id)).toEqual([]);
+  });
+
+  it('(27) scheitert die Datei danach, fällt die Spur mit ihr — es wurde nichts ausgeliefert',
+    async () => {
+      const id = await festeRechnung(kunde);
+      await expect(alsApp(kundensitzung(), async (tx) => {
+        await vermerkeKundenabruf(alsDienst(tx), id, 'zugferd');
+        throw new Error('Erzeugung gescheitert');
+      })).rejects.toThrow(/Erzeugung gescheitert/u);
+      expect(await spuren(id)).toEqual([]);
     });
 });
 
