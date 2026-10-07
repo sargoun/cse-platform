@@ -2840,7 +2840,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | # | Question | Blocks |
 |---|---|---|
 | O-01 | Is **CSE Operations** a GmbH or a department? | invoice circle, Phase 1 |
-| O-04 | The exact five billing types, and their rules — rounding, minimum unit, night and Sunday surcharges, call-off versus monthly flat | Phase 6 · **Voreinstellung → D-779** |
+| O-04 | The exact five billing types, and their rules — rounding, minimum unit, night and Sunday surcharges, call-off versus monthly flat | Phase 6 · **Voreinstellung → D-779, D-843** |
 | O-05 | DATEV: Beraternummer, Mandantennummer per entity, SKR03/04, Sachkontenlänge, Steuerschlüssel, fiscal year start — **plus a real sample EXTF export** | Phase 7 · **Voreinstellung → D-779** |
 | O-06 | Is there a **Betriebsrat**? §87 Abs. 1 Nr. 6 BetrVG governs geolocation, check-in audit trails, the APR-08 review-duration measurement and login metadata | geolocation capture, LEG-10 · **Voreinstellung → D-802** |
 | O-07 | Which procurement platforms is the group registered on, under which identifier? | RAD-09 · **Voreinstellung → D-784** |
@@ -24484,7 +24484,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 
 | Frage | Voreinstellung (gilt, bis der Betreiber sie ändert) | Wo |
 |---|---|---|
-| O-04 | Fünf Abrechnungsarten (Stundensatz, Monatspauschale, Einheitspreis je Fläche, Stück/Einsatz, Aufmaß); Rundung kaufmännisch auf ganze Cent je Position; angebrochener Monat der Pauschale nach `kalendertage` — der Modus `arbeitstage` braucht den Feiertagskalender und ist noch nicht gebaut (V-281); Zuschläge Nacht 25 %, Sonntag 50 %, Feiertag 100 % je Vertrag. Die Zeilen heissen „Voreinstellung (O-04)" statt „provisorisch". | `vertrag_abrechnung`, `abrechnungsart/*` |
+| O-04 | Fünf Abrechnungsarten (Stundensatz, Monatspauschale, Einheitspreis je Fläche, Stück/Einsatz, Aufmaß); Rundung kaufmännisch auf ganze Cent je Position; angebrochener Monat der Pauschale nach `kalendertage` — der Modus `arbeitstage` zählt seit V-281 (D-843) Montag bis Freitag ohne gesetzliche Feiertage in Berlin; Zuschläge Nacht 25 %, Sonntag 50 %, Feiertag 100 % je Vertrag. Die Zeilen heissen „Voreinstellung (O-04)" statt „provisorisch". | `vertrag_abrechnung`, `abrechnungsart/*` |
 | O-05 | SKR03, Sachkontenlänge 4, Wirtschaftsjahr = Kalenderjahr, Sollversteuerung, EXTF 700. Berater- und Mandantennummer sind Betreiberdaten; die Demodaten tragen gekennzeichnete Demowerte (1000001 / 1000x). Die Konfiguration steht als Voreinstellung (`ist_platzhalter`), der Export entsteht nach der Bestätigung unter Buchhaltung › DATEV; eine alte leere Seed-Zeile wird nachgefüllt, wenn sie unberührt ist (eingetragene Nummern bleiben). Aufwandskategorien und Kontenzuordnung folgen dem SKR03; die Zuordnungszeilen (`konto_mapping`) folgen unter V-285. Die gesonderte Buchung eines Bauabzugsteuer-Einbehalts ist nicht gebaut; der Prüfhinweis sagt das. | Seed, `datev_konfiguration` |
 | O-19, O-44 | Drei Mahnstufen: Zahlungserinnerung ab 7 Tagen (0 €), 1. Mahnung ab 21 Tagen (5 €), 2. Mahnung ab 35 Tagen (10 €); Mahntexte als Voreinstellung. **Kein Verzugszins in der Voreinstellung:** der Zuschlag nach § 288 BGB hängt am Kundentyp (9 Punkte B2B, 5 Punkte Verbraucher), die Stufe kennt den Kunden nicht — die Buchhaltung wählt die Zinsart je Stufe beim Bestätigen. Demodaten: freigegeben, damit der Lauf ausprobiert werden kann (ein Vorschlag ist ohnehin ein Entwurf, Invariante 7); Betrieb: Übernahme unter Einstellungen › Mahnwesen. Ein Bestand mit den alten Seed-Platzhaltern wird nachgeführt, nur wo die Zeile unberührt ist. Kein Basiszinssatz im Seed — eine echte Zahl der Bundesbank. | Seed `mahnstufe`, `mahnung/lauf.ts` |
 | O-20 | Kein Sicherheitseinbehalt, solange der Auftrag keinen vereinbart (VOB/B § 17 Abs. 1 verlangt die Vereinbarung); Abschläge nach § 16 Abs. 1 VOB/B in Höhe der nachgewiesenen Leistung; zwei widersprüchliche Angaben im Auftrag halten den Abschluss an (`einbehalt_doppelt`) — nur eine führen, bevorzugt den Prozentsatz. | `abschlag/bedingungen*`, `rechnung-ausgabe.ts` |
@@ -24637,7 +24637,7 @@ weiter keine Rechte über die Matrix (V-290). Eine eigene Abwesenheitsart ohne
 | O-616 | Die Genehmigung einer kundeneigenen Antragsart ohne Abwesenheit protokolliert die Entscheidung; die Umsetzung macht die Verwaltung von Hand. | Personal › Anträge |
 | O-860 | Die Einstellungsmaske sieht nur die Zahl gleichnamiger Menschen in der Gruppe, nicht Name oder Kennung, und legt ihre eigene Personenzeile an. | Personal › Anstellung anlegen |
 | O-893 | Das Büro stellt keinen Urlaubsantrag im Namen einer Arbeiterin; einen telefonisch erbetenen Urlaub nimmt es als Abwesenheit auf („erfasst", Vermerk in der Bemerkung). | `personal.ts` |
-| O-167 | Feiertage: Berlin für alle Objekte; Brandenburg für Objekte dort folgt mit dem Land am Objekt (V-281). | `feiertage.ts` |
+| O-167 | Feiertage: Berlin für alle Objekte — im Dienstplan wie in der Monatspauschale nach Arbeitstagen (D-843); Brandenburg für Objekte dort folgt mit dem Land am Objekt (V-396). | `feiertage.ts`, `werktage.ts` |
 | O-142 | Die drei Systemarten genügen: jede Abwesenheit läuft über den Abwesenheitsantrag mit gewählter Art; Schichtabgabe und Stammdatenänderung legt die Gesellschaft als eigene Art an (K-17), deren Genehmigung protokolliert (O-616). | Stammdaten › Antragsarten |
 | O-55 | Reinigungsklassen als eigenes Schema (RK1 Büro und Besprechung, RK2 Verkehrsfläche, RK3 Sanitär, RK4 Technik und Lager); die Klasse beschreibt den Raum und steuert weder Frequenz noch Preis (ergänzt D-780). | Stammdaten › Reinigungsklassen |
 | O-17 | Wie D-780: branchenübliche m²/h-Werte je Belagsart als Voreinstellung; die Bereichsleitung bestätigt sie. | Stammdaten › Belagsarten |
@@ -28324,4 +28324,52 @@ Verweise, die Voreinstellung). Dazu `pnpm guards`, `pnpm typecheck`,
 `pnpm lint`.
 
 | Betrifft | V-384, O-23, D-800, K-17; `src/server/services/bau/nachtrag-grundlage.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts`, `src/app/api/bau/nachtragsgrundlagen/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/bau/nachtragsgrundlagen/page.tsx`, `src/app/portal/[mandant]/bau/page.tsx`, `src/app/portal/[mandant]/bau/nachtraege/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/nachtraege/neu/page.tsx`, `src/lib/i18n/verwaltung/nachtragsgrundlagen.ts`, `tests/isolation/nachtrag-grundlage.test.ts`, `tests/kern/nachtrag-grundlage.test.ts` |
+|---|---|
+
+### D-843 · Bauwelle 40: Ein angebrochener Monat der Pauschale nach Arbeitstagen (V-281, O-04, O-167)
+
+**Der Anlass.** Der Teilmonats-Modus `arbeitstage` der Monatspauschale
+verweigerte jede Rechnung über einen angebrochenen Monat: welche Tage
+Arbeitstage sind, war nicht definiert. Die Voreinstellung (V-281, D-779,
+O-167): Montag bis Freitag ohne gesetzliche Feiertage des Landes, als reine
+Funktion mit Feiertagsliste als Eingabe; Berlin für alle Objekte.
+
+**Was gebaut ist.**
+- **`lib/datum/werktage.ts`:** `arbeitstageZwischen(von, bis, feiertage)` —
+  beide Tage eingeschlossen, Montag bis Freitag ohne die Tage der Liste; die
+  Liste ist die Eingabe, die Zählung kennt kein Land. Ein Samstag zählt nie
+  (der Werktag des § 3 BUrlG ist ein anderer). `gesetzlicheFeiertageBerlin(von,
+  bis)` liefert die Berliner Liste über Jahresgrenzen, nur gesetzliche Tage —
+  Heiligabend und Silvester sind Arbeitstage (O-167).
+- **`abrechnungsart/monatspauschale.ts`:** `arbeitstageImAbschnitt` (Teil
+  und Monat, `TODO(client, O-167)`); ein angebrochener Monat im Modus
+  `arbeitstage` wird eine Zeile mit den Arbeitstagen als Menge und den
+  Arbeitstagen des Monats als `preis_basismenge` — EINE Rundung, wie bei den
+  Kalendertagen (`189000 × 10 / 21 = 90000` Cent). Ein Teil ohne Arbeitstag
+  bekommt keine Zeile; liegt im ganzen Zeitraum keiner, nennt die Prüfung es
+  (O-04) und das Bestücken wirft „nichts abzurechnen" statt einer Zeile über
+  null. Die Zeile beansprucht nur ihre Tage — die zweite Hälfte eines Monats
+  bleibt abrechenbar, wie bei den Kalendertagen (V-207). Die Verweigerung ist
+  fort; eine unbekannte Lesart wirft weiter mit Satz.
+- **Was fehlt, steht als V-396:** das Land am Objekt. Bis es da ist, gilt
+  Berlin für jedes Objekt — im Dienstplan wie hier.
+- **Kein Seed.** Die Demovereinbarungen rechnen nach `kalendertage` und
+  `keine`; ein dritter Demovertrag änderte die Rechnungen, die der Seed und
+  die Browserläufe nachprüfen. Der Weg steht im Isolationstest.
+
+**Prüfung.** `tests/kern/arbeitstage-teilmonat.test.ts` — Zählung gegen
+unabhängig nachgezählte Monate (August, Mai und Dezember 2026, März 2027,
+ein Wochenende, eine fremde Liste), die Berliner Liste über den Jahreswechsel,
+Teil und Monat, die Prüfung (kein Fehler mehr, kein Arbeitstag benannt, die
+zweite Hälfte frei). `tests/isolation/abrechnungsart.test.ts` (1): 10 von 21
+Arbeitstagen ergeben 900,00 €, über Himmelfahrt und Pfingstmontag 9 von 18 —
+der Fall, der bis hierher die Verweigerung prüfte, prüft jetzt die Rechnung.
+Dazu `rechnung-entwurf`, `leistungszeitraum-nachweis`, `abruf-storno`,
+`tests/kern` komplett, `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+Dabei festgehalten: **V-397** — `freigabe/erteilen.ts` schreibt die Nutzlast
+eines Freigabeschnappschusses als jsonb-Zeichenkette (dasselbe Muster wie im
+Protokoll des Widerrufs, D-841); zu prüfen, bevor die Form sich ändert.
+
+| Betrifft | V-281, V-396, V-397, O-04, O-167, D-779, D-781; `src/lib/datum/werktage.ts`, `src/server/services/finanz/abrechnungsart/monatspauschale.ts`, `tests/kern/arbeitstage-teilmonat.test.ts`, `tests/isolation/abrechnungsart.test.ts` |
 |---|---|

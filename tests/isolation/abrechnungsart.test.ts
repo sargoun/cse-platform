@@ -616,7 +616,15 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
     expect((await kopf(rechnungId)).netto_gesamt_cent).toBe('300000');
   });
 
-  it('„arbeitstage" im Teilmonat wird VERWEIGERT, nicht geschätzt', async () => {
+  it('„arbeitstage": 10 von 21 Arbeitstagen ergeben 900,00 € — gezählt, nicht geschätzt', async () => {
+    /**
+     * Bis V-281 wurde dieser Modus im Teilmonat verweigert: die Arbeitstage
+     * waren nicht definiert. Die Voreinstellung (O-04, O-167, D-843) zählt
+     * Montag bis Freitag ohne gesetzliche Feiertage in Berlin. Der 1. bis
+     * 15. August 2026 hat 10 davon (der 1. ist ein Samstag), der ganze August
+     * 21: `189000 × 10 / 21 = 90000` Cent, EINMAL gerundet, mit Tagen als
+     * Menge und den Arbeitstagen des Monats als `preis_basismenge`.
+     */
     const bau = await baueAuftrag(f.reinigung);
     await legeKonfigurationAn(bau, {
       art: 'monatspauschale', parameter: { teilmonat: 'arbeitstage' },
@@ -626,9 +634,45 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
       berechneAbrechnung(alsDienst(tx), {
         auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
       }));
-    expect(ergebnis.positionen).toHaveLength(0);
-    expect(ergebnis.befunde.some((b) => b.art === 'fehler' && b.offeneFrage === 'O-04'))
-      .toBe(true);
+    expect(ergebnis.befunde.filter((b) => b.art === 'fehler')).toEqual([]);
+    const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      await bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-08-01', bis: '2026-08-31' },
+      });
+      return id;
+    });
+    const zeilen = await positionen(rechnungId);
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]!.menge).toBe('10.000');
+    expect(zeilen[0]!.preis_basismenge).toBe('21.000');
+    expect(zeilen[0]!.einheit).toBe('tag');
+    expect(zeilen[0]!.netto_cent).toBe('90000');
+  });
+
+  it('„arbeitstage" über Feiertage: der 16. bis 31. Mai 2026 sind 9 von 18', async () => {
+    /*
+     * Himmelfahrt (14.) und Pfingstmontag (25.) fallen heraus, der Tag der
+     * Arbeit (1.) auch: der Mai 2026 hat 18 Arbeitstage, die zweite Hälfte 9.
+     * `189000 × 9 / 18 = 94500` Cent.
+     */
+    const bau = await baueAuftrag(f.reinigung);
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'arbeitstage' },
+      pauschaleNettoCent: 189_000n, gueltigAb: '2026-05-16', aufLeistung: true,
+    });
+    const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      await bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-05-01', bis: '2026-05-31' },
+      });
+      return id;
+    });
+    const zeilen = await positionen(rechnungId);
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]!.menge).toBe('9.000');
+    expect(zeilen[0]!.preis_basismenge).toBe('18.000');
+    expect(zeilen[0]!.netto_cent).toBe('94500');
   });
 });
 
