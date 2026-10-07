@@ -3154,7 +3154,7 @@ Beantworten helfen:
 | O-601 | **Welche Vorab-Pruefungen soll `/finanzen/pruefungen` ausser FIN-18 fuehren — und welche davon blockiert die Festschreibung, welche warnt nur?** Die Seitenkarte nennt „and the other pre-invoice checks", ohne sie aufzuzaehlen. Heute gefuehrt: FIN-18 (abgeschlossener Auftrag ohne erfasste Minute, warnt), „abgeschlossener Auftrag ohne Rechnung" (FIN-01/FIN-16, warnt) und „Entwurfszeile ohne wirksame Herkunft" (FIN-07, blockiert). Die Seite nennt die Luecke unter „Was diese Liste NOCH NICHT prueft", statt sie mit erfundenen Regeln zu fuellen. | FIN-18, FIN-07, FIN-01, `services/finanz/vorabpruefung.ts`, SEITENKARTE §5.14 · **Voreinstellung → D-779** |
 | O-602 | **Innerhalb welcher Frist nach Auftragsabschluss muss abgerechnet werden?** Ohne eine gesetzte Frist kann die Vorab-Liste keinen Auftrag als „ueberfaellig" zeigen. Eine hier erfundene waere eine Geschaeftsregel, die sich eine Liste selbst gibt — und sie erschiene jeder Buchhaltung als vereinbart. Bis zur Antwort setzt die Seite keine Frist und sagt das. | FIN-18, `services/finanz/vorabpruefung.ts` · **Voreinstellung → D-779** |
 | O-603 | **Welcher EU-gehostete Transaktionsmailer liefert den Rechnungsversand aus, und unter welchem Auftragsverarbeitungsvertrag?** Fortschreibung von O-36 auf `rechnung_versand`: ohne Antwort bleibt `versand.email.verbunden` false, der DB-Ausloeser `rechnung_versand_2_kanal_verbunden` laesst nur `status = nicht_verbunden` zu, es gibt keinen Sendeknopf, und die Rechnung wird von Hand versendet. Die Datei bleibt ueber `/api/finanzen/rechnungen/[id]/xrechnung.xml` und `/zugferd.pdf` abrufbar. | FIN-11, FIN-12, O-36, O-22, `services/finanz/versand.ts`, `drizzle/0181` |
-| O-604 | **Welches Recht oeffnet die Pflege der §48b-Freistellungsbescheinigung?** Drei Schluessel stehen nebeneinander: das Routenregister fuehrt fuer `/finanzen/eingangsrechnungen/[id]/steuer` `lesen: [abrechnung.freistellung_pflegen]` und `schreiben: []`, die Policy auf `eingangsrechnung` verlangt zum Lesen `eingang.lesen`, die auf `freistellungsbescheinigung` `finanzen.lesen` zum Lesen und `finanzen.schreiben` zum Schreiben. Bis zur Entscheidung ist die Seite lesend; ohne `finanzen.lesen` nennt sie den §48-Ausgang ausdruecklich „nicht bewertbar" statt „Einbehalt", weil eine durch RLS geleerte Bescheinigungsliste kein Ausgang ist. | FIN-10, LEG-06, AUT-06, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` · **Voreinstellung → D-779** |
+| O-604 | **Welches Recht oeffnet die Pflege der §48b-Freistellungsbescheinigung?** Drei Schluessel stehen nebeneinander: das Routenregister fuehrt fuer `/finanzen/eingangsrechnungen/[id]/steuer` `lesen: [abrechnung.freistellung_pflegen]` und `schreiben: []`, die Policy auf `eingangsrechnung` verlangt zum Lesen `eingang.lesen`, die auf `freistellungsbescheinigung` `finanzen.lesen` zum Lesen und `finanzen.schreiben` zum Schreiben. Bis zur Entscheidung ist die Seite lesend; ohne `finanzen.lesen` nennt sie den §48-Ausgang ausdruecklich „nicht bewertbar" statt „Einbehalt", weil eine durch RLS geleerte Bescheinigungsliste kein Ausgang ist. | FIN-10, LEG-06, AUT-06, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` · **Voreinstellung → D-779, D-845** |
 | O-605 | **Soll der §13b-Status der EIGENEN Gesellschaft als Leistungsempfaengerin als Zeitreihe gefuehrt werden — und wer pflegt ihn?** `mandant` traegt kein entsprechendes Feld; `kunde_bauleistender_status` beschreibt die Ausgangsseite. Bis zur Antwort zeigt das Steuerblatt den auf dem BELEG gespeicherten Stand und bewertet nicht tagesaktuell neu — eine Neubewertung alter Belege waere eine Aussage ueber die Vergangenheit, die niemand getroffen hat. | FIN-10, §13b UStG, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` · **Voreinstellung → D-787** |
 | O-606 | **Gehoert `ist_platzhalter` der Demo-Rechnungskreise auf `true` — und mit welcher Wirkung auf bereits festgeschriebene Belege?** Die drei `ausgangsrechnung`-Kreise heissen „Ausgangsrechnungen (DEMO — Maske unbestaetigt, O-134)" und tragen `ist_platzhalter = false`. Der Name behauptet den Schutz, die Spalte hebt ihn auf, und fuer Rechnungskreise sitzt der Platzhalterschutz ausschliesslich in `fin.rechnung_nummer_ziehen` und prueft genau diese Spalte. `/finanzen/nummernkreise` stellt beides nebeneinander und loest es nicht auf. | TEN-02, FIN-03, FIN-16, O-134, `services/finanz/kreisuebersicht.ts`, `db/seed/index.ts` · **Voreinstellung → D-779** |
 **Personal**
@@ -24505,7 +24505,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder und nur mit `finanzen.lesen` (das Recht des Prüfberichts); die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
-| O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg (Hochladen, Gültigkeit, Widerruf) folgt (V-283). | `eingangsrechnungen.ts` |
+| O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg ist gebaut (V-283, D-845): `/finanzen/freistellungen` erfasst, widerruft ab heute und verknüpft den Scan; erfasst steht eine Bescheinigung fest (0530). | `eingangsrechnungen.ts`, `finanz/freistellung.ts` |
 | O-902 | Ein bezahlter offener Posten schliesst seine Mahnung nicht von selbst; ein Mensch vermerkt es. | `mahnungen.ts` |
 | O-931 | Material wird zum Einstand plus 10 % Aufschlag weiterberechnet; der Einzelpreis wird im Entwurf von Hand gesetzt. | `rechnung-entwurf.ts` |
 | O-27 | Lohnexport als generische CSV je Gesellschaft, bis der Betreiber das Lohnsystem einträgt. | Lohnexport-Seiten |
@@ -28423,4 +28423,70 @@ Kombination, Formular und Routen, die Wörter). Dazu `pnpm guards`,
 `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-370, O-892, D-798, V-031; `drizzle/0529_betroffenenanfrage_per_brief.sql`, `src/server/services/datenschutz/anfrage.ts`, `src/app/api/datenschutz/aufnehmen/route.ts`, `src/app/api/datenschutz/bearbeiten/route.ts`, `src/app/portal/[mandant]/datenschutz/{AufnahmeFormular.tsx,Vorgangskopf.tsx,page.tsx,[id]/page.tsx}`, `src/lib/i18n/verwaltung/datenschutz.ts`, `tests/isolation/anfrage-aufnehmen.test.ts`, `tests/kern/anfrage-per-brief.test.ts` |
+|---|---|
+
+### D-845 · Bauwelle 42: Freistellungsbescheinigungen nach § 48b EStG lassen sich erfassen, widerrufen und belegen (V-283, O-604)
+
+**Der Anlass.** `freistellungsbescheinigung` (0118) trug Policy, Grant,
+Löschsperre und die Prüfungen des Zeitraums — und keinen Erzeuger ausser dem
+Seed. Die Steuerseite der Eingangsrechnung zeigte die Bescheinigungen und
+sagte „der Schreibweg folgt"; ohne gültige Bescheinigung werden bei einer
+Bauleistung 15 % einbehalten, und das liess sich in keiner Gesellschaft ohne
+Demodaten anders beantworten. Voreinstellung (O-604, D-779): die Buchhaltung
+pflegt sie mit `finanzen.schreiben`, dem Recht der `WITH CHECK`-Hälfte der
+Policy.
+
+**Was gebaut ist.**
+- **`finanz/freistellung.ts`:** `legeFreistellungAn` (für einen Kunden ODER
+  einen Lieferanten, unbeschränkt oder für EINEN Auftrag, optional mit Beleg;
+  jede unvollständige, unbekannte oder fremde Angabe mit eigenem Grund, die
+  Nummer je Gesellschaft einmal), `widerrufeFreistellung` (ab heute oder
+  später, nie rückwirkend, nie nach dem Ablauf, einmal; eine künftige
+  Bescheinigung ab ihrem ersten Tag, weil `fsb_widerruf` keinen Widerruf vor
+  dem Beginn zulässt), `verknuepfeFreistellungsbeleg` (der Scan aus
+  Dokumente › Ablage, Kategorie Beleg oder Buchhaltung, einmal),
+  `listeFreistellungen` (Stand am Berliner Tag der Datenbank: künftig,
+  gültig, abgelaufen, widerrufen; Zahl der Belege, die sie nennen),
+  `ladeFreistellungAuswahl`. Je mit Zeilensperre und Protokoll
+  (`freistellungsbescheinigung.angelegt`, `.widerrufen`,
+  `.beleg_verknuepft` — als Objekt, nicht als JSON-Text, D-467).
+  `TODO(client, O-604)` am Dienst.
+- **0530 (`kern.freistellung_fest`):** nach dem Erfassen ändern sich Träger,
+  Nummer, Finanzamt, Zeitraum, Umfang und Auftrag nicht mehr — auch nicht am
+  Dienst vorbei; festgeschriebene Belege nennen sie. Eine falsch erfasste
+  Bescheinigung wird widerrufen und neu erfasst. `widerrufen_am` wird einmal
+  gesetzt und nicht vor dem heutigen Berliner Tag, `dokument_id` einmal.
+- **Route und Seite:** `POST /api/finanzen/freistellungen` unter
+  `finanzen.schreiben` (drei Handlungen: erfassen, widerrufen, Beleg); eine
+  abgewiesene Erfassung kommt mit ihren Eingaben zurück (V-240). Die
+  zweisprachige Seite `/finanzen/freistellungen` (lesen mit
+  `finanzen.lesen`) zeigt jede Bescheinigung mit Träger, Nummer, Finanzamt,
+  Zeitraum, Umfang, Beleg und Stand und bietet Widerruf und Beleg nur an, wo
+  sie gehen. Eine Karte auf der Finanzübersicht führt hin; die Steuerseite
+  der Eingangsrechnung sagt nicht mehr „der Schreibweg folgt", sondern
+  verweist auf die Pflege (der Verweis nur mit `finanzen.lesen`, AUT-06).
+- **Was die Rechte bedeuten.** Ein Konto mit `finanzen.schreiben` sieht einen
+  Lieferanten nur mit `eingang.lesen` (Policy auf `lieferant`, 0123); ohne es
+  erfasst es Bescheinigungen von Kunden, und die Auswahl der Lieferanten
+  bleibt leer. Die Leitung hält `finanzen.lesen`; `finanzen.schreiben` und
+  `eingang.lesen` sind für sie bindbar (0008).
+- **Seed.** Die Bescheinigung des Bau-Kunden (`DEMO-48b-0001`, `crm.ts`)
+  führt die Seite vor — gültig, ohne Beleg, Widerruf und Verknüpfen
+  angeboten. Eine Lieferantenbescheinigung legt der Seed weiterhin nicht an
+  (`finanz-ausgabe.ts`: der Weg ist derselbe, und ihr Steuerblatt bleibt ohne
+  Eingangsrechnung leer).
+
+**Prüfung.** `tests/isolation/freistellung.test.ts`: Erfassen für Lieferant
+und Kunde (auch für einen Auftrag) mit Mensch und Protokoll; jeder Grund der
+Abweisung; die Nummer einmal je Gesellschaft; 0530 hält Kernfelder,
+Widerruf und Beleg auch gegen ein direktes `update`; Widerruf ab heute,
+nicht gestern, nicht nach dem Ablauf, nicht zweimal, künftige ab ihrem ersten
+Tag; der Beleg einmal; ohne `finanzen.schreiben`, in der Gruppenansicht und
+in fremder Gesellschaft nichts; Lieferanten erst mit `eingang.lesen`; der
+Stand in der Liste. `tests/kern/freistellung.test.ts`: Stand an den Grenzen,
+Manifest und Register, drei Handlungen, jeder Grund in beiden Sprachen, die
+Karte, die Steuerseite, 0530. Dazu `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-283, O-604, D-779, FIN-10, LEG-06; `drizzle/0530_freistellung_fest.sql`, `src/server/services/finanz/freistellung.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/{freistellungen/page.tsx,page.tsx,eingangsrechnungen/[id]/steuer/page.tsx}`, `src/lib/i18n/verwaltung/finanzen/{freistellungen,uebersicht,eingangsrechnungen}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/finanz-ausgabe.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/freistellung.test.ts`, `tests/kern/freistellung.test.ts` |
 |---|---|

@@ -320,6 +320,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'eingang.schreiben',
   },
   /**
+   * V-283 — die Freistellungsbescheinigungen nach § 48b EStG (O-604,
+   * D-845). Sie SCHREIBT `freistellungsbescheinigung` (erfassen, widerrufen,
+   * Beleg verknüpfen) mit `finanzen.schreiben` — dem Recht der `WITH
+   * CHECK`-Hälfte von `freistellungsbescheinigung.t_mandant` (0118).
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/freistellung',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
+  },
+  /**
    * V-011 — der Schreibweg der Ausgabe.
    *
    * `eingang.schreiben` ist das kleinere der zwei Rechte: erfassen ist

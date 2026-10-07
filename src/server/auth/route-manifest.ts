@@ -722,6 +722,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'eingang.schreiben',
   },
   {
+    /**
+     * Die Freistellungsbescheinigungen nach § 48b EStG erfassen, widerrufen
+     * und ihren Beleg verknüpfen (FIN-10, LEG-06, V-283, O-604, D-845).
+     * `finanzen.schreiben`: dasselbe Recht, das die `WITH CHECK`-Hälfte von
+     * `freistellungsbescheinigung.t_mandant` verlangt (0118) — die
+     * Voreinstellung zu O-604 (D-779). Bis hierher legte nur der Seed eine an.
+     */
+    pfad: 'api/finanzen/freistellungen',
+    recht: 'finanzen.schreiben',
+  },
+  {
     /*
      * V-011, FIN-14, FIN-17, ACC-01, ACC-03. Eine Ausgabe erfassen,
      * freigeben, ablehnen oder buchen.
