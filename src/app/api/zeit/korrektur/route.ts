@@ -177,9 +177,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * `neueFassungId` derselbe Eintrag — dort gibt es keine neue Fassung, nur
    * einen stornierten Datensatz, und genau der soll zu sehen sein.
    */
+  /* V-321: eine späte Nacherfassung sagt es auch dem, der sie schreibt. */
+  const spaet = ergebnis.spaetTage === null ? '' : `&spaet=${String(ergebnis.spaetTage)}`;
   return NextResponse.redirect(
-    internesZiel(null, `/portal/${mandant}/zeiten/${ergebnis.neueFassungId}?korrigiert=1`,
-      anfrage),
+    internesZiel(null,
+      `/portal/${mandant}/zeiten/${ergebnis.neueFassungId}?korrigiert=1${spaet}`, anfrage),
     303,
   );
 }

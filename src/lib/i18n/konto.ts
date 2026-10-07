@@ -436,6 +436,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
         frist_knapp: 'Ausschreibung: Frist wird knapp',
         treffer: 'Ausschreibung: neuer Treffer',
         einwand_entschieden: 'Entscheidung über Ihre Zeitmeldung',
+        nacherfassung_spaet: 'Späte Nacherfassung (§ 17 MiLoG)',
         abwesenheit_zurueckgenommen: 'Abwesenheit zurückgenommen',
       },
     },
