@@ -658,7 +658,7 @@ export default async function Freigabe(
           Der Weg dafür steht — Fenster, Frist, eigenes Recht, Protokoll —, aber er ist
           für nichts armiert: zurückzunehmen wäre die HANDLUNG, nicht der Stand, und
           dafür gibt es hier keinen gebauten Rückweg. Eine Korrektur ist eine NEUE
-          Freigabe (§4.5). Offene Frage: {RUECKNAHME_OFFENE_FRAGE}.
+          Freigabe (§4.5) — Voreinstellung {RUECKNAHME_OFFENE_FRAGE}.
         </Hinweis>
       ) : null}
       {darfRuecknahme && f.undoBis !== null && f.undoBis > new Date() ? (

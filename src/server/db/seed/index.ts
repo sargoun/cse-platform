@@ -129,8 +129,11 @@ interface Bereich {
    * „Security" nicht mehr in seiner Sidebar und bekommt auf
    * `/portal/bau/reinigung/reviere` einen 404 statt einer leeren Seite.
    *
-   * // TODO(client, O-356): Bucht eine Gesellschaft je ein Gewerk, oder gibt
-   * es Ueberschneidungen — etwa Bauendreinigung bei der REALTIME Service?
+   * // TODO(client, O-356): Voreinstellung — jede Gesellschaft bucht genau ihr
+   * Gewerk aus CLAUDE.md; eine Ueberschneidung (Bauendreinigung bei der
+   * REALTIME Service, Veranstaltungsreinigung bei der SSE Security) bucht die
+   * Super-Administration als weiteres Modul (O-355), sobald der Eingabeweg
+   * steht (V-298). D-799.
    */
   readonly module: readonly string[];
 }

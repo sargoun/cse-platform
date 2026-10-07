@@ -5,7 +5,15 @@ import {
   gruppenLesen, gruppenTor, ladeBereiche, LeereListe, mandantIdsFuer, type Suchparameter,
 } from '../tor';
 
-/** `/portal/gruppe/objekte` — Objekte ueber alle Bereiche (OPS-01). */
+/**
+ * `/portal/gruppe/objekte` — Objekte ueber alle Bereiche (OPS-01).
+ *
+ * TODO(client, O-360): Voreinstellung — keine Karte, bis ein Kartendienst in
+ * der EU mit Auftragsverarbeitungsvertrag eingetragen ist (O-132,
+ * Betreiberdaten): jeder Kachelabruf gaebe Objektkoordinaten und die IP der
+ * Nutzerin an den Anbieter. Bis dahin die Liste der Anschriften (D-475).
+ * D-799.
+ */
 export const dynamic = 'force-dynamic';
 
 interface Zeile {

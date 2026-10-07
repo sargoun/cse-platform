@@ -34,6 +34,14 @@
  * `'unsafe-inline'` verhindert dagegen fast nichts, sieht aber fertig aus.
  * Bis die Nonce-Kette gebaut ist, steht hier nur die eine Direktive, die ohne
  * sie vollstaendig wirkt: `frame-ancestors`.
+ *
+ * TODO(client, O-359): Voreinstellung — eine vollstaendige CSP mit Nonce je
+ * Anfrage aus der Middleware (`script-src 'self' 'nonce-…' 'strict-dynamic'`,
+ * kein `'unsafe-inline'`), zuerst im Berichtsmodus
+ * (`Content-Security-Policy-Report-Only`), dann erzwungen. Erlaubt ist neben
+ * `'self'` nur der Supabase-Speicher der EU-Region (signierte Adressen fuer
+ * Bilder und Dateien); Rueckrufe des SMS-Dienstes gehen Server an Server und
+ * brauchen keinen Eintrag. Nicht gebaut (V-375). D-799.
  */
 export const SICHERHEITSKOEPFE: readonly { readonly key: string; readonly value: string }[] = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },

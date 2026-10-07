@@ -311,7 +311,7 @@ export default async function Freigaben(
               Markierte Vorgänge und solche mit unsicheren Feldern lassen sich nicht ankreuzen
               (APR-03, APR-04); jede Genehmigung bekommt trotzdem ihren eigenen Schnappschuss
               (APR-07). Risikoarme Vorgänge bekommen danach ein Einspruchsfenster von{' '}
-              {String(EINSPRUCH_MINUTEN)} Minuten (APR-05, Platzhalter{' '}
+              {String(EINSPRUCH_MINUTEN)} Minuten (APR-05, Voreinstellung{' '}
               {FENSTER_OFFENE_FRAGE}).
             </p>
           </div>

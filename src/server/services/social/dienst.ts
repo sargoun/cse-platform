@@ -572,9 +572,12 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
    * `tests/isolation/social-job.test.ts` haelt die Kopplung fest, damit sie
    * beim Festschreiben rot wird und nicht im Betrieb.
    *
-   * // TODO(client, O-369): Darf jemand eine Freigabe ERBITTEN, ohne sie
-   * erteilen zu duerfen? Die Policy hier zu weiten gilt fuer JEDE Freigabe
-   * dieser Plattform — das ist keine Social-Entscheidung.
+   * // TODO(client, O-369): Voreinstellung — ja: Vorlegen und Entscheiden sind
+   * zwei Rechte (Invariante 7). Die offene Bitte legt ein Definer
+   * `app.freigabe_vorlegen` an, der das FACHLICHE Recht des Vorgangs prueft
+   * (hier `social.schreiben`) und Status und Entscheidungsfelder selbst setzt
+   * (O-513). Nicht gebaut (V-376); bis dahin bleibt die Kopplung, und
+   * der Isolationstest haelt sie fest. D-799.
    */
   const [f] = await kontext.schreibe<{ id: string }>(
     `insert into freigabe
@@ -714,6 +717,12 @@ export interface Veroeffentlichung {
  * draussen gehen muessen. Zwei Abschriften waeren zwei Wege, und der eine
  * bliebe beim naechsten Umbau zurueck — mit dem Unterschied, dass niemand ihn
  * drueckt und deshalb niemand merkt, dass er anders geworden ist.
+ *
+ * TODO(client, O-511): Voreinstellung — bevor der erste Kanal echt verbunden
+ * wird (O-10), bekommt der Versand einen Ausgangskorb (`beitrag_versand` mit
+ * Idempotenzschluessel, Zustellung ausserhalb der Geschaeftstransaktion,
+ * Abgleich danach). Heute ohne Wirkung: alle Kanaele antworten
+ * `nicht_verbunden`. Nicht gebaut (V-377). D-799.
  */
 async function sendeKanaele(
   kontext: SchreibZugriff, id: string, auftrag: BeitragAuftrag,
