@@ -113,6 +113,20 @@ export interface MahnungenTexte {
   readonly erledigenTitel: string;
   readonly erledigenErklaerung: string;
   readonly erledigenKnopf: string;
+  /* ── Die Folgeaktion der Stufe (V-313, O-181) ──────────────────────── */
+  readonly folgeaktionTitel: string;
+  readonly folgeaktionNamen: Readonly<Record<'lieferstopp' | 'inkasso' | 'mahnbescheid', string>>;
+  readonly folgeaktionWartet: (aktion: string, tag: string) => string;
+  readonly folgeaktionFaellig: (aktion: string, tag: string) => string;
+  readonly folgeaktionMensch: string;
+  readonly folgeaktionVermerkt: (aktion: string, wann: string, wer: string) => string;
+  readonly folgeaktionVermerk: string;
+  readonly folgeaktionPlatzhalter: string;
+  readonly folgeaktionKnopf: string;
+  readonly folgeaktionOhneRechtVor: string;
+  readonly folgeaktionOhneRechtNach: string;
+  readonly folgeaktionVoreinstellung: string;
+  readonly unbekannt: string;
   readonly weg: string;
   readonly empfaenger: string;
 
@@ -253,6 +267,29 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       + '(O-902): ein bezahlter offener Posten schliesst seine Mahnung nicht von '
       + 'selbst — ein Mensch vermerkt es und sieht dabei den Betrag.',
     erledigenKnopf: 'Als erledigt vermerken',
+    folgeaktionTitel: 'Folgeaktion',
+    folgeaktionNamen: {
+      lieferstopp: 'Lieferstopp',
+      inkasso: 'Übergabe an ein Inkassobüro',
+      mahnbescheid: 'Antrag auf Mahnbescheid',
+    },
+    folgeaktionWartet: (aktion, tag) =>
+      `${aktion} — fällig ab dem ${tag}, wenn bis dahin nicht gezahlt ist.`,
+    folgeaktionFaellig: (aktion, tag) =>
+      `Fällig seit dem ${tag}: ${aktion}. Die Zahlungsfrist dieser Mahnung ist verstrichen.`,
+    folgeaktionMensch:
+      'Ausgelöst wird sie von einem Menschen — die Plattform übergibt nichts. Hier wird '
+      + 'festgehalten, dass es geschehen ist.',
+    folgeaktionVermerkt: (aktion, wann, wer) => `${aktion}: vermerkt am ${wann} von ${wer}.`,
+    folgeaktionVermerk: 'Was ist geschehen?',
+    folgeaktionPlatzhalter: 'Übergeben an Inkassobüro Muster, Aktenzeichen 123',
+    folgeaktionKnopf: 'Übergabe vermerken',
+    folgeaktionOhneRechtVor: 'Vermerken kann, wer',
+    folgeaktionOhneRechtNach: 'hält.',
+    folgeaktionVoreinstellung:
+      'Voreinstellung (O-181): Inkasso-Übergabe und Mahnbescheid folgen der letzten Stufe ohne '
+      + 'Betragsgrenze; vermerken darf, wer Mahnungen schreiben darf.',
+    unbekannt: 'unbekannt',
     versandErklaerung:
       'Es gibt keinen automatischen Versand: die Mahnung geht als Brief, '
       + 'Einschreiben oder durch Boten hinaus, und hier wird festgehalten, '
@@ -398,6 +435,29 @@ export const MAHNUNGEN_TEXTE: Readonly<Record<InternSprache, MahnungenTexte>> = 
       + '(O-902): a paid open item does not close its Mahnung by itself — a human '
       + 'marks it, and sees the amount while doing so.',
     erledigenKnopf: 'Mark as settled',
+    folgeaktionTitel: 'Follow-up action',
+    folgeaktionNamen: {
+      lieferstopp: 'Lieferstopp (delivery stop)',
+      inkasso: 'Handover to a collection agency (Inkasso)',
+      mahnbescheid: 'Application for a Mahnbescheid (court payment order)',
+    },
+    folgeaktionWartet: (aktion, tag) =>
+      `${aktion} — due from ${tag} if payment has not been made by then.`,
+    folgeaktionFaellig: (aktion, tag) =>
+      `Due since ${tag}: ${aktion}. The payment deadline of this Mahnung has passed.`,
+    folgeaktionMensch:
+      'A person takes this step — the platform hands nothing over. This records that it has '
+      + 'been done.',
+    folgeaktionVermerkt: (aktion, wann, wer) => `${aktion}: recorded on ${wann} by ${wer}.`,
+    folgeaktionVermerk: 'What was done?',
+    folgeaktionPlatzhalter: 'Handed over to collection agency Muster, file 123',
+    folgeaktionKnopf: 'Record handover',
+    folgeaktionOhneRechtVor: 'Whoever holds',
+    folgeaktionOhneRechtNach: 'may record it.',
+    folgeaktionVoreinstellung:
+      'Default (O-181): handover to a collection agency and the Mahnbescheid follow the last '
+      + 'level without an amount threshold; whoever may write dunning letters may record it.',
+    unbekannt: 'unknown',
     versandErklaerung:
       'There is no automatic dispatch: the Mahnung goes out as a letter, as '
       + 'Einschreiben (registered post) or by courier, and what is recorded '

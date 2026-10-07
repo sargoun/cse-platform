@@ -1751,6 +1751,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'mahnung', pfad: 'finanz/mahnung/zins', schreibend: false },
   { modul: 'mahnung', pfad: 'finanz/mahnung/stufen.platzhalter', schreibend: false },
+  /* V-313, O-181, D-840 — die Folgeaktion der Stufe: fällig gesagt, von einem Menschen vermerkt. */
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/folgeaktion',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
   {
     modul: 'mahnung', pfad: 'finanz/mahnung/lauf',
     schreibend: true, schreibRecht: 'mahnung.schreiben',

@@ -18,6 +18,13 @@ import {
   verwirf,
   type Versandart,
 } from '@/server/services/finanz/mahnung/index';
+import {
+  FolgeaktionFehler, vermerkeUebergabe,
+} from '@/server/services/finanz/mahnung/folgeaktion';
+import { MAHNUNGEN_TEXTE } from '@/lib/i18n/verwaltung/finanzen/mahnungen';
+
+/** Der Name der Folgeaktion im Hinweis — die Hinweise dieser Route sind deutsch. */
+const FOLGEAKTION_NAME = MAHNUNGEN_TEXTE.de.folgeaktionNamen;
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
 import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
@@ -127,6 +134,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          * hiesse, dass die Mahnliste wächst, weil das Recht zum Abhaken beim
          * Vieraugenprinzip liegt.
          */
+        /*
+         * **Die Folgeaktion vermerken** (V-313, O-181, D-840) — unter
+         * `mahnung.schreiben`, wie das Erledigen: die Plattform übergibt
+         * nichts, ein Mensch hält fest, dass er übergeben hat.
+         */
+        if (aktion === 'folgeaktion') {
+          const begruendung = text('begruendung') ?? '';
+          const { aktion: was } = await vermerkeUebergabe(kontext, mahnungId, { begruendung });
+          return zurueck(anfrage, slug, `/${mahnungId}`,
+            `Vermerkt: ${FOLGEAKTION_NAME[was]}. Die Plattform hat nichts übergeben — der Vermerk `
+            + 'hält fest, dass es geschehen ist.');
+        }
+
         if (aktion === 'erledigen') {
           await erledige(kontext, mahnungId);
           return zurueck(anfrage, slug, `/${mahnungId}`,
@@ -191,6 +211,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     }
     if (fehler instanceof MahnungFehler) {
       return fehlerAntwort(fehler.grund, fehler.message, STATUS[fehler.grund]);
+    }
+    if (fehler instanceof FolgeaktionFehler) {
+      return fehlerAntwort(fehler.grund, fehler.message, fehler.status);
     }
     if (fehler instanceof NichtGefundenFehler) {
       return fehlerAntwort('nicht_gefunden', 'Nicht gefunden.', 404);

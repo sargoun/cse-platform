@@ -25043,7 +25043,7 @@ gelesen.
 | O-178 | Kein Teilstorno: jede Korrektur ist der Storno des ganzen Belegs plus Neuausstellung (`korrigiere`: drei Belege, drei Nummern aus demselben Kreis, `rechnung_beziehung` storno/ersetzt); das Original bleibt lesbar. Wie gebaut (Invariante 4). | `finanz/rechnung.ts` |
 | O-179 | Ein Zeiteintrag gehört in den Abrechnungszeitraum, in dem seine Schicht beginnt — Berliner Kalendertag von `beginn_zeitpunkt`; eine Nachtschicht über die Monatsgrenze wird nicht geteilt, ihre ganze Nettodauer fällt in den Monat des Beginns. Wie gebaut. | `finanz/abrechnungsart/stunden.ts` |
 | O-180 | Kein Lagerbestand: Material und Gerät werden je Auftrag beschafft, in der Kalkulation als Kostenposition erfasst (`kostenart` material/geraet, OPS-07) und über die Rechnungsposition weiterberechnet; ein Lager wird nicht geführt und nicht gebaut. | `kalkulation/kostenposition.ts` |
-| O-181 | Inkasso-Übergabe und Mahnbescheid sind die Folgeaktion der letzten Mahnstufe (`mahn_folgeaktion`), gesetzt in den Mahneinstellungen von wer `mahnung.schreiben` hält; keine Betragsgrenze; die Plattform vermerkt die Folgeaktion und löst sie nicht aus — ein Mensch übergibt (wie gebaut). Ein Hinweis am fälligen Posten fehlt (V-313). | `finanz/mahnung/stufen.ts`, Einstellungen › Mahnwesen |
+| O-181 | Inkasso-Übergabe und Mahnbescheid sind die Folgeaktion der letzten Mahnstufe (`mahn_folgeaktion`), gesetzt in den Mahneinstellungen von wer `mahnung.schreiben` hält; keine Betragsgrenze; die Plattform vermerkt die Folgeaktion und löst sie nicht aus — ein Mensch übergibt. Seit V-313 (D-840) sagt das Mahnungsblatt, ab wann sie fällig ist und dass sie fällig ist (Tag nach der Zahlungsfrist einer versendeten Mahnung), und hält den Übergabevermerk fest (`mahnung_eskalation`, Mensch und Serverzeit). | `finanz/mahnung/stufen.ts`, `finanz/mahnung/folgeaktion.ts`, Einstellungen › Mahnwesen, Mahnungsblatt |
 | O-182 | Keine Aufrechnung in der Plattform (§ 387 BGB): Kundengutschrift und Lieferantenverbindlichkeit werden getrennt ausgeglichen; entscheidet die Geschäftsführung eine Aufrechnung, bucht die Buchhaltung beide Seiten mit Zahlweg `verrechnung` (0121) — eine Verknüpfung gibt es nicht (V-314). | `finanz/zahlung/index.ts`, `finanz/ausgabe.ts` |
 | O-184 | Keine Gutschriftsabrechnung (§ 14 Abs. 2 Satz 2 UStG) mit Nachunternehmern: sie stellen Rechnungen, die als Eingangsrechnung mit § 13b-Prüfung laufen (`lieferant.leistungsart`, `ist_bauleistender_bis`); „Gutschrift" ist in der Plattform der Stornobeleg (Kreis `gutschrift`). Wie gebaut. | `finanz/eingangsrechnung.ts`, `finanz/lieferant.ts`, `finanz/nummernkreis.ts` |
 | O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab; einen Fristenkalender führt die Plattform nicht (V-315). | `finanz/estg48/abzug.ts`, `buchhaltung/buchungssatz.ts` |
@@ -28139,4 +28139,58 @@ verworfene Mappe; die Sätze in beiden Sprachen).
 Dazu `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-307, O-112, D-786, RAD-06; `src/lib/datum/werktage.ts`, `src/server/services/vergabe/vorlauf.ts`, `src/server/registry/dienste.ts`, `src/app/portal/[mandant]/radar/[id]/mappe/{daten.ts,page.tsx}`, `src/lib/i18n/verwaltung/vergabe-vorlauf.ts`, `tests/kern/vergabe-vorlauf.test.ts`, `tests/e2e/vergabemappe.spec.ts` |
+|---|---|
+
+### D-840 · Bauwelle 37: Die Folgeaktion einer Mahnstufe wird fällig gesagt und vermerkt (V-313, O-181) — und „erledigt" ist erreichbar (V-084)
+
+**Der Anlass.** `mahn_folgeaktion` (`lieferstopp`, `inkasso`, `mahnbescheid`)
+stand an der Stufe und wurde in den Mahneinstellungen gesetzt; kein Blatt
+nannte sie am offenen Vorgang, und es gab keinen Ort für den Vermerk, dass ein
+Mensch sie ausgelöst hat. Voreinstellung (O-181, D-787): Inkasso-Übergabe und
+Mahnbescheid folgen der letzten Stufe ohne Betragsgrenze; frei gibt, wer
+`mahnung.schreiben` hält; ausgelöst wird beides von einem Menschen.
+
+**Was gebaut ist.**
+- **`finanz/mahnung/folgeaktion.ts`:** `folgeaktionStand` (reine Rechnung):
+  `keine` (Stufe ohne Folgeaktion, oder Mahnung nicht versendet), `wartet`
+  (versendet, Frist läuft — fällig ab dem Tag NACH `zahlbar_bis`, der letzte
+  Tag gehört dem Schuldner), `faellig`, `vermerkt`, `erledigt`.
+  `ladeFolgeaktion` liest Stufe, Vermerke und `app.berlin_heute()`.
+  `vermerkeUebergabe` (nur wenn fällig; Begründung ab fünf Zeichen; Zeile
+  gesperrt): eine Zeile in `mahnung_eskalation` mit Aktion der Stufe,
+  Begründung, `freigegeben_von` = Mensch der Sitzung, `freigegeben_am` =
+  Serverzeit; ein zweiter Vermerk derselben Aktion wird abgewiesen
+  (`me_aktion_uk`); eine Protokollzeile. `freigabe_id` und `ausgefuehrt_am`
+  bleiben leer — beide gehören zu einem Schritt, den die PLATTFORM ausführt
+  (Invariante 7, `me_ausfuehrung_freigegeben`), und die Übergabe tut ein
+  Mensch draußen.
+- **Route** `POST /api/finanzen/mahnungen`, `aktion=folgeaktion`, unter
+  `mahnung.schreiben` wie das Erledigen (O-181); die Policy auf
+  `mahnung_eskalation` (0125) prüft dasselbe Recht noch einmal.
+- **Das Mahnungsblatt** trägt den Abschnitt „Folgeaktion" (zweisprachig in
+  `i18n/verwaltung/finanzen/mahnungen.ts`): ab wann fällig, die Warnung, wenn
+  fällig, der Satz „die Plattform übergibt nichts", das Formular für den
+  Vermerk (sonst „Vermerken kann, wer … hält."), der Vermerk mit Zeit und Name
+  und die Voreinstellung.
+- **0527 — ein Altfehler, gefunden beim Bau.** `fin.mahnung_uebergang`
+  (0125, ersetzt in 0130) sperrte jeden Wechsel aus `versendet`, BEVOR es den
+  einzigen erlaubten Weg heraus prüfte — `versendet → erledigt` war
+  unerreichbar, der Knopf „Als erledigt vermerken" (V-084) scheiterte an der
+  Datenbank, und kein Test hatte es je versucht. 0527 ersetzt die Funktion
+  Wort für Wort und prüft diesen Übergang vor der Sperre.
+- **Kein Seed.** Ohne `CSE_DEV_FLAECHEN` legt der Seed keine Ausgangsrechnung
+  an (O-134) und damit keine Mahnung; der Weg wird im Isolationstest gegangen.
+
+**Prüfung.** `tests/isolation/mahnung.test.ts` (10): am letzten Fristtag
+wartet die Folgeaktion, fällig am Tag danach; der Vermerk hält Aktion,
+Begründung, Mensch und Serverzeit fest, ohne Freigabesatz und ohne
+Ausführung, mit Protokollzeile; ein zweiter wird abgewiesen; eine Stufe ohne
+Folgeaktion nimmt keinen; eine erledigte Sache braucht keinen — und
+`versendet → erledigt` geht, einmal, und zurück nicht; eine lesende Sitzung
+vermerkt nichts. `tests/kern/mahnung-folgeaktion.test.ts` (die Stände, die
+Grenze am Fristtag, Monats- und Jahreswechsel, Vermerk anderer Aktion, die
+Wörter in beiden Sprachen). Dazu `tests/kern` komplett, `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-313, V-084, O-181, D-787; `drizzle/0527_mahnung_erledigt_erreichbar.sql`, `src/server/services/finanz/mahnung/folgeaktion.ts`, `src/server/registry/dienste.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts`, `tests/kern/mahnung-folgeaktion.test.ts` |
 |---|---|
