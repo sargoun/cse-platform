@@ -36,6 +36,8 @@ export interface RevierZeile {
    * sie (O-927 (2)). `null` ohne.
    */
   readonly auftragLeistungId: string | null;
+  /** Worauf die Zone rechnet — Boden oder Glas (V-358, O-349). */
+  readonly bezugsgroesse: 'boden' | 'glas';
 }
 
 interface RevierDbZeile {
@@ -50,6 +52,7 @@ interface RevierDbZeile {
   readonly aktiv_ab: string;
   readonly aktiv_bis: string | null;
   readonly anker: string | null;
+  readonly bezugsgroesse: 'boden' | 'glas';
 }
 
 const REVIER_ABFRAGE = `
@@ -61,7 +64,8 @@ const REVIER_ABFRAGE = `
          (select count(*)::text from revier_raum rr where rr.revier_id = r.id) as anzahl,
          to_char(r.aktiv_ab, 'DD.MM.YYYY') as aktiv_ab,
          to_char(r.aktiv_bis, 'DD.MM.YYYY') as aktiv_bis,
-         r.auftrag_leistung_id::text as anker
+         r.auftrag_leistung_id::text as anker,
+         r.bezugsgroesse
     from revier r
     join objekt o on o.id = r.objekt_id and o.mandant_id = r.mandant_id
    where r.archiviert_am is null`;
@@ -79,6 +83,7 @@ function alsRevier(z: RevierDbZeile): RevierZeile {
     aktivAb: z.aktiv_ab,
     aktivBis: z.aktiv_bis,
     auftragLeistungId: z.anker,
+    bezugsgroesse: z.bezugsgroesse,
   };
 }
 
@@ -113,6 +118,8 @@ export interface RevierRaumZeile {
   readonly bezeichnung: string | null;
   readonly etage: string | null;
   readonly flaecheQm: string | null;
+  /** Glasfläche, Stand Kalkulation — die Bezugsgrösse einer Glaszone (V-358). */
+  readonly glasQm: string | null;
   readonly leistungswert: string | null;
   readonly sollzeitMinuten: string | null;
   readonly reihenfolge: number;
@@ -123,11 +130,12 @@ export async function ladeZugeordneteRaeume(
 ): Promise<readonly RevierRaumZeile[]> {
   const zeilen = await kontext.abfrage<{
     raum_id: string; raumnummer: string | null; bezeichnung: string | null;
-    etage: string | null; flaeche: string | null; lw: string | null;
+    etage: string | null; flaeche: string | null; glas: string | null; lw: string | null;
     sollzeit: string | null; reihenfolge: number;
   }>(
     `select rr.raum_id, r.raumnummer, r.bezeichnung, r.etage,
             rr.flaeche_qm::text as flaeche,
+            rr.fenster_flaeche_qm::text as glas,
             rr.leistungswert_qm_pro_stunde::text as lw,
             rr.sollzeit_minuten::text as sollzeit,
             rr.reihenfolge
@@ -143,6 +151,7 @@ export async function ladeZugeordneteRaeume(
     bezeichnung: z.bezeichnung,
     etage: z.etage,
     flaecheQm: z.flaeche,
+    glasQm: z.glas,
     leistungswert: z.lw,
     sollzeitMinuten: z.sollzeit,
     reihenfolge: z.reihenfolge,
@@ -154,6 +163,8 @@ export interface AuswahlRaum {
   readonly nummer: string | null;
   readonly bezeichnung: string | null;
   readonly flaecheQm: string;
+  /** Glasfläche laut Raumbuch, ohne Angabe 0 — gerechnet in einer Glaszone (V-358). */
+  readonly glasQm: string;
   /** Ohne Belagsart gibt es keinen Leistungswert und damit keine Sollzeit. */
   readonly hatBelagsart: boolean;
   readonly zugeordnet: boolean;
@@ -173,6 +184,7 @@ export async function ladeObjektRaeume(
   return kontext.abfrage<AuswahlRaum>(
     `select r.id, r.raumnummer as nummer, r.bezeichnung,
             r.flaeche_qm::text as "flaecheQm",
+            coalesce(r.fenster_flaeche_qm, 0)::text as "glasQm",
             r.belagsart_id is not null as "hatBelagsart",
             exists (select 1 from revier_raum rr
                      where rr.raum_id = r.id and rr.revier_id = $2::uuid) as zugeordnet

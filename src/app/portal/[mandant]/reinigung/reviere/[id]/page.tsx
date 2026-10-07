@@ -19,7 +19,7 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
-import { REVIER_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { REVIER_FEHLER_TEXTE, REVIER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { listeAnkerbareLeistungen } from '@/server/services/dienstplan/leistungsanker';
 
@@ -97,9 +97,18 @@ export default async function RevierBlatt({
   const suche = await searchParams;
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const tF = nachSprache(REVIER_FEHLER_TEXTE, zugang.sprache);
+  const tR = nachSprache(REVIER_TEXTE, zugang.sprache);
   const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const fehlerText = fehler === null ? null
+  /* Die Abweisung der Bezugsgrösse steht an ihrem eigenen Formular (V-358). */
+  const bezugFehler = fehler === 'bezugsgroesse_ungueltig'
+    ? (eigenerEintrag(tF.fehler, fehler) ?? tF.sonst) : null;
+  const fehlerText = fehler === null || bezugFehler !== null ? null
     : (eigenerEintrag(tL.fehler, fehler) ?? eigenerEintrag(tF.fehler, fehler) ?? tL.fehlerSonst);
+  const bezugMeldung = fehler === null
+    ? (suche['bezug'] === 'neu_gerechnet' ? tR.bezugNeuGerechnet
+      : suche['bezug'] === 'gesetzt' ? tR.bezugGesetzt : null)
+    : null;
+  const glaszone = revier.bezugsgroesse === 'glas';
   const gesetzt = fehler === null
     ? (suche['leistung'] === 'gesetzt' ? tL.gesetzt
       : suche['leistung'] === 'nachtlauf' ? tL.gesetztNachtlauf : null)
@@ -138,7 +147,10 @@ export default async function RevierBlatt({
             {deutsch(revier.sollzeitMinuten)} Min.
           </div>
           <p className="mt-s3 m-0 text-sm text-text-muted">
-            Aus Fläche ÷ Leistungswert. <strong className="text-text">Keine gemessene
+            {glaszone
+              ? 'Aus Glasfläche ÷ Leistungswert der Belagsart GLAS. '
+              : 'Aus Fläche ÷ Leistungswert. '}
+            <strong className="text-text">Keine gemessene
             Dauer</strong> — gearbeitete Minuten sind ganzzahlig und stehen im
             Zeitbereich.
           </p>
@@ -210,9 +222,17 @@ export default async function RevierBlatt({
               numerisch: true,
               zelle: (r) => deutsch(r.flaecheQm),
             },
+            ...(glaszone ? [{
+              schluessel: 'glas',
+              kopf: 'Glasfläche (m², Stand Kalkulation)',
+              numerisch: true,
+              zelle: (r: RevierRaumZeile) => deutsch(r.glasQm),
+            }] : []),
             {
               schluessel: 'lw',
-              kopf: 'Leistungswert (m²/h, Stand Kalkulation)',
+              kopf: glaszone
+                ? 'Leistungswert Glas (m²/h, Stand Kalkulation)'
+                : 'Leistungswert (m²/h, Stand Kalkulation)',
               numerisch: true,
               zelle: (r) => deutsch(r.leistungswert),
             },
@@ -225,6 +245,54 @@ export default async function RevierBlatt({
           ]}
         />
       )}
+
+      {/*
+        **Worauf die Zone rechnet** (V-358, O-349): Boden oder Glas. Lesen
+        darf es jeder, der das Blatt sieht; ändern, wer die Reinigung schreibt.
+      */}
+      <section data-cse="revier-bezug"
+               className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+        <h2 className="mb-s3 mt-0 text-h3 text-text">{tR.bezugsgroesse}</h2>
+        {bezugFehler !== null && (
+          <Hinweis art="warnung" rolle="alert" cse="revier-bezug-fehler"
+                   className="mb-s4 max-w-prose">
+            {bezugFehler}
+          </Hinweis>
+        )}
+        {bezugMeldung !== null && (
+          <Hinweis art="erfolg" rolle="status" cse="revier-bezug-gesetzt"
+                   className="mb-s4 max-w-prose">
+            {bezugMeldung}
+          </Hinweis>
+        )}
+        {darf['reinigung.schreiben'] === true ? (
+          <form method="post" action="/api/reinigung/reviere"
+                className="flex max-w-[60ch] flex-col gap-s4">
+            <input type="hidden" name="aktion" value="bezug" />
+            <input type="hidden" name="id" value={revier.id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <label className="flex flex-col gap-s2 text-sm text-text">
+              {tR.bezugsgroesse}
+              <select name="bezugsgroesse" defaultValue={revier.bezugsgroesse}
+                      data-cse="revier-bezug-wahl"
+                      className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text">
+                <option value="boden">{tR.bezugBoden}</option>
+                <option value="glas">{tR.bezugGlas}</option>
+              </select>
+            </label>
+            <p className="m-0 text-xs text-text-muted">{tR.bezugErklaerung}</p>
+            <div>
+              <Button type="submit" variante="secondary" data-cse="revier-bezug-knopf">
+                {tR.bezugSpeichern}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <p className="m-0 text-sm text-text" data-cse="revier-bezug-wert">
+            {glaszone ? tR.bezugGlas : tR.bezugBoden}
+          </p>
+        )}
+      </section>
 
       {/*
         **Die Leistungszeile des Reviers** (V-352, O-927 (2)). Ein Turnus ohne

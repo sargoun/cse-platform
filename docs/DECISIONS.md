@@ -5206,7 +5206,7 @@ diese Verknüpfung entscheidet, ob eine Rechnung berechtigt ist (FIN-18).
 | # | Question | Blocks |
 |---|---|---|
 | O-348 | **Trägt eine Position des Leistungsnachweises bei monatlicher Pauschale einen Einzelpreis je Durchgang, und wie wird er aus der Pauschale bestimmt?** Der Demoauftrag führt die Unterhaltsreinigung als Monatspauschale (`auftrag_leistung.einzelpreis_cent`, Demowert); der Nachweis weist Durchgänge nach. `leistungsnachweis_position.einzelpreis_cent` bleibt bis zur Antwort NULL — der Nachweis belegt die LEISTUNG, der Preis steht am Auftrag, und ein aus der Pauschale geteilter Betrag wäre eine erfundene Zahl auf einem Dokument, das der Kunde unterschreibt. Hängt an O-146 (wird ein ausgefallener Turnus gegen die Pauschale gutgeschrieben). | CLN-04, FIN-05, FIN-07, O-146, `leistungsnachweis_position.einzelpreis_cent` · **Voreinstellung → D-796** |
-| O-349 | **Rechnet ein Glasreinigungsrevier seine Sollzeit auf die Glasfläche, und mit welchem Leistungswert?** `berechneRevierSollzeit` rechnet für jede Zone auf die BODENfläche und den Leistungswert der Belagsart; die Glasfläche reist als Schnappschuss mit (`revier_raum.fenster_flaeche_qm`), geht aber in keine Zeit ein. Die Demozone „Glasflächen" trägt deshalb die Räume, die Glas haben — ihre Sollzeit ist bis zur Antwort die des Bodens und keine Glasreinigungszeit. Die Antwort ist eine zweite Bezugsgröße in `sollzeit.ts` und ein Leistungswert je m² Glas, der heute in keinem Katalog steht (verwandt mit O-17). | CLN-01, CLN-05, OPS-03, OPS-07, O-17, `revier.sollzeit_minuten`, `belagsart` · **Voreinstellung → D-796** |
+| O-349 | **Rechnet ein Glasreinigungsrevier seine Sollzeit auf die Glasfläche, und mit welchem Leistungswert?** `berechneRevierSollzeit` rechnet für jede Zone auf die BODENfläche und den Leistungswert der Belagsart; die Glasfläche reist als Schnappschuss mit (`revier_raum.fenster_flaeche_qm`), geht aber in keine Zeit ein. Die Demozone „Glasflächen" trägt deshalb die Räume, die Glas haben — ihre Sollzeit ist bis zur Antwort die des Bodens und keine Glasreinigungszeit. Die Antwort ist eine zweite Bezugsgröße in `sollzeit.ts` und ein Leistungswert je m² Glas, der heute in keinem Katalog steht (verwandt mit O-17). | CLN-01, CLN-05, OPS-03, OPS-07, O-17, `revier.sollzeit_minuten`, `belagsart` · **Voreinstellung → D-796** · gebaut → D-830 |
 
 ---
 
@@ -25528,7 +25528,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Nicht gebaut; heute bleibt nur, den Entwurf zu verwerfen (V-356). | `finanz/rechnung.ts` |
 | O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut ist die Blattsumme (V-357). | `bau/aufmass.ts`, `drizzle/0107` |
 | O-348 | Eine Position des Leistungsnachweises bei Monatspauschale trägt keinen Einzelpreis je Durchgang: der Nachweis belegt die Leistung, die Rechnung stellt die Pauschale. Wie gebaut; der Satz im Arbeiterportal sagt es jetzt in vier Sprachen statt „offen". | `mitarbeiter/nachweis-schicht.ts`, `lib/i18n/texte.ts`, `db/seed/reinigung.ts` |
-| O-349 | Ein Glasreinigungsrevier rechnet seine Sollzeit auf die Glasfläche mit eigenem Leistungswert je m² Glas aus dem Belagsartenkatalog. Nicht gebaut — die Sollzeit ist heute die des Bodens, der Katalog führt keine Zeile „Glas" (V-358); die Belagsartenseite sagt es. | `reinigung/sollzeit.ts`, Stammdaten › Belagsarten, `db/seed/reinigung.ts` |
+| O-349 | Ein Glasreinigungsrevier rechnet seine Sollzeit auf die Glasfläche mit eigenem Leistungswert je m² Glas aus dem Belagsartenkatalog. Gebaut mit V-358 (D-830): `revier.bezugsgroesse`, Katalogzeile GLAS mit 50 m²/h (Voreinstellung, O-17), die Belagsartenseite sagt es. | `reinigung/sollzeit.ts`, Stammdaten › Belagsarten, `db/seed/reinigung.ts` |
 | O-350 | Ein Angebot bindet vier Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf den Berliner Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je Gesellschaft über `angebot.bindefrist_tage_standard` änderbar. Gebaut mit V-359 (D-806). | `angebot/index.ts`, `db/seed/vertrieb.ts` |
 
 **Was sich NICHT ändert.** Keine Migration, kein Recht, keine Rechenregel; der
@@ -27464,4 +27464,63 @@ Signatur, wieder ohne der Name — schlägt mit dem alten Dienst fehl),
 `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
 
 | Betrifft | V-391, O-115, D-803; `src/server/services/mandant/signatur.ts` (im Dienstregister `src/server/registry/dienste.ts`), `src/server/services/recruiting/antwort.ts`, `src/server/services/akquise/entwurf.ts`, `src/app/portal/[mandant]/crm/akquise/[id]/page.tsx`, `src/server/db/seed/recruiting.ts`, `tests/kern/entwurf-signatur.test.ts`, `tests/isolation/bewerbung-antwort.test.ts` |
+|---|---|
+
+### D-830 · Bauwelle 27: Ein Glasreinigungsrevier rechnet auf die Glasfläche (V-358, O-349)
+
+**Der Anlass.** Unterhaltsreinigung und Glasreinigung sind zwei Reviere über
+denselben Räumen (CLN-05). `berechneRevierSollzeit` rechnete trotzdem jede
+Zone auf die Bodenfläche und den Leistungswert der Belagsart; die Glasfläche
+reiste nur als Schnappschuss mit (`revier_raum.fenster_flaeche_qm`), und der
+Belagsartenkatalog führte keine Zeile „Glas". Die Demozone „Glasflächen" trug
+damit eine Bodenzeit. Voreinstellung (O-349, D-796): die Glaszone rechnet auf
+die Glasfläche mit eigenem Leistungswert aus dem Katalog.
+
+**Was gebaut ist.**
+- **0521:** `revier.bezugsgroesse` — `boden` (Voreinstellung; der Bestand
+  bleibt so) oder `glas`, mit `revier_bezugsgroesse_bekannt`. Für jede
+  Gesellschaft, die einen Belagsartenkatalog führt und noch keine Zeile hat,
+  die Katalogzeile **GLAS** mit 50 m²/h, als Voreinstellung markiert
+  (`ist_platzhalter`, Quelle nennt O-17 und O-349), gültig ab dem Berliner Tag
+  der Migration; bestätigt oder neu datiert wird sie unter Stammdaten ›
+  Belagsarten wie jede andere Zeile.
+- **Die Rechnung** (`reinigung/sollzeit.ts`, rein): `eingabeNachBezug` baut
+  die Eingabe von `berechneRevierSollzeit` je Bezugsgrösse — Bodenfläche und
+  Leistungswert des Belags (wie bisher) oder Glasfläche und der eine
+  Leistungswert der Zeile GLAS (`GLAS_CODE`). In einer Glaszone zählt der Belag
+  nicht; ein Raum ohne Glas fehlt (nichts zu reinigen, und
+  `revier_raum_sollzeit_positiv` kennt keinen Anteil von null Minuten). Fehlt
+  die Zeile GLAS am Stichtag, lässt sich kein Raum rechnen, und der Dienst
+  nennt alle (`ohneLeistungswert`); die Zone behält ihre Sollzeit.
+- **Der Dienst** (`reinigung/revier.ts`): `setzeRaeume` rechnet nach der
+  Bezugsgrösse der Zone und hält im Schnappschuss den Wert, mit dem gerechnet
+  wurde (in der Glaszone den Glaswert). Ein zugeordneter Raum, der sich jetzt
+  nicht rechnen lässt, behält keinen alten Anteil — sein Anteil und
+  Leistungswert werden leer, damit Σ Räume = Kopf bleibt (K-16(c)).
+  `setzeRevierBezug` setzt die Bezugsgrösse und rechnet mit denselben Räumen
+  sofort neu; `legeRevierAn` und `aendereRevier` nehmen sie mit an (fremde
+  Werte: `bezugsgroesse_ungueltig`, ein Satz in beiden Sprachen).
+- **Oberfläche:** Neues Revier wählt „Gerechnet auf" (Boden oder Glas); das
+  Revierblatt hat den Abschnitt „Gerechnet auf" mit Formular
+  (`aktion=bezug`), sagt im Kopf, worauf gerechnet ist, und zeigt in einer
+  Glaszone die Glasfläche je Raum; „Räume zuordnen" zeigt in einer Glaszone
+  die Glasfläche statt der Bodenfläche und warnt nicht vor fehlendem Belag.
+  Die Belagsartenseite sagt, dass die Glaszone mit GLAS rechnet.
+- **Seed:** die Zeile GLAS im Demokatalog, die Demozonen „Glasflächen" mit
+  `glas` — ihre Sollzeit ist Σ Glasfläche ÷ 50 m²/h.
+
+**Voreinstellung.** O-349: Glasreinigung auf die Glasfläche, 50 m²/h als
+branchenübliche Größenordnung, nicht bestätigt (O-17); `TODO(client, O-349)`
+an `GLAS_CODE` und am Zuschnitt des Seeds.
+
+**Prüfung.** `tests/kern/reinigung-glaszone.test.ts` (Glaszone mit und ohne
+Belag, Raum ohne Glas fehlt, Bodenzone wie bisher, ohne Zeile GLAS kein Raum),
+`tests/isolation/revier-glas.test.ts` (echte Dienste: Glaswert im
+Schnappschuss, Wechsel rechnet neu und leert den Anteil eines Raums, der nicht
+mehr zählt, ohne Räume nur gespeichert, Ändern der Zone, Stichtag vor der
+Zeile GLAS, fremde Bezugsgrösse abgewiesen samt CHECK), `revier-anlegen`,
+`reinigung`, `leistungsanker`, `leistungskette`, `seed`, `angebot-dienst`,
+`tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-358, O-349, O-17, D-796; `drizzle/0521_glasreinigung_bezugsgroesse.sql`, `src/server/services/reinigung/{sollzeit,revier}.ts`, `src/app/api/reinigung/reviere/route.ts`, `src/app/portal/[mandant]/reinigung/{RevierFormular.tsx,daten.ts,reviere/[id]/page.tsx,reviere/[id]/raeume/page.tsx}`, `src/app/portal/[mandant]/stammdaten/belagsarten/page.tsx`, `src/lib/i18n/verwaltung/reinigung.ts`, `src/server/db/seed/{operations,dienstplan,reinigung}.ts`, `tests/kern/reinigung-glaszone.test.ts`, `tests/isolation/{revier-glas,revier-anlegen}.test.ts` |
 |---|---|

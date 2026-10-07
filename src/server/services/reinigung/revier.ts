@@ -27,8 +27,8 @@ import { generiereSofort } from '../dienstplan/generator.js';
 import { mengeAusPostgresOderNull, type MilliMenge } from '../finanz/menge.js';
 import { berlinKalendertag } from '../zeit/dauer.js';
 import {
-  berechneRevierSollzeit, summeDerRaeume,
-  type RaumEingabe, type RevierSollzeit,
+  BEZUGSGROESSEN, berechneRevierSollzeit, eingabeNachBezug, GLAS_CODE, summeDerRaeume,
+  type Bezugsgroesse, type Glaswert, type RevierSollzeit,
 } from './sollzeit.js';
 
 export class RevierNichtGefunden extends Error {
@@ -175,20 +175,29 @@ async function verbindeMitKatalog(
   });
 }
 
-/** Nur die Räume, für die sich überhaupt rechnen lässt. */
-function alsEingabe(raeume: readonly RaumZeile[]): readonly RaumEingabe[] {
-  return raeume
-    .filter((r): r is RaumZeile & { belagsartId: string; leistungswert: MilliMenge } =>
-      r.belagsartId !== null && r.leistungswert !== null && r.leistungswert > 0n)
-    .map((r) => ({
-      raumId: r.raumId,
-      belagsartId: r.belagsartId,
-      belagsartBezeichnung: r.belagsartBezeichnung ?? r.belagsartId,
-      flaeche: r.flaeche,
-      leistungswert: r.leistungswert,
-      fensterFlaeche: r.fensterFlaeche,
-      reihenfolge: r.reihenfolge,
-    }));
+/**
+ * Die Katalogzeile „Glas" am Stichtag — oder `null`, wenn der Katalog dieser
+ * Gesellschaft an diesem Tag keine führt (V-358, O-349, D-830).
+ *
+ * Derselbe Leseweg wie für die Belagsarten (`app.leistungswerte_lesen`, K-05)
+ * und derselbe Berliner Kalendertag (K-11).
+ */
+export async function ladeGlaswert(
+  kontext: LeseKontext, stichtag: Date,
+): Promise<(Glaswert & { readonly istPlatzhalter: boolean }) | null> {
+  const [k] = await kontext.abfrage<KatalogZeile>(
+    `select belagsart_id, bezeichnung, leistungswert_qm_pro_stunde, ist_platzhalter
+       from app.leistungswerte_lesen($1::date)
+      where code = $2`,
+    [berlinKalendertag(stichtag), GLAS_CODE],
+  );
+  if (k === undefined) return null;
+  return {
+    belagsartId: k.belagsart_id,
+    bezeichnung: k.bezeichnung,
+    leistungswert: mengeAusPostgresOderNull(k.leistungswert_qm_pro_stunde),
+    istPlatzhalter: k.ist_platzhalter,
+  };
 }
 
 export interface RaeumeErgebnis {
@@ -213,8 +222,11 @@ export async function setzeRaeume(
   raumIds: readonly string[],
   stichtag: Date,
 ): Promise<RaeumeErgebnis> {
-  const [revier] = await kontext.schreibe<{ id: string; objekt_id: string }>(
-    `select id, objekt_id from revier where id = $1::uuid and archiviert_am is null
+  const [revier] = await kontext.schreibe<{
+    id: string; objekt_id: string; bezugsgroesse: Bezugsgroesse;
+  }>(
+    `select id, objekt_id, bezugsgroesse from revier
+      where id = $1::uuid and archiviert_am is null
       for update`,
     [revierId],
   );
@@ -228,7 +240,13 @@ export async function setzeRaeume(
   if (entfallen.length > 0) throw new RaumNichtEntfernbar(entfallen);
 
   const raeume = await ladeRaeume(kontext, revier.objekt_id, raumIds, stichtag);
-  const rechenbar = alsEingabe(raeume);
+  /*
+   * Eine Glaszone rechnet auf die Glasfläche mit dem Wert der Katalogzeile
+   * „Glas", jede andere auf den Boden (V-358, O-349). Fehlt die Zeile, lässt
+   * sich in der Glaszone kein Raum rechnen — und das Ergebnis sagt es.
+   */
+  const glas = revier.bezugsgroesse === 'glas' ? await ladeGlaswert(kontext, stichtag) : null;
+  const rechenbar = eingabeNachBezug(raeume, revier.bezugsgroesse, glas);
   const zeit = berechneRevierSollzeit(rechenbar);
 
   /**
@@ -245,8 +263,11 @@ export async function setzeRaeume(
   }
 
   const nachRaum = new Map(raeume.map((r) => [r.raumId, r]));
+  /* Der Wert, mit dem gerechnet wurde — in einer Glaszone der des Glases. */
+  const gerechnetMit = new Map(rechenbar.map((e) => [e.raumId, e.leistungswert]));
   for (const [index, anteil] of zeit.raeume.entries()) {
     const raum = nachRaum.get(anteil.raumId)!;
+    const leistungswert = gerechnetMit.get(anteil.raumId) ?? null;
     await kontext.schreibe(
       `insert into revier_raum (mandant_id, revier_id, objekt_id, raum_id, reihenfolge,
                                 sollzeit_minuten, leistungswert_qm_pro_stunde,
@@ -262,10 +283,29 @@ export async function setzeRaeume(
       [
         revierId, revier.objekt_id, anteil.raumId, index,
         anteil.sollzeitMinuten,
-        raum.leistungswert === null ? null : mengeNachText(raum.leistungswert),
+        leistungswert === null ? null : mengeNachText(leistungswert),
         mengeNachText(raum.flaeche),
         mengeNachText(raum.fensterFlaeche),
       ],
+    );
+  }
+
+  /*
+   * Ein Raum, der schon zur Zone gehört, sich jetzt aber nicht rechnen lässt
+   * (ohne Belag in einer Bodenzone, ohne Katalogzeile „Glas" in einer
+   * Glaszone), behielte sonst seinen alten Anteil — nach einem Wechsel der
+   * Bezugsgrösse etwa den Glasanteil —, und Σ Räume wiche vom Kopf ab. Er
+   * bleibt zugeordnet, sein Anteil wird leer: benannt, nicht verrechnet
+   * (V-358).
+   */
+  const gerechnet = new Set(zeit.raeume.map((r) => r.raumId));
+  const ungerechnet = raumIds.filter((raumId) => !gerechnet.has(raumId));
+  if (ungerechnet.length > 0) {
+    await kontext.schreibe(
+      `update revier_raum
+          set sollzeit_minuten = null, leistungswert_qm_pro_stunde = null
+        where revier_id = $1::uuid and raum_id = any ($2::uuid[])`,
+      [revierId, ungerechnet],
     );
   }
 
@@ -282,6 +322,13 @@ export async function setzeRaeume(
     );
   }
 
+  if (revier.bezugsgroesse === 'glas') {
+    return {
+      zeit,
+      ohneLeistungswert: glas === null ? raeume.map((r) => r.raumId) : [],
+      aufPlatzhalter: glas?.istPlatzhalter === true ? raeume.map((r) => r.raumId) : [],
+    };
+  }
   return {
     zeit,
     ohneLeistungswert: raeume
@@ -327,7 +374,7 @@ function mengeNachText(menge: MilliMenge): string {
  */
 export const REVIER_GRUENDE = [
   'id_fehlt', 'objekt_fehlt', 'bezeichnung_fehlt', 'sollzeit_ungueltig', 'nicht_angelegt',
-  'revier_unbekannt',
+  'revier_unbekannt', 'bezugsgroesse_ungueltig',
 ] as const;
 export type RevierGrund = (typeof REVIER_GRUENDE)[number];
 
@@ -346,6 +393,11 @@ export interface NeuesRevier {
   readonly kurzzeichen?: string | undefined;
   readonly beschreibung?: string | undefined;
   readonly aktivAb?: string | undefined;
+  /**
+   * Worauf die Zone rechnet — Boden (Unterhaltsreinigung) oder Glas
+   * (Glasreinigung, V-358). Ohne Angabe der Boden.
+   */
+  readonly bezugsgroesse?: string | undefined;
 }
 
 function revierLeer(wert: string | undefined): string | null {
@@ -360,6 +412,19 @@ function revierLeer(wert: string | undefined): string | null {
  * wird dabei zum Punkt — `4,5` ist eine gueltige Eingabe, `numeric` kennt sie
  * nicht.
  */
+/** Eine Bezugsgrösse aus dem Formular — ohne Angabe `null`, eine fremde wird abgewiesen. */
+function pruefeBezugsgroesse(roh: string | undefined): Bezugsgroesse | null {
+  const wert = roh?.trim() ?? '';
+  if (wert === '') return null;
+  const bekannt = BEZUGSGROESSEN.find((b) => b === wert);
+  if (bekannt === undefined) {
+    throw new RevierFehler(
+      `„${wert}" ist keine Bezugsgrösse — eine Zone rechnet auf den Boden oder auf das Glas.`,
+      'bezugsgroesse_ungueltig');
+  }
+  return bekannt;
+}
+
 function pruefeSollzeit(roheingabe: string): number {
   const roh = roheingabe.trim().replace(',', '.');
   const minuten = Number(roh);
@@ -383,19 +448,20 @@ export async function legeRevierAn(
     throw new RevierFehler('Ein Revier gehört zu einem Objekt.', 'objekt_fehlt');
   }
   const minuten = pruefeSollzeit(eingabe.sollzeitMinuten);
+  const bezug = pruefeBezugsgroesse(eingabe.bezugsgroesse) ?? 'boden';
 
   const zeilen = await kontext.schreibe<{ id: string }>(
     `insert into revier
        (mandant_id, objekt_id, bezeichnung, kurzzeichen, beschreibung,
-        sollzeit_minuten, aktiv_ab, erstellt_von_art, erstellt_von)
+        sollzeit_minuten, aktiv_ab, bezugsgroesse, erstellt_von_art, erstellt_von)
      values (app.aktiver_mandant(), $1::uuid, $2, $3, $4, $5::numeric,
-             coalesce($6::date, app.berlin_heute()),
+             coalesce($6::date, app.berlin_heute()), $7,
              case when app.aktueller_benutzer() is null then 'system'
                   else 'mensch' end::akteur_art,
              app.aktueller_benutzer())
      returning id`,
     [eingabe.objektId, bezeichnung, revierLeer(eingabe.kurzzeichen),
-      revierLeer(eingabe.beschreibung), String(minuten), revierLeer(eingabe.aktivAb)],
+      revierLeer(eingabe.beschreibung), String(minuten), revierLeer(eingabe.aktivAb), bezug],
   );
   const z = zeilen[0];
   if (z === undefined) {
@@ -464,13 +530,19 @@ export async function aendereRevier(
     readonly beschreibung?: string | undefined;
     readonly aktivAb?: string | undefined;
     readonly aktivBis?: string | undefined;
+    /** Ohne Angabe bleibt die Bezugsgrösse, wie sie ist. */
+    readonly bezugsgroesse?: string | undefined;
   },
+  /** Der Stichtag einer Neuberechnung, wenn sich die Bezugsgrösse ändert. */
+  stichtag: Date,
 ): Promise<void> {
   const bezeichnung = eingabe.bezeichnung.trim();
   if (bezeichnung === '') {
     throw new RevierFehler('Ein Revier braucht eine Bezeichnung.', 'bezeichnung_fehlt');
   }
   const minuten = pruefeSollzeit(eingabe.sollzeitMinuten);
+  // Vor dem Schreiben geprüft: eine fremde Bezugsgrösse ändert gar nichts.
+  const bezug = pruefeBezugsgroesse(eingabe.bezugsgroesse);
 
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update revier
@@ -492,6 +564,57 @@ export async function aendereRevier(
       'Dieses Revier gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
       'revier_unbekannt', 404);
   }
+  if (bezug !== null) await setzeRevierBezug(kontext, eingabe.id, bezug, stichtag);
+}
+
+/**
+ * **Worauf eine Zone rechnet** — Boden oder Glas (V-358, O-349, D-830).
+ *
+ * Eine andere Bezugsgrösse ist eine andere Rechnung. Trägt die Zone schon
+ * Räume, wird sie mit denselben Räumen sofort neu gerechnet — sonst stünde
+ * eine Glaszone mit der Bodenzeit da, bis jemand die Räume neu speichert.
+ * Gerechnet wird wie beim Zuschneiden (`setzeRaeume`), mit dem Katalog am
+ * Stichtag; die Schnappschüsse in `revier_raum` tragen danach den Glaswert.
+ * Dieselbe Bezugsgrösse noch einmal ändert nichts.
+ */
+export async function setzeRevierBezug(
+  kontext: SchreibKontext, revierId: string, roh: string, stichtag: Date,
+): Promise<{ readonly geaendert: boolean; readonly neuGerechnet: boolean }> {
+  const bezug = pruefeBezugsgroesse(roh);
+  if (bezug === null) {
+    throw new RevierFehler(
+      'Eine Zone rechnet auf den Boden oder auf das Glas — eines davon fehlt.',
+      'bezugsgroesse_ungueltig');
+  }
+  const [vorher] = await kontext.schreibe<{ bezugsgroesse: Bezugsgroesse }>(
+    `select bezugsgroesse from revier
+      where id = $1::uuid and archiviert_am is null
+      for update`,
+    [revierId],
+  );
+  if (vorher === undefined) {
+    throw new RevierFehler(
+      'Dieses Revier gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
+      'revier_unbekannt', 404);
+  }
+  if (vorher.bezugsgroesse === bezug) return { geaendert: false, neuGerechnet: false };
+
+  await kontext.schreibe(
+    `update revier
+        set bezugsgroesse = $2,
+            geaendert_von = app.aktueller_benutzer(),
+            geaendert_von_art = case when app.aktueller_benutzer() is null
+                                     then 'system' else 'mensch' end::akteur_art
+      where id = $1::uuid`,
+    [revierId, bezug],
+  );
+  const raeume = await kontext.schreibe<{ raum_id: string }>(
+    `select raum_id from revier_raum where revier_id = $1::uuid order by reihenfolge`,
+    [revierId],
+  );
+  if (raeume.length === 0) return { geaendert: true, neuGerechnet: false };
+  await setzeRaeume(kontext, revierId, raeume.map((r) => r.raum_id), stichtag);
+  return { geaendert: true, neuGerechnet: true };
 }
 
 /**

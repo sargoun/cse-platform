@@ -129,13 +129,10 @@ function istNebenraum(bezeichnung: string | null): boolean {
  * Raeumen (CLN-05). Verboten ist nur die doppelte Zeile im selben Revier.
  *
  * // TODO(client, O-349): Voreinstellung — ein Glasreinigungsrevier rechnet seine
- * Sollzeit auf die GLASflaeche mit einem eigenen Leistungswert je m² Glas aus dem
- * Belagsartenkatalog; nicht gebaut (V-358, D-796). `berechneRevierSollzeit`
- * rechnet heute fuer jede Zone auf die BODENflaeche und den Leistungswert der
- * Belagsart; die Glasflaeche reist als Schnappschuss mit
- * (`revier_raum.fenster_flaeche_qm`), geht aber in keine Zeit ein. Die
- * Demozone „Glasflaechen" traegt deshalb die Raeume, die Glas haben — ihre
- * Sollzeit ist bis dahin die des Bodens und keine Glasreinigungszeit.
+ * Sollzeit auf die GLASflaeche mit dem Leistungswert der Belagsart GLAS (50 m²/h,
+ * nicht bestaetigt, O-17); gebaut mit V-358 (D-830). Die Demozone „Glasflaechen"
+ * traegt die Bezugsgroesse `glas` (`seed/dienstplan.ts`) und die Raeume, die
+ * Glas haben; ihre Sollzeit ist Σ Glasflaeche ÷ Leistungswert Glas.
  */
 function zuschnitt(kurzzeichen: string | null, raeume: readonly RaumZeile[]): readonly RaumZeile[] {
   switch (kurzzeichen) {

@@ -63,7 +63,9 @@ export default async function RaeumeZuordnen({
   });
   if (revier === null) notFound();
 
-  const ohneBelagsart = raeume.filter((r) => !r.hatBelagsart).length;
+  /* Eine Glaszone rechnet auf das Glas — der Belag des Raums spielt dort keine Rolle (V-358). */
+  const glaszone = revier.bezugsgroesse === 'glas';
+  const ohneBelagsart = glaszone ? 0 : raeume.filter((r) => !r.hatBelagsart).length;
 
   return (
     <PortalRahmen
@@ -83,7 +85,11 @@ export default async function RaeumeZuordnen({
       <p className="mb-s5 max-w-prose text-sm text-text-muted">
         Die ausgewählten Räume bilden die Zone {revier.bezeichnung} im Objekt{' '}
         {revier.objekt}. Mit dem Speichern wird die Sollzeit neu gerechnet:{' '}
-        <strong className="text-text">Fläche ÷ Leistungswert je Belagsart</strong>,
+        <strong className="text-text">
+          {glaszone
+            ? 'Glasfläche ÷ Leistungswert der Belagsart GLAS'
+            : 'Fläche ÷ Leistungswert je Belagsart'}
+        </strong>,
         einmal gerundet, und der Kopfwert auf die Räume verteilt.
       </p>
 
@@ -141,9 +147,11 @@ export default async function RaeumeZuordnen({
                   {r.nummer ?? '—'}
                   {r.bezeichnung === null ? '' : ` · ${r.bezeichnung}`}
                   <span className="ml-s2 tabular-nums text-text-muted">
-                    {r.flaecheQm.replace('.', ',')} m²
+                    {glaszone
+                      ? `${r.glasQm.replace('.', ',')} m² Glas`
+                      : `${r.flaecheQm.replace('.', ',')} m²`}
                   </span>
-                  {!r.hatBelagsart && (
+                  {!glaszone && !r.hatBelagsart && (
                     <span className="ml-s2 text-warning">ohne Belagsart</span>
                   )}
                   {r.zugeordnet && (

@@ -41,6 +41,8 @@ interface TurnusVorgabe {
   readonly beginnLokal: string;
   readonly dauerMinuten: number;
   readonly feiertagsregel: 'ausfall' | 'unveraendert';
+  /** Worauf die Zone rechnet (V-358, O-349) — ohne Angabe der Boden. */
+  readonly bezugsgroesse?: 'boden' | 'glas';
 }
 
 /**
@@ -62,6 +64,8 @@ const TURNUSSE: readonly TurnusVorgabe[] = [
     bezeichnung: 'Glasreinigung monatlich',
     rrule: 'FREQ=MONTHLY;BYMONTHDAY=15', beginnLokal: '08:00',
     dauerMinuten: 180, feiertagsregel: 'ausfall',
+    // Die Glaszone rechnet auf die Glasfläche (V-358, D-830).
+    bezugsgroesse: 'glas',
   },
   {
     revier: 'Nachtreinigung Halle', kurzzeichen: 'NH', sollzeit: 480,
@@ -259,9 +263,9 @@ async function revier(
   if (da !== undefined) return da.id;
   const [neu] = await sql<{ id: string }[]>`
     insert into revier (mandant_id, objekt_id, bezeichnung, kurzzeichen, sollzeit_minuten,
-                        aktiv_ab, erstellt_von_art)
+                        aktiv_ab, bezugsgroesse, erstellt_von_art)
     values (${mandant}, ${objektId}, ${v.revier}, ${v.kurzzeichen}, ${v.sollzeit},
-            current_date, 'system')
+            current_date, ${v.bezugsgroesse ?? 'boden'}, 'system')
     returning id`;
   return neu?.id ?? null;
 }

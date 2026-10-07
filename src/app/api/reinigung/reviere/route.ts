@@ -10,7 +10,8 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { grundAufsFormular } from '../../formular-antwort';
 import {
-  aendereRevier, archiviereRevier, legeRevierAn, RevierFehler, setzeRevierLeistung,
+  aendereRevier, archiviereRevier, legeRevierAn, RevierFehler, setzeRevierBezug,
+  setzeRevierLeistung,
 } from '@/server/services/reinigung/revier';
 import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
 
@@ -112,6 +113,19 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             + (sofortGeplant ? 'gesetzt' : 'nachtlauf');
         }
 
+        if (aktion === 'bezug') {
+          /*
+           * Boden oder Glas (V-358, O-349). Trägt die Zone Räume, rechnet der
+           * Dienst sie sofort neu; die Seite sagt, welcher Fall vorliegt.
+           */
+          const id = wert('id');
+          if (id === undefined) throw new RevierFehler('Kein Revier angegeben.', 'id_fehlt');
+          const { neuGerechnet } = await setzeRevierBezug(
+            kontext, id, wert('bezugsgroesse') ?? '', new Date());
+          return `/portal/${bereich}/reinigung/reviere/${id}?bezug=`
+            + (neuGerechnet ? 'neu_gerechnet' : 'gesetzt');
+        }
+
         if (aktion === 'archivieren') {
           const id = wert('id');
           if (id === undefined) throw new RevierFehler('Kein Revier angegeben.', 'id_fehlt');
@@ -126,12 +140,15 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           kurzzeichen: wert('kurzzeichen'),
           beschreibung: wert('beschreibung'),
           aktivAb: wert('aktiv_ab'),
+          /* Boden oder Glas (V-358); eine fremde Angabe weist der Dienst ab. */
+          bezugsgroesse: wert('bezugsgroesse'),
         };
 
         if (aktion === 'aendern') {
           const id = wert('id');
           if (id === undefined) throw new RevierFehler('Kein Revier angegeben.', 'id_fehlt');
-          await aendereRevier(kontext, { id, ...felder, aktivBis: wert('aktiv_bis') });
+          await aendereRevier(
+            kontext, { id, ...felder, aktivBis: wert('aktiv_bis') }, new Date());
           return `/portal/${bereich}/reinigung/reviere/${id}`;
         }
 

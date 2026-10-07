@@ -90,6 +90,8 @@ function sitzung(mandantId = f.reinigung) {
 }
 
 const GRUND = { bezeichnung: 'Erdgeschoss Nord', sollzeitMinuten: '90' } as const;
+/* Der Stichtag einer Neuberechnung (V-358) — hier ändert sich keine Bezugsgrösse. */
+const STICHTAG = new Date('2026-06-15T10:00:00Z');
 
 async function anlegen(felder: Partial<Parameters<typeof legeRevierAn>[1]> = {}) {
   return alsApp(sitzung(), (tx) => legeRevierAn(kontextAus(tx, f.reinigung), {
@@ -156,7 +158,7 @@ describe('§3 die Gesellschaftsgrenze (Invariante 3)', () => {
     await expect(alsApp(sitzung(f.security), (tx) =>
       aendereRevier(kontextAus(tx, f.security), {
         id: a.id, bezeichnung: 'Übernommen', sollzeitMinuten: '30',
-      }))).rejects.toThrow(RevierFehler);
+      }, STICHTAG))).rejects.toThrow(RevierFehler);
     const [z] = await sql.unsafe<{ bezeichnung: string }[]>(
       `select bezeichnung from revier where id = $1`, [a.id]);
     expect(z!.bezeichnung).toBe('Nur für die Reinigung');
@@ -199,7 +201,7 @@ describe('§4 ändern', () => {
     const a = await anlegen({ bezeichnung: 'Vorher' });
     await alsApp(sitzung(), (tx) => aendereRevier(kontextAus(tx, f.reinigung), {
       id: a.id, bezeichnung: 'Nachher', sollzeitMinuten: '120', kurzzeichen: 'EG-N',
-    }));
+    }, STICHTAG));
     const [z] = await sql.unsafe<
       { bezeichnung: string; sollzeit_minuten: string; kurzzeichen: string | null }[]>(
         `select bezeichnung, sollzeit_minuten, kurzzeichen from revier where id = $1`, [a.id]);
@@ -212,7 +214,7 @@ describe('§4 ändern', () => {
     const a = await anlegen({ bezeichnung: 'Bleibt am Haus' });
     await alsApp(sitzung(), (tx) => aendereRevier(kontextAus(tx, f.reinigung), {
       id: a.id, bezeichnung: 'Bleibt am Haus', sollzeitMinuten: '90',
-    }));
+    }, STICHTAG));
     const [z] = await sql.unsafe<{ objekt_id: string }[]>(
       `select objekt_id from revier where id = $1`, [a.id]);
     expect(z!.objekt_id).toBe(objektReinigung);
@@ -222,7 +224,7 @@ describe('§4 ändern', () => {
     await expect(alsApp(sitzung(), (tx) => aendereRevier(kontextAus(tx, f.reinigung), {
       id: '00000000-0000-0000-0000-000000000000',
       bezeichnung: 'Gibt es nicht', sollzeitMinuten: '60',
-    }))).rejects.toThrow(RevierFehler);
+    }, STICHTAG))).rejects.toThrow(RevierFehler);
   });
 });
 
