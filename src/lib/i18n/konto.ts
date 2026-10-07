@@ -394,7 +394,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
         'Die Einstellung wirkt ab der nächsten Meldung — nicht erst nach einem Neustart.',
       emailTitel: 'E-Mail-Versand: nicht verbunden.',
       email:
-        'Es ist kein Postausgang hinterlegt (offene Frage O-501). „E-Mail" lässt sich hier '
+        'Es ist kein Postausgang hinterlegt — den Anbieter trägt der Betreiber ein (O-501). „E-Mail" lässt sich hier '
         + 'bereits einstellen; zugestellt wird nichts, solange kein Anbieter mit '
         + 'Auftragsverarbeitungsvertrag in der EU eingerichtet ist. Bis dahin ist der '
         + 'Posteingang der einzige Weg.',
@@ -437,7 +437,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
       gespeichert: 'The setting applies from the next message on — no restart needed.',
       emailTitel: 'Email sending: not connected.',
       email:
-        'No outgoing mail service is configured (open question O-501). “Email” can already be '
+        'No outgoing mail service is configured — the operator has to set up the provider (O-501). “Email” can already be '
         + 'set here; nothing is delivered until a provider with a data processing agreement in '
         + 'the EU is set up. Until then the inbox is the only way.',
       sofort: 'Always arrives immediately — never in a daily summary.',
@@ -466,7 +466,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
       gespeichert: 'يسري الإعداد ابتداءً من الرسالة التالية — دون حاجة إلى إعادة تشغيل.',
       emailTitel: 'إرسال البريد الإلكتروني: غير متصل.',
       email:
-        'لا توجد خدمة بريد صادر مُعدّة (سؤال مفتوح O-501). يمكن ضبط «البريد الإلكتروني» هنا '
+        'لا توجد خدمة بريد صادر مُعدّة — يضبط المشغّل المزوّد (O-501). يمكن ضبط «البريد الإلكتروني» هنا '
         + 'مسبقاً؛ لكن لا يُرسل شيء ما لم يُعدّ مزوّد في الاتحاد الأوروبي بعقد معالجة بيانات. '
         + 'وحتى ذلك الحين يبقى صندوق الوارد الطريق الوحيد.',
       sofort: 'يصل دائماً فوراً — وليس ضمن ملخص يومي أبداً.',
@@ -495,7 +495,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
       gespeichert: 'Ayar bir sonraki bildirimden itibaren geçerlidir — yeniden başlatma gerekmez.',
       emailTitel: 'E-posta gönderimi: bağlı değil.',
       email:
-        'Giden posta hizmeti tanımlı değil (açık soru O-501). “E-posta” burada şimdiden '
+        'Giden posta hizmeti tanımlı değil — sağlayıcıyı işletmeci tanımlar (O-501). “E-posta” burada şimdiden '
         + 'ayarlanabilir; AB’de veri işleme sözleşmesi olan bir sağlayıcı kurulana kadar hiçbir '
         + 'şey gönderilmez. O zamana kadar tek yol gelen kutusudur.',
       sofort: 'Her zaman hemen gelir — asla günlük özet içinde değil.',

@@ -90,7 +90,7 @@ export default async function Module(
            ? 'border-line bg-surface text-text-muted' : 'border-warning bg-warning-soft text-warning'}`}>
         {m.module_gepflegt
           ? 'Die Buchung ist eingetragen: nur die Module der gebuchten Gewerke sind sichtbar (D-377).'
-          : 'Die Buchung ist noch nicht eingetragen (O-355): es wird nicht gefiltert, damit eine neu angelegte Gesellschaft nicht schwarz wird. Was unten als gebucht steht, ist der Seed, keine Entscheidung.'}
+          : 'Die Buchung ist noch nicht eingetragen: es wird nicht gefiltert, damit eine neu angelegte Gesellschaft nicht schwarz wird. Voreinstellung (O-355): die Super-Administration trägt die Buchung beim Vertragsschluss ein — einen Eingabeweg dafür gibt es noch nicht (V-298). Was unten als gebucht steht, ist der Seed, keine Entscheidung.'}
       </p>
 
       <h2 className="mb-s3 text-h2 text-text">Gewerke</h2>

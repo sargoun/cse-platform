@@ -213,10 +213,11 @@ export default async function WebsiteNews(
 
       <p className="mt-s5 max-w-prose text-xs text-text-subtle">
         Als Neuigkeit zählen die Arten {NEUIGKEITS_ARTEN.map((k) => ART[k] ?? k).join(' und ')}.
-        Ob eine Projektschau dazugehört, ist redaktionell offen (O-548); sie hat mit{' '}
-        <code className="font-mono">/unternehmen/{mandant}/projekte</code> ohnehin ihre
-        eigene Liste. <strong>Die englische Newsseite zeigt dieselben Zeilen</strong> —{' '}
-        ein Beitrag hat keine Sprachfassungen (O-681).
+        Eine Projektschau zählt nicht dazu (Voreinstellung, O-548); sie hat mit{' '}
+        <code className="font-mono">/unternehmen/{mandant}/projekte</code> ihre eigene
+        Liste. <strong>Die englische Newsseite zeigt dieselben Zeilen</strong> —{' '}
+        Neuigkeiten werden einsprachig deutsch geführt (Voreinstellung, O-681), ein Beitrag
+        hat keine Sprachfassungen.
       </p>
     </PortalRahmen>
   );

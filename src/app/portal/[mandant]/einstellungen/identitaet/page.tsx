@@ -308,13 +308,14 @@ export default async function IdentitaetSeite(
                     * bestehen, bevor DESIGN §1 einen Bereichston fuer sie
                     * fuehrt (TEN-08, 0336). Sie steht dann sichtbar als
                     * Platzhalter da — und keine Ersatzfarbe wird gewaehlt.
-                    * // TODO(client, O-750): Welcher Bereichston (DESIGN §1, Kontrast nach §9) gilt fuer eine fuenfte Gesellschaft, und darf ihr Profil oeffentlich gehen, bevor er eingetragen ist?
+                    * // TODO(client, O-750): Voreinstellung — ohne Eintrag in DESIGN §1 kein Bereichston und keine Ersatzfarbe; die Freischaltung des Profils bleibt eine Entscheidung des Betreibers (kein CHECK).
                     */}
                   {identitaet.identitaetsToken === null
-                    ? 'Platzhalter (O-750): für diesen Bereich führen die Gestaltungsvorgaben '
-                      + '(DESIGN §1) noch keinen Bereichston. Erst ein Eintrag dort (Farbe mit '
-                      + 'geprüftem Kontrast), dann eine Änderung der Datenbank — hier wird '
-                      + 'keine Ersatzfarbe gewählt.'
+                    ? 'Voreinstellung (O-750): ohne Eintrag in den Gestaltungsvorgaben '
+                      + '(DESIGN §1) hat ein Bereich keinen Bereichston und keine Ersatzfarbe. '
+                      + 'Erst ein Eintrag dort (Farbe mit geprüftem Kontrast), dann eine Änderung '
+                      + 'der Datenbank; ob das Profil vorher öffentlich geht, entscheidet der '
+                      + 'Betreiber.'
                     : farbe === null
                       ? 'kein Wert in DESIGN §1 — dann fehlt der Eintrag, nicht die Farbe'
                       : `${farbe} · Wert aus den Gestaltungsvorgaben (DESIGN §1), hier nicht wählbar`}
@@ -332,7 +333,7 @@ export default async function IdentitaetSeite(
             </dd>
           </div>
           <Feld label="Eigene Domain" wert={identitaet.domain}
-                hinweis="offen (O-08): eigene Domains je Bereich oder Pfade unter einer Gruppendomain" />
+                hinweis="Voreinstellung (O-08): eine Gruppendomain mit Pfaden je Bereich — eine eigene Domain je Bereich ist nicht vorgesehen, bis der Betreiber es anders entscheidet" />
         </>} />
 
         {/*

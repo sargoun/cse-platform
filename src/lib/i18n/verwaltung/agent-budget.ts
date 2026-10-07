@@ -78,27 +78,28 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     betrag: 'Obergrenze in Euro',
     betragErklaerung:
       'Deutsche Schreibweise: Punkt trennt die Tausender, Komma die Cent — „1.250,00". '
-      + 'Es gibt keinen Vorschlagswert; welche Höhe richtig ist, ist eine Frage an den '
-      + 'Mandanten (O-26), und ein Vorschlag in einer Finanzmaske sähe aus wie eine '
-      + 'Abstimmung. 0,00 € ist erlaubt und heisst „in diesem Monat nichts".',
+      + 'Vorbelegt ist die Voreinstellung 50,00 € je Gesellschaft und Monat (O-26, D-786) — '
+      + 'bewusst klein; was Sie eintragen, gilt als entschieden. 0,00 € ist erlaubt und '
+      + 'heisst „in diesem Monat nichts".',
     stopp: 'Bei Überschreitung hart stoppen',
     stoppErklaerung:
       'Ohne Haken läuft der Agent über die Grenze hinaus weiter und die Überschreitung '
       + 'steht nur im Protokoll.',
     warnschwelle: 'Warnschwelle',
     warnschwelleErklaerung:
-      'Ab welchem Anteil des Monatsbudgets gewarnt wird. Leer lassen, solange es dafür '
-      + 'keine Entscheidung gibt (O-195) — ein erfundener Wert sähe abgestimmt aus.',
+      'Ab welchem Anteil des Monatsbudgets gewarnt wird. Voreinstellung 80 % (O-195) — '
+      + 'vorbelegt, bis der Betreiber einen anderen Wert wählt; leer heisst: keine Schwelle an '
+      + 'dieser Zeile.',
     prozent: 'Prozent',
     freiwillig: '(freiwillig)',
     speichern: 'Obergrenze speichern',
 
     warnungAb: (prozent) => `Warnung ab ${String(prozent)} %`,
     warnschwelleOffen:
-      'Warnschwelle: nicht hinterlegt (offene Frage O-195). AGT-05 nennt eine Obergrenze '
-      + 'und einen harten Stopp; ab welchem Anteil vorher gewarnt wird, ist eine Finanzregel '
-      + 'und wird nicht erfunden. Wer die Obergrenze setzt, trägt sie ein, sobald sie '
-      + 'entschieden ist.',
+      'Warnschwelle: in mindestens einer Zeile nicht hinterlegt. Voreinstellung (O-195): '
+      + '80 % des Monatsbudgets — die Maske belegt sie vor, gespeichert wird sie mit der Zeile. '
+      + 'Gewarnt wird nicht von selbst: die Schwelle steht an ihrer Zeile, eine Benachrichtigung '
+      + 'ist nicht gebaut (V-292).',
 
     gesetzt:
       'Die Obergrenze ist gesetzt. Ein zuvor gesetzter Stopp ist damit aufgehoben — der '
@@ -142,26 +143,26 @@ export const BUDGET_TEXTE: Readonly<Record<InternSprache, BudgetTexte>> = {
     betrag: 'Cap in euro',
     betragErklaerung:
       'German notation: full stop groups thousands, comma separates the cents — '
-      + '“1.250,00”. There is no suggested value; what the right figure is remains a '
-      + 'question for the client (O-26), and a suggestion in a financial form would look '
-      + 'like agreement. 0,00 € is allowed and means “nothing this month”.',
+      + '“1.250,00”. Prefilled is the default of 50,00 € per entity and month (O-26, '
+      + 'D-786) — deliberately small; what you enter counts as decided. 0,00 € is allowed '
+      + 'and means “nothing this month”.',
     stopp: 'Hard stop when exceeded',
     stoppErklaerung:
       'Unticked, the agent keeps running past the cap and the overrun only shows in the '
       + 'audit log.',
     warnschwelle: 'Warning threshold',
     warnschwelleErklaerung:
-      'The share of the monthly budget at which to warn. Leave it empty while there is no '
-      + 'decision (O-195) — an invented figure would look agreed.',
+      'The share of the monthly budget at which to warn. Default 80% (O-195) — prefilled until '
+      + 'the operator chooses another value; empty means no threshold on this row.',
     prozent: 'percent',
     freiwillig: '(optional)',
     speichern: 'Save cap',
 
     warnungAb: (prozent) => `Warns at ${String(prozent)}%`,
     warnschwelleOffen:
-      'Warning threshold: not on file (open question O-195). AGT-05 names a cap and a hard '
-      + 'stop; the share at which to warn beforehand is a financial rule and is not '
-      + 'invented. Whoever sets the cap enters it once it has been decided.',
+      'Warning threshold: not on file for at least one row. Default (O-195): 80% of the monthly '
+      + 'budget — the form prefills it, it is stored with the row. Nothing warns by itself: the '
+      + 'threshold stands on its row, a notification is not built (V-292).',
 
     gesetzt:
       'The cap is set. Any earlier stop is lifted with it — the next run sets it again if '

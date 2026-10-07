@@ -9,7 +9,7 @@ import { fristKlasse, fristText } from './frist';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { DataTable, type Spalte } from '@/components/ui/DataTable';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
-import { alleQuellStaende } from '@/server/services/radar/quelle';
+import { ABFRAGE_VOREINSTELLUNG, alleQuellStaende } from '@/server/services/radar/quelle';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../unterseite';
 import { leseRadarKennzahlen, leseRadarListe, type RadarKennzahlen, type RadarZeile } from './daten';
@@ -195,9 +195,11 @@ export default async function Radar(
         <Hinweis art="warnung" cse="radar-quellen" className="mb-s5 max-w-prose">
           <strong>Keine Quelle verbunden.</strong> Der Radar liest{' '}
           {quellen.map((q) => q.name).join(' und ')} — beide sind öffentlich und brauchen keinen
-          Zugangsschlüssel. Was fehlt, ist die Abfrage, die dieser Betrieb stellen will: welche
-          CPV-Gruppen, welche Region, welches Zeitfenster (offene Frage O-366). Bis dahin steht hier
-          nur, was jemand von Hand eingetragen hat — nichts wird vorgetäuscht.
+          Zugangsschlüssel. Was fehlt, ist die Abfrage-Adresse, die der Betreiber in{' '}
+          <span className="font-mono">RADAR_OEFFENTLICHEVERGABE_URL</span> und{' '}
+          <span className="font-mono">RADAR_TED_URL</span> einträgt. Voreinstellung für die
+          Abfrage (O-366, D-786): {ABFRAGE_VOREINSTELLUNG.text}. Bis dahin steht hier nur, was
+          jemand von Hand eingetragen hat — nichts wird vorgetäuscht.
         </Hinweis>
       ) : null}
 

@@ -8,6 +8,9 @@ import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
 import { mikrocentNachCent } from '@/server/agent/kosten';
 import { warnschwelleOffen } from '@/server/agent/budget';
+import {
+  BUDGET_VOREINSTELLUNG_CENT, WARNSCHWELLE_VOREINSTELLUNG_PROZENT,
+} from '@/server/services/agent/budget-pflege';
 import { monatsName } from '@/lib/datum/kalendertag';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
@@ -41,10 +44,11 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * überall sonst — zwei Umrechnungsstellen hiessen zwei Beträge, und beide
  * hätten recht.
  *
- * **`Platzhalter` steht dran, wo es einer ist.** Der Seed legt 50,00 € je
- * Gesellschaft an, damit überhaupt etwas läuft; wieviel die KI kosten darf,
- * entscheidet die Geschäftsführung (O-26). Eine Zahl ohne diese Markierung
- * sähe aus wie eine Entscheidung.
+ * **`Voreinstellung` steht dran, wo es eine ist.** Der Seed legt die
+ * Voreinstellung je Gesellschaft an (`BUDGET_VOREINSTELLUNG_CENT`, O-26,
+ * D-786), damit überhaupt etwas läuft, und die Maske belegt den Betrag damit
+ * vor; wieviel die KI kosten darf, entscheidet am Ende die Geschäftsführung.
+ * Eine Zahl ohne diese Markierung sähe aus wie eine Entscheidung.
  */
 export const dynamic = 'force-dynamic';
 
@@ -184,8 +188,9 @@ export default async function AgentBudget(
         <p className="rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-text">
           <strong>Für diesen Monat ist kein Budget hinterlegt.</strong>{' '}
           Ohne Budgetzeile läuft kein Agent — das ist die sichere Richtung: kein
-          Budget heisst „nicht entschieden" und nicht „unbegrenzt" (offene Frage
-          O-26).
+          Budget heisst „nicht entschieden" und nicht „unbegrenzt". Die Voreinstellung ist{' '}
+          {formatiereGeld(cent(BUDGET_VOREINSTELLUNG_CENT))} je Gesellschaft und Monat (O-26,
+          D-786); die Maske zum Eintragen belegt sie vor.
         </p>
       ) : (
         <DataTable
@@ -217,7 +222,7 @@ export default async function AgentBudget(
                   <span className="inline-flex items-baseline gap-s2">
                     {formatiereGeld(cent(BigInt(b.budget_cent)))}
                     {b.ist_platzhalter
-                      ? <span className="text-xs text-text-subtle">Platzhalter</span>
+                      ? <span className="text-xs text-text-subtle" data-cse="budget-voreinstellung">Voreinstellung</span>
                       : null}
                   </span>
                 )),
@@ -275,7 +280,9 @@ export default async function AgentBudget(
       )}
 
       {/*
-        **Die Warnschwelle wird genannt, nicht erfunden** (O-195, V-245). Die
+        **Die Warnschwelle wird genannt, nicht erfunden** (O-195, V-245) — und
+        seit D-784 ist die Maske mit der Voreinstellung 80 % vorbelegt; eine
+        Zeile ohne Schwelle bleibt möglich und wird unten genannt. Die
         Abfrage oben liest `warnschwelle_prozent`, und bis V-015 stand hier
         unbedingt „nicht hinterlegt". Mit der Maske darunter LÄSST sie sich
         setzen — der Satz fiel dabei ersatzlos weg, und die Seite schwieg
@@ -391,6 +398,7 @@ export default async function AgentBudget(
             <label className="flex flex-col gap-s2 text-sm text-text">
               {t.betrag}
               <input name="budget" required inputMode="decimal" maxLength={20}
+                     defaultValue={formatiereGeld(cent(BUDGET_VOREINSTELLUNG_CENT))}
                      className={FELD} data-cse="budget-betrag" />
               <span className="text-xs text-text-muted">{t.betragErklaerung}</span>
             </label>
@@ -407,6 +415,7 @@ export default async function AgentBudget(
             <label className="flex flex-col gap-s2 text-sm text-text">
               {t.warnschwelle} <span className="text-text-muted">{t.freiwillig}</span>
               <input type="number" name="warnschwelle" min={1} max={100}
+                     defaultValue={WARNSCHWELLE_VOREINSTELLUNG_PROZENT}
                      className={FELD} data-cse="budget-warnschwelle" />
               <span className="text-xs text-text-muted">{t.warnschwelleErklaerung}</span>
             </label>

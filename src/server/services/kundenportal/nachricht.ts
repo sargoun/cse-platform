@@ -32,9 +32,9 @@ import {
  * Dienst hat keine schreibende Funktion, `nachricht.versenden` ist der Rolle
  * `kunde` nicht erteilt, und `withKundeScope` gibt einen `LeseKontext` ohne
  * `schreibe` — ein Schreibversuch ist ein Compilerfehler.
- * // TODO(client, O-74): Darf ein Kunde im Portal antworten, und was gilt
- * dann fuer die Freigabe (Invariante 7) und fuer § 7 UWG, wenn die Antwort
- * eine ausgehende Nachricht der Gesellschaft ausloest?
+ * // TODO(client, O-74): Voreinstellung — das Kundenportal ist lesend: keine
+ * Antwort im Portal, damit keine ausgehende Nachricht ohne Freigabe entsteht
+ * (Invariante 7, § 7 UWG); die Ansprechpartnerin legt die Antwort ab (D-790).
  */
 
 export interface Kundennachricht extends Gesellschaft {

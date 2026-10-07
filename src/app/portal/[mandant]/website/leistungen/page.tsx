@@ -213,8 +213,10 @@ export default async function WebsiteLeistungen(
       )}
 
       <p className="mt-s5 max-w-prose text-xs text-text-subtle">
-        Wem die Bereichsprofilseiten gehören, ist offen (O-49): heute gehört keine
-        Seite der Website einer einzelnen Gesellschaft, und die Zuordnung läuft über
+        Voreinstellung (O-49): die Gruppenseiten (Startseite, Impressum, Datenschutz)
+        pflegt CSE Operations, das Bereichsprofil die jeweilige Gesellschaft. Durchgesetzt
+        ist davon heute nur die Pfadbindung — keine Seite der Website trägt eine
+        Gesellschaft (V-293), und die Zuordnung läuft über
         den Pfad <code className="font-mono">/unternehmen/{mandant}</code>. Diese Seite zeigt
         und ändert deshalb ausschliesslich Abschnitte dieser Adresse — Gruppenseiten
         (Startseite, Impressum) werden unter „Seiten" gepflegt.

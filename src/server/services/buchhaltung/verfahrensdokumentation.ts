@@ -38,6 +38,10 @@ import { markdownZelle } from '../../../lib/markdown.js';
  * Der Abrufzeitpunkt steht daneben, nicht darin.
  *
  * Die Dokumentation rechnet nichts und entscheidet nichts (D-06); sie zaehlt.
+ *
+ * TODO(client, O-188): Voreinstellung — die Geschäftsführung der Gesellschaft
+ * zeichnet; geprüft wird jährlich und bei jedem Schemastand-Wechsel; ein
+ * Zeichnungsvermerk ist nicht gebaut (V-316, D-787).
  */
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -230,12 +234,12 @@ export async function erstelleVerfahrensdokumentation(
   const kontenrahmen = konfig?.kontenrahmen !== null && konfig?.kontenrahmen !== undefined
     && istKontenrahmen(konfig.kontenrahmen) ? RAHMEN_NAME[konfig.kontenrahmen] : 'nicht festgelegt';
   const offen: string[] = [];
-  if (wj.istPlatzhalter) offen.push('Der Beginn des Wirtschaftsjahrs ist angenommen (Kalenderjahr) — O-05.');
+  if (wj.istPlatzhalter) offen.push('Der Beginn des Wirtschaftsjahrs ist die Voreinstellung (Kalenderjahr), vom Steuerberater nicht bestätigt — O-05.');
   if (konfig === undefined || konfig.ist_platzhalter) {
-    offen.push('Kontenrahmen, Sachkontenlänge und Versteuerungsart sind Platzhalter, bis der Steuerberater sie bestätigt — O-05.');
+    offen.push('Kontenrahmen, Sachkontenlänge und Versteuerungsart sind Voreinstellungen, bis der Steuerberater sie bestätigt — O-05.');
   }
   if ((zuordnungPlatzhalter?.n ?? 0) > 0) {
-    offen.push(`${String(zuordnungPlatzhalter?.n ?? 0)} Kontenzuordnung(en) sind Platzhalter — O-05.`);
+    offen.push(`${String(zuordnungPlatzhalter?.n ?? 0)} Kontenzuordnung(en) sind Voreinstellungen, vom Steuerberater nicht bestätigt — O-05.`);
   }
   if (nummernkreise.some((n) => n.ist_platzhalter)) {
     offen.push('Mindestens ein Nummernkreis ist ein Platzhalter (Maske oder Rücksetzung noch nicht bestätigt).');
@@ -245,7 +249,8 @@ export async function erstelleVerfahrensdokumentation(
   }
   offen.push('Ein geprüfter Wiederherstellungstest der Datensicherung steht aus (ROADMAP Phase 10).');
   offen.push('Unveränderlichkeit des Objektspeichers auf Bucket-Ebene beim Anbieter — O-364.');
-  offen.push('Die DTD des Beschreibungsstandards liegt dem Z3-Paket nicht bei — O-365.');
+  offen.push('Die DTD des Beschreibungsstandards liegt dem Z3-Paket nicht bei — Voreinstellung (O-365): Version 1.0 des Standards, Abnahme durch Probeimport beim Steuerberater (D-485).');
+  offen.push('Zeichnung und Prüfturnus dieser Dokumentation — Voreinstellung (O-188): die Geschäftsführung der Gesellschaft zeichnet, geprüft wird jährlich und bei jedem Schemastand-Wechsel; ein Zeichnungsvermerk wird in der Plattform nicht geführt (V-316).');
   if (schemastand === null) {
     offen.push('Diese Datenbank führt kein Migrationsjournal (die Migrationen wurden direkt eingespielt); der Schemastand ist hier nicht ablesbar.');
   }

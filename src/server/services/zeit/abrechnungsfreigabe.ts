@@ -36,9 +36,9 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
  *
  * **Keine Ruecknahme.** Was freigegeben ist, kann in ein Stundenkonto
  * geflossen sein; ein stilles Zurueckdrehen aenderte eine Zahl, die ein Mensch
- * schon in der Hand hatte (Invariante 8). Ob es eine Ruecknahme geben soll,
- * solange nichts abgerechnet ist, ist Teil derselben offenen Frage.
- * // TODO(client, O-861): In welcher Einheit wird Zeit zur Abrechnung freigegeben — je Eintrag, je Woche, je Person, je Monat —, und laesst sich eine erteilte Freigabe zuruecknehmen, solange nichts abgerechnet ist?
+ * schon in der Hand hatte (Invariante 8). Voreinstellung (O-861, D-788): keine
+ * Ruecknahme, und die Einheit der Freigabe ist der einzelne Eintrag.
+ * // TODO(client, O-861): Voreinstellung — freigegeben wird je EINTRAG (jede groebere Einheit laesst sich daraus bilden), eine erteilte Freigabe ist nicht zuruecknehmbar (Invariante 8). D-788.
  */
 
 /** Wie viele Eintraege ein Lauf hoechstens traegt — dieselbe Zahl wie in 0366. */
@@ -52,6 +52,13 @@ export interface FreigabeFilter {
   readonly personId: string | null;
   readonly objektId: string | null;
   /** Nur Eintraege ohne aufgeloesten Auftrag (FIN-18). */
+  /**
+   * Zeit ohne Auftrag (Schulung, Bereitschaft, Fahrt, interne Arbeit) ist
+   * erlaubt, zaehlt aufs Stundenkonto und wird nicht fakturiert („ohne Auftrag —
+   * nicht abrechenbar", FIN-18); eine Kostenstelle traegt sie nicht.
+   * TODO(client, O-169): Voreinstellung — genau so; bewertet wird sie im
+   * Lohnlauf (D-06). D-788.
+   */
   readonly nurOhneAuftrag: boolean;
 }
 

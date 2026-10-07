@@ -14,16 +14,16 @@
  * einem CHECK; hier steht derselbe Satz als Typ, damit ein Feld ohne Quelle
  * gar nicht erst gebaut werden kann.
  *
- * **Die Schwelle ist NICHT erfunden.**
- * TODO(client, O-197): Ab welcher Konfidenz gilt ein extrahiertes Feld als
- * unsicher und erzwingt Einzelpruefung (APR-03, APR-04)?
- * Bis zur Antwort gilt der Platzhalter unten, und er irrt bewusst nach STRENG:
+ * **Die Schwelle ist eine Voreinstellung, keine Erfindung.**
+ * TODO(client, O-197): Voreinstellung — unter 0,950 gilt ein extrahiertes Feld
+ * als unsicher und erzwingt Einzelpruefung (APR-03, APR-04).
+ * Die Voreinstellung unten irrt bewusst nach STRENG:
  * ein zu Unrecht als unsicher markiertes Feld kostet einen Klick, ein zu
  * Unrecht durchgewinktes kostet eine falsche Freigabe.
  */
 
 /**
- * PLATZHALTER (O-197). Ein Feld unterhalb dieser Konfidenz ist `unsicher`.
+ * Voreinstellung (O-197, D-786). Ein Feld unterhalb dieser Konfidenz ist `unsicher`.
  *
  * 0,950 ist streng — gewollt. Der Wert steht an genau einer Stelle, damit die
  * Antwort des Kunden eine Zeile ist und keine Suche.
@@ -142,7 +142,7 @@ function grundAus(feld: ExtrahiertesFeld, konfidenz: number): string | null {
   }
   if (konfidenz < KONFIDENZ_SCHWELLE) {
     return `Konfidenz ${konfidenzText(konfidenz)} unter der Schwelle `
-      + `${KONFIDENZ_SCHWELLE.toFixed(3)} (PLATZHALTER, O-197)`;
+      + `${KONFIDENZ_SCHWELLE.toFixed(3)} (Voreinstellung, O-197)`;
   }
   return null;
 }

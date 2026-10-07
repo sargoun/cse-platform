@@ -96,7 +96,13 @@ async function anmelden(page: Page): Promise<void> {
  * Konto im Seed zu einer anderen Gesellschaft gehoerte. Der Fehler sah aus
  * wie ein kaputtes Aufmass und war eine kaputte Fixtur. Die Auswahl hier
  * stellt dieselbe Frage wie `app.ist_mitglied` und bekommt deshalb dieselbe
- * Antwort.
+ * Antwort — und zwar WOERTLICH ueber die Funktion, nicht ueber eine Abschrift
+ * ihres Rumpfes: die Abschrift verglich `gueltig_ab` mit `current_date` (UTC),
+ * der Seed setzt die Spalte aber auf `app.berlin_heute()` (0169). Zwischen
+ * 00:00 und 02:00 Berliner Zeit lag der Seed damit einen Tag in der Zukunft,
+ * die Unterabfrage fand niemanden, und `auftrag.verantwortlich_benutzer_id`
+ * fiel als NULL auf den Not-null-Zwang — ein Fehler, der nur nachts existierte
+ * (derselbe Befund wie 0375 fuer die Funktion selbst).
  */
 test.beforeAll(async () => {
   const [m] = await sql.unsafe<{ id: string; slug: string }[]>(
@@ -127,9 +133,7 @@ test.beforeAll(async () => {
      select $1, $3, $2, 'projekt', 'aktiv', 'Rohbau Ost',
             (select bm.benutzer_id from benutzer_mandant bm
               where bm.mandant_id = $1
-                and bm.entzogen_am is null
-                and bm.gueltig_ab <= current_date
-                and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
+                and app.ist_mitglied(bm.benutzer_id, bm.mandant_id)
               limit 1),
             '2026-01-01'
      on conflict do nothing

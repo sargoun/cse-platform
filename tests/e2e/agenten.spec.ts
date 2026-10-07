@@ -10,8 +10,8 @@
  *  2. **Kein Startknopf.** Das ist die Zusicherung, nicht die Auslassung: ein
  *     Knopf, der eine Aufgabe anlegt, die niemand ausführt, wäre die
  *     vorgetäuschte Funktion, die CLAUDE.md verbietet.
- *  3. Das Budget zeigt die Obergrenze als PLATZHALTER — die Zahl steht da,
- *     und daneben steht, dass sie noch keine Entscheidung ist (O-26).
+ *  3. Das Budget zeigt die Obergrenze als VOREINSTELLUNG — die Zahl steht da,
+ *     und daneben steht, dass sie noch keine Entscheidung ist (O-26, D-786).
  *  4. Wer `agent.lesen` nicht hält, sieht die Seite gar nicht (AUT-06).
  */
 import { expect, test, type Page } from '@playwright/test';
@@ -69,7 +69,7 @@ test.describe('Agenten-Zentrum', () => {
     await expect(page.locator('[data-cse="agent-starten"]')).toBeVisible();
   });
 
-  test('das Budget nennt seine Obergrenze — und dass sie ein Platzhalter ist', async ({ page }) => {
+  test('das Budget nennt seine Obergrenze — und dass sie eine Voreinstellung ist', async ({ page }) => {
     /*
      * `agent.budget_verwalten` haelt nur `super_admin` — und das ist die
      * Absicht, nicht eine Luecke im Seed: eine Obergrenze fuer die KI ist
@@ -92,29 +92,31 @@ test.describe('Agenten-Zentrum', () => {
     await page.locator('[data-cse="wechsel-knopf"]').click();
     await expect(page).toHaveURL(new RegExp(`/portal/${MANDANT}/agenten/budget$`, 'u'));
     await expect(page.getByRole('heading', { name: 'KI-Budget', level: 1 })).toBeVisible();
-    await expect(page.getByText('Platzhalter').first()).toBeVisible();
+    await expect(page.locator('[data-cse="budget-voreinstellung"]').first()).toBeVisible();
 
     /*
-     * Die Warnschwelle wird NICHT erfunden (O-195). Dass der Bildschirm das
-     * hinschreibt, statt eine plausible Zahl zu zeigen, ist die Prüfung.
+     * Die Warnschwelle ist die Voreinstellung 80 % (O-195, D-784): der Seed
+     * setzt sie, die Zeile nennt sie — und der Satz „nicht hinterlegt" steht
+     * nur, wenn eine gezeigte Zeile keine hat.
      */
-    await expect(page.getByText(/Warnschwelle: nicht hinterlegt/u)).toBeVisible();
+    await expect(page.locator('[data-cse="budget-warnung-ab"]').first()).toHaveText('Warnung ab 80 %');
+    await expect(page.locator('[data-cse="budget-warnschwelle-offen"]')).toHaveCount(0);
   });
 
   /**
    * **Eine gesetzte Warnschwelle steht in ihrer Zeile** (V-245, D-739; V-254,
    * D-746).
    *
-   * Der Seed setzt keine Schwelle (O-195), also lief dieser Zweig der Seite in
-   * keinem Browserlauf. Der Fall legt deshalb selbst eine an — über die
-   * Maske, wie ein Mensch — und zwar für Dezember 2099: einen Monat, den kein
-   * Agent bucht, damit die Zeile des laufenden Monats und der Fall darüber
-   * unberührt bleiben. Die 80 ist Testeingabe, keine Vorgabe. Der Satz „nicht
-   * hinterlegt" bleibt stehen, denn die Zeile des laufenden Monats hat weiter
-   * keine; dass er verschwindet, sobald JEDE Zeile eine hat, prüft
+   * Der Fall legt eine Zeile über die Maske an — wie ein Mensch — und zwar für
+   * Dezember 2099: einen Monat, den kein Agent bucht, damit die Zeile des
+   * laufenden Monats und der Fall darüber unberührt bleiben. Die Maske ist mit
+   * der Voreinstellung 80 % vorbelegt (D-784); der Fall tippt sie trotzdem
+   * ein, damit er nicht an der Vorbelegung hängt. Der Satz „nicht hinterlegt"
+   * steht danach nicht, weil jede gezeigte Zeile eine Schwelle trägt; dass er
+   * erscheint, sobald EINE fehlt, prüft
    * `tests/kern/agent-budget-warnschwelle.test.ts`.
    */
-  test('eine gesetzte Warnschwelle steht in ihrer Zeile — der Satz bleibt, solange eine fehlt', async ({ page }) => {
+  test('eine gesetzte Warnschwelle steht in ihrer Zeile — der Satz fehlt, solange keine fehlt', async ({ page }) => {
     await anmelden(page, KONTO.gruppe);
     await page.goto(`/portal/${MANDANT}/agenten/budget`);
     const wechsel = page.locator('[data-cse="wechsel-knopf"]');
@@ -130,8 +132,7 @@ test.describe('Agenten-Zentrum', () => {
     await expect(page.locator('[data-cse="budget-gesetzt"]')).toBeVisible();
     await expect(page.locator('[data-cse="budget-warnung-ab"]').first())
       .toHaveText('Warnung ab 80 %');
-    await expect(page.locator('[data-cse="budget-warnschwelle-offen"]'))
-      .toContainText('Warnschwelle: nicht hinterlegt');
+    await expect(page.locator('[data-cse="budget-warnschwelle-offen"]')).toHaveCount(0);
   });
 
   test('ein Agent zeigt seine Grenzen und was hinausgehen darf', async ({ page }) => {

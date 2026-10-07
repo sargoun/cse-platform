@@ -50,6 +50,10 @@ import {
 } from '../../agent/tools/register-werkzeuge.js';
 import { MIT_AUSFUEHRER } from '../../agent/tools/ausfuehrer.js';
 import { beantworteFrage } from '../../services/agent/assistent.js';
+import {
+  BUDGET_VOREINSTELLUNG_CENT, WARNSCHWELLE_VOREINSTELLUNG_PROZENT,
+} from '../../services/agent/budget-pflege.js';
+import { cent, formatiereGeld } from '../../services/finanz/geld.js';
 import { alsPortalSitzung } from './sitzung.js';
 import { DEMO_KENNWORT, seedZugangsdaten } from './zugang.js';
 import { seedBenachrichtigungen } from './benachrichtigung.js';
@@ -632,7 +636,7 @@ async function main(): Promise<void> {
   await sql`
     insert into plattform_einstellung (schluessel, wert, beschreibung, ist_vorlaeufig)
     values ('website.gruppenname', '"CSE Gruppe"'::jsonb,
-            'Auftrittsname der Gruppe auf der Website (VORLÄUFIG, O-206).', true)
+            'Auftrittsname der Gruppe auf der Website (Voreinstellung, O-206: ein Auftrittsname über vier Gesellschaften, kein eigener Rechtsträger).', true)
     on conflict (schluessel) do nothing`;
 
   // --------------------------------------------------------------- Menschen
@@ -1361,44 +1365,47 @@ async function main(): Promise<void> {
 
   // --------------------------------------------------------- Agent-Budgets
   /**
-   * Ein Monatsbudget je Rechtseinheit — **als klar markierter PLATZHALTER**.
+   * Ein Monatsbudget je Rechtseinheit — **die Voreinstellung, klar markiert**.
    *
-   * O-26 ist offen: wieviel Euro im Monat die KI kosten darf, entscheidet die
-   * Geschaeftsfuehrung, nicht diese Datei. Ohne irgendeine Zeile laeuft aber
+   * O-26: wieviel Euro im Monat die KI kosten darf, entscheidet am Ende die
+   * Geschaeftsfuehrung; bis dahin gilt `BUDGET_VOREINSTELLUNG_CENT` (D-786). Ohne irgendeine Zeile laeuft aber
    * kein Agent (`budget_fehlt`), und dann zeigt das Agenten-Zentrum einen
    * leeren Bildschirm, auf dem nichts zu sehen ist ausser einem Fehler — auch
    * nicht, WIE die Obergrenze wirkt.
    *
-   * Deshalb: 50,00 € je Gesellschaft und Monat, `ist_platzhalter = true`, und
-   * der Bildschirm schreibt genau das hin. Die Zahl ist bewusst klein — ein
-   * Platzhalter, der zu gross ist, faellt niemandem auf, bevor er kostet.
+   * Deshalb: die Voreinstellung je Gesellschaft und Monat, `ist_platzhalter =
+   * true`, und der Bildschirm schreibt genau das hin. Die Zahl ist bewusst
+   * klein — eine Voreinstellung, die zu gross ist, faellt niemandem auf, bevor
+   * sie kostet.
    *
-   * `warnschwelle_prozent` bleibt NULL: AGT-05 nennt eine Obergrenze und einen
-   * Hartstopp, zur Warnschwelle sagt die Vorgabe nichts, und „80 %" waere eine
-   * still erfundene Finanzregel (O-195).
+   * `warnschwelle_prozent` ist die Voreinstellung 80 % (O-195, D-784): AGT-05
+   * nennt eine Obergrenze und einen Hartstopp, zur Warnschwelle sagt die Vorgabe
+   * nichts — die 80 % stehen als Voreinstellung im Dienst, nicht hier, und der
+   * Bildschirm nennt sie so.
    *
-   * TODO(client, O-26): Monatsbudget je Gesellschaft — und je Agent?
+   * TODO(client, O-26): Voreinstellung — 50,00 € je Gesellschaft und Monat, kein Budget je Agent.
    */
   const JETZT_BERLIN = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit',
   }).format(new Date());
   const BUDGET_JAHR = Number(JETZT_BERLIN.slice(0, 4));
   const BUDGET_MONAT = Number(JETZT_BERLIN.slice(5, 7));
-  const BUDGET_PLATZHALTER_CENT = 5_000n;
+  const BUDGET_TEXT = formatiereGeld(cent(BUDGET_VOREINSTELLUNG_CENT));
 
   for (const b of BEREICHE) {
     await sql`
       insert into agent_budget
-        (mandant_id, geltungsbereich, jahr, monat, budget_cent, ist_platzhalter,
-         erstellt_von_art, erstellt_von_dienst)
+        (mandant_id, geltungsbereich, jahr, monat, budget_cent, warnschwelle_prozent,
+         ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
       values (${ids.get(b.slug)!}, 'mandant', ${BUDGET_JAHR}, ${BUDGET_MONAT},
-              ${BUDGET_PLATZHALTER_CENT.toString()}, true, 'system', 'job:seed')
+              ${BUDGET_VOREINSTELLUNG_CENT.toString()}, ${WARNSCHWELLE_VOREINSTELLUNG_PROZENT},
+              true, 'system', 'job:seed')
       on conflict do nothing`;
   }
   process.stdout.write(
     `  KI-Budget: ${BEREICHE.length} Zeilen fuer ${String(BUDGET_MONAT).padStart(2, '0')}/`
-    + `${BUDGET_JAHR}, je 50,00 € — PLATZHALTER (O-26)\n`
-    + '  · keine Warnschwelle: die Vorgabe nennt keine (O-195)\n',
+    + `${BUDGET_JAHR}, je ${BUDGET_TEXT} — Voreinstellung (O-26)\n`
+    + `  · Warnschwelle ${String(WARNSCHWELLE_VOREINSTELLUNG_PROZENT)} % (Voreinstellung, O-195)\n`,
   );
 
   // ------------------------------------------------ Ein Konto je Rolle (PR 19)
@@ -1698,7 +1705,7 @@ async function main(): Promise<void> {
   const ops = await seedOperations(sql, ids, kundenKonto?.id ?? null, verbundenerSpeicher);
   process.stdout.write(
     `  ${String(ops.objekte)} Objekte, ${String(ops.raeume)} Raeume, `
-    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Platzhalter, O-17)\n'
+    + 'Belagsarten und Reinigungsklassen (Leistungswerte: Voreinstellung, unbestätigt, O-17)\n'
     + `  ${String(ops.belegschaftsdokumente)} der Belegschaft freigegebene `
     + 'Unterlagen (EMP-11, DOC-04) — '
     + (verbundenerSpeicher === null
@@ -1894,7 +1901,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${String(rein.reviere)} Reviere zugeschnitten mit `
     + `${String(rein.revierRaeume)} Raumzuordnungen (davon `
-    + `${String(rein.aufPlatzhalter)} auf einem Platzhalter-Leistungswert, O-17), `
+    + `${String(rein.aufPlatzhalter)} auf einem unbestätigten Leistungswert der Voreinstellung, O-17), `
     + `${String(rein.nachweise)} Leistungsnachweise mit `
     + `${String(rein.positionen)} Positionen aus erfasster Zeit, `
     + `${String(rein.unterschriften)} Unterschrift (Abzug eingefroren, CLN-04), `
@@ -2007,8 +2014,9 @@ async function main(): Promise<void> {
   const radar = await seedRadar(sql, ids);
   process.stdout.write(
     `  ${String(radar.bekanntmachungen)} Bekanntmachungen (Demo, ohne Quellenlink) und `
-    + `${String(radar.profile)} Suchprofile — CPV-Listen sind Platzhalter (O-98), `
-    + `der Plattformkatalog bleibt leer (O-07); ${String(radar.bewertungen)} Bewertungen; `
+    + `${String(radar.profile)} Suchprofile — CPV-Listen Voreinstellung, gegen die amtliche Liste unbestätigt (O-98), `
+    + `${String(radar.plattformen)} Plattformen im Katalog (Voreinstellung, unbestätigt, O-07); `
+    + `${String(radar.bewertungen)} Bewertungen; `
     + `eine Vergabemappe in Arbeit mit ${String(radar.mappenpositionen)} Positionen `
     + `(nicht eingereicht — die Plattform reicht nichts ein, D-07); `
     + `${String(radar.empfaenger)} Benachrichtigungsempfaenger OHNE Punktschwelle — `
@@ -2344,16 +2352,16 @@ async function main(): Promise<void> {
   process.stdout.write('\nSeed fertig.\n');
   if (demodaten) {
     process.stdout.write(
-      'DEMOBETRIEB — was hier eine offene Frage überbrückt, steht IM DATENSATZ:\n'
-      + '  • Rechnungsnummern beginnen mit DEMO- (O-134 unbeantwortet, die Maske ist '
-      + 'geraten)\n'
+      'DEMOBETRIEB — was hier eine Voreinstellung überbrückt, steht IM DATENSATZ:\n'
+      + '  • Rechnungsnummern beginnen mit DEMO- (O-134: die Maske ist eine Voreinstellung, '
+      + 'von der Administration noch nicht freigegeben)\n'
       + '  • das KI-Modell trägt anbieter = \'demo\' (D-499)\n'
-      + '  • das Monatsbudget ist ein Platzhalter (O-26)\n'
+      + `  • das Monatsbudget ist die Voreinstellung ${formatiereGeld(cent(BUDGET_VOREINSTELLUNG_CENT))} je Gesellschaft (O-26, D-786)\n`
       + 'Ohne CSE_DEV_FLAECHEN entsteht nichts davon.\n');
   }
-  process.stdout.write('OFFEN, unabhängig vom Demobetrieb:\n');
-  process.stdout.write('  • O-134 — Rechnungsnummern-Maske je Gesellschaft bestätigen\n');
-  process.stdout.write('  • O-01  — ist CSE Operations eine GmbH oder eine Abteilung?\n');
+  process.stdout.write('VOM BETREIBER ZU BESTÄTIGEN, unabhängig vom Demobetrieb:\n');
+  process.stdout.write('  • O-134 — Rechnungsnummern-Maske je Gesellschaft (Voreinstellung D-779) freigeben\n');
+  process.stdout.write('  • O-01  — Rechtsform der CSE Operations (GmbH oder Abteilung) trägt der Betreiber ein\n');
   await sql.end();
 }
 

@@ -591,6 +591,17 @@ export interface KonditionEingabe {
    */
   readonly wochenstunden?: MilliMenge | null;
   readonly arbeitstageWoche?: MilliMenge | null;
+  /**
+   * Freier Text, K-05-geschuetzt. TODO(client, O-136): Voreinstellung — Reinigung
+   * nach dem RTV Gebaeudereinigung, Security nach dem Manteltarifvertrag Wach-
+   * und Sicherheitsgewerbe Berlin/Brandenburg, Bau nach dem BRTV; der Tarif
+   * selbst ist kein Feld: die Gruppe steht hier, die Pausenregel in
+   * `tarifvereinbarung` (O-50), das Entgelt rechnet das Lohnsystem (D-06). D-788.
+   * TODO(client, O-75): Voreinstellung — den internen Stundensatz liest nur, wer
+   * `personal.entgelt_lesen` haelt (0008: die Super-Administration); eine Leitung
+   * nicht, es sei denn, die Gesellschaft bindet das Recht an ihre Rolle (D-780).
+   * D-790.
+   */
   readonly tarifgruppe?: string | null;
   readonly kostenstelle?: string | null;
   readonly grund?: string | null;

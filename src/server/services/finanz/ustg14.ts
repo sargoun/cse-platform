@@ -450,8 +450,8 @@ export const REGELN: readonly Regel[] = [
       }
       const befunde: string[] = [];
       if (e.kreis.istPlatzhalter) {
-        befunde.push(`Der Nummernkreis „${e.kreis.bezeichnung ?? ''}" ist noch ein `
-          + 'Platzhalter — nicht freigegeben (O-134). Bis zur Freigabe durch die '
+        befunde.push(`Der Nummernkreis „${e.kreis.bezeichnung ?? ''}" ist eine `
+          + 'Voreinstellung — noch nicht freigegeben (O-134). Bis zur Freigabe durch die '
           + 'Administration vergibt er keine Nummer.');
       }
       if (!e.kreis.lueckenlos) {

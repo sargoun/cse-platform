@@ -40,9 +40,9 @@ import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
  * Wem das Leserecht fehlt, sieht eine leere Liste statt einer Sperre; deshalb
  * sagt die Seite es ausdrücklich.
  *
- * // TODO(client, O-693): Was geschieht mit Räumen, die auf eine ARCHIVIERTE
- * Reinigungsklasse zeigen — bleibt die Einstufung stehen (heutiges Verhalten)
- * oder müssen sie vor dem Archivieren umgestuft werden?
+ * // TODO(client, O-693): Voreinstellung — die Einstufung bleibt an den Räumen
+ * stehen, umgestuft wird im Raumbuch von einem Menschen; die Seite nennt vor
+ * dem Archivieren die Zahl der betroffenen Räume (D-788).
  */
 export const dynamic = 'force-dynamic';
 

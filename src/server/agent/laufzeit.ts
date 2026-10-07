@@ -21,7 +21,7 @@ import {
  * eine Dauer, die er sich aussucht.
  *
  * **Die Schleifenbremse ist sichtbar.** `max_schritte` steht am Agenten
- * (PLATZHALTER, O-196); wird sie erreicht, endet die Aufgabe mit
+ * (Voreinstellung, O-196); wird sie erreicht, endet die Aufgabe mit
  * `abgebrochen` und einem Text, der genau das sagt — statt eines Ergebnisses,
  * das aussieht, als wäre es fertig.
  */

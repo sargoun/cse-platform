@@ -111,8 +111,8 @@ export default async function Akquisequellen(
             verstösst gegen deren Nutzungsbedingungen, und nach <strong>Art. 14 DSGVO</strong>
             {' '}müsste jede erfasste Person binnen eines Monats informiert werden. Was hier
             angeschlossen werden kann, ist eine beauftragte Quelle — das amtliche Register
-            oder ein Anbieter mit Vertrag. Welche es wird, ist eine kaufmännische
-            Entscheidung (offene Frage O-596).
+            oder ein Anbieter mit Vertrag. Welche es wird, entscheidet der Betreiber
+            (kaufmännische Entscheidung, O-596); bis dahin bleibt der Lauf „übersprungen".
           </>
         ) : (
           `${String(verbundene)} von ${String(daten.liste.length)} Quellen verbunden.`

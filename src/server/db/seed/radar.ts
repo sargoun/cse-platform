@@ -1,5 +1,7 @@
 import type postgres from 'postgres';
 import { bewerteLauf } from '../../services/radar/lauf.js';
+import { PLATTFORM_VOREINSTELLUNG } from '../../services/radar/plattform.js';
+import { SCHWELLE_VOREINSTELLUNG } from '../../services/radar/gewichte.platzhalter.js';
 import { uebernimmAusschreibungAlsLead } from '../../services/crm/lead-radar.js';
 import { alsPortalSitzung } from './sitzung.js';
 
@@ -24,9 +26,12 @@ import { alsPortalSitzung } from './sitzung.js';
  * wäre genau die Art Behauptung, die diese Plattform nicht macht. Deshalb
  * `quell_url = null` und `quell_id` mit `demo-`.
  *
- * **Kein Plattformkatalog.** `vergabeplattform` bleibt leer, bis O-07
- * beantwortet ist — welche Plattformen gelten, und wer dort unter welcher
- * Kennung registriert ist, weiss niemand hier. Die Plattformseite sagt das.
+ * **Der Plattformkatalog ist die Voreinstellung** (O-07, D-784): die
+ * öffentlichen Vergabeplattformen aus `PLATTFORM_VOREINSTELLUNG`, jede
+ * unbestätigt (`ist_platzhalter`). Wer dort unter welcher Kennung registriert
+ * ist, weiss niemand hier — `mandant_plattform_registrierung` bleibt leer, und
+ * die Plattformseite sagt „unbekannt". Die Demo-Bekanntmachungen tragen keine
+ * Adresse, also wird keine von ihnen einer Plattform zugeordnet.
  */
 
 export interface Vorlage {
@@ -188,11 +193,33 @@ export interface RadarSeedBefund {
   readonly bewertungen: number;
   readonly mappenpositionen: number;
   readonly empfaenger: number;
+  readonly plattformen: number;
 }
 
 export async function seedRadar(
   sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,
 ): Promise<RadarSeedBefund> {
+  /*
+   * Der Plattformkatalog: die Voreinstellung, unbestätigt, ohne Registrierung
+   * (D-784). Gezaehlt wird am Ende der KATALOG, nicht dieser Lauf: beim
+   * zweiten Seed kollidiert jeder Einsatz, und „0 Plattformen im Katalog"
+   * waere eine Luege ueber acht vorhandene Zeilen (Pruefstand PR #34).
+   */
+  let plattformenNeu = 0;
+  for (const p of PLATTFORM_VOREINSTELLUNG) {
+    const neu = await sql<{ id: string }[]>`
+      insert into vergabeplattform
+        (name, slug, betreiber, basis_url, host_muster, registrierung_erforderlich)
+      values (${p.name}, ${p.slug}, ${p.betreiber}, ${p.basisUrl},
+              ${sql.array([...p.hostMuster])}, ${p.registrierungErforderlich})
+      on conflict (slug) do nothing
+      returning id`;
+    plattformenNeu += neu.length;
+  }
+  const [katalog] = await sql<{ n: string }[]>`
+    select count(*)::text as n from vergabeplattform where archiviert_am is null`;
+  const plattformen = Number(katalog?.n ?? plattformenNeu);
+
   for (const v of BEKANNTMACHUNGEN) {
     const [a] = await sql<{ id: string }[]>`
       insert into ausschreibung
@@ -233,12 +260,13 @@ export async function seedRadar(
     const [zeile] = await sql<{ id: string }[]>`
       insert into radar_profil
         (mandant_id, name, nuts_praefixe, positiv_keywords, negativ_keywords,
-         wert_min_cent, wert_max_cent, ist_platzhalter, ist_aktiv)
+         wert_min_cent, wert_max_cent, ist_platzhalter, ist_aktiv,
+         benachrichtigung_ab_punkte)
       values (${mandantId}, ${p.name}, ${sql.array([...PROFIL_NUTS])},
               ${sql.array([...p.positiv])}, ${sql.array([...p.negativ])},
               ${p.minCent === null ? null : p.minCent.toString()}::bigint,
               ${p.maxCent === null ? null : p.maxCent.toString()}::bigint,
-              true, true)
+              true, true, ${SCHWELLE_VOREINSTELLUNG})
       returning id`;
     if (zeile === undefined) continue;
     profile += 1;
@@ -265,7 +293,7 @@ export async function seedRadar(
 
   return {
     profile, bekanntmachungen: BEKANNTMACHUNGEN.length, bewertungen: lauf.neueZeilen,
-    mappenpositionen: mappe, empfaenger,
+    mappenpositionen: mappe, empfaenger, plattformen,
   };
 }
 
@@ -405,19 +433,18 @@ async function seedVergabemappe(
 }
 
 /**
- * Die Empfänger einer Radarmeldung (RAD-08) — **ohne Punktschwelle**.
+ * Die Empfänger einer Radarmeldung (RAD-08) — **ohne eigene Punktschwelle**.
  *
- * **Warum eingetragen, aber ohne Zahl.** Der Fristenwächter (SPEC §14) läuft
- * ohne jede Einstellung: fünf Tage stehen im SPEC. Die Trefferschwelle steht
- * dort nicht, und sie zu raten hiesse, eine Entscheidung des Betriebs zu
- * erfinden (O-15) — eine zu niedrige Zahl macht Lärm, eine zu hohe Stille,
- * und beides fällt erst auf, wenn eine Vergabe verpasst ist.
+ * **Warum eingetragen, aber ohne eigene Zahl.** Der Fristenwächter (SPEC §14)
+ * läuft ohne jede Einstellung: fünf Tage stehen im SPEC. Die Trefferschwelle
+ * bringt das Profil mit — die Voreinstellung `SCHWELLE_VOREINSTELLUNG` (60 von
+ * 100, O-15, D-786), dieselbe, die `legeProfilAn` jedem neuen Profil gibt; ein
+ * Empfänger ohne eigene Zahl erbt sie (`coalesce` in `warnung.ts`).
  *
- * Der Seed legt deshalb genau die Lage an, die ein neuer Betrieb hat: die
- * Einsatzleitung ist eingetragen, bekommt die Fristwarnungen, und die
- * Profilseite sagt bei jedem Empfänger, dass ohne Schwelle keine
- * Treffermeldung kommt. Eine gesetzte Demoschwelle sähe aus wie eine
- * beantwortete Frage.
+ * Der Seed legt damit genau die Lage an, die ein neuer Betrieb hat: die
+ * Einsatzleitung ist eingetragen, bekommt die Fristwarnungen und die
+ * Treffermeldung ab der Voreinstellung, und die Profilseite nennt beides als
+ * Voreinstellung — nicht als Entscheidung des Betriebs.
  */
 async function seedEmpfaenger(
   sql: postgres.Sql, mandanten: ReadonlyMap<string, string>,

@@ -137,7 +137,7 @@ export default async function WebsiteNeuigkeit(
           Als Neuigkeit zählen {NEUIGKEITS_ARTEN.map((k) => ART[k] ?? k).join(' und ')} —
           eine Projektschau hat mit{' '}
           <code className="font-mono">/unternehmen/{mandant}/projekte</code> ihre eigene
-          Liste. Ob sie dazugehören soll, ist redaktionell offen (O-548).
+          Liste und zählt nicht dazu (Voreinstellung, O-548).
         </Hinweis>
       )}
 
@@ -227,8 +227,9 @@ export default async function WebsiteNeuigkeit(
       <p className="max-w-prose text-xs text-text-subtle">
         <strong>Die englische Newsseite zeigt diese Zeile unverändert.</strong>{' '}
         Ein Beitrag hat keine Sprachfassungen — anders als eine Seite und ein
-        Unternehmensprofil, wo eine englische Fassung ein eigener Eintrag ist (D-82). Ob Neuigkeiten zweisprachig geführt werden sollen,
-        ist offen (O-681).
+        Unternehmensprofil, wo eine englische Fassung ein eigener Eintrag ist (D-82).
+        Neuigkeiten werden einsprachig deutsch geführt (Voreinstellung, O-681); eine
+        zweisprachige Fassung bräuchte eine Sprachspalte am Beitrag.
       </p>
     </PortalRahmen>
   );

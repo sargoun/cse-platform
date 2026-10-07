@@ -112,7 +112,7 @@ export default async function MeineDokumente({
     <MeinRahmen basis={basis} titel={t.dokumente} aktiverTab="heute">
       <h1 className="mb-s4 text-h1 text-text">{t.dokumente}</h1>
 
-      {/* O-850 — die offene Zuordnung, als Satz und nicht als Leerstelle. */}
+      {/* O-850 — die Voreinstellung der Zuordnung (D-784), als Satz und nicht als Leerstelle. */}
       <Hinweis text={t.dokumenteOffenerBezug} marke="offener-bezug" />
 
       {daten.kategorien.length > 0 && (

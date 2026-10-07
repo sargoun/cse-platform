@@ -43,6 +43,14 @@ export class KeinNachrichtenRechtFehler extends Error {
   }
 }
 
+/**
+ * TODO(client, O-165): Voreinstellung — Nacherfassung bis sieben Kalendertage
+ * nach dem Arbeitstag (die Obergrenze des § 17 Abs. 1 MiLoG), danach Hinweis an
+ * die Leitung; eine Frist prueft die Plattform heute nicht (V-321, D-788).
+ * TODO(client, O-173): Voreinstellung — die sechs Korrekturgruende aus 0036
+ * (`korrektur_grund`): vergessen auszustempeln, Geraet defekt, falsches Objekt,
+ * Einwand der Mitarbeiterin, Nachtrag offline, sonstiges. D-788.
+ */
 export type KorrekturArt =
   | 'zeit_korrektur' | 'pause_korrektur' | 'zuordnung_korrektur'
   | 'nacherfassung' | 'storno';

@@ -102,7 +102,7 @@ test.describe('Vergaberadar (Phase 8)', () => {
     await expect(page.locator('[data-cse="radar-vermerkt"]')).toContainText('verworfen');
   });
 
-  test('Profile und Plattformen sagen, was Platzhalter ist und was fehlt', async ({ page }) => {
+  test('Profile und Plattformen sagen, was Voreinstellung ist und was fehlt', async ({ page }) => {
     await anmelden(page, KONTO.adminReinigung);
 
     expect((await page.goto('/portal/reinigung/radar/profile'))?.status()).toBe(200);
@@ -111,22 +111,24 @@ test.describe('Vergaberadar (Phase 8)', () => {
     await expect(page.locator('[data-cse="radar-profil-version"]').first()).toContainText('Bewertungen');
 
     /*
-     * **RAD-08 sagt, dass es NICHT meldet** (O-15). Der Seed traegt die
-     * Einsatzleitung als Empfaengerin ein, aber ohne Punktschwelle — genau
-     * die Lage eines neuen Betriebs. Eine Seite, die das verschweigt, laesst
-     * jemanden auf Meldungen warten, die nie kommen.
+     * **RAD-08 meldet ab der Voreinstellung** (O-15, D-786). Der Seed traegt
+     * die Einsatzleitung als Empfaengerin ohne eigene Punktschwelle ein; das
+     * Profil bringt die 60 von 100 mit, und die Seite nennt genau diese Zahl
+     * — nicht „keine Treffermeldung", und nicht eine Zahl, die aussieht wie
+     * eine Entscheidung des Betriebs.
      */
     const empfaenger = page.locator('[data-cse="radar-empfaenger"]').first();
     await expect(empfaenger).toBeVisible();
     expect(await empfaenger.getAttribute('data-schwelle'),
-      'ohne Schwelle steht dort nichts').toBe('');
-    await expect(empfaenger).toContainText('keine Treffermeldung');
+      'ohne eigene Schwelle gilt die Voreinstellung des Profils').toBe('60');
+    await expect(empfaenger).toContainText('ab 60 von 100 Punkten');
     await expect(page.locator('[data-cse="radar-profil-benachrichtigung"]').first(),
       'die Fristwarnung braucht keine Einstellung').toContainText('fünf Tage');
 
     expect((await page.goto('/portal/reinigung/radar/plattformen'))?.status()).toBe(200);
-    /* Der Katalog ist leer — mit Absicht, und die Seite sagt warum (O-07). */
-    await expect(page.locator('[data-cse="plattform-leer"]')).toContainText('O-07');
+    /* Der Katalog trägt die Voreinstellung (D-784): jeder Eintrag unbestätigt, und die Zeile sagt es (O-07). */
+    await expect(page.locator('[data-cse="plattform"]').first()).toContainText('O-07');
+    await expect(page.locator('[data-cse="plattform-leer"]')).toHaveCount(0);
   });
 
   test('jede Gesellschaft sieht ihre eigene Bewertung', async ({ page }) => {

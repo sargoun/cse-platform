@@ -18,6 +18,10 @@
  * `(beginn_zeitpunkt)::date` waere der UTC-Tag und laege bei jeder
  * Nachtschicht zwischen 22:00 und 24:00 Ortszeit um einen Tag daneben — in der
  * Sommerzeit sogar zwischen 22:00 und 02:00.
+ *
+ * TODO(client, O-150): Voreinstellung — massgeblich ist der Berliner Kalendertag
+ * des Schichtbeginns: ein Nachweis, der um Mitternacht ablaeuft, deckt die
+ * begonnene Nachtschicht; die naechste Schicht braucht einen gueltigen. D-789.
  */
 import { berlinKalendertag } from '../zeit/dauer.js';
 

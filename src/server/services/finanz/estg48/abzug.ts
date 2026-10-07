@@ -14,6 +14,11 @@ import { anteilInBasisPunkten, basisPunkte, NULL_CENT, type Cent } from '../geld
  * Satz kommt trotzdem als datierte Einstellung herein und nicht als Konstante:
  * Sätze sind schon bewegt worden, und eine einkompilierte Zahl bewertete am
  * Tag einer Änderung jede historische Rechnung neu.
+ *
+ * TODO(client, O-187): Voreinstellung — die Plattform rechnet und weist den
+ * Einbehalt aus (hier, `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach
+ * § 48a EStG gibt der Steuerberater ab, einen Fristenkalender führt die
+ * Plattform nicht (V-315, D-787).
  */
 
 export interface Bescheinigung {

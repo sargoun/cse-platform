@@ -110,8 +110,8 @@ export const RECRUITING_KANDIDAT_TEXTE: Readonly<Record<InternSprache, Recruitin
       'KI-Funktion nicht verfügbar: für das Auslesen ist kein Modell mit EU-Verarbeitung und '
       + 'Nullspeicherung freigegeben. Die Angaben trägt ein Mensch ein.',
     kLebenslauf:
-      'Ein Lebenslauf kommt als Datei nicht an, solange offen ist, wohin Bewerbungsunterlagen '
-      + 'gehen (O-375) — ausgelesen wird nur die Nachricht der Bewerbung.',
+      'Ein Lebenslauf kommt als Datei nicht an, solange der Betreiber den Belegspeicher nicht '
+      + 'verbunden hat (O-375) — ausgelesen wird nur die Nachricht der Bewerbung.',
     kOhneRechtVor: 'Den Agenten startet, wer',
     kOhneRechtNach: 'hält.',
     kErfassenOhneRecht: 'Erfassen und bestätigen darf, wer dieses Recht hält:',
@@ -217,8 +217,8 @@ export const RECRUITING_KANDIDAT_TEXTE: Readonly<Record<InternSprache, Recruitin
       'AI function not available: no model with EU processing and zero retention is approved '
       + 'for reading out. A person enters the details.',
     kLebenslauf:
-      'A CV does not arrive as a file while it is open where application documents go (O-375) '
-      + '— only the application message is read.',
+      'A CV does not arrive as a file while the operator has not connected the document '
+      + 'storage (O-375) — only the application message is read.',
     kOhneRechtVor: 'Only someone holding',
     kOhneRechtNach: 'starts the agent.',
     kErfassenOhneRecht: 'Entering and confirming is for whoever holds this permission:',

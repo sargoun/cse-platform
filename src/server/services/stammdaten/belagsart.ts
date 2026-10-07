@@ -153,8 +153,9 @@ export function pruefeBelagsartEingabe(
    * niemand entschieden hat. `bezeichnung` und `beschreibung` sind aus
    * demselben Grund ungeprueft lang.
    *
-   * // TODO(client, O-694): Gibt es eine Hoechstlaenge fuer Belagsart- und
-   * Reinigungsklassen-Codes aus dem Kundenraumbuch — und wenn ja, welche?
+   * // TODO(client, O-694): Voreinstellung — keine Hoechstlaenge fuer Belagsart-
+   * und Reinigungsklassen-Codes; geprueft werden Vorhandensein und Randleerraum,
+   * weil der Code aus dem Raumbuch des Kunden kommt (D-788).
    */
   const code = pflichttext(lies('code'), 'Code');
   const beschreibung = (lies('beschreibung') ?? '').trim();
@@ -203,8 +204,8 @@ export type Datierung =
  * **Rueckwirkend heisst hier: zwischen dem Beginn der laufenden Fassung und
  * heute — und genau dieser Bereich ist unbewacht.** Ein Beginn in ihm wird
  * angenommen und aendert die Grundlage jeder Kalkulation aus dieser Zeit,
- * ohne dass jemand zustimmt. Ob das so bleiben soll, ist O-692; die strengere
- * Variante — Beginn nie vor `app.berlin_heute()` — waere eine Zeile hier.
+ * ohne dass jemand zustimmt. Voreinstellung (O-692, D-788): es bleibt so; die
+ * strengere Variante — Beginn nie vor `app.berlin_heute()` — waere eine Zeile hier.
  */
 export function pruefeDatierung(
   gueltigAb: string, laufendeSeit: string | null,

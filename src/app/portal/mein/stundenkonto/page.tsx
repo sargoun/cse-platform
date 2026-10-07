@@ -119,7 +119,7 @@ export default async function MeinStundenkonto({
 
       {/* EMP-15, zweite Haelfte: die Konten bleiben getrennt. */}
       <h2 className="mb-s3 text-h3 text-text">{t.jeBeschaeftigung}</h2>
-      {daten.konten.length === 0 ? <Leer text={t.keineEintraege} /> : (
+      {daten.konten.length === 0 ? <Leer text={t.stundenkontoNichtEroeffnet} /> : (
         <ul data-cse="konten" className="m-0 flex list-none flex-col gap-s4 p-0">
           {daten.konten.map((a) => (
             <li

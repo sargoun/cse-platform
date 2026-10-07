@@ -27,6 +27,14 @@ export interface Abfrage {
 export type EingangsStatus =
   'eingegangen' | 'in_pruefung' | 'freigegeben' | 'gebucht' | 'abgelehnt';
 
+/**
+ * `gutschrift` ist hier der Stornobeleg einer Ausgangsrechnung (Kreis
+ * `gutschrift`), keine Abrechnungsgutschrift nach § 14 Abs. 2 Satz 2 UStG.
+ *
+ * TODO(client, O-184): Voreinstellung — keine Gutschriftsabrechnung mit
+ * Nachunternehmern; sie stellen Rechnungen, die als Eingangsrechnung mit
+ * § 13b-Prüfung laufen (`lieferant.leistungsart`, D-787).
+ */
 export type BelegTyp =
   | 'ausgangsrechnung' | 'eingangsrechnung' | 'gutschrift' | 'kassenbeleg'
   | 'bankbeleg' | 'vertrag' | 'sonstiges';

@@ -31,8 +31,9 @@ import { haeltRechte } from '@/app/portal/rechte';
  * Plattformen ein", und es gab keinen Weg dafür — die Warnung „nicht
  * freigeschaltet" konnte deshalb nie auslösen.
  *
- * **Vorgabe ist `unbekannt`, nicht „nicht registriert".** Niemand hat diese
- * Frage bisher beantwortet (O-07), und eine Oberfläche, die „nicht
+ * **Vorgabe des Registrierungsstands ist `unbekannt`, nicht „nicht
+ * registriert".** Der Katalog hat seit D-784 eine Voreinstellung (O-07), der
+ * Stand einer Gesellschaft darauf nicht: eine Oberfläche, die „nicht
  * registriert" behauptet, behauptet etwas über die Konten eines Betriebs,
  * das sie nicht weiss.
  *
@@ -161,7 +162,18 @@ export default async function Plattformen(
       {zeilen.length === 0 ? (
         <Hinweis art="hinweis" cse="plattform-leer" className="mb-s6 max-w-prose">
           <strong>{t.leerTitel}</strong> {t.leerText}
-          {superAdmin ? <> {t.leerSuperAdmin}</> : null}
+          {superAdmin ? (
+            <>
+              {' '}{t.leerSuperAdmin}
+              {/* D-784 (O-07): die Voreinstellung als Katalogzeilen — derselbe Weg wie Eintragen. */}
+              <form method="post" action="/api/radar/plattform" className="mt-s3">
+                <input type="hidden" name="was" value="plattform_voreinstellung" />
+                <Button type="submit" variante="secondary" data-cse="plattform-voreinstellung">
+                  {t.voreinstellungKnopf}
+                </Button>
+              </form>
+            </>
+          ) : null}
         </Hinweis>
       ) : (
         <ul data-cse="plattform-liste" className="mb-s6 flex flex-col gap-s3">

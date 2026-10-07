@@ -333,7 +333,7 @@ export const CSV_QUELLE: LvQuelle = {
       if (posartRoh !== '' && POSITIONSART_WORTE[posartRoh] === undefined) {
         fehler.push(
           `Positionsart „${wert(zeile, 'positionsart')}" ist unbekannt — die Zeile `
-          + 'bleibt „unbestimmt" (offene Frage O-155).',
+          + 'bleibt „unbestimmt" und zählt wie eine Normalposition (Voreinstellung O-155).',
         );
       }
 

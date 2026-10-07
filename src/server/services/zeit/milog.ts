@@ -35,6 +35,11 @@
  * **Was hier NICHT passiert: Geld.** Diese Domaene traegt keine Geldspalte
  * (§1.5, Invariante 1). Die Aufzeichnung ist Minuten; bewertet wird sie im
  * Lohnlauf, ausserhalb der Plattform (D-06).
+ *
+ * TODO(client, O-162): Voreinstellung — Zeiteintraege werden nicht geloescht
+ * (Invariante 8), die zwei Jahre des § 17 Abs. 1 MiLoG sind damit immer
+ * eingehalten; kaeme je ein Loeschlauf, zaehlt die Frist ab dem Ende des
+ * Kalenderjahres der Aufzeichnung (wie § 147 Abs. 4 AO). D-788.
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { nutzlastHash } from '../finanz/hash-chain.js';

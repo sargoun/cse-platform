@@ -219,6 +219,14 @@ export async function legeBautagAn(
   } catch (fehler: unknown) {
     if (istEindeutigkeitsverstoss(fehler, 'bautagebuch_tag_uk')) {
       /**
+       * TODO(client, O-157): Voreinstellung — ein Bautagebuch je Projekt
+       * (Baustelle), ein lebender Tag je Kalendertag; Bauabschnitte stehen im
+       * Text des Tages, nicht als eigenes Buch. D-789.
+       * TODO(client, O-158): Voreinstellung — keine Schwelle: ob Witterung
+       * arbeitsbehindernd war, entscheidet die Bauleitung am Tag
+       * (`arbeitsbehindernde_witterung`, 0083), die DWD-Werte stehen daneben;
+       * ein Eingabeweg fuer das Kennzeichen fehlt (V-328). D-789.
+       *
        * Ein LEBENDER Tag je Projekt und Kalendertag (0082). Der zweite
        * Versuch ist fast immer ein zweiter Browsertab, kein Fehler des
        * Menschen — also sagt die Meldung, wohin er gehoert.

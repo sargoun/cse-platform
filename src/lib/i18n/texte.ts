@@ -960,6 +960,8 @@ export interface MeinTexte {
   readonly nichtVerbunden: string;
 
   readonly keineEintraege: string;
+  /** Mein › Stundenkonto ohne Konto im Monat — der Nachtlauf eröffnet, nicht das Portal (O-982). */
+  readonly stundenkontoNichtEroeffnet: string;
   readonly pflichtfeld: string;
   readonly sprache: string;
   readonly drucken: string;
@@ -1102,7 +1104,8 @@ export interface MeinTexte {
   readonly uebergabe: string;
   /**
    * Das Uebergabefenster ist GAR NICHT eingestellt (`uebergabeFenster ===
-   * null`) — die offene Frage O-151 ist noch nicht beantwortet.
+   * null`) — Voreinstellung (O-151, D-789): zwoelf Stunden, zu setzen je
+   * Gesellschaft (V-323).
    *
    * Getrennt von `uebergabeAus`, weil `Schichtbuch.uebergabeFenster` die zwei
    * Faelle mit Absicht unterscheidet: `null` heisst „nie eingerichtet",
@@ -1207,9 +1210,9 @@ export interface MeinTexte {
    *
    * `app.ist_eingesetzt_auf_objekt`/`…_projekt` verlangen
    * `ende_zeitpunkt >= now()`; mit der Minute des Schichtendes schliessen
-   * Wachbuch, Fotos, Leistungsnachweis und Bautagebuch. Bis O-740 beantwortet
-   * ist, ist das die Grenze — und sie steht auf dem Bildschirm, statt dass ein
-   * Formular scheitert.
+   * Wachbuch, Fotos, Leistungsnachweis und Bautagebuch. Voreinstellung (O-740,
+   * D-789): Schichtende plus Ausstempeltoleranz — gebaut ist das Schichtende
+   * (V-326), und es steht auf dem Bildschirm, statt dass ein Formular scheitert.
    */
   readonly schichtBeendet: string;
   /** Die Einteilung wurde aus dem Plan genommen (`entfernt_am`). */
@@ -1469,6 +1472,9 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'Bewacherregister',
     nichtVerbunden: 'nicht verbunden',
     keineEintraege: 'Keine Einträge.',
+    stundenkontoNichtEroeffnet: 'Für diesen Monat ist kein Stundenkonto eröffnet. Der Nachtlauf eröffnet '
+      + 'den laufenden Monat am Monatsersten um 00:30 Uhr; das Portal legt keines an '
+      + '(Voreinstellung O-982).',
     pflichtfeld: 'Pflichtfeld',
     sprache: 'Sprache',
     drucken: 'Drucken',
@@ -1506,10 +1512,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'Ihre Antwort steht im Vorgang.',
     schonGelesen: 'Für Sie war dieser Vorgang schon gelesen.',
     neuerFadenOffen:
-      'Von sich aus eine Nachricht zu schreiben ist noch nicht eingerichtet — wen Sie dann anschreiben dürfen, ist eine offene Frage (O-830). Auf einen Vorgang zu antworten funktioniert.',
+      'Von sich aus eine Nachricht zu schreiben ist noch nicht eingerichtet — Voreinstellung (O-830): sie geht an die Einsatzleitung Ihres laufenden Einsatzes. Auf einen Vorgang zu antworten funktioniert.',
     anlagen: 'Anlagen',
     anlagenNichtAbrufbar:
-      'Die Dateien erhalten Sie auf dem bisherigen Weg; ob Anlagen im Portal zu öffnen sind, ist noch nicht entschieden (O-831).',
+      'Die Dateien erhalten Sie auf dem bisherigen Weg; Anlagen im Portal zu öffnen ist vorgesehen (Voreinstellung, O-831), aber noch nicht eingerichtet.',
     profil: 'Profil',
     bereichWechseln: 'Bereich wechseln',
     konto: 'Konto',
@@ -1552,11 +1558,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuchNeu: 'Eintrag schreiben',
     uebergabe: 'Übergabe',
     uebergabeNichtEingestellt:
-      'Das Übergabefenster ist noch nicht eingestellt (offene Frage O-151). Bis dahin '
-      + 'stehen hier nur die eigenen Einträge.',
+      'Das Übergabefenster ist nicht eingestellt — Voreinstellung (O-151): die Einträge '
+      + 'der letzten zwölf Stunden der Vorschicht, gesetzt von der Sicherheitsleitung je '
+      + 'Gesellschaft. Bis dahin stehen hier nur die eigenen Einträge.',
     uebergabeAus:
-      'Das Übergabefenster ist eingestellt und steht auf null — die Einträge der '
-      + 'Vorschicht bleiben verdeckt. Hier stehen nur die eigenen Einträge.',
+      'Das Übergabefenster steht auf null — die Einträge der Vorschicht bleiben verdeckt. '
+      + 'Voreinstellung (O-151) wären zwölf Stunden; gesetzt wird das Fenster je '
+      + 'Gesellschaft. Hier stehen nur die eigenen Einträge.',
     art: 'Art',
     betreff: 'Betreff',
     eintragstext: 'Was ist passiert?',
@@ -1663,7 +1671,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'Abgelegt am',
     dokumenteOffenerBezug:
       'Hier steht, was Ihre Gesellschaft der Belegschaft freigegeben hat. Unterlagen, '
-      + 'die nur Sie persönlich betreffen, sind noch nicht zugeordnet — offen (O-850).',
+      + 'die nur Sie persönlich betreffen, sind noch nicht zugeordnet — vorgesehen ist die '
+      + 'Zuordnung über Ihre Beschäftigung (Voreinstellung, O-850).',
     abrufProtokolliert: 'Jeder Abruf wird mit Ihrem Konto protokolliert.',
     listeGekuerzt:
       'Es werden nur die neuesten Einträge angezeigt. Grenzen Sie die Liste über die '
@@ -1858,6 +1867,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'Guard register',
     nichtVerbunden: 'not connected',
     keineEintraege: 'No entries.',
+    stundenkontoNichtEroeffnet: 'No hours account is open for this month. The nightly job opens the '
+      + 'current month on the 1st at 00:30; the portal does not create one (default O-982).',
     pflichtfeld: 'Required',
     sprache: 'Language',
     drucken: 'Print',
@@ -1895,10 +1906,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'Your reply is now part of the thread.',
     schonGelesen: 'For you this thread was already read.',
     neuerFadenOffen:
-      'Starting a message yourself is not set up yet — who you would be allowed to write to is an open question (O-830). Replying to a thread works.',
+      'Starting a message yourself is not set up yet — default (O-830): it goes to the shift lead of your current assignment. Replying to a thread works.',
     anlagen: 'Attachments',
     anlagenNichtAbrufbar:
-      'You receive the files the way you did before; whether attachments can be opened in the portal has not been decided yet (O-831).',
+      'You receive the files the way you did before; opening attachments in the portal is planned (default, O-831) but not set up yet.',
     profil: 'Profile',
     bereichWechseln: 'Switch area',
     konto: 'Account',
@@ -1941,11 +1952,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuchNeu: 'Write an entry',
     uebergabe: 'Handover',
     uebergabeNichtEingestellt:
-      'The handover window has not been configured yet (open question O-151). Until then '
-      + 'only your own entries appear here.',
+      'The handover window is not configured — default (O-151): the previous shift\u2019s '
+      + 'entries of the last twelve hours, set by the security management per entity. '
+      + 'Until then only your own entries appear here.',
     uebergabeAus:
-      'The handover window is configured and set to zero — the previous shift\u2019s entries '
-      + 'stay hidden. Only your own entries appear here.',
+      'The handover window is set to zero — the previous shift\u2019s entries stay hidden. '
+      + 'The default (O-151) would be twelve hours; the window is set per entity. Only your '
+      + 'own entries appear here.',
     art: 'Type',
     betreff: 'Subject',
     eintragstext: 'What happened?',
@@ -2049,7 +2062,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'Filed on',
     dokumenteOffenerBezug:
       'What you see here is what your company released to the workforce. Papers that '
-      + 'concern you personally are not linked yet — open (O-850).',
+      + 'concern you personally are not linked yet — they are to be linked through your '
+      + 'employment (default, O-850).',
     abrufProtokolliert: 'Every retrieval is logged against your account.',
     listeGekuerzt:
       'Only the most recent entries are shown. Narrow the list down by category.',
@@ -2239,6 +2253,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'سجل الحراسة',
     nichtVerbunden: 'غير متصل',
     keineEintraege: 'لا توجد إدخالات.',
+    stundenkontoNichtEroeffnet: 'لا يوجد حساب ساعات مفتوح لهذا الشهر. تفتح المهمة الليلية الشهر الجاري في '
+      + 'اليوم الأول عند الساعة 00:30؛ البوابة لا تنشئ حسابًا بنفسها (الإعداد الافتراضي O-982).',
     pflichtfeld: 'إلزامي',
     sprache: 'اللغة',
     drucken: 'طباعة',
@@ -2276,10 +2292,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'ردّك صار ضمن المحادثة.',
     schonGelesen: 'بالنسبة إلك هذه المحادثة كانت مقروءة أصلاً.',
     neuerFadenOffen:
-      'إرسال رسالة من طرفك لسّا مش مفعّل — لمين بيحقّ لك تكتب سؤال مفتوح (O-830). الردّ على محادثة شغّال.',
+      'إرسال رسالة من طرفك لسّا مش مفعّل — الإعداد الافتراضي (O-830): بتوصل لمسؤول العمل في مهمتك الحالية. الردّ على محادثة شغّال.',
     anlagen: 'المرفقات',
     anlagenNichtAbrufbar:
-      'بتوصلك الملفات بالطريقة المعتادة؛ وهل تنفتح المرفقات داخل البوابة لسّا ما تقرّر (O-831).',
+      'بتوصلك الملفات بالطريقة المعتادة؛ فتح المرفقات داخل البوابة مقرَّر (الإعداد الافتراضي، O-831) لكنه لسّا مش مفعّل.',
     profil: 'الملف الشخصي',
     bereichWechseln: 'تبديل القسم',
     konto: 'الحساب',
@@ -2317,9 +2333,11 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuchNeu: 'كتابة قيد',
     uebergabe: 'التسليم',
     uebergabeNichtEingestellt:
-      'لم تُضبط فترة التسليم بعد (مسألة مفتوحة، O-151). حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
+      'فترة التسليم غير مضبوطة — الإعداد الافتراضي (O-151): قيود الوردية السابقة خلال آخر اثنتي عشرة '
+      + 'ساعة، تضبطها إدارة الأمن لكل شركة. حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
     uebergabeAus:
-      'فترة التسليم مضبوطة على صفر — تبقى قيود الوردية السابقة مخفية. تظهر هنا قيودك أنت فقط.',
+      'فترة التسليم مضبوطة على صفر — تبقى قيود الوردية السابقة مخفية. الإعداد الافتراضي (O-151) '
+      + 'هو اثنتا عشرة ساعة؛ تُضبط الفترة لكل شركة. تظهر هنا قيودك أنت فقط.',
     art: 'النوع',
     betreff: 'الموضوع',
     eintragstext: 'ماذا حدث؟',
@@ -2417,7 +2435,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'تاريخ الحفظ',
     dokumenteOffenerBezug:
       'ما تراه هنا هو ما أتاحته شركتك للعاملين. أما الأوراق التي تخصّك شخصياً فلم تُربط '
-      + 'بعد — مفتوح (O-850).',
+      + 'بعد — ومن المقرَّر ربطها عبر عقد عملك (الإعداد الافتراضي، O-850).',
     abrufProtokolliert: 'يُسجَّل كل استدعاء للملف باسم حسابك.',
     listeGekuerzt: 'تُعرض أحدث المدخلات فقط. ضيّق القائمة حسب الفئة.',
 
@@ -2607,6 +2625,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     registerBewacher: 'Güvenlik sicili',
     nichtVerbunden: 'bağlı değil',
     keineEintraege: 'Kayıt yok.',
+    stundenkontoNichtEroeffnet: 'Bu ay için açılmış bir saat hesabı yok. Gece işi, içinde bulunulan ayı '
+      + "ayın birinde 00:30'da açar; portal kendisi hesap oluşturmaz (varsayılan O-982).",
     pflichtfeld: 'Zorunlu alan',
     sprache: 'Dil',
     drucken: 'Yazdır',
@@ -2644,10 +2664,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     antwortImVorgang: 'Yanıtınız konunun içinde.',
     schonGelesen: 'Sizin için bu konu zaten okunmuştu.',
     neuerFadenOffen:
-      'Kendiniz mesaj başlatmak henüz açık değil — kime yazabileceğiniz açık bir soru (O-830). Bir konuya yanıt vermek çalışıyor.',
+      'Kendiniz mesaj başlatmak henüz açık değil — varsayılan (O-830): mesaj, mevcut görevinizin ekip yöneticisine gider. Bir konuya yanıt vermek çalışıyor.',
     anlagen: 'Ekler',
     anlagenNichtAbrufbar:
-      'Dosyaları eskisi gibi alırsınız; eklerin portalda açılıp açılamayacağı henüz kararlaştırılmadı (O-831).',
+      'Dosyaları eskisi gibi alırsınız; eklerin portalda açılması öngörülmüştür (varsayılan, O-831) ancak henüz açık değil.',
     profil: 'Profil',
     bereichWechseln: 'Alan değiştir',
     konto: 'Hesap',
@@ -2688,11 +2708,13 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     wachbuchNeu: 'Kayıt yaz',
     uebergabe: 'Devir teslim',
     uebergabeNichtEingestellt:
-      'Devir teslim penceresi henüz ayarlanmadı (açık soru O-151). O zamana kadar burada '
-      + 'yalnızca kendi kayıtlarınız görünür.',
+      'Devir teslim penceresi ayarlanmadı — varsayılan (O-151): önceki vardiyanın son on iki '
+      + 'saatteki kayıtları; pencereyi güvenlik yönetimi şirket başına ayarlar. O zamana kadar '
+      + 'burada yalnızca kendi kayıtlarınız görünür.',
     uebergabeAus:
-      'Devir teslim penceresi ayarlı ve sıfırda — önceki vardiyanın kayıtları gizli kalır. '
-      + 'Burada yalnızca kendi kayıtlarınız görünür.',
+      'Devir teslim penceresi sıfırda — önceki vardiyanın kayıtları gizli kalır. Varsayılan '
+      + '(O-151) on iki saat olurdu; pencere şirket başına ayarlanır. Burada yalnızca kendi '
+      + 'kayıtlarınız görünür.',
     art: 'Tür',
     betreff: 'Konu',
     eintragstext: 'Ne oldu?',
@@ -2795,7 +2817,8 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     abgelegtAm: 'Kayıt tarihi',
     dokumenteOffenerBezug:
       'Burada gördüğünüz, şirketinizin çalışanlara açtığı belgelerdir. Yalnızca sizi '
-      + 'ilgilendiren evraklar henüz eşleştirilmedi — açık (O-850).',
+      + 'ilgilendiren evraklar henüz eşleştirilmedi — eşleştirme, çalışma ilişkiniz üzerinden '
+      + 'öngörülmüştür (varsayılan, O-850).',
     abrufProtokolliert: 'Her dosya çağrısı hesabınıza kaydedilir.',
     listeGekuerzt:
       'Yalnızca en yeni kayıtlar gösterilir. Listeyi kategoriye göre daraltın.',

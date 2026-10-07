@@ -74,7 +74,7 @@ describe('(3) die Schwelle ist ein PLATZHALTER und irrt nach streng (O-197)', ()
   it('knapp darunter ist unsicher', () => {
     const b = bewerte(feld({ ocrKonfidenz: 0.94, befunde: [] }));
     expect(b.unsicher).toBe(true);
-    expect(b.grund).toMatch(/PLATZHALTER, O-197/u);
+    expect(b.grund).toMatch(/Voreinstellung, O-197/u);
   });
 
   it('genau auf der Schwelle ist sicher', () => {

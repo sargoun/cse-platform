@@ -186,7 +186,7 @@ export async function seedRechnungen(
   sql: Sql, ids: ReadonlyMap<string, string>, demodaten: boolean,
 ): Promise<RechnungsErgebnis> {
   if (!demodaten) {
-    return { ...LEER, grund: 'ohne CSE_DEV_FLAECHEN: der Rechnungskreis ist Platzhalter (O-134)' };
+    return { ...LEER, grund: 'ohne CSE_DEV_FLAECHEN: der Rechnungskreis ist eine Voreinstellung, nicht freigegeben (O-134)' };
   }
 
   const nummern: string[] = [];

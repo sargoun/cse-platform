@@ -1,6 +1,11 @@
 /**
  * Die §34a-Hartsperre — SEC-04, LEG-04, im DIENST.
  *
+ * TODO(client, O-149): Voreinstellung (D-783, O-342) — fuer Kraefte ohne festen
+ * Posten (Veranstaltung, Springer, kurzfristige Vertretung) gilt die
+ * mandantenweite Grundanforderung § 34a-Unterrichtung, bei Veranstaltungen
+ * dazu die Sachkunde; angelegt auf Knopfdruck, unbestaetigt, als Warnung. D-789.
+ *
  * SEC-04 verlangt die Sperre in der Dienstschicht und nicht in der
  * Oberflaeche: „assigning a person whose required certificate expires before
  * the shift date fails **in the service**". Deshalb ist das hier die Stelle,

@@ -44,7 +44,8 @@ import {
  * Die Annahme eines Angebots ist eine WILLENSERKLAERUNG: sie bringt einen
  * Vertrag zustande. Ob ein Kundenzugang sie im Portal abgeben kann — und wenn
  * ja, mit welcher Identitaetspruefung, welchem Protokoll und welcher
- * Vertretungsmacht des Ansprechpartners —, ist als O-74 offen. Hier steht
+ * Vertretungsmacht des Ansprechpartners —, ist O-74; Voreinstellung (D-790):
+ * nein, das Portal bleibt lesend. Hier steht
  * deshalb ein SATZ und kein ausgegrauter Knopf: ein ausgegrauter Knopf sagt
  * „nicht jetzt" und laesst offen, ob es an der Anmeldung, am Recht oder am
  * Zustand liegt. Der Satz sagt, was heute der richtige Weg IST.
@@ -361,10 +362,11 @@ export default async function Kundenangebot(
       <div className="flex flex-col gap-s4">
         <Offen
           nummer="O-74"
+          art="voreinstellung"
           was="Ihre Entscheidung nimmt Ihre Ansprechpartnerin entgegen"
-          weg="Die Annahme eines Angebots bringt einen Vertrag zustande. Ob ein
-            Kundenzugang diese Erklärung im Portal abgeben kann — und mit
-            welcher Prüfung der Vertretungsmacht —, ist noch nicht entschieden."
+          weg="Die Annahme eines Angebots bringt einen Vertrag zustande. Das Portal
+            ist lesend: die Erklärung geben Sie gegenüber Ihrer Ansprechpartnerin
+            ab, die Vertretungsmacht und Protokoll dort prüft — nicht per Klick."
         />
         <Offen
           nummer="O-844"

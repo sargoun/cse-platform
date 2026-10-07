@@ -2,6 +2,10 @@
  * Material und Gerät in der Kalkulation — erfasst von einem Menschen, nie
  * vorbelegt (V-174, OPS-07).
  *
+ * TODO(client, O-180): Voreinstellung — kein Lagerbestand; Material und Gerät
+ * werden je Auftrag beschafft, hier als Kostenposition erfasst und über die
+ * Rechnungsposition weiterberechnet (D-787).
+ *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**
  * ═══════════════════════════════════════════════════════════════════════════

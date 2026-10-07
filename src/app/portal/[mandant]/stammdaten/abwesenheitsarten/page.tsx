@@ -40,10 +40,10 @@ import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
  * Bearbeiten-Knopf an diesen Zeilen waere ein Versprechen, das die Datenbank
  * abweist — deshalb steht dort der Grund statt eines Knopfs.
  *
- * // TODO(client, O-690): Führt jede Gesellschaft eigene Abwesenheitsarten,
- * oder gilt der Katalog gruppenweit einheitlich — und muss der
- * Lohnartenschlüssel je Art in allen drei Rechtseinheiten derselbe sein
- * (ACC-12)?
+ * // TODO(client, O-690): Voreinstellung — der Plattformkatalog gilt gruppenweit
+ * einheitlich, der Lohnartenschlüssel je Art ist in allen Gesellschaften
+ * derselbe (D-781); eigene Arten legt eine Gesellschaft nur für Besonderheiten
+ * an, mit eigener Lohnzuordnung (ACC-12). D-788.
  */
 export const dynamic = 'force-dynamic';
 

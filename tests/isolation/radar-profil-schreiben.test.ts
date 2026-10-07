@@ -29,6 +29,7 @@ import {
   ProfilFehler, entferneCpv, entferneEmpfaenger, legeProfilAn, leseProfil, schreibeProfil,
   setzeCpv, setzeEmpfaenger,
 } from '../../src/server/services/radar/profil.js';
+import { SCHWELLE_VOREINSTELLUNG } from '../../src/server/services/radar/gewichte.platzhalter.js';
 import { cent, type Cent } from '../../src/server/services/finanz/geld.js';
 
 let f: Fixtur;
@@ -612,11 +613,15 @@ describe('(9) ein Profil anlegen', () => {
     expect(blick!.cpv).toHaveLength(0);
     expect(blick!.nutsPraefixe).toHaveLength(0);
     expect(blick!.positivKeywords).toHaveLength(0);
-    /* Die gesperrten Felder stehen auf ihren Vorgabewerten — O-15, O-47, O-191. */
+    /*
+     * Die gesperrten Felder stehen auf ihren Voreinstellungen — O-15, O-47,
+     * O-191. Die Treffermeldung kommt seit D-786 mit: ein neues Profil meldet
+     * ab `SCHWELLE_VOREINSTELLUNG`, nicht nie.
+     */
     expect(blick!.skalaMax).toBe(100);
     expect(blick!.waehrung).toBe('EUR');
     expect(blick!.negativWirkung).toBe('abzug');
-    expect(blick!.benachrichtigungAbPunkte).toBeNull();
+    expect(blick!.benachrichtigungAbPunkte).toBe(SCHWELLE_VOREINSTELLUNG);
   });
 
   it('und lässt sich mit dem vorhandenen Weg einschalten', async () => {
@@ -697,5 +702,36 @@ describe('(9) ein Profil anlegen', () => {
     const a = await alsWer(benutzer, (k) => legeProfilAn(k, 'Doppelt'));
     const b = await alsWer(benutzer, (k) => legeProfilAn(k, 'Doppelt'));
     expect(a).not.toBe(b);
+  });
+});
+
+describe('(9) die Meldeschwelle ist ein Feld der Stammdaten (O-15, D-786, Prüfstand PR #34)', () => {
+  it('lässt sich setzen, zählt die Fassung hoch und steht im Protokoll', async () => {
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 75 }));
+    const blick = await alsWer(benutzer, (k) => leseProfil(k, profil));
+    expect(blick?.benachrichtigungAbPunkte).toBe(75);
+    expect(await version()).toBe(2);
+    const [z] = await sql.unsafe<{ nachher: Record<string, unknown> | null }[]>(
+      `select nachher from audit_log
+        where objekt_id = $1 and aktion = 'radar.profil_gesetzt'
+        order by id desc limit 1`, [profil]);
+    expect(z?.nachher?.['benachrichtigungAbPunkte']).toBe(75);
+  });
+
+  it('weggelassen bleibt sie, wie sie war; `null` schaltet die Meldung ab', async () => {
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 42 }));
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, name: 'Umbenannt' }));
+    expect((await alsWer(benutzer, (k) => leseProfil(k, profil)))?.benachrichtigungAbPunkte).toBe(42);
+    await alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: null }));
+    expect((await alsWer(benutzer, (k) => leseProfil(k, profil)))?.benachrichtigungAbPunkte).toBeNull();
+  });
+
+  it('weist eine Schwelle ausserhalb der Skala mit einem Satz ab', async () => {
+    const blick = await alsWer(benutzer, (k) => leseProfil(k, profil));
+    await expect(alsWer(benutzer, (k) => schreibeProfil(k, profil, {
+      ...STAND, benachrichtigungAbPunkte: (blick?.skalaMax ?? 100) + 1,
+    }))).rejects.toMatchObject({ code: 'schwelle' });
+    await expect(alsWer(benutzer, (k) => schreibeProfil(k, profil, { ...STAND, benachrichtigungAbPunkte: 7.5 })))
+      .rejects.toBeInstanceOf(ProfilFehler);
   });
 });

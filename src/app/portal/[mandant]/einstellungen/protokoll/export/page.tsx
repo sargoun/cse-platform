@@ -250,9 +250,11 @@ export default async function ProtokollExport(
         Signiert ist das Manifest, nicht eine Kette. Die Hashkette über das Protokoll
         wird beim Bilden eines Bündels fortgeschrieben,
         und das Manifest nennt, wieviele Zeilen des Zeitraums gekettet sind — das Wort
-        „revisionssicher" steht hier nicht, solange es keine Deckung hat. Wie lange
-        Protokollzeilen aufbewahrt werden und auf welcher Rechtsgrundlage, ist offen
-        (O-92).
+        „revisionssicher" steht hier nicht, solange es keine Deckung hat. Aufbewahrung —
+        Voreinstellung (O-92): Anmeldeversuche 30 Tage, Sicherheitsvorfälle drei Jahre,
+        das Nachtlauf-Protokoll ein Jahr, das Prüfprotokoll zehn Jahre (GoBD; Art. 6
+        Abs. 1 Buchst. c und f DSGVO); einen Löschlauf gibt es für keines davon (V-330).
+        {/* TODO(client, O-92): Voreinstellung — Anmeldeversuche 30 Tage, Sicherheitsvorfälle 3 Jahre, job_lauf 1 Jahr, audit_log 10 Jahre; Löschläufe fehlen (V-330). D-790. */}
       </p>
     </PortalRahmen>
   );

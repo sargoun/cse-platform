@@ -145,7 +145,7 @@ export default async function SocialCenter(
         <Hinweis art="warnung" cse="social-kein-kanal" className="mb-s5 max-w-prose">
           <strong>Kein fremder Kanal ist verbunden.</strong> Ein Beitrag erscheint damit auf
           der eigenen Gesellschaftsseite — und nirgendwo sonst. Das ist kein Fehler, sondern
-          der Stand: welche Plattformkonten es gibt und wem sie gehören, ist offen (O-10).
+          der Stand: die Plattformkonten und ihre Zugangsdaten trägt der Betreiber ein (O-10).
           {daten.darfKanaele ? (
             <>
               {' '}

@@ -106,7 +106,7 @@ export default async function Katalogfassung(
             data-cse="platzhalter-anzahl"
             className="rounded-full bg-warning-soft px-s3 py-s1 text-xs text-warning"
           >
-            {offen} unbestätigt (offen, O-17, O-731)
+            {offen} Voreinstellung(en), unbestätigt (O-17, O-731)
           </span>
         ) : null}
       </div>

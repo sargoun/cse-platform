@@ -205,7 +205,8 @@ export default async function Rueckgaengig(
           verlangt zusätzlich das Recht, das dieser Vorgang selbst fordert
           (<Recht schluessel={f.erforderlichesRecht ?? 'freigabe.entscheiden'} />).
           Die eigene Befugnis <Recht schluessel="freigabe.rueckgaengig" /> genügt
-          dafür nicht (offene Frage O-367).
+          dafür nicht (Voreinstellung O-367: die Befugnis hält die Administration, eine
+          Leitung erhält sie je Gesellschaft über die Rollenrechte).
         </Hinweis>
       ) : lage.art === 'abgelaufen' ? (
         <Hinweis art="hinweis" cse="ruecknahme-abgelaufen" className="mb-s6 max-w-prose">

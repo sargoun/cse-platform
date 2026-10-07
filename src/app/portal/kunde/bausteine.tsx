@@ -222,11 +222,13 @@ export { Zurueck } from '@/components/portal/Zurueck';
  * Vorgang.
  */
 export function Offen({
-  nummer, was, weg,
+  nummer, was, weg, art = 'offen',
 }: {
   readonly nummer: string;
   readonly was: string;
   readonly weg: string;
+  /** `voreinstellung`: die Frage hat eine Voreinstellung (D-778) — der Satz sagt, was gilt. */
+  readonly art?: 'offen' | 'voreinstellung';
 }) {
   return (
     <Hinweis cse="offen">
@@ -242,7 +244,9 @@ export function Offen({
           */}
         <Icon name="info" groesse="sm" className="mr-s2 inline align-middle" />
         <strong className="font-medium text-text">{was}</strong> — {weg}{' '}
-        <span className="whitespace-nowrap text-text-subtle">offen ({nummer})</span>
+        <span className="whitespace-nowrap text-text-subtle">
+          {art === 'voreinstellung' ? 'Voreinstellung' : 'offen'} ({nummer})
+        </span>
       </span>
     </Hinweis>
   );

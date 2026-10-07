@@ -137,7 +137,16 @@ export class RatenlimitFehler extends FormularFehler {
 const DATENSCHUTZ_BESTAETIGEN =
   'Bitte bestätigen Sie, dass Sie die Datenschutzhinweise gelesen haben.';
 
-/** Wie viele Einsendungen je IP-Hash im Fenster. VORLAEUFIG — siehe O-80. */
+/**
+ * Wie viele Einsendungen je IP-Hash im Fenster — die Voreinstellung (O-80).
+ *
+ * TODO(client, O-80): Voreinstellung — 5 Einsendungen je Verbindung in 15
+ * Minuten; Anmeldung 10 Fehlversuche je Kennung und 50 je IP in 15 Minuten,
+ * dann 30 Minuten Sperre, automatisch ablaufend oder durch die Administration
+ * entsperrt (`auth.*`, 0007/0379); der Mensch sieht „zu viele Versuche". D-790.
+ * TODO(client, O-81): Voreinstellung — Honigtopf-Feld plus Ratenlimit je
+ * Verbindung, kein Fremd-CAPTCHA (PUB-13). D-790.
+ */
 export const LIMIT_JE_IP = 5;
 export const FENSTER_MINUTEN = 15;
 

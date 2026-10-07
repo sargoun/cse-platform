@@ -52,7 +52,8 @@ export const SOCIAL_BILD_TEXTE: Readonly<Record<InternSprache, SocialBildTexte>>
       + '(Einstellungen › Integrationen).',
     rechte:
       'Wer ein Bild anhängt, braucht die Rechte daran — und bei erkennbaren Personen deren '
-      + 'Einwilligung. Welchen Nachweis die Plattform dafür verlangen soll, ist offen (O-939).',
+      + 'Einwilligung. Voreinstellung (O-939): die Freigabe durch einen Menschen gilt als '
+      + 'Prüfung — einen Beleg verlangt die Plattform nicht.',
     angehaengt: 'Das Bild hängt am Entwurf. Beim Vorlegen geht es mit in die Freigabe.',
     entfernt: 'Das Bild ist vom Entwurf entfernt. Die Datei bleibt im Speicher.',
     nichtGespeichert: 'Nicht gespeichert.',
@@ -95,7 +96,8 @@ export const SOCIAL_BILD_TEXTE: Readonly<Record<InternSprache, SocialBildTexte>>
       'The file storage is not connected — no image can be uploaded (Settings › Integrations).',
     rechte:
       'Whoever attaches an image needs the rights to it — and, where people can be recognised, '
-      + 'their consent. Which proof the platform should require is still open (O-939).',
+      + 'their consent. Default (O-939): approval by a person counts as the check — the '
+      + 'platform does not demand a proof document.',
     angehaengt: 'The image is attached to the draft. It goes into the approval on submission.',
     entfernt: 'The image has been removed from the draft. The file stays in storage.',
     nichtGespeichert: 'Not saved.',

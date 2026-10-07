@@ -42,7 +42,7 @@ const QUELLEN: readonly QuellenVorlage[] = [
   {
     art: 'register', bezeichnung: 'Handelsregister (Gemeinsames Registerportal)',
     hinweis: 'Nicht verbunden: es ist kein Abrufvertrag hinterlegt. Der Abruf ist '
-      + 'kostenpflichtig und liefert Firmendaten — offen ist O-596, ob er beauftragt wird.',
+      + 'kostenpflichtig und liefert Firmendaten — ob er beauftragt wird, entscheidet der Betreiber (O-596).',
   },
   {
     art: 'dienstleister', bezeichnung: 'Firmendatenanbieter',

@@ -25,6 +25,14 @@ export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
 }
 
+/**
+ * `verrechnung` ist ein Zahlweg der Buchung, kein Aufrechnungsweg.
+ *
+ * TODO(client, O-182): Voreinstellung — eine Aufrechnung (§ 387 BGB) zwischen
+ * Kundengutschrift und Lieferantenverbindlichkeit entscheidet die
+ * Geschäftsführung; gebucht wird sie als Zahlung mit Zahlweg `verrechnung` auf
+ * beiden Seiten, verknüpft wird nichts (V-314, D-787).
+ */
 export type Zahlungsart =
   'ueberweisung' | 'lastschrift' | 'bar' | 'karte' | 'verrechnung';
 

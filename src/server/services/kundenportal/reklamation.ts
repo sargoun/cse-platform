@@ -27,10 +27,10 @@ import {
  * **Kein Melden, kein Nachfassen, kein „erledigt".** `qualitaet.schreiben`
  * ist der Rolle `kunde` im Seed bewusst nicht erteilt, und `withKundeScope`
  * gibt einen `LeseKontext` ohne `schreibe`.
- * // TODO(client, O-74): Darf ein Kunde im Portal eine Reklamation MELDEN und
- * die Erledigung BESTAETIGEN? Beides erzeugt Zeilen in einer
- * Qualitaetsakte, an der Fristen haengen (O-14) — und eine Bestaetigung durch
- * den Kunden ist rechtlich eine Abnahme der Nacharbeit.
+ * // TODO(client, O-74): Voreinstellung — das Kundenportal ist lesend: weder
+ * Reklamation melden noch Erledigung bestaetigen (eine Bestaetigung waere die
+ * Abnahme der Nacharbeit); beides nimmt die Ansprechpartnerin entgegen und
+ * erfasst es (D-790).
  */
 
 export interface Kundenreklamation extends Gesellschaft {

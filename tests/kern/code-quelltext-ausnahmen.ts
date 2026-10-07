@@ -81,6 +81,11 @@ export const CODE_AUSNAHMEN: readonly CodeAusnahme[] = [
     grund: 'Eingabebeispiele für eine Fläche mit Dezimalkomma und Tausenderpunkt.',
   },
   {
+    datei: `${P}radar/page.tsx`, inhalt: ['RADAR_OEFFENTLICHEVERGABE_URL', 'RADAR_TED_URL'],
+    grund: 'Die Namen der beiden Umgebungsvariablen, in die der Betreiber die Abfrage-Adresse '
+      + 'der Radarquelle einträgt — er tippt sie Buchstabe für Buchstabe (O-366, D-786).',
+  },
+  {
     datei: `${P}radar/profile/[id]/page.tsx`, inhalt: ['radar-v1', '45000000'],
     grund: 'Die Kennung der Bewertungsregel, mit der jede Bewertung gespeichert wird, und ein '
       + 'CPV-Code als Eingabebeispiel.',

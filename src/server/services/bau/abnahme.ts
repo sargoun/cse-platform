@@ -134,15 +134,17 @@ export const FRIST_OFFEN: GewaehrleistungsFrist = {
 };
 
 /**
- * Was die Oberflaeche anstelle eines Datums schreibt.
+ * Was die Oberflaeche anstelle eines Datums schreibt, wenn die Fassung ohne
+ * Rechnung gewaehlt ist.
  *
  * Der Satz steht hier und nicht in der Seite: zwei Formulierungen fuer
- * dieselbe offene Frage waeren zwei Aussagen ueber dieselbe Frist.
+ * dieselbe Frist waeren zwei Aussagen ueber dieselbe Frist (D-785).
  */
 export const FRIST_OFFEN_TEXT =
-  'Die Gewährleistungsfrist wird gespeichert, nicht berechnet: ob vier Jahre '
-  + '(§ 13 Abs. 4 VOB/B) oder fünf (§ 634a BGB) gelten und ab welchem Ereignis '
-  + 'sie läuft, ist offen (O-154).';
+  'Diese Fassung speichert die Gewährleistungsfrist, ohne sie zu berechnen. Die '
+  + 'Voreinstellung (O-154, D-782) rechnet sie beim Protokollieren der Abnahme aus dem '
+  + 'Vertragsregime: vier Jahre (§ 13 Abs. 4 VOB/B) oder fünf (§ 634a BGB) ab dem '
+  + 'Abnahmetag.';
 
 /** Jahre der Gewaehrleistung je Vertragsregime — die Voreinstellung (O-154, D-782). */
 export const GEWAEHRLEISTUNG_JAHRE: Readonly<Record<string, number>> = { vob_b: 4, bgb: 5 };

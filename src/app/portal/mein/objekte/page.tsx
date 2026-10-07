@@ -22,8 +22,8 @@ import { Feld, Felder, Gesellschaft, Leer } from '../bausteine';
  * letzten Schicht: wer den Weg von vorletzter Woche nachsehen will, findet ihn
  * sonst nicht mehr. Was dort NICHT mehr steht, ist der Zutritt — den zeigt
  * erst das Blatt, und nur, solange die Einteilung laeuft.
- * // TODO(client, O-852): Soll ein Objekt nach der letzten Schicht dauerhaft
- * in dieser Liste bleiben (heute) oder nach einer Frist verschwinden?
+ * // TODO(client, O-852): Voreinstellung — das Objekt bleibt dauerhaft in der
+ * Liste; der Zutritt endet mit der letzten laufenden Einteilung (O-211). D-789.
  *
  * **Jede Zeile traegt ihre Gesellschaft** (EMP-14, D-09): derselbe Mensch
  * steht morgens bei der einen und abends bei der anderen GmbH, und die beiden

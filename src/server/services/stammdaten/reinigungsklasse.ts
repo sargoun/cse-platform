@@ -125,8 +125,9 @@ export interface KlasseEingabe {
  * CHECK; eine hier erfundene Obergrenze wiese eine echte Kundendatei mit einem
  * laengeren Code ab — mit einer Zahl, die niemand entschieden hat.
  *
- * // TODO(client, O-694): Gibt es eine Hoechstlaenge fuer Belagsart- und
- * Reinigungsklassen-Codes aus dem Kundenraumbuch — und wenn ja, welche?
+ * // TODO(client, O-694): Voreinstellung — keine Hoechstlaenge fuer Belagsart-
+ * und Reinigungsklassen-Codes; geprueft werden Vorhandensein und Randleerraum,
+ * weil der Code aus dem Raumbuch des Kunden kommt (D-788).
  */
 export function pruefeKlasseEingabe(
   lies: (feld: string) => string | null,

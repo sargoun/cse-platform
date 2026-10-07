@@ -7,11 +7,11 @@ import 'server-only';
  * **Was hier steht und was ausdruecklich nicht.** Die Schnittstelle ist
  * vollstaendig: ein Anbieter bekommt eine Nummer in E.164 und einen fertigen
  * Text, und er sagt, ob er ihn angenommen hat. Was fehlt, ist der Anbieter —
- * und das ist keine Luecke, sondern eine offene Frage mit Folgen:
+ * und das ist keine Luecke, sondern Betreiberdaten mit Folgen:
  *
- *   **O-82** — welches in der EU gehostete SMS-Gateway stellt den Code und den
- *   Check-in-Link zu (AV-Vertrag, D-04), und ab welchem Monatsbetrag gilt ein
- *   harter Stopp?
+ *   **O-82** — das in der EU gehostete SMS-Gateway (AV-Vertrag, D-04) und den
+ *   Monatsbetrag, ab dem hart gestoppt wird, traegt der Betreiber ein; bis
+ *   dahin bleibt der Dienst nicht verbunden (D-790).
  *
  * Beide Haelften sind bindend. Ein Gateway ausserhalb der EU traegt
  * Telefonnummern von Beschaeftigten dreier deutscher Gesellschaften in ein
@@ -35,8 +35,8 @@ export class SmsNichtVerbundenFehler extends Error {
   constructor() {
     super(
       'Es ist kein SMS-Dienst verbunden (O-82). Der Code wurde NICHT versendet. '
-      + 'Offen: welches EU-gehostete Gateway mit AV-Vertrag, und welcher '
-      + 'monatliche Ausgabendeckel loest einen harten Stopp aus?',
+      + 'Traegt der Betreiber ein: das EU-gehostete Gateway mit AV-Vertrag und den '
+      + 'monatlichen Ausgabendeckel, ab dem hart gestoppt wird.',
     );
     this.name = 'SmsNichtVerbundenFehler';
   }

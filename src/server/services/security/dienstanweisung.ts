@@ -38,6 +38,7 @@
  * eine erfundene Rechtsfolge (K-17), eine Frist ebenso.
  */
 // TODO(client, O-241): Sperrt eine unbestaetigte Dienstanweisung die Einteilung, und ab wann gilt die Unterweisung als versaeumt (SEC-06, EMP-09)?
+// TODO(client, O-153): Voreinstellung — `neue_version_oeffnet_pflicht = true`: jede neue Fassung verlangt eine neue Bestaetigung; wer die Anweisung veroeffentlicht (`security.schreiben`), kann es je Anweisung abschalten. D-789.
 
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';

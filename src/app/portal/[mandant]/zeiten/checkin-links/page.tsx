@@ -183,8 +183,9 @@ export default async function CheckinLinks(
           <p className="mt-s3 text-sm text-text-muted">
             Gespeichert wird nur seine Prüfsumme; er lässt sich nicht noch einmal
             anzeigen. Ist er weg, geben Sie einen neuen aus — das kostet eine Zeile
-            im Protokoll und nichts sonst. Es ist kein Versandkanal verbunden
-            (offene Frage O-93), er wird also von Hand weitergegeben.
+            im Protokoll und nichts sonst. Es ist kein Versandkanal verbunden — der
+            Link wird von Hand weitergegeben; eine angemeldete Kraft stempelt ohne Link
+            im Portal (D-618).
           </p>
         </Hinweis>
       )}

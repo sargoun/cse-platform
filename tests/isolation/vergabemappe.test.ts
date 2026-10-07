@@ -21,8 +21,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
-  MappeFehler, entfernePosition, ergaenzePosition, legeMappeAn, setzeMappenstand,
-  setzePositionsstand,
+  MappeFehler, PRUEFLISTE_VOREINSTELLUNG, entfernePosition, ergaenzePosition, legeMappeAn,
+  setzeMappenstand, setzePositionsstand, uebernimmPrueflisteVoreinstellung,
 } from '../../src/server/services/vergabe/mappe.js';
 import {
   EinreichungFehler, erfasseAusgang, erfasseEinreichung,
@@ -590,5 +590,52 @@ describe('eine Position laesst sich nicht aus einer FREMDEN Mappe entfernen', ()
     const [weg] = await sql.unsafe<{ n: number }[]>(
       `select count(*) n from vergabemappe_position where vergabemappe_id=$1`, [mappeA]);
     expect(Number(weg!.n)).toBe(0);
+  });
+});
+
+describe('(6) Die Voreinstellung der Pruefliste (O-194, D-784)', () => {
+  it('eine leere Mappe uebernimmt zwoelf Zeilen, alle offen — ein zweiter Aufruf legt nichts doppelt an', async () => {
+    const { vorgang } = await legeVorgangAn(f.reinigung);
+    const mappeId = await legeMappeDirektAn(f.reinigung, vorgang);
+
+    const erste = await alsDienst((k) => uebernimmPrueflisteVoreinstellung(k, mappeId));
+    expect(erste).toBe(PRUEFLISTE_VOREINSTELLUNG.length);
+
+    const zeilen = await sql.unsafe<{ bezeichnung: string; status: string; pflicht: boolean; position: number }[]>(
+      `select bezeichnung, status::text as status, pflicht, position
+         from vergabemappe_position where vergabemappe_id = $1 order by position`, [mappeId]);
+    expect(zeilen).toHaveLength(PRUEFLISTE_VOREINSTELLUNG.length);
+    expect(zeilen.every((z) => z.status === 'offen'), 'nichts gilt als vorhanden').toBe(true);
+    expect(zeilen.map((z) => z.position)).toEqual(zeilen.map((_, i) => i + 1));
+    expect(zeilen.filter((z) => !z.pflicht).map((z) => z.bezeichnung))
+      .toEqual(['Erklärung zu Nachunternehmen und Eignungsleihe']);
+
+    const zweite = await alsDienst((k) => uebernimmPrueflisteVoreinstellung(k, mappeId));
+    expect(zweite).toBe(0);
+  });
+
+  it('eine Zeile, die schon von Hand steht, wird nicht noch einmal angelegt', async () => {
+    const { vorgang } = await legeVorgangAn(f.reinigung);
+    const mappeId = await legeMappeDirektAn(f.reinigung, vorgang);
+    await alsDienst((k) => ergaenzePosition(k, {
+      mappeId, bezeichnung: 'Nachweis der Betriebshaftpflichtversicherung', kategorie: null,
+      pflicht: true,
+    }));
+    const n = await alsDienst((k) => uebernimmPrueflisteVoreinstellung(k, mappeId));
+    expect(n).toBe(PRUEFLISTE_VOREINSTELLUNG.length - 1);
+  });
+
+  it('eine fremde Gesellschaft findet die Mappe nicht, eine eingereichte nimmt nichts mehr an', async () => {
+    const { vorgang } = await legeVorgangAn(f.reinigung);
+    const mappeId = await legeMappeDirektAn(f.reinigung, vorgang);
+    await expect(alsDienst((k) => uebernimmPrueflisteVoreinstellung(k, mappeId), f.security, fremder))
+      .rejects.toMatchObject({ code: 'nicht_gefunden' });
+
+    await alsDienst(async (k) => erfasseEinreichung(k, { mappeId, plattformText: 'per Post' }));
+    await expect(alsDienst((k) => uebernimmPrueflisteVoreinstellung(k, mappeId)))
+      .rejects.toMatchObject({ code: 'stand' });
+    const [danach] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from vergabemappe_position where vergabemappe_id = $1`, [mappeId]);
+    expect(danach!.n).toBe(0);
   });
 });

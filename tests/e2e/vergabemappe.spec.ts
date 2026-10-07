@@ -10,8 +10,9 @@
  *  3. **Nirgends ein Knopf, der einreicht** (D-07). Was es gibt, ist ein
  *     Formular, das festhält, was ein Mensch getan hat — ohne Feld für „wer".
  *  4. Ohne Dokumentenspeicher wird NICHTS gespeichert, und die Seite sagt es.
- *  5. Die leere Prüfliste sagt, warum sie leer ist (O-194) — statt eine
- *     erfundene Vorlage zu zeigen, die vollständig aussieht.
+ *  5. Die leere Prüfliste nennt die Voreinstellung (O-194, D-784) und
+ *     übernimmt sie nur auf Knopfdruck — keine Vorlage, die ungefragt
+ *     vollständig aussieht.
  */
 import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
@@ -213,8 +214,9 @@ test.describe('Vergabemappe (Phase 8, PR 70)', () => {
     await page.waitForURL(/\/mappe\/einreichung$/u);
 
     await expect(page.locator('[data-cse="einreichung-d07"]')).toContainText('D-07');
-    /* Kein Katalog, und die Seite sagt warum (O-07). */
-    await expect(page.locator('[data-cse="einreichung-katalog-leer"]')).toContainText('O-07');
+    /* Der Katalog trägt die Voreinstellung (O-07, D-784): die Auswahl steht, der Klartext bleibt. */
+    await expect(page.locator('[data-cse="einreichung-formular"] select[name="plattform"]')).toBeVisible();
+    await expect(page.locator('[data-cse="einreichung-katalog-leer"]')).toHaveCount(0);
     /* Kein Feld fuer die Person und keines fuer den Zeitpunkt. */
     await expect(page.locator('[data-cse="einreichung-wer"]')).toContainText('angemeldete Person');
     expect(await page.locator('input[name="eingereicht_von"]').count()).toBe(0);

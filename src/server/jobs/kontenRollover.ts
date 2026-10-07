@@ -40,6 +40,10 @@ import { alsJobRolle, alsJobSitzung, type JobVerbindung } from './sitzung.js';
  * Anstellung ab, die am 12. beginnt. Ein Konto, das erst am nächsten Ersten
  * entstünde, liesse die Zeiten der ersten drei Wochen ins Leere buchen.
  *
+ * TODO(client, O-982): Voreinstellung — nur dieser Lauf eröffnet Konten; das
+ * Portal legt beim Lesen keines an (keine Schreibung im Lesepfad) und sagt bis
+ * dahin, dass der Monat nicht eröffnet ist (D-787).
+ *
  * **`app.berlin_heute()` und nicht `current_date`** (V-103): zwischen 23:00
  * und 24:00 UTC ist in Berlin schon der Folgetag — und am Monatsletzten wäre
  * das der falsche Monat.

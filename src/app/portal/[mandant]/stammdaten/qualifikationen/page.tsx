@@ -42,9 +42,9 @@ import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
  * Codezeile gelesen; ein Formularfeld dafür pflegte einen toten Wert und sähe
  * aus wie eine Zuordnung, auf die sich etwas stützt (O-107).
  *
- * // TODO(client, O-691): Wer pflegt in der Gruppe den PLATTFORM-Katalog
- * (Qualifikationen, Abwesenheits- und Antragsarten) — und braucht eine
- * Änderung daran eine zweite Zustimmung?
+ * // TODO(client, O-691): Voreinstellung — den Plattformkatalog pflegt die
+ * Super-Administration mit zweitem Faktor, jede Änderung protokolliert; eine
+ * zweite Zustimmung braucht sie nicht (D-788).
  */
 export const dynamic = 'force-dynamic';
 
