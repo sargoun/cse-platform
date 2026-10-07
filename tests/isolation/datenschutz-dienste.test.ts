@@ -462,6 +462,121 @@ describe('Art. 17: die Matrix zählt in allen drei Zweigen', () => {
     }
   });
 
+  /*
+   * **V-340 (D-834): die Voreinstellungen tragen einen Tag.** Die Zeilen von
+   * O-71, O-373 und O-514 standen auf „offen" und nannten keinen; jetzt
+   * rechnet die Matrix den ersten Löschtag aus dem richtigen Anker — dem Ende
+   * der Beschäftigung, dem jüngsten Brief, dem gespeicherten Löschtag der
+   * Bewerbung —, und wo der Anker fehlt, sagt sie keinen.
+   */
+  it('V-340: eine beendete Beschäftigung gibt Personalakte und Lohnunterlage einen Tag', async () => {
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into person (vorname, nachname) values ('Lea', 'Ausgetreten') returning id`);
+    await sql.unsafe(
+      `insert into anstellung (mandant_id, person_id, personalnummer, eintritt, austritt, status)
+       values ($1, $2, $3, '2020-01-01', '2026-06-30', 'beendet')`,
+      [f.reinigung, p!.id, `PN-V340-${String(Math.random()).slice(2, 8)}`]);
+    const id = await legeAnfrageAn('loeschung', 'person_id', p!.id);
+    const orte = await imKontext(dsb, async (k) => {
+      const z = await ladeZuordnung(k as LeseKontext, null, id);
+      return matrix(k as LeseKontext, id, z);
+    });
+    const tag = (t: string) => orte.find((o) => o.tabelle === t);
+    // § 195, § 199 Abs. 1 BGB: drei Jahre ab Ende 2026.
+    expect(tag('person')?.sperreFaelltAm).toBe('2030-01-01');
+    expect(tag('nachweis')?.sperreFaelltAm).toBe('2030-01-01');
+    // § 147 AO: zehn Jahre ab Ende 2026 — die Anstellung und die Abwesenheiten mit ihr.
+    expect(tag('anstellung')?.sperreFaelltAm).toBe('2037-01-01');
+    expect(tag('abwesenheit')?.sperreFaelltAm).toBe('2037-01-01');
+    for (const t of ['person', 'nachweis', 'anstellung', 'abwesenheit']) {
+      expect(tag(t)?.sperre.art, t).toBe('voreinstellung');
+      expect(tag(t)?.sperreText, t).toMatch(/^Voreinstellung \(O-(514|71)\): /u);
+    }
+  });
+
+  it('V-340: solange eine Beschäftigung läuft, fällt keine Sperre der Personalakte', async () => {
+    // Fatima ist in der Reinigung beschäftigt (Fixtur, kein Austritt).
+    const orte = await imKontext(dsb, async (k) => {
+      const z = await ladeZuordnung(k as LeseKontext, null, anfrage['person']!);
+      return matrix(k as LeseKontext, anfrage['person']!, z);
+    });
+    for (const t of ['person', 'nachweis', 'anstellung', 'abwesenheit']) {
+      const o = orte.find((x) => x.tabelle === t);
+      expect(o?.sperre.art, t).toBe('voreinstellung');
+      expect(o?.sperreFaelltAm, t).toBeNull();
+    }
+  });
+
+  it('V-340: Anfragen und Korrespondenz fallen sechs Jahre nach dem JÜNGSTEN Brief', async () => {
+    const [ap] = await alsRolle('', (tx) => tx.unsafe(
+      `insert into ansprechpartner (mandant_id, kunde_id, vorname, nachname, email)
+       values ($1, $2, 'Bruno', 'Briefe', 'bruno@dienste.test') returning id`,
+      [f.reinigung, kunde])) as unknown as { id: string }[];
+    for (const [nr, am] of [['L-V340-1', '2023-03-01'], ['L-V340-2', '2025-05-10']] as const) {
+      await sql.unsafe(
+        `insert into lead (mandant_id, leadnummer, quelle, betreff, besitzer_benutzer_id,
+                           ansprechpartner_id, firma_name, erstellt_am)
+         values ($1, $2, 'manuell', 'Anfrage', $3, $4, 'Briefe GmbH',
+                 ($5::date + time '10:00') at time zone 'Europe/Berlin')`,
+        [f.reinigung, nr, dsb, ap!.id, am]);
+    }
+    await sql.unsafe(
+      `insert into lead_aktivitaet (mandant_id, kunde_id, ansprechpartner_id, typ, richtung,
+                                    zweck, betreff, geschehen_am)
+       values ($1, $2, $3, 'notiz', 'intern', 'intern', 'Vermerk',
+               ('2026-02-01'::date + time '10:00') at time zone 'Europe/Berlin')`,
+      [f.reinigung, kunde, ap!.id]);
+    const id = await legeAnfrageAn('loeschung', 'ansprechpartner_id', ap!.id);
+    const orte = await imKontext(dsb, async (k) => {
+      const z = await ladeZuordnung(k as LeseKontext, null, id);
+      return matrix(k as LeseKontext, id, z);
+    });
+    // Der Lead von 2025 und nicht der von 2023: ab Ende 2025 sechs Jahre.
+    expect(orte.find((o) => o.tabelle === 'lead')?.sperreFaelltAm).toBe('2032-01-01');
+    expect(orte.find((o) => o.tabelle === 'lead_aktivitaet')?.sperreFaelltAm)
+      .toBe('2033-01-01');
+  });
+
+  it('V-340: die Bewerbung fällt an ihrem gespeicherten Löschtag — die eingestellte nicht', async () => {
+    const [st] = await alsRolle('', (tx) => tx.unsafe(
+      `select stelle_id::text as id from bewerbung where id = $1`, [bewerbung],
+    )) as unknown as { id: string }[];
+    const neu = async (status: string): Promise<string> => {
+      const [b] = await alsRolle('', (tx) => tx.unsafe(
+        `insert into bewerbung (mandant_id, stelle_id, name, email, quelle, status,
+                                aufbewahrung_bis)
+         values ($1, $2, 'Bea Bewerberin', 'bea@dienste.test', 'karriereseite',
+                 $3::bewerbung_status, '2027-04-07')
+         returning id`, [f.reinigung, st!.id, status])) as unknown as { id: string }[];
+      return b!.id;
+    };
+    for (const [status, erwartet] of [['abgelehnt', '2027-04-07'], ['eingestellt', null]] as const) {
+      const b = await neu(status);
+      const id = await legeAnfrageAn('loeschung', 'bewerbung_id', b);
+      const orte = await imKontext(dsb, async (k) => {
+        const z = await ladeZuordnung(k as LeseKontext, null, id);
+        return matrix(k as LeseKontext, id, z);
+      });
+      const bewerbungsorte = orte.filter((o) =>
+        o.sperre.art === 'voreinstellung' && o.sperre.frage === 'O-373');
+      expect(bewerbungsorte.map((o) => o.tabelle).sort()).toEqual([
+        'bewerbung', 'bewerbung_antwort', 'bewerbung_bewertung', 'einstellungsentscheidung',
+        'gespraech', 'kandidat']);
+      for (const o of bewerbungsorte) expect(o.sperreFaelltAm, `${status} ${o.tabelle}`).toBe(erwartet);
+    }
+  });
+
+  it('V-340: keine Zeile der Matrix steht mehr auf „offen"', async () => {
+    for (const art of ['person', 'ansprechpartner', 'bewerbung'] as const) {
+      const orte = await imKontext(dsb, async (k) => {
+        const z = await ladeZuordnung(k as LeseKontext, null, anfrage[art]!);
+        return matrix(k as LeseKontext, anfrage[art]!, z);
+      });
+      expect(orte.filter((o) => o.sperre.art === 'offen').map((o) => o.tabelle), art)
+        .toEqual([]);
+    }
+  });
+
   it('`liste` gibt die getroffenen Entscheidungen zurück — anfangs keine', async () => {
     expect(await imKontext(dsb,
       (k) => loeschungen(k as LeseKontext, anfrage['bewerbung']!))).toEqual([]);

@@ -146,6 +146,59 @@ export function milogFrist(aufgezeichnet: Kalendertag): Kalendertag {
   return naechsterTag(zielJahr, m, tag);
 }
 
+/**
+ * § 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO: Handels- und Geschäftsbriefe **sechs
+ * Jahre, gerechnet ab Ende des Kalenderjahres** (Voreinstellung O-71, D-792).
+ * Dieselbe Rechnung wie `aoFrist`, mit sechs statt zehn Jahren: ein Brief vom
+ * 3. März 2026 fällt am 1. Januar 2033.
+ */
+export function ao6Frist(entstanden: Kalendertag): Kalendertag {
+  const { j } = teile(entstanden);
+  return `${String(j + 7)}-01-01`;
+}
+
+/**
+ * § 195, § 199 Abs. 1 BGB: die regelmäßige Verjährung — **drei Jahre,
+ * gerechnet ab Ende des Kalenderjahres**, in dem die Beschäftigung endete
+ * (Voreinstellung O-514, D-798). Wer bis zum 30. Juni 2026 beschäftigt war,
+ * dessen Personalakte hält bis zum 31. Dezember 2029; am 1. Januar 2030 darf
+ * sie fallen. Nicht „Datum plus drei Jahre" — aus demselben Grund wie bei
+ * `aoFrist`.
+ */
+export function bgb3Frist(beendet: Kalendertag): Kalendertag {
+  const { j } = teile(beendet);
+  return `${String(j + 4)}-01-01`;
+}
+
+/**
+ * Wie die Frist einer Voreinstellung läuft (V-340, D-834) — der Rückgabewert
+ * von `fristVoreinstellung` ist, wie bei `aoFrist` und `milogFrist`, der ERSTE
+ * Tag, an dem gelöscht werden darf.
+ *
+ *  - `ao`   zehn Jahre ab Jahresende (§ 147 Abs. 1 und 3 AO); Anker: das Ende
+ *           der Beschäftigung in dieser Gesellschaft.
+ *  - `ao6`  sechs Jahre ab Jahresende (§ 147 Abs. 3 AO); Anker: der jüngste
+ *           Brief.
+ *  - `bgb3` drei Jahre ab Jahresende (§ 195, § 199 Abs. 1 BGB); Anker: das
+ *           Ende der letzten Beschäftigung in dieser Gesellschaft.
+ *  - `gespeichert` der Tag steht schon in der Zeile — `bewerbung.
+ *           aufbewahrung_bis` (0166, 0498) ist der erste Tag, an dem der
+ *           Nachtlauf löscht (`aufbewahrung_bis <= heute`).
+ *
+ * Fehlt der Anker — die Beschäftigung läuft noch, die Bewerbung führte zur
+ * Einstellung —, gibt es keinen Tag, und die Matrix sagt keinen.
+ */
+export type VoreinstellungFrist = 'ao' | 'ao6' | 'bgb3' | 'gespeichert';
+
+export function fristVoreinstellung(frist: VoreinstellungFrist, anker: Kalendertag): Kalendertag {
+  switch (frist) {
+    case 'ao': return aoFrist(anker);
+    case 'ao6': return ao6Frist(anker);
+    case 'bgb3': return bgb3Frist(anker);
+    case 'gespeichert': teile(anker); return anker;
+  }
+}
+
 /** Der Kalendertag nach diesem — im Kalender, ohne Zeitzone. */
 function naechsterTag(j: number, m: number, t: number): Kalendertag {
   if (t < monatsletzter(j, m)) return `${String(j)}-${ZWEI(m)}-${ZWEI(t + 1)}`;
@@ -157,13 +210,62 @@ function naechsterTag(j: number, m: number, t: number): Kalendertag {
  * Die Orte, an denen etwas über diesen Menschen steht
  * ========================================================================= */
 
-/** Woher die Sperre kommt — oder dass es keine gibt. */
+/**
+ * Woher die Sperre kommt — oder dass es keine gibt.
+ *
+ * `voreinstellung` (V-340, D-834): eine entschiedene Voreinstellung (D-778)
+ * mit Fundstelle und Frist — keine offene Frage mehr, aber auch kein Gesetz,
+ * das die Zahl selbst nennt. Die Seite sagt deshalb beides: die Nummer der
+ * Voreinstellung und die Fundstelle, auf die sie sich stützt.
+ */
 export type Sperrgrund =
   | { readonly art: 'gesetz'; readonly fundstelle: string;
       readonly frist: 'ao' | 'milog' | null }
+  | { readonly art: 'voreinstellung'; readonly frage: string; readonly fundstelle: string;
+      readonly frist: VoreinstellungFrist }
   | { readonly art: 'unveraenderlich'; readonly fundstelle: string }
   | { readonly art: 'offen'; readonly frage: string }
   | { readonly art: 'keine' };
+
+/*
+ * Die Anker der Voreinstellungen, je EINMAL formuliert (V-340).
+ *
+ * Das Ende der Beschäftigung in DIESER Gesellschaft: der späteste Austritt —
+ * aber nur, wenn keine Anstellung mehr läuft. Solange eine läuft, gibt es
+ * keinen Tag (NULL), und die Personalakte bleibt.
+ */
+const BESCHAEFTIGUNG_ENDE = `(select case when bool_or(an.austritt is null) then null
+                 else max(an.austritt)::timestamp at time zone 'Europe/Berlin' end
+            from anstellung an
+           where an.person_id = $1::uuid and an.mandant_id = app.aktiver_mandant()
+             and an.geloescht_am is null)`;
+
+/*
+ * Der erste Löschtag der Bewerbung, wie ihn die Absage gesetzt hat (0498) —
+ * NULL, wenn sie zur Einstellung führte: der Nachtlauf hält sie dann zurück,
+ * und ihr Platz ist die Personalakte (V-366).
+ */
+const BEWERBUNG_FAELLT = `(select case when b.status = 'eingestellt' then null
+                 else b.aufbewahrung_bis::timestamp at time zone 'Europe/Berlin' end
+            from bewerbung b
+           where b.id = $1::uuid and b.mandant_id = app.aktiver_mandant())`;
+
+const O514_STAMMDATEN: Sperrgrund = {
+  art: 'voreinstellung', frage: 'O-514', frist: 'bgb3',
+  fundstelle: 'drei Jahre nach Ende der letzten Beschäftigung (§ 195, § 199 Abs. 1 BGB)',
+};
+
+const O373_BEWERBUNG: Sperrgrund = {
+  art: 'voreinstellung', frage: 'O-373', frist: 'gespeichert',
+  fundstelle: 'sechs Monate ab der Absage, ohne Entscheidung ab Eingang — Verteidigung '
+    + 'gegen Ansprüche nach § 15 Abs. 4 AGG (Art. 17 Abs. 3 lit. e DSGVO)',
+};
+
+const O71_BRIEF: Sperrgrund = {
+  art: 'voreinstellung', frage: 'O-71', frist: 'ao6',
+  fundstelle: 'sechs Jahre als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, '
+    + 'Abs. 3 AO), danach Anonymisierung; der Werbewiderspruch bleibt als Nachweis',
+};
 
 interface OrtDefinition {
   readonly tabelle: string;
@@ -193,8 +295,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Stammdaten der Person',
     fuer: ['person'],
     recht: null,
-    sperre: { art: 'offen', frage: 'O-514' },
-    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+    sperre: O514_STAMMDATEN,
+    sql: `select count(*)::int as zeilen, ${BESCHAEFTIGUNG_ENDE} as anker
             from person where id = $1::uuid and geloescht_am is null`,
   },
   {
@@ -202,8 +304,11 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Anstellungen',
     fuer: ['person'],
     recht: null,
-    sperre: { art: 'offen', frage: 'O-514' },
-    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+    /* Was in den Lohnexport ging, ist Lohnunterlage (O-514, D-798). */
+    sperre: { art: 'voreinstellung', frage: 'O-514', frist: 'ao',
+              fundstelle: 'Lohnunterlage — zehn Jahre nach Ende der Beschäftigung '
+                + '(§ 147 Abs. 1 und 3 AO)' },
+    sql: `select count(*)::int as zeilen, ${BESCHAEFTIGUNG_ENDE} as anker
             from anstellung
            where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
              and geloescht_am is null`,
@@ -228,12 +333,12 @@ const ORTE: readonly OrtDefinition[] = [
     /*
      * Voreinstellung (O-71, D-792): Abwesenheiten fallen mit der Anstellung
      * (Lohnunterlage, § 147 Abs. 1 AO, zehn Jahre); die Art (Art. 9) wird mit
-     * dem Hauptsatz anonymisiert. Die Matrix kennt keinen Sperrgrund
-     * „Voreinstellung" (V-340); bis dahin steht die Zeile auf „offen", und ein
-     * Mensch entscheidet je Vorgang.
+     * dem Hauptsatz anonymisiert. Seit V-340 steht das als Sperrgrund da.
      */
-    sperre: { art: 'offen', frage: 'O-71' },
-    sql: `select count(*)::int as zeilen, max(a.erstellt_am) as anker
+    sperre: { art: 'voreinstellung', frage: 'O-71', frist: 'ao',
+              fundstelle: 'fällt mit der Anstellung — zehn Jahre nach Ende der '
+                + 'Beschäftigung (§ 147 Abs. 1 und 3 AO)' },
+    sql: `select count(*)::int as zeilen, ${BESCHAEFTIGUNG_ENDE} as anker
             from abwesenheit a
             join anstellung an on an.id = a.anstellung_id
              and an.mandant_id = a.mandant_id
@@ -258,8 +363,8 @@ const ORTE: readonly OrtDefinition[] = [
     fuer: ['person'],
     recht: 'personal.nachweis_lesen',
     /* Personalunterlage: Voreinstellung O-514 (D-798), wie die Stammdaten. */
-    sperre: { art: 'offen', frage: 'O-514' },
-    sql: `select count(*)::int as zeilen, max(erstellt_am) as anker
+    sperre: O514_STAMMDATEN,
+    sql: `select count(*)::int as zeilen, ${BESCHAEFTIGUNG_ENDE} as anker
             from nachweis where person_id = $1::uuid`,
   },
   {
@@ -352,8 +457,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Bewerbung',
     fuer: ['bewerbung'],
     recht: 'recruiting.bewerbung_lesen',
-    sperre: { art: 'offen', frage: 'O-373' },
-    sql: `select count(*)::int as zeilen, max(eingegangen_am) as anker
+    sperre: O373_BEWERBUNG,
+    sql: `select count(*)::int as zeilen, ${BEWERBUNG_FAELLT} as anker
             from bewerbung
            where id = $1::uuid and mandant_id = app.aktiver_mandant()
              and geloescht_am is null`,
@@ -363,8 +468,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Bewertungen der Bewerbung',
     fuer: ['bewerbung'],
     recht: 'recruiting.bewerbung_lesen',
-    sperre: { art: 'offen', frage: 'O-373' },
-    sql: `select count(*)::int as zeilen, max(erstellt_am) as anker
+    sperre: O373_BEWERBUNG,
+    sql: `select count(*)::int as zeilen, ${BEWERBUNG_FAELLT} as anker
             from bewerbung_bewertung
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
   },
@@ -373,8 +478,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Gespräche und Notizen',
     fuer: ['bewerbung'],
     recht: 'recruiting.bewerbung_lesen',
-    sperre: { art: 'offen', frage: 'O-373' },
-    sql: `select count(*)::int as zeilen, max(erstellt_am) as anker
+    sperre: O373_BEWERBUNG,
+    sql: `select count(*)::int as zeilen, ${BEWERBUNG_FAELLT} as anker
             from gespraech
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
   },
@@ -397,18 +502,18 @@ const ORTE: readonly OrtDefinition[] = [
     fuer: ['ansprechpartner'],
     recht: 'crm.lesen',
     /*
-     * `{art:'offen', frage:'O-71'}`: hier fallen der § 7 UWG-Nachweis und der
-     * Akquiseverlauf zusammen. Der Vorgang selbst ist eine
-     * Geschäftsanbahnung (GoBD-nah, § 147 AO), die Kontaktspur daran ist
-     * Werbung. Voreinstellung (O-71, D-792): der Vorgang bleibt sechs Jahre
-     * als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO),
-     * dann werden Name, Anschrift und Freitexte anonymisiert; der
-     * Werbewiderspruch bleibt als Nachweis (§ 7 UWG) über `anonymisiert_am`.
-     * Die Matrix kennt den Sperrgrund „Voreinstellung" nicht (V-340) — bis
-     * dahin „offen", und eine Frist zu behaupten wäre hier der Fehler.
+     * Hier fallen der § 7 UWG-Nachweis und der Akquiseverlauf zusammen. Der
+     * Vorgang selbst ist eine Geschäftsanbahnung (GoBD-nah, § 147 AO), die
+     * Kontaktspur daran ist Werbung. Voreinstellung (O-71, D-792): der
+     * Vorgang bleibt sechs Jahre als Handels- und Geschäftsbrief (§ 147
+     * Abs. 1 Nr. 2 und 3, Abs. 3 AO), dann werden Name, Anschrift und
+     * Freitexte anonymisiert; der Werbewiderspruch bleibt als Nachweis (§ 7
+     * UWG) über `anonymisiert_am`. Seit V-340 als Sperrgrund mit Frist — ab
+     * dem JÜNGSTEN Vorgang, nicht dem ältesten: die Frist läuft je Brief, und
+     * fallen darf der Bestand erst, wenn der letzte gefallen ist.
      */
-    sperre: { art: 'offen', frage: 'O-71' },
-    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+    sperre: O71_BRIEF,
+    sql: `select count(*)::int as zeilen, max(erstellt_am) as anker
             from lead
            where ansprechpartner_id = $1::uuid
              and mandant_id = app.aktiver_mandant()`,
@@ -418,9 +523,9 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Korrespondenz und Vermerke zum Vorgang',
     fuer: ['ansprechpartner'],
     recht: 'crm.lesen',
-    /* Dieselbe Voreinstellung wie `lead` (O-71, D-792; V-340). */
-    sperre: { art: 'offen', frage: 'O-71' },
-    sql: `select count(*)::int as zeilen, min(geschehen_am) as anker
+    /* Dieselbe Voreinstellung wie `lead` (O-71, D-792; V-340), ab dem jüngsten Brief. */
+    sperre: O71_BRIEF,
+    sql: `select count(*)::int as zeilen, max(geschehen_am) as anker
             from lead_aktivitaet
            where ansprechpartner_id = $1::uuid
              and mandant_id = app.aktiver_mandant()`,
@@ -482,8 +587,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Antworten an die Bewerberin',
     fuer: ['bewerbung'],
     recht: 'recruiting.bewerbung_lesen',
-    sperre: { art: 'offen', frage: 'O-373' },
-    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+    sperre: O373_BEWERBUNG,
+    sql: `select count(*)::int as zeilen, ${BEWERBUNG_FAELLT} as anker
             from bewerbung_antwort
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
   },
@@ -498,8 +603,8 @@ const ORTE: readonly OrtDefinition[] = [
      * (O-373, D-797/D-798): sie bleibt mit der Bewerbung bis sechs Monate nach
      * der Absage (Art. 17 Abs. 3 lit. e DSGVO).
      */
-    sperre: { art: 'offen', frage: 'O-373' },
-    sql: `select count(*)::int as zeilen, min(entschieden_am) as anker
+    sperre: O373_BEWERBUNG,
+    sql: `select count(*)::int as zeilen, ${BEWERBUNG_FAELLT} as anker
             from einstellungsentscheidung
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
   },
@@ -508,8 +613,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Kandidatenprofil',
     fuer: ['bewerbung'],
     recht: 'recruiting.bewerbung_lesen',
-    sperre: { art: 'offen', frage: 'O-373' },
-    sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
+    sperre: O373_BEWERBUNG,
+    sql: `select count(*)::int as zeilen, ${BEWERBUNG_FAELLT} as anker
             from kandidat
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
   },
@@ -661,29 +766,23 @@ export const VOLLZUG_VOREINSTELLUNG =
   + 'Löschung. Gebaut ist davon nichts (V-333); bis dahin geschieht die Ausführung von Hand '
   + 'und wird hier nachgetragen.';
 
-/** Der Satz der Seite zu den Zeilen, die „offen (O-71)" tragen (D-792). */
+/** Der Satz der Seite zu den Zeilen mit „Voreinstellung (O-71)" (D-792, V-340). */
 export const O71_VOREINSTELLUNG =
   'Voreinstellung (O-71, D-792) für die Zeilen mit „Voreinstellung (O-71)": abgeleitete Befunde, '
   + 'Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz; Abwesenheiten mit der '
   + 'Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als '
   + 'Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3 AO) und werden dann anonymisiert, der '
-  + 'Werbewiderspruch bleibt als Nachweis. Die Matrix kennt diesen Sperrgrund noch nicht '
-  + '(V-340); bis dahin entscheidet hier ein Mensch je Vorgang.';
-
-/**
- * Die Fragen der Matrix, die eine Voreinstellung tragen (D-778): die Matrix
- * kennt den Sperrgrund „Voreinstellung" noch nicht (V-340) und führt die
- * Zeilen auf `offen` — sagen soll sie trotzdem, dass entschieden ist.
- */
-const MIT_VOREINSTELLUNG: ReadonlySet<string> = new Set(['O-71', 'O-373', 'O-514']);
+  + 'Werbewiderspruch bleibt als Nachweis. Die Matrix rechnet den Tag, an dem die Sperre '
+  + 'fällt (V-340); entschieden wird weiterhin je Vorgang von einem Menschen.';
 
 export const MATRIX_VOREINSTELLUNGEN =
   'Voreinstellung (O-373, D-797) für die Zeilen der Bewerbung: sechs Monate ab der Absage, '
   + 'ohne Entscheidung ab Eingang — bis dahin überlagert die Verteidigung gegen Ansprüche '
-  + 'nach § 15 Abs. 4 AGG eine Löschung (Art. 17 Abs. 3 lit. e DSGVO). Voreinstellung '
-  + '(O-514, D-798) für Stammdaten, Anstellungen und Nachweise: drei Jahre nach Ende der '
-  + 'Beschäftigung, was in den Lohnexport ging zehn Jahre (§ 147 Abs. 1 AO). Beide stehen '
-  + 'in der Matrix noch nicht als Sperrgrund (V-340).';
+  + 'nach § 15 Abs. 4 AGG eine Löschung (Art. 17 Abs. 3 lit. e DSGVO); der Tag steht in der '
+  + 'Bewerbung, eine eingestellte hat keinen. Voreinstellung (O-514, D-798) für Stammdaten '
+  + 'und Nachweise: drei Jahre nach Ende der letzten Beschäftigung (§ 195, § 199 Abs. 1 BGB), '
+  + 'die Anstellung als Lohnunterlage zehn Jahre (§ 147 Abs. 1 AO); solange eine Beschäftigung '
+  + 'läuft, gibt es keinen Tag. Die Matrix führt beide als Sperrgrund mit Frist (V-340).';
 
 export const VOLLZUG = {
   vorhanden: ['bewerber_loeschung — anonymisiert abgelaufene Bewerbungen (REC-07)'],
@@ -703,9 +802,8 @@ function sperreText(s: Sperrgrund): string {
   switch (s.art) {
     case 'gesetz': return s.fundstelle;
     case 'unveraenderlich': return s.fundstelle;
-    case 'offen': return MIT_VOREINSTELLUNG.has(s.frage)
-      ? `Voreinstellung (${s.frage}), in der Matrix noch nicht hinterlegt`
-      : `noch nicht entschieden (${s.frage})`;
+    case 'voreinstellung': return `Voreinstellung (${s.frage}): ${s.fundstelle}`;
+    case 'offen': return `noch nicht entschieden (${s.frage})`;
     case 'keine': return 'keine Aufbewahrungspflicht bekannt';
   }
 }
@@ -719,7 +817,9 @@ function sperreText(s: Sperrgrund): string {
  * dieselbe Spalte.
  */
 function faelltAm(s: Sperrgrund, anker: Date | null): Kalendertag | null {
-  if (s.art !== 'gesetz' || s.frist === null || anker === null) return null;
+  if (anker === null) return null;
+  if (s.art === 'voreinstellung') return fristVoreinstellung(s.frist, berlinTag(anker));
+  if (s.art !== 'gesetz' || s.frist === null) return null;
   const tag = berlinTag(anker);
   return s.frist === 'ao' ? aoFrist(tag) : milogFrist(tag);
 }

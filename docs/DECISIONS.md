@@ -25316,7 +25316,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 | O-68 | Wie O-154 (D-782): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf bei BGB (§ 634a Abs. 1 Nr. 2), gerechnet von der Gesamtabnahme am Projekt und je Auftrag überschreibbar; Dienstleistungsaufträge (Reinigung, Sicherheit) führen keine. `auftrag.gewaehrleistung_bis` trägt der Abschluss von Hand ein; die am Projekt gerechnete Frist kommt noch nicht an den Auftrag (V-341), und das Kundenportal zeigt die Auftragsspalte. | `kundenportal/auftrag.ts`, `auftrag/abschluss.ts`, `db/seed/bau.ts` |
 | O-69 | Kontrolliertes Vokabular UND Freitext: die sieben Gebäudetypen des Anfrageformulars sind die Vorschläge des Objektformulars (`<datalist>`), `objekt.gebaeudetyp` bleibt `text` (0021), damit ein Flughafen oder eine Baustelle erfassbar bleibt. Gespeichert wird der deutsche Klartext; die englische Oberfläche zeigt die englische Bezeichnung aus `FORMULAR_EN` (Prüfstand PR #35). Gebaut: `lib/formular/vokabular.ts`, Vorschlagsliste und Hinweis (de/en) im Objektformular. | `objekte/ObjektFormular.tsx`, `lib/i18n/verwaltung/objekte.ts` |
 | O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Eine Konvention, keine Sperre, aber eine Rückfrage: `kunde_id` ist nullbar; findet sich unter derselben Anschrift (Postleitzahl, Strasse, Hausnummer, normalisiert) schon ein lebendes Objekt der Gesellschaft, legt `legeObjektAn` erst nach einer bewussten Bestätigung an — gebaut mit V-361 (D-817). | `objekt/anlegen.ts` |
-| O-71 | Abgeleitete Befunde, Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz (Zeiteintrag, Person, Einsatz) und brauchen keine eigene Löschentscheidung; Abwesenheiten fallen mit der Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO) und werden dann anonymisiert, der Werbewiderspruch bleibt als Nachweis (§ 7 UWG). Die Matrix kennt keinen Sperrgrund „Voreinstellung" (V-340); ihre O-71-Zeilen stehen weiter auf „offen", die Löschseite sagt die Voreinstellung dazu. | `datenschutz/loeschentscheidung.ts` (`O71_VOREINSTELLUNG`), Datenschutz › Vorgang › Löschung, `db/seed/datenschutz.ts` |
+| O-71 | Abgeleitete Befunde, Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz (Zeiteintrag, Person, Einsatz) und brauchen keine eigene Löschentscheidung; Abwesenheiten fallen mit der Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO) und werden dann anonymisiert, der Werbewiderspruch bleibt als Nachweis (§ 7 UWG). Gebaut mit V-340 (D-834): die Matrix führt die O-71-Zeilen als Sperrgrund „Voreinstellung" mit Frist und rechnet den Tag. | `datenschutz/loeschentscheidung.ts` (`O71_VOREINSTELLUNG`), Datenschutz › Vorgang › Löschung, `db/seed/datenschutz.ts` |
 | O-72 | Keine Projekte ohne Auftrag: Akquise lebt in `akquise_ziel` und `lead`, bis ein Auftrag entsteht; interne Vorhaben sind kein Bauprojekt dieser Plattform. Wie gebaut (`projekt_auftrag_uk`). | `bau/projekt.ts` |
 | O-73 | Die Arbeitsvokabulare sind die Enums der Migrationen 0017, 0024 und 0025: `lead_status` (neu, in_bearbeitung, angebot, gewonnen, verloren, kein_bedarf), `lead_prioritaet` (niedrig, normal, hoch), `angebot_status`, `angebotsposition_typ`, `auftrag_art` (einzelauftrag, rahmenvertrag, dauerauftrag, projekt), `auftrag_status` (angelegt, aktiv, pausiert, abgeschlossen, storniert); ein weiterer Wert ist eine Migration, kein Freitext. Die Kundenseiten sagen „Voreinstellung" statt „Platzhalter". | Kundenportal › Angebote, Aufträge; `drizzle/0017`, `0024`, `0025` |
 
@@ -27755,4 +27755,59 @@ Behinderung, Seed und Definer, `tests/kern` komplett, `pnpm guards`,
 `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-339, V-342, O-65, O-660, O-907, D-792, D-793; `drizzle/0524_tor_nach_uwg_matrix.sql`, `src/server/services/crm/{lead-kontakt,uwg-matrix}.ts`, `src/server/services/datenschutz/werbewiderspruch.ts`, `src/server/services/bau/behinderung.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/{crm,index}.ts`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/app/(public)/werbewiderspruch/[token]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/datenschutz/{[id],widersprueche}/page.tsx`, `tests/isolation/{uwg,crm-kette,crm-kontakt-grundlage,nachricht-an-kontakt,uwg-widerspruchslink}.test.ts`, `tests/kern/{crm-kette,crm-uwg-matrix}.test.ts` |
+|---|---|
+
+### D-834 · Bauwelle 31: Die Löschmatrix kennt den Sperrgrund „Voreinstellung" (V-340, O-71, O-373, O-514)
+
+**Der Anlass.** Die Matrix der Löschprüfung (`datenschutz/loeschentscheidung.ts`)
+kannte als Sperrgrund `gesetz`, `unveraenderlich`, `offen` und `keine`. Drei
+entschiedene Voreinstellungen (D-778) standen deshalb auf `offen` und nannten
+keinen Tag: O-71 (Abwesenheiten, Anfragen, Korrespondenz; D-792), O-373
+(Bewerbung; D-797) und O-514 (Stammdaten, Anstellungen, Nachweise; D-798). Die
+Seite sagte die Voreinstellung in einem Absatz dazu — und rechnete nichts.
+
+**Was gebaut ist.**
+- **Sperrgrund `voreinstellung`** mit Nummer, Fundstelle und Frist. Die Seite
+  zeigt „Voreinstellung (O-nn): <Fundstelle>" und den ersten Löschtag; die
+  Maske „Entscheiden" übernimmt die Fundstelle wie bei `gesetz`.
+- **Die Fristen rechnen getestete Funktionen** (Invariante 6), alle im
+  Berliner Kalender und mit derselben Bedeutung wie `aoFrist`: der ERSTE Tag,
+  an dem gelöscht werden darf.
+  - `ao6Frist` — § 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO: sechs Jahre ab Ende des
+    Kalenderjahres (Anfragen und Korrespondenz, O-71).
+  - `bgb3Frist` — § 195, § 199 Abs. 1 BGB: drei Jahre ab Ende des
+    Kalenderjahres, in dem die Beschäftigung endete (Stammdaten und Nachweise,
+    O-514).
+  - `aoFrist` (zehn Jahre) für die Anstellung als Lohnunterlage (O-514) und
+    die Abwesenheiten, die mit ihr fallen (O-71).
+  - `gespeichert` für die Bewerbung (O-373): der Tag steht schon in
+    `bewerbung.aufbewahrung_bis` (0166, 0498) und ist der erste Tag, an dem der
+    Nachtlauf löscht (`aufbewahrung_bis <= heute`).
+- **Die Anker** stehen je einmal formuliert: das Ende der Beschäftigung in
+  dieser Gesellschaft (der späteste Austritt — nur wenn keine Anstellung mehr
+  läuft; solange eine läuft, gibt es keinen Tag), der JÜNGSTE Brief (Lead,
+  Aktivität — bisher las die Abfrage den ältesten, und eine Frist ab dem
+  ältesten Brief wäre für jeden späteren zu früh), der gespeicherte Löschtag
+  der Bewerbung (keiner, wenn sie zur Einstellung führte — sie gehört dann in
+  die Personalakte, V-366).
+- **Wortlaut:** die beiden Absätze der Löschseite (`O71_VOREINSTELLUNG`,
+  `MATRIX_VOREINSTELLUNGEN`) sagen, dass die Matrix den Tag rechnet; der
+  Hinweis der Demo-Entscheidung im Seed nennt V-340 nicht mehr als offen.
+- **Was bleibt:** die Matrix rechnet und schlägt vor; entschieden wird
+  weiterhin je Vorgang von einem Menschen, und vollzogen wird nichts (V-333,
+  O-644).
+
+**Prüfung.** `tests/kern/datenschutz-fristen.test.ts` (sechs und drei Jahre ab
+Jahresende, nicht „Datum plus"; der gespeicherte Tag; ein Tag, der keiner ist;
+die Ordnung der drei Fristen). `tests/isolation/datenschutz-dienste.test.ts`:
+eine beendete Beschäftigung (Austritt 30.06.2026) gibt Stammdaten und
+Nachweisen den 01.01.2030, Anstellung und Abwesenheiten den 01.01.2037; eine
+laufende keinen Tag; der Lead von 2025 und nicht der von 2023 bestimmt den
+01.01.2032, die Aktivität von 2026 den 01.01.2033; die abgelehnte Bewerbung
+fällt in allen sechs Orten an ihrem gespeicherten Tag, die eingestellte hat
+keinen; keine Zeile der Matrix steht mehr auf „offen". Dazu die übrigen
+Datenschutz-Isolationsdateien, `tests/kern` komplett, `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-340, O-71, O-373, O-514, D-792, D-797, D-798; `src/server/services/datenschutz/loeschentscheidung.ts`, `src/app/portal/[mandant]/datenschutz/[id]/loeschung/page.tsx`, `src/server/db/seed/datenschutz.ts`, `tests/kern/datenschutz-fristen.test.ts`, `tests/isolation/datenschutz-dienste.test.ts` |
 |---|---|

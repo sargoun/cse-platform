@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  aoFrist, berlinTag, milogFrist,
+  ao6Frist, aoFrist, berlinTag, bgb3Frist, fristVoreinstellung, milogFrist,
 } from '../../src/server/services/datenschutz/loeschentscheidung.js';
 import { alsText, alsMarkdown, istBeziffert, type Auskunft }
   from '../../src/server/services/datenschutz/auskunft.js';
@@ -97,6 +97,41 @@ describe('§ 17 Abs. 2 MiLoG — zwei Jahre, kalendarisch', () => {
      */
     expect(aoFrist('2026-12-31')).toBe('2037-01-01');
     expect(milogFrist('2026-12-31')).toBe('2029-01-01');
+  });
+});
+
+describe('die Fristen der Voreinstellungen (V-340, D-834) — ab Ende des Kalenderjahres', () => {
+  it('§ 147 Abs. 3 AO, Geschäftsbrief: sechs Jahre — ein Brief vom 3. März 2026 fällt am 1. Januar 2033', () => {
+    expect(ao6Frist('2026-03-03')).toBe('2033-01-01');
+    expect(ao6Frist('2026-12-31')).toBe('2033-01-01');
+    expect(ao6Frist('2026-01-01')).toBe(ao6Frist('2026-12-31'));
+  });
+
+  it('§ 195, § 199 Abs. 1 BGB, Personalakte: drei Jahre — Austritt 30. Juni 2026 fällt am 1. Januar 2030', () => {
+    expect(bgb3Frist('2026-06-30')).toBe('2030-01-01');
+    // Nicht „Datum plus drei Jahre": das wäre der 30. Juni 2029, ein halbes Jahr zu früh.
+    expect(bgb3Frist('2026-06-30')).not.toBe('2029-07-01');
+    expect(bgb3Frist('2026-12-31')).toBe('2030-01-01');
+  });
+
+  it('jede Art rechnet auf den ersten erlaubten Löschtag', () => {
+    expect(fristVoreinstellung('ao', '2026-03-03')).toBe(aoFrist('2026-03-03'));
+    expect(fristVoreinstellung('ao6', '2026-03-03')).toBe('2033-01-01');
+    expect(fristVoreinstellung('bgb3', '2026-03-03')).toBe('2030-01-01');
+    // `gespeichert`: der Tag steht schon in der Bewerbung — er IST der erste Löschtag
+    // (der Nachtlauf löscht bei `aufbewahrung_bis <= heute`).
+    expect(fristVoreinstellung('gespeichert', '2027-04-07')).toBe('2027-04-07');
+  });
+
+  it('ein Tag, der keiner ist, wird abgewiesen — auch der gespeicherte', () => {
+    expect(() => fristVoreinstellung('gespeichert', 'morgen')).toThrow(/Kein Kalendertag/u);
+    expect(() => fristVoreinstellung('ao6', '')).toThrow(/Kein Kalendertag/u);
+  });
+
+  it('die drei Fristen sind der Länge nach geordnet — Personalakte, Brief, Lohnunterlage', () => {
+    const tag = '2026-05-15';
+    expect(bgb3Frist(tag) < ao6Frist(tag)).toBe(true);
+    expect(ao6Frist(tag) < aoFrist(tag)).toBe(true);
   });
 });
 
