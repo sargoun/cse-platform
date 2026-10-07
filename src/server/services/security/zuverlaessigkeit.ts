@@ -152,10 +152,27 @@ export async function meldeFaelligeUeberpruefungen(
           abgeleitet: e.abgeleitet,
         },
       });
-      const r = await stelleZuAnKonto(db, [{
-        benachrichtigung, benutzerId: z.benutzer_id,
-        objektTyp: 'bewacher_eintrag', objektId: e.id,
-      }]);
+      /*
+       * Der Nachtlauf schreibt Anweisung für Anweisung, ohne eine Transaktion
+       * darum: die Quittung steht, bevor zugestellt wird. Scheitert die
+       * Zustellung mit einem Fehler, wird sie zurückgegeben, bevor der Fehler
+       * weitergeht — sonst fände der nächste Lauf sie vor und schwiege für
+       * immer über diese Person und diesen Tag.
+       */
+      let r: Awaited<ReturnType<typeof stelleZuAnKonto>>;
+      try {
+        r = await stelleZuAnKonto(db, [{
+          benachrichtigung, benutzerId: z.benutzer_id,
+          objektTyp: 'bewacher_eintrag', objektId: e.id,
+        }]);
+      } catch (fehler) {
+        try {
+          await gibQuittungZurueck(db, quittung);
+        } catch {
+          /* Der Zustellfehler ist der Befund; ein zweiter darf ihn nicht verdecken. */
+        }
+        throw fehler;
+      }
       if (r.zugestellt === 0) {
         await gibQuittungZurueck(db, quittung);
         continue;

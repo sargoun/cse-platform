@@ -317,6 +317,41 @@ describe('(4) V-302 — einen neuen Link ausstellen', () => {
     for (const b of [mitarbeiter, gesperrt, weg]) expect(await offeneTokens(b)).toEqual([]);
   });
 
+  it('zwei gleichzeitige neue Links: der zweite wartet, und nur sein Link bleibt offen', async () => {
+    const leitung = await konto('leitung');
+    await mitglied(leitung, f.reinigung, 'leitung');
+    let melde!: () => void;
+    const gehalten = new Promise<void>((r) => { melde = r; });
+    let freigeben!: () => void;
+    const halt = new Promise<void>((r) => { freigeben = r; });
+
+    const erster = als(chef, async (tx) => {
+      const ergebnis = await stelleLinkNeuAus(kontextAus(tx, chef), leitung);
+      melde();
+      await halt;
+      return ergebnis;
+    });
+    await gehalten;
+    const zweiter = als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), leitung));
+    try {
+      for (let i = 0; ; i += 1) {
+        const [w] = await sql.unsafe<{ n: number }[]>(
+          `select count(*)::int as n from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'`);
+        if (w!.n >= 1) break;
+        if (i >= 250) throw new Error('Der zweite Aufruf wartete nicht auf die Sperre.');
+        await new Promise((r) => { setTimeout(r, 20); });
+      }
+    } finally {
+      // Auch wenn der zweite nicht wartete: der erste darf nicht offen bleiben.
+      freigeben();
+    }
+    const [a, b] = await Promise.all([erster, zweiter]);
+    expect(a).toMatchObject({ ok: true });
+    expect(b).toMatchObject({ ok: true });
+    expect(await offeneTokens(leitung)).toEqual([{ zweck: 'zuruecksetzen', n: 1 }]);
+  });
+
   it('ein Admin der Gesellschaft nicht, und nicht ohne zweiten Faktor', async () => {
     const leitung = await konto('leitung');
     await mitglied(leitung, f.reinigung, 'leitung');

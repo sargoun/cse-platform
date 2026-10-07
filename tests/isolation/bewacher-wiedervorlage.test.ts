@@ -179,3 +179,32 @@ describe('V-320 — der Wächter meldet die fällige Überprüfung', () => {
     expect(await posteingang(security)).toEqual([]);
   });
 });
+
+describe('V-320 — eine gescheiterte Zustellung gibt die Quittung zurück', () => {
+  it('der Lauf wirft — und der nächste stellt doch zu', async () => {
+    const leitung = await konto(f.security, 'leitung');
+    await eintrag(await tag(UEBERPRUEFUNG_VORLAUF_TAGE - 30, ZUVERLAESSIGKEIT_JAHRE));
+    const stichtag = await heute();
+    /*
+     * Wie im Nachtlauf: Anweisung für Anweisung, ohne Transaktion darum. Die
+     * Zustellung (insert into benachrichtigung) scheitert beim ersten Lauf.
+     */
+    let stoeren = true;
+    const db = {
+      unsafe: async (a: string, w?: readonly unknown[]): Promise<readonly unknown[]> => {
+        if (stoeren && /insert\s+into\s+benachrichtigung\b/u.test(a)) {
+          throw new Error('Zustellung gestört');
+        }
+        return sql.unsafe(a, (w ?? []) as never[]) as unknown as readonly unknown[];
+      },
+    };
+    await expect(meldeFaelligeUeberpruefungen(db, stichtag)).rejects.toThrow('Zustellung gestört');
+    const [q] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from waechter_meldung where empfaenger_id = $1`, [leitung]);
+    expect(q!.n).toBe(0);
+    stoeren = false;
+    const zweiter = await meldeFaelligeUeberpruefungen(db, stichtag);
+    expect(zweiter.zugestellt).toBeGreaterThanOrEqual(1);
+    expect((await posteingang(leitung)).length).toBe(1);
+  });
+});

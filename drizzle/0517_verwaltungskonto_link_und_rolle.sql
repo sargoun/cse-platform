@@ -92,6 +92,11 @@ begin
     raise exception 'Der Link wird ausserhalb der Datenbank gebildet und nur als SHA-256 '
                     'uebergeben.' using errcode = 'check_violation';
   end if;
+  -- Zwei gleichzeitige Aufrufe fuer dasselbe Konto sahen das neue Token des
+  -- anderen nicht und liessen beide Links gueltig. Die Sperre je Konto haelt
+  -- den zweiten an, bis der erste festgeschrieben ist; danach sieht sein
+  -- update das Token des ersten und laesst es verfallen.
+  perform pg_advisory_xact_lock(hashtextextended('verwaltungskonto_link:' || p_benutzer::text, 0));
   if not exists (
     select 1 from public.benutzer_mandant bm join public.rolle r on r.id = bm.rolle_id
      where bm.benutzer_id = p_benutzer and bm.mandant_id = v_mandant

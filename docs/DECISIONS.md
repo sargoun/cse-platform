@@ -26654,10 +26654,14 @@ gewesen.
   Adresse auf einem fremden Wirt; in http und https gilt der Rückstrich als
   Schrägstrich) und kein Steuerzeichen (Tabulator und Zeilenumbruch streicht
   der URL-Parser, bevor er liest — aus `/<Tab>/boese.example` wird
-  `//boese.example`). Der Bestand wird geprüft, nicht umgeschrieben: besteht
-  er die Regel, wird der CHECK validiert, sonst gilt er für jede neue und
-  geänderte Zeile, und eine Meldung nennt die Zahl. Seed und Demodaten
-  bestehen ihn.
+  `//boese.example`). Geprüft wird im Auslöser beim Anlegen und wenn sich
+  das Ziel ändert — nicht als CHECK: ein CHECK liefe bei jedem update der
+  Zeile, und eine Altzeile mit fremdem Ziel liesse sich dann weder öffnen
+  noch als gelesen stempeln; eine einzige ungelesene risse
+  `markiereAlleGelesen` für den ganzen Posteingang mit (Copilot zu PR #43).
+  Der Bestand wird geprüft, nicht umgeschrieben: eine solche Zeile bleibt
+  stehen, lässt sich lesen und stempeln, und eine Meldung nennt die Zahl.
+  Seed und Demodaten bestehen die Regel.
 - **Die Registry**: `erzeuge` weist ein fremdes Ziel ab, bevor eine Zeile
   entsteht (`istInternesZiel`, dieselbe Regel; `ZielFehler` mit eigenem Satz).
 - **Die Route**: sie prüft die Form noch einmal und dann, ob die aufgelöste
@@ -26667,8 +26671,9 @@ gewesen.
 
 **Prüfung.** `tests/kern/benachrichtigung.test.ts` (1a),
 `tests/kern/benachrichtigung-oeffnen-route.test.ts`,
-`tests/isolation/benachrichtigung.test.ts` (V-394, an echten Zeilen und mit
-validiertem CHECK), `tests/kern` komplett, `pnpm guards`,
+`tests/isolation/benachrichtigung.test.ts` (V-394, an echten Zeilen; eine
+Altzeile mit fremdem Ziel lässt sich öffnen und stempeln, aber nicht auf ein
+fremdes Ziel ändern), `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-394; NOT-03; `drizzle/0510_benachrichtigung_ziel_intern.sql`, `src/server/benachrichtigung/registry.ts`, `src/app/api/benachrichtigungen/[id]/oeffnen/route.ts`, `tests/kern/benachrichtigung.test.ts`, `tests/kern/benachrichtigung-oeffnen-route.test.ts`, `tests/isolation/benachrichtigung.test.ts` |
@@ -26703,7 +26708,11 @@ sagte ausdrücklich, keine Frist werde abgeleitet.
   dem Recht der Registerseite (`kern.bewacher_pruefung_empfaenger`, 0511,
   Definer, Mitgliedschaft am Berliner Tag). Einmal je Konto und Datum
   (`waechter_meldung`, die Lage ist das Datum): wer eine neue Prüfung
-  einträgt, bekommt für das neue Datum wieder eine Meldung. Neue Art
+  einträgt, bekommt für das neue Datum wieder eine Meldung. Scheitert die
+  Zustellung mit einem Fehler, gibt der Lauf die Quittung zurück, bevor der
+  Fehler weitergeht — der Nachtlauf schreibt ohne Transaktion darum, und der
+  nächste Lauf fände sonst eine Quittung ohne Meldung vor und schwiege für
+  immer (Copilot zu PR #43). Neue Art
   `personal.bewacher_pruefung_faellig` (sammelbar, Ziel das Register); sie
   sagt, ob das Datum eingetragen oder abgeleitet ist, und dass das Register
   nicht verbunden ist.
@@ -26717,7 +26726,8 @@ sagte ausdrücklich, keine Frist werde abgeleitet.
 
 **Prüfung.** `tests/isolation/bewacher-wiedervorlage.test.ts` (Ableitung samt
 29. Februar, Register ohne gespeichertes Datum, Empfänger nur mit Security und
-Recht, einmal je Datum, neues Datum meldet wieder, ohne Anstellung niemand),
+Recht, einmal je Datum, neues Datum meldet wieder, ohne Anstellung niemand; eine
+gestörte Zustellung gibt die Quittung zurück, und der nächste Lauf stellt zu),
 `tests/kern/zuverlaessigkeit.test.ts`, `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
@@ -26788,7 +26798,11 @@ prüften die Anschrift, und zwei Erfasser konnten dasselbe Haus zweimal anlegen
   derselben Anschrift schon lebende Objekte der aktiven Gesellschaft, wird nur
   mit `trotzDublette` angelegt; sonst `anschrift_vorhanden` (409) mit der Zahl.
   Archivierte Objekte und andere Gesellschaften zählen nicht. Eine Wohnanlage
-  mit einer Hausnummer bleibt möglich — nach der Bestätigung.
+  mit einer Hausnummer bleibt möglich — nach der Bestätigung. Vor der Suche
+  nimmt die Anlage eine Sperre auf Gesellschaft und Anschrift bis zum Ende der
+  Transaktion, auch mit Bestätigung: zwei gleichzeitige Anlagen derselben
+  Anschrift sahen sonst beide nichts und legten zwei Objekte ohne Rückfrage
+  an; jetzt wartet die zweite und fragt nach (Copilot zu PR #43).
 - **Das Formular** (Objekte › Neu): nach der Rückfrage stehen die Eingaben
   wieder im Formular, die Seite nennt die vorhandenen Objekte mit Verweis (aus
   der Datenbank, nicht aus der Adresse) und verlangt ein Häkchen „Ich habe die
@@ -26807,8 +26821,9 @@ prüften die Anschrift, und zwei Erfasser konnten dasselbe Haus zweimal anlegen
 
 **Prüfung.** `tests/kern/objekt-anschrift.test.ts` (gleiche und verschiedene
 Schreibweisen, „Str" im Wort, Rücktransport), `tests/isolation/objekt-anlegen.test.ts`
-§V-361 (Rückfrage mit Zahl, Bestätigung, Hausnummer, Gesellschaft, Archiv; die
-übrigen Fälle bestätigen ihre gemeinsame Testanschrift ausdrücklich),
+§V-361 (Rückfrage mit Zahl, Bestätigung, Hausnummer, Gesellschaft, Archiv,
+zwei gleichzeitige Anlagen; die übrigen Fälle bestätigen ihre gemeinsame
+Testanschrift ausdrücklich),
 `tests/isolation/revier-anlegen.test.ts`, `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
@@ -26997,8 +27012,10 @@ Datenbank genau das riet. Voreinstellung zu O-980 und O-981 (D-784).
   Kennworts — derselbe Annahmeweg (`/auth/einladung/[token]`, 0155), gültig so
   lange wie ein Link seines Zwecks (`auth.einladung_stunden` bzw.
   `auth.zuruecksetzung_stunden`, O-500). Jeder offene Link des Kontos verfällt;
-  ein gesperrtes oder deaktiviertes Konto bekommt keinen. Protokolliert
-  (`system.verwaltungskonto_link_neu`, mit Zweck).
+  ein gesperrtes oder deaktiviertes Konto bekommt keinen. Eine Sperre je
+  Konto hält einen zweiten gleichzeitigen Aufruf an, bis der erste
+  festgeschrieben ist — sonst blieben beide neuen Links gültig (Copilot zu
+  PR #43). Protokolliert (`system.verwaltungskonto_link_neu`, mit Zweck).
 - **`app.verwaltungskonto_rolle_wechseln` (0517)**: zwischen `admin` und
   `leitung`, nie zur Super-Administration (D-617), nie am eigenen Konto, nie an
   einem Mitarbeiter- oder Kundenkonto. Eine Modulzuweisung bleibt stehen — an
@@ -27026,7 +27043,8 @@ Datenbank genau das riet. Voreinstellung zu O-980 und O-981 (D-784).
 
 **Prüfung.** `tests/isolation/verwaltungskonto-einladung.test.ts` §4/§5 (7:
 neuer Einladungslink entwertet den alten, mit Protokoll; Kennwortlink für ein
-aktives Konto, jeder offene Link verfällt; kein Verwaltungskonto, gesperrt,
+aktives Konto, jeder offene Link verfällt; zwei gleichzeitige neue Links lassen
+genau einen offen; kein Verwaltungskonto, gesperrt,
 deaktiviert; ein Admin der Gesellschaft nicht, nicht ohne zweiten Faktor;
 Leitung ↔ Administration mit Protokoll und `unveraendert`; nie
 Super-Administration, nie selbst, nie ein Mitarbeiterkonto; `cse_app` schreibt

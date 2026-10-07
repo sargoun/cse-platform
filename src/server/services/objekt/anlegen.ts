@@ -312,7 +312,18 @@ export async function legeObjektAn(
    * V-361: dasselbe Haus nicht zweimal — es sei denn, der Mensch hat die
    * vorhandenen Objekte gesehen und bestätigt. Die Zahl reist mit (V-240),
    * die Seite nennt die Objekte selbst.
+   *
+   * **Erst die Sperre auf Gesellschaft und Anschrift, dann die Suche** — bis
+   * zum Ende der Transaktion, auch mit Bestätigung. Zwei gleichzeitige
+   * Anlagen derselben Anschrift sahen sonst beide nichts und legten zwei
+   * Objekte ohne Rückfrage an (verschiedene Objektnummern trägt
+   * `objekt_nummer_uk` beide); jetzt wartet die zweite und findet die erste.
    */
+  await kontext.schreibe(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [`objekt_anschrift:${kontext.aktiverMandantId}:${anschriftSchluessel({
+      strasse, hausnummer: leer(eingabe.hausnummer), plz,
+    })}`]);
   if (eingabe.trotzDublette !== true) {
     const dubletten = await findeAnschriftDubletten(kontext, {
       strasse, hausnummer: leer(eingabe.hausnummer), plz,

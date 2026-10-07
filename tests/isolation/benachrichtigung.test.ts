@@ -177,7 +177,7 @@ describe('V-394 — kein Ziel ausserhalb der Plattform', () => {
       [f.reinigung, a, ziel]);
   }
 
-  it('ein fremder Wirt — auch verkleidet — verletzt den CHECK, selbst fuer den Eigentuemer', async () => {
+  it('ein fremder Wirt — auch verkleidet — wird abgewiesen, selbst fuer den Eigentuemer', async () => {
     for (const ziel of [
       '//boese.example/x', '/\\boese.example/x', 'https://boese.example/x',
       '/\t/boese.example', 'portal/x',
@@ -187,11 +187,37 @@ describe('V-394 — kein Ziel ausserhalb der Plattform', () => {
     }
   });
 
-  it('ein Pfad der Plattform geht durch, und der CHECK ist validiert', async () => {
+  it('ein Pfad der Plattform geht durch, und kein Ziel im Bestand verletzt die Regel', async () => {
     await expect(mitZiel('/portal/reinigung/rechnungen/1')).resolves.toBeDefined();
-    const [c] = await sql.unsafe<{ gueltig: boolean }[]>(
-      `select convalidated as gueltig from pg_constraint
-        where conname = 'benachrichtigung_ziel_intern'`);
-    expect(c!.gueltig).toBe(true);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from benachrichtigung
+        where not (ziel ~ '^/[^/\\\\]' and ziel !~ '[[:cntrl:]]')`);
+    expect(n!.n).toBe(0);
+  });
+
+  it('eine Altzeile mit fremdem Ziel laesst sich oeffnen und stempeln — aber nicht auf ein fremdes Ziel aendern', async () => {
+    const a = await konto(`alt-${String(Math.random()).slice(2, 10)}@cse.test`);
+    await mitglied(a, f.reinigung, 'leitung');
+    const neu = await benachrichtige(f.reinigung, a);
+    const alt = await benachrichtige(f.reinigung, a);
+    // Vor 0510 geschrieben: am Ausloeser vorbei, wie eine Zeile aus dem Bestand.
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`set local session_replication_role = replica`);
+      await tx.unsafe(`update benachrichtigung set ziel = '//boese.example/alt' where id = $1`, [alt]);
+    });
+    const ziel = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: a, portal: 'intern', readonly: false },
+      (tx) => tx.unsafe<{ ziel: string }[]>(
+        `update benachrichtigung set gelesen_am = coalesce(gelesen_am, now())
+          where id = $1 returning ziel`, [alt]));
+    expect(ziel[0]!.ziel).toBe('//boese.example/alt');
+    const gestempelt = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: a, portal: 'intern', readonly: false },
+      (tx) => tx.unsafe<{ id: string }[]>(
+        `update benachrichtigung set gelesen_am = now() where gelesen_am is null returning id`));
+    expect(gestempelt.map((z) => z.id)).toContain(neu);
+    await expect(sql.unsafe(
+      `update benachrichtigung set ziel = '//anders.example' where id = $1`, [alt]))
+      .rejects.toThrow(/benachrichtigung_ziel_intern/u);
   });
 });

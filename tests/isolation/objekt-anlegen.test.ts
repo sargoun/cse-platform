@@ -380,6 +380,42 @@ describe('§V-361 dasselbe Gebäude nicht zweimal (O-70, D-817)', () => {
       .rejects.toMatchObject({ grund: 'anschrift_vorhanden', anzahl: 2 });
   });
 
+  it('zwei gleichzeitige Anlagen derselben Anschrift: die zweite wartet und fragt nach', async () => {
+    const strasse = `Rennweg ${zufall()}`;
+    let melde!: () => void;
+    const gehalten = new Promise<void>((r) => { melde = r; });
+    let freigeben!: () => void;
+    const halt = new Promise<void>((r) => { freigeben = r; });
+    const erste = alsApp(sitzung(), async (tx) => {
+      const neu = await legeObjektAn(kontextAus(tx, f.reinigung), {
+        bezeichnung: 'Haus A', ort: 'Berlin', strasse, hausnummer: '3', plz: '10117',
+        objektnummer: `R-${zufall()}`,
+      } as never);
+      melde();
+      await halt;
+      return neu;
+    });
+    await gehalten;
+    const zweite = anlegen(f.reinigung, {
+      strasse, hausnummer: '3', plz: '10117', objektnummer: `R-${zufall()}`,
+    });
+    try {
+      for (let i = 0; ; i += 1) {
+        const [w] = await sql.unsafe<{ n: number }[]>(
+          `select count(*)::int as n from pg_stat_activity
+            where datname = current_database() and wait_event_type = 'Lock'`);
+        if (w!.n >= 1) break;
+        if (i >= 250) throw new Error('Die zweite Anlage wartete nicht auf die Sperre.');
+        await new Promise((r) => { setTimeout(r, 20); });
+      }
+    } finally {
+      // Auch wenn der zweite nicht wartete: der erste darf nicht offen bleiben.
+      freigeben();
+    }
+    await erste;
+    await expect(zweite).rejects.toMatchObject({ grund: 'anschrift_vorhanden', anzahl: 1 });
+  });
+
   it('eine andere Hausnummer, eine andere Gesellschaft, ein archiviertes Objekt zählen nicht', async () => {
     const strasse = `Grenzweg ${zufall()}`;
     const a = await anlegen(f.reinigung, { strasse, hausnummer: '7', plz: '10117' });
