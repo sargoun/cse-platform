@@ -4,8 +4,8 @@
  * // TODO(client, O-340): Voreinstellung — ein Aufmaßblatt darf Zeilen
  * verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt (deren
  * Einheit sie trägt, `kern.aufmass_zeile_einheit`); die Obergrenze gegen
- * doppelte Abrechnung gilt dann je LV-Position, nicht je Blatt. Gebaut ist die
- * Blattsumme (`fin.pruefe_aufmass_menge`, 0107) — V-357. D-796.
+ * doppelte Abrechnung gilt je LV-Position, nicht je Blatt
+ * (`fin.pruefe_aufmass_menge`, 0533, V-357). D-796, D-849.
  *
  * Der Dienst tut drei Dinge und keines davon nebenbei:
  *

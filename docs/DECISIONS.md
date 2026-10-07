@@ -4582,7 +4582,7 @@ immer gesperrt.
 
 | # | Question | Blocks |
 |---|---|---|
-| O-340 | **Darf ein Aufmaßblatt Zeilen in verschiedenen Einheiten tragen — m², m und Stk auf demselben Blatt?** Der Schutz gegen die doppelte Abrechnung eines Aufmaßes ist nach § 16 VOB/B eine Summe und kein Unique-Index (D-362); die Obergrenze ist die gemessene Menge des Blattes. `aufmass_zeile` führt `einheit` je Zeile, `aufmass` selbst keine — eine Blattsumme über gemischte Einheiten addierte Äpfel und Birnen, und die Sperre säße dann an der falschen Zahl. Falls gemischte Blätter vorkommen, ist die Obergrenze je Einheit oder je LV-Position zu bilden; das ist eine Zeile in `fin.pruefe_aufmass_menge()`. Bis zur Antwort prüft der Auslöser gegen die Blattsumme, und `aufmass.abgerechnet_menge` trägt sie. | BAU-02, FIN-07, FIN-08, § 16 VOB/B, `aufmass`, `rechnungsposition_quelle` · **Voreinstellung → D-796** |
+| O-340 | **Darf ein Aufmaßblatt Zeilen in verschiedenen Einheiten tragen — m², m und Stk auf demselben Blatt?** Der Schutz gegen die doppelte Abrechnung eines Aufmaßes ist nach § 16 VOB/B eine Summe und kein Unique-Index (D-362); die Obergrenze ist die gemessene Menge des Blattes. `aufmass_zeile` führt `einheit` je Zeile, `aufmass` selbst keine — eine Blattsumme über gemischte Einheiten addierte Äpfel und Birnen, und die Sperre säße dann an der falschen Zahl. Falls gemischte Blätter vorkommen, ist die Obergrenze je Einheit oder je LV-Position zu bilden; das ist eine Zeile in `fin.pruefe_aufmass_menge()`. Bis zur Antwort prüft der Auslöser gegen die Blattsumme, und `aufmass.abgerechnet_menge` trägt sie. | BAU-02, FIN-07, FIN-08, § 16 VOB/B, `aufmass`, `rechnungsposition_quelle` · **Voreinstellung → D-796; je LV-Position gebaut → D-849** |
 
 ---
 
@@ -25526,7 +25526,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | O-932 | Der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung ist der Gesamtstand (bisher Berechnetes wird abgezogen), nicht der Zuwachs; die Position nennt Stand und Abzug. Wie gebaut (`anteiligerRest`). | `finanz/abrechnungsart/festpreis-los.ts` |
 | O-45 | Z3 (Datenträgerüberlassung) ist der Regelweg und gebaut; Z1 und Z2 gewährt die Gesellschaft auf Verlangen der Prüfung über ein befristetes, ausschliesslich lesendes Konto — eine Prüferrolle dafür fehlt (V-355). | `buchhaltung/z3.ts` |
 | O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Gebaut mit V-356 (D-831): Maske „Position entfernen" am Rechnungsblatt, die Herkunft wird frei, die letzte Leistungszeile bleibt. | `finanz/entwurf.ts` (`entfernePosition`) |
-| O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut ist die Blattsumme (V-357). | `bau/aufmass.ts`, `drizzle/0107` |
+| O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut (V-357, D-849): `fin.pruefe_aufmass_menge` prüft je LV-Position (0533); ein Anteil ohne LV-Position zählt nur auf einem Blatt mit einer Gruppe. | `bau/aufmass.ts`, `drizzle/0107`, `drizzle/0533` |
 | O-348 | Eine Position des Leistungsnachweises bei Monatspauschale trägt keinen Einzelpreis je Durchgang: der Nachweis belegt die Leistung, die Rechnung stellt die Pauschale. Wie gebaut; der Satz im Arbeiterportal sagt es jetzt in vier Sprachen statt „offen". | `mitarbeiter/nachweis-schicht.ts`, `lib/i18n/texte.ts`, `db/seed/reinigung.ts` |
 | O-349 | Ein Glasreinigungsrevier rechnet seine Sollzeit auf die Glasfläche mit eigenem Leistungswert je m² Glas aus dem Belagsartenkatalog. Gebaut mit V-358 (D-830): `revier.bezugsgroesse`, Katalogzeile GLAS mit 50 m²/h (Voreinstellung, O-17), die Belagsartenseite sagt es. | `reinigung/sollzeit.ts`, Stammdaten › Belagsarten, `db/seed/reinigung.ts` |
 | O-350 | Ein Angebot bindet vier Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf den Berliner Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je Gesellschaft über `angebot.bindefrist_tage_standard` änderbar. Gebaut mit V-359 (D-806). | `angebot/index.ts`, `db/seed/vertrieb.ts` |
@@ -28727,4 +28727,49 @@ Funktionen und Formularfeldern). Dazu `pnpm guards`, `pnpm typecheck`,
 `pnpm lint`.
 
 | Betrifft | V-284, O-134, O-352, O-606, D-779, FIN-03, LEG-01, TEN-02; `drizzle/0532_nummernkreis_freigabe_jahreswechsel.sql`, `src/server/services/finanz/{nummernkreis-freigabe,nummernkreis-wechsel}.ts`, `src/app/api/finanzen/nummernkreise/route.ts`, `src/app/portal/[mandant]/finanzen/nummernkreise/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{nummernkreis-freigabe,nummernkreis-wechsel,uebersicht}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/{nummernkreis-freigabe,nummernkreis-wechsel}.test.ts`, `tests/kern/nummernkreis-verwaltung.test.ts` |
+|---|---|
+
+### D-849 · Bauwelle 46: Die Obergrenze gegen doppelte Abrechnung eines Aufmaßes gilt je LV-Position (V-357, O-340)
+
+**Der Anlass.** `fin.pruefe_aufmass_menge` (0107) verglich die Summe aller
+Zeilen eines Blattes mit der Summe aller wirksamen Anteile — über Einheiten
+und LV-Positionen hinweg. Die Voreinstellung (O-340, D-796) erlaubt
+gemischte Einheiten auf einem Blatt, wenn jede Zeile an einer LV-Position
+hängt, und verlangt die Obergrenze je LV-Position. Die Blattsumme hatte zwei
+Fehler, beide mit Geld:
+- **Sie ließ durch, was sie verhindern sollte.** 40 m² und 50 Stk gemessen,
+  80 m² abgerechnet: 80 ≤ 90 — die doppelte Abrechnung versteckte sich hinter
+  der unberechneten Position in Stück.
+- **Sie wies ab, was richtig war.** 100 m² Mauerwerk und −30 m² Rückbau auf
+  einem Blatt, 100 m² abgerechnet: 100 > 70.
+
+**Was gebaut ist** (0533, `create or replace` der Funktion; der aufgeschobene
+Auslöser `quelle_aufmass_menge` bleibt).
+- **Die Gruppe eines Anteils ist die LV-Position seiner Rechnungszeile.** Die
+  Abrechnung nach Aufmaß schreibt ohnehin je LV-Position eine Zeile mit
+  `lv_position_id` und je Blatt einen Anteil (`einheitspreis-aufmass.ts`).
+- **Ein Anteil ohne LV-Position** (eine von Hand angelegte Zeile) zählt nur,
+  wo das Blatt EINE Gruppe misst — dort ist er eindeutig, und alles bisher
+  Gebaute rechnet weiter wie vorher. Misst das Blatt mehrere, wird er
+  abgewiesen und der Satz sagt, warum: geraten wird nicht.
+- **Je Gruppe**: der Betrag der Anteile überschreitet nie den Betrag der
+  gemessenen Menge (Beträge wie in 0107, ein Rückbau misst negativ); die
+  Zeilen außerhalb des LV bilden eine eigene Gruppe, eine LV-Position, die
+  das Blatt nicht misst, hat dort null.
+- `aufmass.abgerechnet_menge` bleibt die Summe aller wirksamen Anteile des
+  Blattes (§2.3 Punkt 5) — eine Anzeige; geprüft wird je Gruppe.
+- Die Funktion liest die Rechnungszeile durch `d_rp_pflichtfeld` (aktiver
+  Mandant): der Auslöser feuert in der Sitzung, die die Rechnung schreibt.
+  `TODO(client, O-340)` in 0533 und am Dienst `bau/aufmass.ts`.
+
+**Prüfung.** `tests/isolation/rechnung-herkunft.test.ts` (5b): die doppelte
+m²-Abrechnung hinter einer Stück-Position fällt, beide genau wie gemessen
+gehen durch, eine Zarge mehr fällt; 100 m² neben −30 m² Rückbau gehen
+durch; ein Anteil ohne LV-Position fällt auf einem Blatt mit zwei Gruppen
+und geht auf einem mit einer durch; eine LV-Position, die das Blatt nicht
+misst, fällt. Ohne 0533 fallen alle vier (geprüft). Die Zwei-Raten-Prüfung
+(5) läuft unverändert: ihre dritte Rate scheitert mit „31.870 von gemessenen
+30.870".
+
+| Betrifft | V-357, O-340, D-796, D-362, D-700, BAU-02, FIN-07, FIN-08, § 16 VOB/B; `drizzle/0533_aufmass_obergrenze_je_lv_position.sql`, `src/server/services/bau/aufmass.ts`, `src/server/services/finanz/abrechnungsart/einheitspreis-aufmass.ts`, `tests/isolation/rechnung-herkunft.test.ts` |
 |---|---|

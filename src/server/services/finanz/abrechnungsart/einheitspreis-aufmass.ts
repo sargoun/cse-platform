@@ -216,7 +216,7 @@ export const EINHEITSPREIS_AUFMASS: Abrechnungsart = {
   schluessel: 'einheitspreis_aufmass',
   bezeichnung: 'Einheitspreis nach Aufmaß',
   istProvisorisch: true,
-  // V-207: jedes Blatt sperrt sich über seine Summe (fin.pruefe_aufmass_menge, D-700).
+  // V-207: jedes Blatt sperrt sich über seine Summe je LV-Position (fin.pruefe_aufmass_menge, D-700, D-849).
   sperrtUeberBeleg: true,
   offeneParameter: [
     {
