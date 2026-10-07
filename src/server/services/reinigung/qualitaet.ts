@@ -735,7 +735,7 @@ export async function findePruefung(
  */
 export const ARCHIV_GRUENDE = [
   'grund_fehlt', 'grund_zu_lang', 'nicht_gefunden', 'schon_archiviert',
-  'ersatz_unbekannt', 'ersatz_selbst',
+  'ersatz_unbekannt', 'ersatz_selbst', 'ersatz_unpassend',
 ] as const;
 export type ArchivGrund = (typeof ARCHIV_GRUENDE)[number];
 
@@ -748,6 +748,8 @@ export const ARCHIV_SAETZE: Readonly<Record<ArchivGrund, string>> = {
   ersatz_unbekannt: 'Die ersetzende Prüfung gibt es in dieser Gesellschaft nicht, oder sie ist '
     + 'selbst archiviert.',
   ersatz_selbst: 'Eine Prüfung ersetzt sich nicht selbst.',
+  ersatz_unpassend: 'Ersetzen kann nur eine Prüfung desselben Objekts, die nicht vor dieser '
+    + 'geprüft wurde — dieselbe Auswahl, die das Prüfblatt anbietet.',
 };
 
 export class PruefungArchivFehler extends Error {
@@ -802,11 +804,24 @@ export async function archivierePruefung(
   if (z === undefined) throw new PruefungArchivFehler('nicht_gefunden');
   if (z.archiviert) throw new PruefungArchivFehler('schon_archiviert');
   if (ersatz !== null) {
-    const [r] = await kontext.abfrage<{ id: string }>(
-      `select id from qualitaetspruefung
-        where id = $1::uuid and mandant_id = app.aktiver_mandant() and archiviert_am is null`,
-      [ersatz]);
+    /*
+     * Dieselben Bedingungen wie `ladeErsatzKandidaten` — nicht nur „gibt es
+     * sie in dieser Gesellschaft". Der Fremdschlüssel hält allein den
+     * Mandanten (0497); ohne diese Prüfung verbände ein zusammengebauter POST
+     * die Prüfung unwiderruflich mit einem fremden Objekt oder einer älteren
+     * Prüfung, und der Verweis stünde danach fest.
+     */
+    const [r] = await kontext.abfrage<{ id: string; passt: boolean }>(
+      `select k.id,
+              (k.objekt_id is not distinct from q.objekt_id
+               and k.geprueft_am >= q.geprueft_am) as passt
+         from qualitaetspruefung k
+         join qualitaetspruefung q on q.mandant_id = k.mandant_id and q.id = $2::uuid
+        where k.id = $1::uuid and k.mandant_id = app.aktiver_mandant()
+          and k.archiviert_am is null`,
+      [ersatz, id]);
     if (r === undefined) throw new PruefungArchivFehler('ersatz_unbekannt');
+    if (!r.passt) throw new PruefungArchivFehler('ersatz_unpassend');
   }
 
   const [neu] = await kontext.schreibe<{ id: string }>(

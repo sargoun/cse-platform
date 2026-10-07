@@ -722,6 +722,33 @@ describe('Qualitaetspruefung — der Anker eines Befundes (OPS-11)', () => {
       .rejects.toThrow(/nur mit Grund/u);
     expect((await alsLeitung(a, (k) => findePruefung(k, id)))!.archiviert).toBe(false);
   });
+
+  it('als Ersatz nur, was die Auswahl anbietet: dasselbe Objekt, nicht früher geprüft (V-288)', async () => {
+    const frueher = await einePruefung();
+    const alt = await einePruefung();
+    const [o2] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+       values ($1,$2,$3,'Nachbarhaus','Teststr. 4','10179','Berlin') returning id`,
+      [a.mandant, a.kunde, `O-${zufall()}`] as never[]);
+    const fremd = await alsLeitung(a, async (k) => (await erfassePruefung(k, {
+      objektId: o2!.id, kundeId: a.kunde, pruefverfahrenId: a.verfahren,
+      positionen: [{ kriterium: 'Boden', ergebnis: 'io' }],
+    })).id);
+
+    await alsLeitung(a, async (k) => {
+      const angeboten = (await ladeErsatzKandidaten(k, alt)).map((z) => z.id);
+      expect(angeboten).not.toContain(frueher);
+      expect(angeboten).not.toContain(fremd);
+    });
+    // Ein zusammengebauter POST kommt an der Auswahl nicht vorbei.
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, alt, {
+      grund: 'x', ersetztDurchId: frueher,
+    }))).rejects.toMatchObject({ grund: 'ersatz_unpassend' });
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, alt, {
+      grund: 'x', ersetztDurchId: fremd,
+    }))).rejects.toMatchObject({ grund: 'ersatz_unpassend' });
+    expect((await alsLeitung(a, (k) => findePruefung(k, alt)))!.archiviert).toBe(false);
+  });
 });
 
 describe('Turnus und Modulkoepfe — „nicht geprueft" ist nicht „nichts offen"', () => {

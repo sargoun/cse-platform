@@ -52,3 +52,35 @@ comment on function app.entscheidung_zieht_bewerbung_nach() is
 -- Unveraendert seit 0168, hier nur bekraeftigt: Eigentum und kein PUBLIC.
 alter function app.entscheidung_zieht_bewerbung_nach() owner to cse_definer;
 revoke all on function app.entscheidung_zieht_bewerbung_nach() from public;
+
+-- ---------------------------------------------------------------------------
+-- Der Altbestand: Absagen VOR dieser Migration
+-- ---------------------------------------------------------------------------
+--
+-- Der Ausloeser greift erst bei kuenftigen Entscheidungen. Eine Bewerbung,
+-- die schon abgelehnt ist, behielte ihren Eingangswert, und der Nachtlauf
+-- (bewerber_loeschung) loeschte sie, bevor die Frist ab ihrer Absage um ist
+-- (Copilot-Befund auf PR 39). Derselbe Nachzug deshalb hier einmal fuer den
+-- Bestand.
+--
+-- Die Regel fuer historische Einstellungswerte, ausdruecklich: einen Verlauf
+-- der Einstellung kennt die Plattform nicht (plattform_einstellung ist eine
+-- Zeile). Es gilt der Wert von recruiting.aufbewahrung_tage zum Zeitpunkt
+-- dieser Migration, gezaehlt ab dem Berliner Kalendertag von
+-- einstellungsentscheidung.entschieden_am; wie beim Ausloeser nie kuerzer als
+-- der Eingangswert und ohne gueltige Einstellung gar nicht. Was der Nachtlauf
+-- schon geloescht hat (geloescht_am), bleibt, wie es ist.
+
+update public.bewerbung b
+   set aufbewahrung_bis = (e.entschieden_am at time zone 'Europe/Berlin')::date + t.tage,
+       geaendert_am = now()
+  from public.einstellungsentscheidung e,
+       (select case when r.w ~ '^[1-9][0-9]{0,4}$' then r.w::int end as tage
+          from (select app.plattform_einstellung('recruiting.aufbewahrung_tage') #>> '{}' as w) r
+       ) t
+ where e.bewerbung_id = b.id and e.mandant_id = b.mandant_id
+   and e.ergebnis = 'abgelehnt'
+   and b.status = 'abgelehnt'
+   and b.geloescht_am is null
+   and t.tage is not null
+   and b.aufbewahrung_bis < (e.entschieden_am at time zone 'Europe/Berlin')::date + t.tage;

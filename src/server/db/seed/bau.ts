@@ -517,16 +517,20 @@ export async function seedBau(
    * Gibt es keine, bleiben beide Erklaerungen im Seed ungesendet — ein
    * Vier-Augen-Nachweis mit einem Paar Augen waere keiner, und der
    * Ausloeser liesse ihn auch nicht zu.
+   *
+   * **Wer das Recht HAT, sagt `kern.traeger_des_rechts`** — dieselbe
+   * Aufloesung wie `app.hat_recht` (`app.hat_recht_fuer`, 0149): Vorrang der
+   * Gesellschaftszeile vor der Plattformvorgabe, `gewaehrt = false`,
+   * Gueltigkeitsfenster, Modulbeschraenkung, globale Rolle. Ein blosses
+   * `exists` auf `rolle_berechtigung` traefe auch eine entzogene Bindung, und
+   * der Seed schriebe eine Freigabe einem Menschen zu, dem das Recht
+   * tatsaechlich fehlt.
    */
   const [freigeber] = await sql<{ id: string }[]>`
     select b.id
       from benutzer b
-      join benutzer_mandant bm on bm.benutzer_id = b.id and bm.mandant_id = ${mandantId}
-      join rolle r on r.id = bm.rolle_id
-     where b.status = 'aktiv' and bm.entzogen_am is null and b.id <> ${bauleitung.id}
-       and exists (select 1 from rolle_berechtigung rb
-                     join berechtigung be on be.id = rb.berechtigung_id
-                    where rb.rolle_id = r.id and be.schluessel = 'freigabe.entscheiden')
+     where b.id = any (kern.traeger_des_rechts(${mandantId}::uuid, 'freigabe.entscheiden'))
+       and b.id <> ${bauleitung.id}
      order by b.email limit 1`;
 
   // LESEN ZUERST: der Auftragskreis vergaebe beim zweiten Lauf eine zweite

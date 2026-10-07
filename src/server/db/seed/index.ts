@@ -339,10 +339,16 @@ async function main(): Promise<void> {
                  then excluded.elektronische_adresse_schema else mandant.elektronische_adresse_schema end,
             -- Nur WAS FEHLT: wer eine echte Bankverbindung eingetragen hat,
             -- behaelt sie. Ein Seed, der eine Kontonummer ueberschreibt, ist
-            -- ein Seed, den niemand mehr laufen laesst.
-            iban = coalesce(mandant.iban, excluded.iban),
-            bic  = coalesce(mandant.bic,  excluded.bic),
-            bank = coalesce(mandant.bank, excluded.bank),
+            -- ein Seed, den niemand mehr laufen laesst. Und nach der
+            -- Bestaetigung (V-390) auch nicht, was fehlt: eine bewusst
+            -- geleerte und bestaetigte Bankverbindung bekaeme sonst das
+            -- Testkonto zurueck — und mit ihm jede naechste Rechnung.
+            iban = case when mandant.angaben_bestaetigt_am is null
+                 then coalesce(mandant.iban, excluded.iban) else mandant.iban end,
+            bic  = case when mandant.angaben_bestaetigt_am is null
+                 then coalesce(mandant.bic,  excluded.bic)  else mandant.bic end,
+            bank = case when mandant.angaben_bestaetigt_am is null
+                 then coalesce(mandant.bank, excluded.bank) else mandant.bank end,
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
             -- immer bei '{}', und der Modulriegel griffe nirgends.

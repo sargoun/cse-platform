@@ -219,6 +219,24 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
    * er weist ab. Ein Seed, der genau einmal laeuft, ist kein Seed: danach
    * traut sich niemand mehr, ihn anzufassen.
    */
+  /**
+   * V-390 (D-804, Copilot-Befund auf PR #39): eine BESTÄTIGTE Bankverbindung,
+   * die jemand bewusst geleert hat, bekommt der zweite Lauf nicht mit dem
+   * Testkonto zurück. Vorbereitet VOR dem zweiten Lauf, geprüft danach.
+   * Direkt per SQL: der Definer nähme mit der Änderung die Bestätigung zurück.
+   */
+  it('vorbereitet: eine bestätigte Gesellschaft, deren Bankverbindung leer ist', async () => {
+    const z = await sql`
+      update mandant set iban = null, bic = null, bank = null, angaben_bestaetigt_am = now()
+       where slug = 'security' returning id`;
+    expect(z).toHaveLength(1);
+    // Die Gegenprobe: dieselbe Lücke UNBESTÄTIGT — die füllt der Seed weiter.
+    const g = await sql`
+      update mandant set iban = null, bic = null, bank = null, angaben_bestaetigt_am = null
+       where slug = 'bau' returning id`;
+    expect(g).toHaveLength(1);
+  });
+
   it('ein zweiter Lauf auf derselben Datenbank gelingt', () => {
     const ergebnis = execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
       ['--import', join(WURZEL, 'scripts/hooks/server-only.mjs'),
@@ -226,6 +244,15 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
       { cwd: WURZEL, encoding: 'utf8', env: { ...process.env, DATABASE_URL: EIGEN_URL } });
     expect(ergebnis).toContain('Seed fertig.');
   }, 240_000);
+
+  it('und die bestätigte, leere Bankverbindung bleibt leer', async () => {
+    const [m] = await sql<{ iban: string | null; bic: string | null; bank: string | null }[]>`
+      select iban, bic, bank from mandant where slug = 'security'`;
+    expect(m).toEqual({ iban: null, bic: null, bank: null });
+    const [g] = await sql<{ iban: string | null }[]>`
+      select iban from mandant where slug = 'bau'`;
+    expect(g?.iban ?? null).not.toBeNull();
+  });
 
   it('und die Konten mit 2FA-Rolle tragen wirklich einen Faktor', async () => {
     // Die Gegenrichtung: der Lauf oben gelaenge auch, wenn jemand den

@@ -26141,11 +26141,29 @@ die Bewerberfrist ab der Absage (O-373, D-797).
 | O-512 | Der Karrierebereich ist englisch wie die übrige Website; die Stellentexte erscheinen in der Sprache, in der das Recruiting sie schreibt (deutsch), mit einem Satz dazu (wie D-802, jetzt gebaut). | `karriere/Seiten.tsx`, `karriere/texte.ts`, `app/sitemap.ts` |
 | O-373 | Frist ab der Absage, ohne Entscheidung ab Eingang (wie D-797, jetzt gebaut). | `drizzle/0498`, `karriere/texte.ts` |
 
+**Copilot-Runde auf PR 39.** Fünf Befunde, alle berechtigt und behoben:
+- 0498 zieht auch die Bewerbungen nach, die VOR der Migration abgelehnt
+  wurden — ab dem Berliner Tag der Entscheidung, mit dem Einstellungswert zum
+  Zeitpunkt der Migration (einen Verlauf der Einstellung gibt es nicht), nie
+  kürzer als ab Eingang; schon gelöschte bleiben, wie sie sind. Sonst löschte
+  der Nachtlauf eine frühe Absage vor Ablauf der neuen Frist.
+- Qualitätsprüfung archivieren (V-288, D-806): als Ersatz nimmt der Dienst nur,
+  was das Prüfblatt anbietet — dasselbe Objekt, nicht früher geprüft
+  (`ersatz_unpassend`). Der Fremdschlüssel hält allein den Mandanten.
+- `POST /api/karriere/bewerbung` antwortet auch als JSON in der Sprache des
+  Formulars.
+- Der Seed wählt den Freigebenden der Bau-Erklärungen (V-383, D-805) über
+  `kern.traeger_des_rechts` — dieselbe Auflösung wie `app.hat_recht` — statt
+  über das blosse Bestehen einer Rollenbindung.
+- Der Seed füllt nach der Bestätigung (V-390, D-804) auch IBAN, BIC und Bank
+  nicht mehr nach.
+
 **Prüfung.** `tests/kern/karriere-englisch.test.ts`, `tests/kern/sprachpfade.test.ts`,
 `tests/kern/oeffentliche-navigation.test.ts`, `tests/kern/website-hinweise.test.ts`,
 `tests/kern/konto-sitzung-rueckweg.test.ts`, `tests/isolation/eigene-sitzungen.test.ts`,
-`tests/isolation/recruiting.test.ts` (in der CI), `tests/e2e/seo.spec.ts`,
+`tests/isolation/recruiting.test.ts`, `tests/isolation/seed.test.ts` und
+`tests/isolation/reinigung-security-qualitaet.test.ts` (in der CI), `tests/e2e/seo.spec.ts`,
 `tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
-| Betrifft | V-393, V-331, V-365; O-512, O-79, O-373; `drizzle/0498_bewerberfrist_ab_absage.sql`, `src/app/(public)/karriere/**`, `src/app/(public)/en/karriere/**`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/sitemap.ts`, `src/lib/sprache.ts`, `src/lib/oeffentliche-navigation.ts`, `src/server/services/konto/sitzungen.ts`, `src/app/api/konto/sitzung/route.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/lib/i18n/konto.ts`, `docs/DESIGN.md` |
+| Betrifft | V-393, V-331, V-365; O-512, O-79, O-373; `drizzle/0498_bewerberfrist_ab_absage.sql`, `src/app/(public)/karriere/**`, `src/app/(public)/en/karriere/**`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/sitemap.ts`, `src/lib/sprache.ts`, `src/lib/oeffentliche-navigation.ts`, `src/server/services/konto/sitzungen.ts`, `src/app/api/konto/sitzung/route.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/lib/i18n/konto.ts`, `docs/DESIGN.md`, `src/server/services/reinigung/qualitaet.ts`, `src/server/db/seed/{bau,index}.ts` |
 |---|---|

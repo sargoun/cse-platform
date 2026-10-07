@@ -191,6 +191,17 @@ describe('die Route führt in die Sprache des Formulars zurück', () => {
     expect(new URL(antwort.headers.get('location') ?? '').pathname).toBe('/en/karriere/danke');
   });
 
+  it('auch die JSON-Antwort spricht die Sprache des Formulars', async () => {
+    const antwort = await bewerbung(formularPost({
+      sprache: 'en', bereich: '', name: 'Ada', email: 'ada@firma.de',
+    }));
+    expect(antwort.status).toBe(400);
+    const koerper = await antwort.json() as { fehler: string; meldung: string };
+    expect(koerper.fehler).toBe('kein_bereich');
+    expect(koerper.meldung).toBe(bewerbungsMeldung('kein_bereich', 'en'));
+    expect(koerper.meldung).not.toBe(bewerbungsMeldung('kein_bereich'));
+  });
+
   it('eine unbekannte Sprache ist Deutsch', async () => {
     const antwort = await bewerbung(formularPost({
       antwort: 'seite', sprache: 'fr', webseite: 'https://spam.example',

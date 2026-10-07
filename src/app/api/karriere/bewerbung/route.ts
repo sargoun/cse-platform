@@ -111,7 +111,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     alsSeite
       ? NextResponse.redirect(internesZiel(
         `${ziel}?fehler=${encodeURIComponent(grund)}`, pfad('/karriere'), anfrage), 303)
-      : NextResponse.json({ fehler: grund, meldung: bewerbungsMeldung(grund) }, { status });
+      // Auch ohne Seite in der Sprache des Formulars — `sprache` ist oben gelesen.
+      : NextResponse.json(
+        { fehler: grund, meldung: bewerbungsMeldung(grund, sprache) }, { status });
 
   if (stelleId === null && !SLUG.test(bereich)) {
     return abgewiesen('kein_bereich', 400);
@@ -130,7 +132,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     if (!alsSeite) {
       // Das JSON bleibt, was es war (`nicht_gefunden`) — jetzt mit Satz.
       return NextResponse.json(
-        { fehler: 'nicht_gefunden', meldung: bewerbungsMeldung(grund) }, { status: 404 });
+        { fehler: 'nicht_gefunden', meldung: bewerbungsMeldung(grund, sprache) }, { status: 404 });
     }
     return abgewiesen(grund, 404, stelleId === null ? formularPfad : pfad('/karriere'));
   }
