@@ -101,9 +101,18 @@ export function ObjektFormular(
               * Text bleibt frei, die Spalte `objekt.gebaeudetyp` bleibt `text`. D-792.
               */}
             <datalist id="gebaeudetyp-vorschlaege">
-              {GEBAEUDETYPEN.map(([schluessel, label]) => (
-                <option key={schluessel} value={label} />
-              ))}
+              {GEBAEUDETYPEN.map(([schluessel, deutsch]) => {
+                /*
+                 * Gespeichert wird der deutsche Klartext (`value`), gezeigt
+                 * wird die Bezeichnung in der Sprache der Oberfläche (`label`)
+                 * — eine Kategorie je Typ, gleich in welcher Sprache erfasst.
+                 */
+                const anzeige = t.gebaeudetypAnzeige(schluessel, deutsch);
+                return (
+                  <option key={schluessel} value={deutsch}
+                          label={anzeige === deutsch ? undefined : anzeige} />
+                );
+              })}
             </datalist>
             <span className="text-xs text-text-muted">{t.gebaeudetypVorschlaege}</span>
           </label>

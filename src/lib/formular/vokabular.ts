@@ -13,7 +13,10 @@
  *
  * Gespeichert wird im Formular der Schlüssel (`buero`), im Objekt der
  * Klartext (`Bürogebäude`) — so steht es seit dem Seed in beiden Tabellen,
- * und die Auswertung nach Objektart liest den Klartext.
+ * und die Auswertung nach Objektart liest den Klartext. Die englische
+ * Oberfläche zeigt die englische Bezeichnung (`FORMULAR_EN`, dieselbe wie auf
+ * `/en/angebot`) und speichert trotzdem den deutschen Klartext: eine
+ * Kategorie je Typ, gleich in welcher Sprache erfasst wurde.
  */
 export const GEBAEUDETYPEN: readonly (readonly [string, string])[] = [
   ['buero', 'Bürogebäude'],

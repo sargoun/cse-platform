@@ -22,7 +22,9 @@
  * leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am
  * Auftrag (`auftrag.objekt_id`). Zwei Objekte für ein Haus hiessen zwei
  * Raumbücher, zwei Schlüsselsätze und zwei Objektnummern für dieselbe Tür.
- * Wie gebaut. D-792.
+ * Eine Konvention, keine Sperre: `legeObjektAn` legt an, eine Dublettenprüfung
+ * je Anschrift gibt es nicht — zwei Erfasser können dasselbe Haus zweimal
+ * anlegen (Prüfstand PR #35). D-792.
  *
  * **Die Anschrift ist Pflicht, weil die Datenbank sie verlangt** (`strasse`,
  * `plz`, `ort` sind `NOT NULL`, `drizzle/0021_objekt_raumbuch.sql:118`). Das

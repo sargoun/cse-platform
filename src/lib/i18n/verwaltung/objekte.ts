@@ -17,6 +17,8 @@
  * number": sie ist genau die Zeichenkette, die auf dem Schlüsselschild steht.
  * Wer sie übersetzt, sucht danach vergeblich.
  */
+import { eigenerEintrag } from '../../nachschlagen.js';
+import { FORMULAR_EN } from '../formular-en.js';
 import type { InternSprache } from '../intern.js';
 import { rechtName } from '../rechtname.js';
 
@@ -52,6 +54,12 @@ export interface ObjekteTexte {
   readonly gebaeudetypBeispiel: string;
   /** Die Vorschlagsliste (O-69, D-792) — und dass eigener Text möglich bleibt. */
   readonly gebaeudetypVorschlaege: string;
+  /**
+   * Die angezeigte Bezeichnung eines vorgeschlagenen Gebäudetyps. Gespeichert
+   * wird immer der deutsche Klartext; angezeigt wird er in der Sprache der
+   * Oberfläche (Prüfstand PR #35).
+   */
+  readonly gebaeudetypAnzeige: (schluessel: string, deutsch: string) => string;
   readonly etagen: string;
   readonly strasse: string;
   readonly hausnummer: string;
@@ -101,6 +109,13 @@ export interface ObjekteTexte {
   readonly keinSchreibrechtAendern: string;
 }
 
+/**
+ * Die englischen Bezeichnungen der Gebäudetypen — aus der englischen Fassung
+ * des Anfrageformulars, nicht ein zweites Mal geschrieben (O-69).
+ */
+const GEBAEUDETYP_EN: Readonly<Record<string, string>> =
+  FORMULAR_EN['angebot_reinigung']?.felder['gebaeudetyp']?.optionen ?? {};
+
 export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
   de: {
     reiter: {
@@ -146,6 +161,7 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
     gebaeudetypVorschlaege:
       'Vorgeschlagen werden die Gebäudetypen des Anfrageformulars (Voreinstellung O-69); '
       + 'ein eigener Text bleibt möglich.',
+    gebaeudetypAnzeige: (_schluessel, deutsch) => deutsch,
     etagen: 'Etagen',
     strasse: 'Strasse',
     hausnummer: 'Nr.',
@@ -280,8 +296,11 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
     gebaeudetyp: 'Building type',
     gebaeudetypBeispiel: 'e.g. office building, school, construction site',
     gebaeudetypVorschlaege:
-      'Suggested are the building types of the public request form (default O-69); '
-      + 'free text stays possible.',
+      'Suggested are the building types of the public request form (default O-69), shown '
+      + 'in English and stored under their German name so that reports keep one category per '
+      + 'type; free text stays possible.',
+    gebaeudetypAnzeige: (schluessel, deutsch) =>
+      eigenerEintrag(GEBAEUDETYP_EN, schluessel) ?? deutsch,
     etagen: 'Floors',
     strasse: 'Street',
     hausnummer: 'No.',

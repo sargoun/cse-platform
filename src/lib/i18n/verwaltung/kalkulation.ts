@@ -139,7 +139,9 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       + 'Nach jeder Zeile rechnet die Kalkulation den Preis neu.',
     materialNachunternehmer:
       'Nachunternehmerleistung: Voreinstellung (O-57) ist eine eigene Kostenart neben '
-      + 'Material und Gerät, weil sie § 13b UStG und § 48 EStG auslöst. Sie ist hier noch '
+      + 'Material und Gerät, weil sie je nach Leistung und Empfänger die '
+      + 'Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 '
+      + 'EStG auslösen kann. Sie ist hier noch '
       + 'nicht erfassbar (V-338) — ein Angebot mit Fremdleistung trägt ihren Anteil bis dahin '
       + 'nicht in der Kalkulation.',
     materialLeer:
@@ -245,7 +247,9 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       + 'costing recalculates the price.',
     materialNachunternehmer:
       'Subcontracted work: the default (O-57) is a cost type of its own beside material and '
-      + 'equipment, because it triggers § 13b UStG and § 48 EStG. It cannot be entered here '
+      + 'equipment, because depending on the service and the recipient it can trigger the '
+      + 'reverse charge under § 13b UStG and, for construction work, the withholding under '
+      + '§ 48 EStG. It cannot be entered here '
       + 'yet (V-338) — until then an offer with subcontracted work does not carry that share '
       + 'in its costing.',
     materialLeer:
