@@ -149,7 +149,7 @@ offen, und die betroffene Funktion bleibt gesperrt.
 - **O-01** — Ist CSE Operations eine GmbH oder eine Abteilung? Davon hängt ab, ob sie überhaupt eigene Rechnungen stellen darf (§ 14 UStG). Die Spalte bleibt NULL — jeder andere Wert wäre eine Behauptung über eine Rechtsform.
 - **O-205** — Konformitätsstatus der Barrierefreiheitserklärung. Er setzt eine tatsächliche Prüfung voraus; ihn zu behaupten wäre eine falsche Zusage an genau die Menschen, die sich darauf verlassen.
 - **O-05** — DATEV-Kontenrahmen, Beraternummer und Steuerschlüssel. Ein falsch gebuchter Beleg fällt beim Jahresabschluss auf, nicht vorher.
-- **O-06** — Gibt es einen Betriebsrat? § 87 Abs. 1 Nr. 6 BetrVG regelt die Standorterfassung mit. Ohne Antwort bleibt die Standorterfassung AUS.
+- **O-06** — Gibt es einen Betriebsrat? § 87 Abs. 1 Nr. 6 BetrVG regelt die Standorterfassung mit. Voreinstellung (D-802): die Plattform verhält sich, als gäbe es einen ohne Vereinbarung — die Standorterfassung und jede Auswertung je Person bleiben AUS.
 
 ---
 

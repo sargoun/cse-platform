@@ -120,12 +120,13 @@ export interface KontaktLage {
    * **`null` heisst NICHT FESTSTELLBAR — und das ist heute der Normalfall.**
    * ═════════════════════════════════════════════════════════════════════════
    *
-   * Es gibt keinen gebauten Versandweg (`POST /api/crm/nachrichten` ist nicht
-   * gebaut), also gibt es auch keine Nachricht, an der eine Abmeldezeile
-   * hinge. Der frühere Vorgabewert `true` bejahte § 7 Abs. 3 Nr. 4 UWG für
-   * einen Weg, den es nicht gibt — eine Annahme im Code, die auf dem
-   * Bildschirm als Rechtsauskunft erschien. Deshalb ist der Wert Pflicht und
-   * `null` eine zulässige, sichtbare Antwort.
+   * Geprüft wird ein KONTAKT, keine Nachricht. Der Versandweg ist gebaut
+   * (`POST /api/crm/nachrichten`, V-101) und hängt an jede Werbenachricht den
+   * Hinweis nach § 7 Abs. 3 Nr. 4 UWG (`mitPflichthinweis`); ein Versender ist
+   * aber nicht verbunden, also geht keine hinaus. Der frühere Vorgabewert
+   * `true` bejahte die Vorschrift für eine Nachricht, die es nicht gibt — eine
+   * Annahme im Code, die auf dem Bildschirm als Rechtsauskunft erschien.
+   * Deshalb ist der Wert Pflicht und `null` eine zulässige, sichtbare Antwort.
    */
   readonly abmeldezeileGerendert: boolean | null;
   /** `ansprechpartner.archiviert_am is not null` — das Tor sperrt dann. */
@@ -231,13 +232,17 @@ export function matrixAntwort(
   }
 
   if (lage.grundlage === 'bestandskunde') {
+    // TODO(client, O-95): Voreinstellung — ähnlich ist nur eine eigene Leistung
+    // derselben Gesellschaft für denselben Bedarf; ein Mensch stellt es fest und
+    // begründet es, Vorgabe „nein" (D-802).
     if (!lage.aehnlicheLeistung) {
       return {
         erlaubt: false,
         grund: '§ 7 Abs. 3 UWG erlaubt Werbung an einen Bestandskunden nur für eigene '
-          + 'ÄHNLICHE Waren oder Dienstleistungen. Ob das Angebot eines anderen '
-          + 'Geschäftsbereichs darunter fällt, ist eine rechtliche Wertung und steht '
-          + 'auf diesem Kontakt nicht fest (offen, O-95).',
+          + 'ÄHNLICHE Waren oder Dienstleistungen. Auf diesem Kontakt ist die '
+          + 'Ähnlichkeit nicht festgestellt (Voreinstellung O-95: ähnlich ist nur '
+          + 'eine eigene Leistung derselben Gesellschaft für denselben Bedarf, das '
+          + 'Angebot einer anderen Gesellschaft der Gruppe nie).',
         norm: '§ 7 Abs. 3 Nr. 2 UWG',
       };
     }
@@ -246,10 +251,10 @@ export function matrixAntwort(
         erlaubt: false,
         grund: lage.abmeldezeileGerendert === null
           ? 'Ob die Nachricht einen Hinweis auf das Widerspruchsrecht trägt, ist hier '
-            + 'nicht feststellbar: es gibt keinen gebauten Versandweg, an dem eine '
-            + 'Abmeldezeile hinge. Ohne diesen Hinweis entfällt die Ausnahme des '
-            + '§ 7 Abs. 3 UWG vollständig — die Antwort bleibt deshalb „nein", bis '
-            + 'ein Versandweg sie beantworten kann.'
+            + 'nicht feststellbar: geprüft wird ein Kontakt, keine Nachricht, und ein '
+            + 'Versender ist nicht verbunden. Ohne diesen Hinweis entfällt die Ausnahme '
+            + 'des § 7 Abs. 3 UWG vollständig — die Antwort bleibt deshalb „nein", bis '
+            + 'eine Nachricht vorliegt, die ihn trägt.'
           : 'Die Nachricht trägt keinen Hinweis auf das Widerspruchsrecht. Ohne ihn '
             + 'entfällt die Ausnahme des § 7 Abs. 3 UWG vollständig.',
         norm: '§ 7 Abs. 3 Nr. 4 UWG',
@@ -426,9 +431,10 @@ export function abweichungenVomTor(lage: KontaktLage): readonly Abweichung[] {
         liste.push({
           richtung: 'matrix_strenger',
           text: lage.abmeldezeileGerendert === null
-            ? 'Ob eine Nachricht den Abmeldehinweis trüge, ist nicht feststellbar — es '
-              + 'gibt keinen gebauten Versandweg. Die Matrix antwortet deshalb „nein"; '
-              + 'das wirksame Tor prüft diesen Hinweis gar nicht.'
+            ? 'Ob eine Nachricht den Abmeldehinweis trüge, ist hier nicht feststellbar — '
+              + 'geprüft wird ein Kontakt, keine Nachricht. Die Matrix antwortet deshalb '
+              + '„nein"; das wirksame Tor prüft diesen Hinweis gar nicht, der Versandweg '
+              + 'hängt ihn an jede Werbenachricht.'
             : 'Die Nachricht trägt keinen Abmeldehinweis. Die Matrix verbietet sie '
               + 'deshalb; das wirksame Tor prüft diesen Hinweis gar nicht.',
           norm: '§ 7 Abs. 3 Nr. 4 UWG',

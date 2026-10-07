@@ -332,6 +332,8 @@ export async function nimmAn(
       einsendung.datei === undefined ? null : `LV: ${einsendung.datei.dateiname}`,
       // CRM-08: eine Anfrage begruendet `anfrage`, kein Werbeeinverstaendnis.
       // Nur das freiwillige Haekchen hebt sie auf `einwilligung`.
+      // TODO(client, O-94): Voreinstellung — kein Newsletter; das Haekchen
+      // vermerkt den Wunsch an der Anfrage, ein Mensch entscheidet (O-63, D-802).
       werbung ? 'einwilligung' : 'anfrage',
     ],
   );

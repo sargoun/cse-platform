@@ -251,6 +251,8 @@ export const OFFEN_GEBLIEBEN: readonly { frage: string; grund: string }[] = [
     frage: 'O-06',
     grund:
       'Gibt es einen Betriebsrat? § 87 Abs. 1 Nr. 6 BetrVG regelt die '
-      + 'Standorterfassung mit. Ohne Antwort bleibt die Standorterfassung AUS.',
+      + 'Standorterfassung mit. Voreinstellung (D-802): die Plattform verhält '
+      + 'sich, als gäbe es einen ohne Vereinbarung — die Standorterfassung und '
+      + 'jede Auswertung je Person bleiben AUS.',
   },
 ];

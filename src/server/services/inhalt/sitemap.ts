@@ -105,7 +105,9 @@ export async function sitemapEintraege(db: Abfrage): Promise<readonly SitemapEin
  *
  * `stelle` steht hier NICHT: die Karriereseiten gehoeren dem
  * Recruiting-Modul, und eine Zeile fuer eine Tabelle, deren Sichtbarkeitsregel
- * woanders gepflegt wird, waere die erste, die auseinanderlaeuft.
+ * woanders gepflegt wird, waere die erste, die auseinanderlaeuft. Die Sitemap
+ * nimmt `/karriere` und die offenen Stellen deshalb ueber den Leser der
+ * Karriereseite auf (`app/sitemap.ts`, Voreinstellung O-512, D-802).
  */
 export interface DetailEintrag {
   readonly pfad: string;

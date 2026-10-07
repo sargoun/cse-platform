@@ -192,6 +192,9 @@ export interface BarriereTexte {
   readonly pruefungGrenze: string;
   readonly offenTitel: string;
   readonly offenText: string;
+  /** Die Marktüberwachung nach dem BFSG (O-205, D-802) — eine Tatsache, kein Status. */
+  readonly durchsetzungTitel: string;
+  readonly durchsetzungText: string;
   readonly meldenTitel: string;
   readonly meldenText: string;
   /**
@@ -227,10 +230,14 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
       + 'Menschen, die auf Hilfsmittel angewiesen sind.',
     offenTitel: 'Noch nicht abgegeben',
     offenText:
-      'Die verbindliche Angabe zum Konformitätsstatus, die Benennung der zuständigen '
-      + 'Durchsetzungsstelle und das Datum der Erstprüfung stehen noch aus. Sie werden '
-      + 'ergänzt, sobald die Prüfung abgeschlossen ist. Bis dahin steht hier bewusst '
-      + 'keine Aussage, die noch nicht belegt ist.',
+      'Die verbindliche Angabe zum Konformitätsstatus und das Datum der Erstprüfung '
+      + 'stehen noch aus. Sie werden ergänzt, sobald eine Prüfung abgeschlossen ist. '
+      + 'Bis dahin steht hier bewusst keine Aussage, die noch nicht belegt ist.',
+    durchsetzungTitel: 'Durchsetzung',
+    durchsetzungText:
+      'Zuständig für die Marktüberwachung nach dem Barrierefreiheitsstärkungsgesetz '
+      + 'ist die Marktüberwachungsstelle der Länder für die Barrierefreiheit von '
+      + 'Produkten und Dienstleistungen (MLBF) mit Sitz in Magdeburg.',
     meldenTitel: 'Barriere melden',
     meldenText:
       'Wenn Ihnen eine Barriere auffällt, melden Sie sie bitte — auch formlos. Wir '
@@ -264,10 +271,16 @@ export const BARRIERE_TEXTE: Readonly<Record<Sprache, BarriereTexte>> = {
       + 'people who rely on assistive technology.',
     offenTitel: 'Not yet declared',
     offenText:
-      'The binding statement of conformance, the named enforcement body and the date '
-      + 'of the first audit are still outstanding. They will be added once the audit '
-      + 'is complete. Until then this page deliberately makes no claim that is not '
-      + 'yet evidenced.',
+      'The binding statement of conformance and the date of the first audit are still '
+      + 'outstanding. They will be added once an audit is complete. Until then this '
+      + 'page deliberately makes no claim that is not yet evidenced.',
+    durchsetzungTitel: 'Enforcement',
+    durchsetzungText:
+      'Market surveillance under the German Accessibility Strengthening Act '
+      + '(Barrierefreiheitsstärkungsgesetz) lies with the joint market surveillance '
+      + 'body of the German federal states for the accessibility of products and '
+      + 'services (Marktüberwachungsstelle der Länder für die Barrierefreiheit von '
+      + 'Produkten und Dienstleistungen, MLBF), based in Magdeburg.',
     meldenTitel: 'Report a barrier',
     meldenText:
       'If you come across a barrier, please tell us — informally is fine. We will '

@@ -102,15 +102,16 @@ export default async function Pruefdauer(
 
       {/*
         * **Der ehrliche Satz der Seite.** Eine Auswertung je Person wäre die
-        * naheliegende Fassung dieser Zahl — und genau die darf hier nicht
-        * stehen, solange O-06 offen ist. Sie fehlt also NICHT versehentlich.
+        * naheliegende Fassung dieser Zahl — und genau die steht hier nicht
+        * (Voreinstellung O-06, D-802). Sie fehlt also NICHT versehentlich.
         */}
       <Hinweis art="hinweis" cse="pruefdauer-o06" className="mb-s6 max-w-prose">
         <strong>Ohne Personenbezug.</strong> APR-08 nennt auch das Markieren
         durchgängig sehr schneller Freigaben. Das wäre eine Auswertung über
         einen namentlich bekannten Menschen — Verhaltens- und
-        Leistungskontrolle nach § 87 Abs. 1 Nr. 6 BetrVG. Solange{' '}
-        <strong>O-06</strong> nicht beantwortet ist, wird sie nicht gebaut und
+        Leistungskontrolle nach § 87 Abs. 1 Nr. 6 BetrVG. Voreinstellung{' '}
+        (<strong>O-06</strong>): Die Plattform verhält sich, als gäbe es einen
+        Betriebsrat ohne Vereinbarung dazu — deshalb wird sie nicht gebaut und
         nicht angezeigt. Gemessen und aufbewahrt wird weiter; ausgewertet wird
         erst, wenn feststeht, dass und wie es zulässig ist.
       </Hinweis>

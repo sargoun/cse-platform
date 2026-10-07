@@ -6,6 +6,10 @@
  * ist eine Behauptung, und eine `.exe`, die `rechnung.pdf` heisst und sich als
  * `application/pdf` ausgibt, ist genau der Fall, für den die Prüfung existiert.
  * Massgeblich ist ausschliesslich, was in den ersten Bytes steht.
+ *
+ * // TODO(client, O-127): Voreinstellung — kein Virenscanner; die Abwehr ist
+ * // diese Positivliste, die Grössengrenze und die Metadatenbereinigung. Ein
+ * // Scanner wäre ein eigener EU-Dienst mit AV-Vertrag (D-802).
  */
 
 export class MimeFehler extends Error {

@@ -40,10 +40,16 @@ const TEXT = {
 } as const;
 
 /**
- * `operations` fuehrt die Gruppe und verkauft nichts.
+ * `operations` stellt kein Angebot unter eigenem Namen (Voreinstellung O-33,
+ * D-802).
  *
- * Ein „Angebot anfragen" dort fuehrte auf ein Formular, das es nicht gibt —
- * derselbe Fehler wie ein Menuepunkt auf eine 404.
+ * Ihr Anfrageformular gibt es (O-61, D-792); es steht in der Angebotsauswahl
+ * `/angebot`. Ein Knopf „Angebot anfragen" auf ihrer Karte verspraeche aber
+ * ein Angebot der Operations, und das stellt sie nicht: solange ihre
+ * Rechtsform nicht eingetragen ist (O-01), fakturiert sie ueber eine der drei
+ * Gesellschaften.
+ * // TODO(client, O-33): Voreinstellung — Anfragen ja; Angebot und Rechnung
+ * // stellt die Gesellschaft, ueber die abgerechnet wird; kein Angebotsknopf.
  */
 const MIT_ANGEBOT: ReadonlySet<string> = new Set(['reinigung', 'security', 'bau']);
 

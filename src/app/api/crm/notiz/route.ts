@@ -14,6 +14,10 @@ import { halteFest } from '@/server/services/crm/verlauf';
  * `POST /api/crm/notiz` — eine Notiz, einen Anruf, eine E-Mail oder einen
  * Termin am Kunden oder am Ansprechpartner festhalten (CRM-03, V-147, D-641).
  *
+ * // TODO(client, O-131): Voreinstellung — Kundenkorrespondenz wird von Hand
+ * // erfasst; ein Postfach je Gesellschaft ist nicht verbunden, Postfach und
+ * // Zugang trägt der Betreiber ein (D-802).
+ *
  * **Warum eine eigene Route und nicht `/api/lead`.** Jene gehört dem
  * Leadblatt: sie setzt den nächsten Schritt AM LEAD und leitet auf den Lead
  * zurück. Eine Notiz am Bestandskunden hat keinen Lead; sie über dieselbe

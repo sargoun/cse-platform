@@ -303,7 +303,9 @@ export default async function Rechtsgrundlage(
               <span className="text-xs text-text-muted">
                 Pflicht, sobald die Grundlage nicht „keine" ist. Eine Einwilligung, von
                 der niemand sagen kann, wann und wo sie erteilt wurde, ist in einer
-                Abmahnung nichts wert.
+                Abmahnung nichts wert. Beim Bestandskunden gehört hierher, bei welchem
+                Auftrag die Adresse erhoben wurde und dass der Hinweis auf das
+                Widerspruchsrecht schon dabei stand (Voreinstellung O-95).
               </span>
             </label>
 
@@ -348,10 +350,12 @@ export default async function Rechtsgrundlage(
                 § 7 Abs. 3 Nr. 2 UWG — ähnliche eigene Leistung
               </legend>
               <p className="m-0 mb-s2 text-xs text-text-muted">
-                <strong>Eine rechtliche Wertung, die diese Plattform nicht trifft
-                (offen, O-95).</strong> Ob das Sicherheitsangebot an einen
-                Reinigungskunden eine „ähnliche eigene Dienstleistung" ist, entscheidet
-                ein Mensch — und begründet es hier. Vorgabe ist „nein".
+                <strong>Eine rechtliche Wertung, die ein Mensch trifft
+                (Voreinstellung O-95).</strong> Ähnlich ist nur eine eigene Leistung
+                derselben Gesellschaft, die demselben Bedarf dient — etwa
+                Glasreinigung zur Unterhaltsreinigung; das Angebot einer anderen
+                Gesellschaft der Gruppe ist keine eigene Leistung. Vorgabe ist
+                „nein"; wer „ja" setzt, begründet es hier.
               </p>
               <label className="flex items-center gap-s2 text-sm text-text">
                 <input
@@ -366,7 +370,7 @@ export default async function Rechtsgrundlage(
                 <input
                   name="aehnlicheBegruendung" className={FELD}
                   defaultValue={stand?.aehnlicheBegruendung ?? ''}
-                  placeholder="Reinigung und Objektschutz am selben Objekt, Angebot vom 04.02."
+                  placeholder="Unterhaltsreinigung im Vertrag, beworben wird die Glasreinigung am selben Objekt"
                   data-cse="grundlage-aehnlich-begruendung"
                 />
               </label>

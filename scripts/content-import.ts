@@ -9,6 +9,10 @@
  * vorzeigbar, ohne dass irgendwo eine Behauptung steht, die niemand geprueft
  * hat — ein Werbesatz auf der Website ist spaeter woertlich ein Satz im
  * Angebot.
+ *
+ * **Ein Werkzeug fuer eine Datenbank ohne Pflege** (Voreinstellung O-207,
+ * D-802). Der Import setzt jeden Abschnitt, dessen Text vom Seed abweicht, auf
+ * den Seed zurueck — auch einen, den jemand im Portal gepflegt hat (V-386).
  */
 import postgres from 'postgres';
 import { importiere, type ImportSeite } from '../src/server/services/inhalt/import.js';
@@ -117,6 +121,7 @@ process.stdout.write(
   + `${String(bericht.unveraendert)} unverändert.\n`,
 );
 process.stdout.write(
-  '  Die Texte sind ENTWÜRFE (O-207) — bitte vom Mandanten prüfen lassen.\n',
+  '  Die Texte sind die Entwurfstexte (Voreinstellung O-207). Gepflegt wird im Portal —\n'
+  + '  dieser Import setzt dort geänderte Abschnitte auf den Seed zurück (V-386).\n',
 );
 await sql.end();

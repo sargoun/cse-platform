@@ -186,7 +186,8 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
       'Freiwillig, aber beide oder keiner — in Dezimalgrad, mit Komma oder Punkt. '
       + 'Gespeichert werden sechs Nachkommastellen (etwa zehn Zentimeter). Das '
       + 'Wetter im Bautagebuch sucht damit die nächste Station. Eine Adresse wird '
-      + 'nicht von selbst in Koordinaten umgerechnet (O-122); was hier steht, hat '
+      + 'nicht von selbst in Koordinaten umgerechnet (Voreinstellung O-122); was '
+      + 'hier steht, hat '
       + 'ein Mensch eingetragen.',
     ohneKoordinaten:
       'keine hinterlegt — das Wetter im Bautagebuch braucht sie',
@@ -325,7 +326,8 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
       'Optional, but both or neither — in decimal degrees, with a comma or a dot. '
       + 'Six decimal places are stored (about ten centimetres). The weather in the '
       + 'Bautagebuch (construction diary) uses them to find the nearest station. An '
-      + 'address is not converted into coordinates automatically (O-122); what is '
+      + 'address is not converted into coordinates automatically (default O-122); '
+      + 'what is '
       + 'shown here was entered by a person.',
     ohneKoordinaten:
       'none recorded — the weather in the Bautagebuch (construction diary) needs them',

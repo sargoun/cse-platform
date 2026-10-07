@@ -78,18 +78,19 @@ const KANAL_HINDERNIS: Readonly<Record<Kanal, string>> = {
     + 'recherchierte Firma hat keine erteilt. Dieser Weg ist nicht offen.',
   telefon: 'Ein Werbeanruf bei einem Unternehmen verlangt nach §7 Abs. 2 Nr. 1 '
     + 'UWG die mutmaßliche Einwilligung. Ob sie hier vorliegt, ist eine '
-    + 'Einzelfallbewertung — die Plattform trifft sie nicht (O-34).',
+    + 'Einzelfallbewertung — die Plattform trifft sie nicht (Voreinstellung O-34).',
   post: 'Ein Werbebrief an ein Unternehmen fällt nicht unter §7 Abs. 2 UWG und '
     + 'wäre zulässig. Die Plattform lässt ihn heute trotzdem nicht durch: '
     + '`app.darf_kontaktiert_werden` weist jeden Kanal ab, solange die '
-    + 'Rechtsgrundlage `keine` ist. Das ist strenger als das Gesetz und eine '
-    + 'bewusste Vorsichtsstellung, bis die Rechtsprüfung O-34 entschieden hat.',
+    + 'Rechtsgrundlage `keine` ist. Das ist strenger als das Gesetz: eine '
+    + 'bewusste Vorsichtsstellung (Voreinstellung O-34), umgelegt erst nach '
+    + 'anwaltlicher Prüfung.',
 };
 
 /*
- * // TODO(client, O-34): Soll postalische Kaltwerbung an Unternehmen möglich
- * // sein? §7 Abs. 2 UWG erfasst sie nicht; die Plattform sperrt sie heute
- * // trotzdem. Eine einzige Zeile in `app.darf_kontaktiert_werden` ist der
+ * // TODO(client, O-34): Voreinstellung — postalische Kaltwerbung an Unternehmen
+ * // bleibt gesperrt, obwohl §7 Abs. 2 UWG sie nicht erfasst (Vorsichtsstellung,
+ * // D-802). Eine einzige Zeile in `app.darf_kontaktiert_werden` ist der
  * // Schalter — sie wird erst nach anwaltlicher Prüfung umgelegt.
  */
 
