@@ -240,6 +240,9 @@ export const STEUER_RUECKWEG: NurDeutsch<RueckwegTexte<SteuerGrund, SteuerVorgan
         + 'die Seite neu.',
       nummer_fehlt:
         'Die Nummer der Bescheinigung fehlt — sie ist das, womit das Finanzamt sie wiederfindet.',
+      nummer_vergeben:
+        'Eine Bescheinigung mit dieser Nummer ist in dieser Gesellschaft schon erfasst — sie steht '
+        + 'unter Finanzen › Freistellungsbescheinigungen.',
       finanzamt_fehlt: 'Welches Finanzamt hat sie ausgestellt?',
       zeitraum_fehlt:
         'Eine Freistellungsbescheinigung gilt für einen Zeitraum — beide Tage gehören dazu. Sie '
@@ -251,6 +254,11 @@ export const STEUER_RUECKWEG: NurDeutsch<RueckwegTexte<SteuerGrund, SteuerVorgan
       ohne_datum:
         'Ab welchem Tag ist sie widerrufen? Ohne Datum wäre offen, welche Leistungen noch gedeckt '
         + 'waren.',
+      widerruf_rueckwirkend:
+        'Ein Widerruf wirkt ab heute oder später — nie rückwirkend: für die Zeit davor durfte ohne '
+        + 'Einbehalt ausgezahlt werden.',
+      widerruf_nach_ablauf:
+        'Nach ihrem Ablauf widerriefe ein Widerruf nichts mehr — die Bescheinigung endet ohnehin.',
       weg_unbekannt: 'Diesen Übertragungsweg gibt es nicht.',
       format_unbekannt: 'Dieses Rechnungsformat gibt es nicht.',
       schema_fehlt:

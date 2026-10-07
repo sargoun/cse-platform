@@ -22,12 +22,18 @@
  *     Gesellschaft ändert sich nichts.
  *  6. Die Liste nennt den Stand am Berliner Tag der Datenbank; die Auswahl
  *     des Formulars bietet nur Eigenes und Lebendes an.
+ *  7. Das Steuerblatt des Kunden (`kunde-steuer.ts`) geht denselben Weg: ein
+ *     rückwirkender Widerruf und eine vergebene Nummer kommen als Grund
+ *     zurück, nicht als Verletzung von 0530 oder des Schlüssels.
  */
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import { tagePlus } from '../../src/lib/datum/kalendertag.js';
+import {
+  legeBescheinigungAn, SteuerFehler, widerrufeBescheinigung,
+} from '../../src/server/services/finanz/kunde-steuer.js';
 import {
   FreistellungFehler, ladeFreistellungAuswahl, legeFreistellungAn, listeFreistellungen,
   verknuepfeFreistellungsbeleg, widerrufeFreistellung, type NeueFreistellung,
@@ -461,5 +467,46 @@ describe('(6) und die Auswahl des Formulars', () => {
     expect(ids(auswahl.belege)).toContain(d);
     expect(ids(auswahl.belege)).not.toContain(fremd);
     expect(auswahl.auftraege.find((x) => x.id === a)?.name).toContain('Rohbau Süd');
+  });
+});
+
+describe('(7) das Steuerblatt des Kunden geht denselben Weg', () => {
+  async function steuerGrund(p: Promise<unknown>): Promise<string> {
+    const e = await p.then(() => null, (x: unknown) => x);
+    expect(e).toBeInstanceOf(SteuerFehler);
+    return (e as SteuerFehler).grund;
+  }
+
+  it('rückwirkend und nach dem Ablauf: ein Grund, kein Auslöserfehler', async () => {
+    const admin = await konto(f.bau);
+    const k = await kunde(f.bau);
+    const id = await als(f.bau, admin, (kx) => legeBescheinigungAn(kx, {
+      kundeId: k, nummer: 'FB-CRM-1', finanzamt: 'Finanzamt Berlin Mitte/Tiergarten',
+      gueltigVon: tagePlus(heute, -10), gueltigBis: tagePlus(heute, 100), umfang: 'unbeschraenkt',
+    }));
+    expect(await steuerGrund(als(f.bau, admin, (kx) =>
+      widerrufeBescheinigung(kx, id, tagePlus(heute, -1))))).toBe('widerruf_rueckwirkend');
+    expect(await steuerGrund(als(f.bau, admin, (kx) =>
+      widerrufeBescheinigung(kx, id, tagePlus(heute, 101))))).toBe('widerruf_nach_ablauf');
+    expect((await zeile(id)).widerrufen_am).toBeNull();
+
+    await als(f.bau, admin, (kx) => widerrufeBescheinigung(kx, id, heute));
+    expect((await zeile(id)).widerrufen_am).toBe(heute);
+    expect((await protokoll(id)).map((e) => e.aktion))
+      .toEqual(['freistellungsbescheinigung.widerrufen']);
+    expect(await steuerGrund(als(f.bau, admin, (kx) => widerrufeBescheinigung(kx, id, heute))))
+      .toBe('nicht_gefunden');
+  });
+
+  it('eine vergebene Nummer ist ein Grund, keine Schlüsselverletzung', async () => {
+    const admin = await konto(f.bau);
+    const k = await kunde(f.bau);
+    const neu = {
+      kundeId: k, nummer: 'FB-CRM-2', finanzamt: 'Finanzamt Berlin Mitte/Tiergarten',
+      gueltigVon: heute, gueltigBis: tagePlus(heute, 100), umfang: 'unbeschraenkt' as const,
+    };
+    await als(f.bau, admin, (kx) => legeBescheinigungAn(kx, neu));
+    expect(await steuerGrund(als(f.bau, admin, (kx) => legeBescheinigungAn(kx, neu))))
+      .toBe('nummer_vergeben');
   });
 });

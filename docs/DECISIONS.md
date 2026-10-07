@@ -28428,13 +28428,13 @@ Kombination, Formular und Routen, die Wörter). Dazu `pnpm guards`,
 ### D-845 · Bauwelle 42: Freistellungsbescheinigungen nach § 48b EStG lassen sich erfassen, widerrufen und belegen (V-283, O-604)
 
 **Der Anlass.** `freistellungsbescheinigung` (0118) trug Policy, Grant,
-Löschsperre und die Prüfungen des Zeitraums — und keinen Erzeuger ausser dem
-Seed. Die Steuerseite der Eingangsrechnung zeigte die Bescheinigungen und
-sagte „der Schreibweg folgt"; ohne gültige Bescheinigung werden bei einer
-Bauleistung 15 % einbehalten, und das liess sich in keiner Gesellschaft ohne
-Demodaten anders beantworten. Voreinstellung (O-604, D-779): die Buchhaltung
-pflegt sie mit `finanzen.schreiben`, dem Recht der `WITH CHECK`-Hälfte der
-Policy.
+Löschsperre und die Prüfungen des Zeitraums. Erfassen liess sich eine
+Bescheinigung nur am Steuerblatt eines KUNDEN (`/crm/kunden/[id]/steuer`,
+`kunde-steuer.ts`); für einen LIEFERANTEN — den Fall, an dem der Einbehalt
+auf eine Eingangsrechnung hängt — gab es keinen Weg ausser dem Seed. Die
+Steuerseite der Eingangsrechnung zeigte die Bescheinigungen und sagte „der
+Schreibweg folgt". Voreinstellung (O-604, D-779): die Buchhaltung pflegt sie
+mit `finanzen.schreiben`, dem Recht der `WITH CHECK`-Hälfte der Policy.
 
 **Was gebaut ist.**
 - **`finanz/freistellung.ts`:** `legeFreistellungAn` (für einen Kunden ODER
@@ -28465,6 +28465,13 @@ Policy.
   sie gehen. Eine Karte auf der Finanzübersicht führt hin; die Steuerseite
   der Eingangsrechnung sagt nicht mehr „der Schreibweg folgt", sondern
   verweist auf die Pflege (der Verweis nur mit `finanzen.lesen`, AUT-06).
+- **Das Steuerblatt des Kunden geht denselben Weg.** Sein Widerruf nahm
+  jeden Tag an, auch einen vergangenen; seit 0530 wäre daraus eine
+  Verletzung des Auslösers und eine 500 geworden. `widerrufeBescheinigung`
+  ruft jetzt `widerrufeFreistellung` und meldet `widerruf_rueckwirkend` und
+  `widerruf_nach_ablauf` als Satz; das Datumsfeld bietet nur heute bis zum
+  Ablauf an. Eine schon vergebene Nummer kommt dort als `nummer_vergeben`
+  zurück statt als Verletzung von `fsb_nummer_uk`.
 - **Was die Rechte bedeuten.** Ein Konto mit `finanzen.schreiben` sieht einen
   Lieferanten nur mit `eingang.lesen` (Policy auf `lieferant`, 0123); ohne es
   erfasst es Bescheinigungen von Kunden, und die Auswahl der Lieferanten
@@ -28483,10 +28490,12 @@ Widerruf und Beleg auch gegen ein direktes `update`; Widerruf ab heute,
 nicht gestern, nicht nach dem Ablauf, nicht zweimal, künftige ab ihrem ersten
 Tag; der Beleg einmal; ohne `finanzen.schreiben`, in der Gruppenansicht und
 in fremder Gesellschaft nichts; Lieferanten erst mit `eingang.lesen`; der
-Stand in der Liste. `tests/kern/freistellung.test.ts`: Stand an den Grenzen,
+Stand in der Liste; das Steuerblatt des Kunden meldet rückwirkenden Widerruf,
+Widerruf nach dem Ablauf und eine vergebene Nummer als Grund.
+`tests/kern/freistellung.test.ts`: Stand an den Grenzen,
 Manifest und Register, drei Handlungen, jeder Grund in beiden Sprachen, die
 Karte, die Steuerseite, 0530. Dazu `pnpm guards`, `pnpm typecheck`,
 `pnpm lint`.
 
-| Betrifft | V-283, O-604, D-779, FIN-10, LEG-06; `drizzle/0530_freistellung_fest.sql`, `src/server/services/finanz/freistellung.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/{freistellungen/page.tsx,page.tsx,eingangsrechnungen/[id]/steuer/page.tsx}`, `src/lib/i18n/verwaltung/finanzen/{freistellungen,uebersicht,eingangsrechnungen}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/db/seed/finanz-ausgabe.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/freistellung.test.ts`, `tests/kern/freistellung.test.ts` |
+| Betrifft | V-283, O-604, D-779, FIN-10, LEG-06; `drizzle/0530_freistellung_fest.sql`, `src/server/services/finanz/freistellung.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/{freistellungen/page.tsx,page.tsx,eingangsrechnungen/[id]/steuer/page.tsx}`, `src/lib/i18n/verwaltung/finanzen/{freistellungen,uebersicht,eingangsrechnungen}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/lib/i18n/verwaltung/crm-rueckweg.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/finanz-ausgabe.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/freistellung.test.ts`, `tests/kern/freistellung.test.ts` |
 |---|---|
