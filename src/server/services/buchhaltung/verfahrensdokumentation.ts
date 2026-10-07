@@ -247,7 +247,9 @@ export async function erstelleVerfahrensdokumentation(
   if (AUFTRAGSVERARBEITER.some((a) => a.vertragAm === null)) {
     offen.push('Für mindestens einen Auftragsverarbeiter ist kein Vertragsdatum hinterlegt (Art. 28 DSGVO) — die Geschäftsführung trägt es ein.');
   }
-  offen.push('Ein geprüfter Wiederherstellungstest der Datensicherung steht aus (ROADMAP Phase 10).');
+  offen.push('Ein geprüfter Wiederherstellungstest der Datensicherung steht aus (ROADMAP Phase 10); '
+    + 'ein unabhängiges, verschlüsseltes Sicherungsziel, seine Frist und den Schlüsselhalter trägt der '
+    + 'Betreiber ein — O-119.');
   offen.push('Unveränderlichkeit des Objektspeichers auf Bucket-Ebene beim Anbieter — O-364.');
   offen.push('Die DTD des Beschreibungsstandards liegt dem Z3-Paket nicht bei — Voreinstellung (O-365): Version 1.0 des Standards, Abnahme durch Probeimport beim Steuerberater (D-485).');
   offen.push('Zeichnung und Prüfturnus dieser Dokumentation — Voreinstellung (O-188): die Geschäftsführung der Gesellschaft zeichnet, geprüft wird jährlich und bei jedem Schemastand-Wechsel; ein Zeichnungsvermerk wird in der Plattform nicht geführt (V-316).');

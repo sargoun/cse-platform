@@ -19,13 +19,18 @@
  *    festgeschriebene Rechnung ist unveränderlich (Invariante 4); eine mit
  *    geratener Nummer bekommt man nicht zurück, und § 14 UStG kennt keine
  *    Vorführversion.
+ *  - Die **Rechtsform der CSE Operations** (O-01). Davon hängt ab, ob sie
+ *    eigene Rechnungen stellen darf (§ 14 UStG); sie trägt der Betreiber ein,
+ *    und bis dahin stellt sie keine (D-803).
  *  - Der **Konformitätsstatus** der Barrierefreiheitserklärung (O-205). Er
  *    setzt eine tatsächliche Prüfung voraus; ihn zu behaupten wäre eine
  *    falsche Zusage an genau die Menschen, die sich darauf verlassen.
  *  - **DATEV-Kontenrahmen und Steuerschlüssel** (O-05). Ein falsch gebuchter
  *    Beleg fällt beim Jahresabschluss auf, nicht vorher.
  *
- * Diese drei bleiben sichtbar offen. Alles andere hat hier einen Wert.
+ * Diese vier bleiben sichtbar offen, dazu der Betriebsrat (O-06), dessen
+ * Voreinstellung alles ausgeschaltet lässt (D-802). Alles andere hat hier
+ * einen Wert.
  *
  * `docs/ANNAHMEN.md` wird aus dieser Datei ERZEUGT (`pnpm annahmen`) und ist
  * die Liste, die der Mandant durchgeht.
@@ -232,7 +237,9 @@ export const OFFEN_GEBLIEBEN: readonly { frage: string; grund: string }[] = [
     grund:
       'Ist CSE Operations eine GmbH oder eine Abteilung? Davon hängt ab, ob sie '
       + 'überhaupt eigene Rechnungen stellen darf (§ 14 UStG). Die Spalte bleibt '
-      + 'NULL — jeder andere Wert wäre eine Behauptung über eine Rechtsform.',
+      + 'NULL — jeder andere Wert wäre eine Behauptung über eine Rechtsform. Sie '
+      + 'trägt der Betreiber ein; bis dahin stellt CSE Operations keine eigenen '
+      + 'Rechnungen (D-803).',
   },
   {
     frage: 'O-205',

@@ -57,8 +57,10 @@ export const PLATZHALTER: readonly Platzhalter[] = [
 ];
 
 /**
- * Called by the production build. A placeholder in production is a launch
+ * Meant for the launch build: a placeholder in production is a launch
  * blocker, and DESIGN §4 says so about the photography in particular.
+ * Nothing calls it yet (V-389) — wiring it into every production build would
+ * also stop the demonstration deployment, so it needs its own launch switch.
  */
 export function assertKeinePlatzhalter(umgebung: string): void {
   if (umgebung !== 'production') return;

@@ -1423,6 +1423,9 @@ export async function ladeRechnungVollstaendig(
       einbehaltCent: cent(BigInt(kopf.einbehalt_bauabzugsteuer_cent)),
       // PR 51 loest die Bescheinigung auf; NULL ist hier die Tatsache, nicht
       // eine Auslassung — und sie steht ausgeschrieben im Hash.
+      // TODO(client, O-130): Betreiberdaten — ob die Gesellschaft eine eigene
+      // Freistellungsbescheinigung nach § 48b EStG haelt und bis wann, traegt der
+      // Betreiber ein; einen Ort dafuer gibt es nicht (V-388, D-803).
       freistellungsbescheinigung: null,
     },
     ueberweisungsbetragCent: cent(BigInt(kopf.ueberweisungsbetrag_cent)),

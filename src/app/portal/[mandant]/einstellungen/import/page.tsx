@@ -121,7 +121,7 @@ export default async function Import(
                 ) },
               { schluessel: 'regel', kopf: 'Was beim Import gelten wird',
                 zelle: (s) => <span className="text-sm text-text-muted">{s.regel}</span> },
-              { schluessel: 'offen', kopf: 'Offene Frage',
+              { schluessel: 'offen', kopf: 'Frage im Register',
                 zelle: (s) => <code className="text-xs">{s.offen}</code> },
               { schluessel: 'laeufe', kopf: 'Läufe', numerisch: true,
                 zelle: (s) => String(s.laeufe) },

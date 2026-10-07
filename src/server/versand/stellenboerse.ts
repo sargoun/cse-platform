@@ -178,10 +178,10 @@ export class NichtVerbundeneBoerse implements StellenboersenPort {
  * Heute immer `NichtVerbundeneBoerse` — und die Verzweigung steht trotzdem
  * schon hier, weil sie die Stelle ist, an die der erste echte Adapter kommt.
  *
- * // TODO(client): O-374 — welche Jobbörse wird beauftragt, mit welchem
- * // Vertrag, und liegt für die Bundesagentur eine freigeschaltete
- * // Betriebsnummer vor? Ohne Antwort bleibt jedes Ziel unverbunden; eine
- * // geratene Kennung veröffentlichte im Namen der falschen Gesellschaft.
+ * // TODO(client, O-374): Betreiberdaten — Jobbörse, Vertrag und die
+ * // freigeschaltete Betriebsnummer der Bundesagentur trägt der Betreiber ein
+ * // (D-803). Bis dahin bleibt jedes Ziel unverbunden; eine geratene Kennung
+ * // veröffentlichte im Namen der falschen Gesellschaft.
  */
 export function boersenPort(boerse: Boerse, umgebung: Umgebung = process.env): StellenboersenPort {
   return new NichtVerbundeneBoerse(boerse, umgebung);

@@ -25,9 +25,8 @@ import { UUID } from '../../../../rumpf';
  * risse den Vermerk mit, denn die Transaktion rollte zurück; die Antwort 409
  * bildet das Gerüst danach, wenn geschrieben ist.
  *
- * // TODO(client): O-374 — welche Jobbörse wird beauftragt, mit welchem
- * // Vertrag, und liegt für die Bundesagentur eine freigeschaltete
- * // Betriebsnummer vor?
+ * // TODO(client, O-374): Betreiberdaten — Jobbörse, Vertrag und Betriebsnummer
+ * // trägt der Betreiber ein (D-803).
  */
 export const dynamic = 'force-dynamic';
 

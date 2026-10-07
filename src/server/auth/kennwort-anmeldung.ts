@@ -52,7 +52,7 @@ export function anbieterEingerichtet(): boolean {
  * CLAUDE.md unter „Keine falschen Anschluesse" verbietet.
  */
 export function anbieterWegGebaut(): boolean {
-  return false; // TODO(client): O-501 — erst mit dem Codetausch auf true.
+  return false; // TODO(client, O-501): Betreiberdaten — erst mit Projekt und Codetausch auf true (D-803).
 }
 
 /**

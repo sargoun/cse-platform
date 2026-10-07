@@ -2,6 +2,11 @@
  * **Die Betriebsüberwachung — ein gescheiterter Lauf wird sichtbar** (SPEC §14,
  * Phase 10).
  *
+ * // TODO(client, O-118): Voreinstellung — keine fremden Dienste für
+ * // Fehlerverfolgung, Erreichbarkeit oder Protokollweiterleitung; diese Seite
+ * // und die `JOB-ALARM`-Zeilen sind die Überwachung. Ein Dienst käme nur in
+ * // der EU mit AV-Vertrag dazu (D-803).
+ *
  * **Der Befund, der diese Datei nötig machte.** Ein Nachtlauf, der um vier Uhr
  * scheitert, schreibt `job_lauf.ergebnis = 'fehler'` und eine Zeile auf
  * `stderr` (`alarm.ts`) — und dann passiert nichts. Kein Bildschirm zeigt ihn,

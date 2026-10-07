@@ -101,11 +101,11 @@ export class NichtVerbundenePlattform implements SocialKanalPort {
  * Heute immer `NichtVerbundenePlattform` — und die Verzweigung steht trotzdem
  * schon hier, weil sie die Stelle ist, an die der erste echte Adapter kommt.
  *
- * // TODO(client): O-10 — welche Plattformkonten gehoeren welcher
- * // Gesellschaft, wer ist dort Administrator, und liegt fuer jedes ein
- * // Auftragsverarbeitungsvertrag vor? Ohne Antwort bleibt jeder Kanal
- * // unverbunden; ein geratenes Konto veroeffentlichte im Namen der falschen
- * // Firma.
+ * // TODO(client, O-10): Betreiberdaten — welches Plattformkonto welcher
+ * // Gesellschaft gehoert, wer dort Administrator ist und der
+ * // Auftragsverarbeitungsvertrag traegt der Betreiber ein (D-803). Bis dahin
+ * // bleibt jeder Kanal unverbunden; ein geratenes Konto veroeffentlichte im
+ * // Namen der falschen Firma.
  */
 export function plattformKanal(
   plattform: Plattform, umgebung: Umgebung = process.env,

@@ -3093,12 +3093,12 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 |---|---|---|
 | O-116 | `int-mail-versanddienst` | Which EU-hosted e-mail service sends transactional messages, and which verified sender domain and address apply per entity? |
 | O-117 | `int-postfach-loeschrecht` | Who triages an application sent to none of the four addresses, and may the platform delete messages from the mailbox after intake? · **Voreinstellung → D-797** |
-| O-118 | `int-betriebsueberwachung` | Which error-tracking, uptime-monitoring and log-forwarding services are approved (EU region, DPA), or should self-hosted alternatives be run? |
+| O-118 | `int-betriebsueberwachung` | Which error-tracking, uptime-monitoring and log-forwarding services are approved (EU region, DPA), or should self-hosted alternatives be run? · **Voreinstellung → D-803** |
 | O-119 | `int-sicherungsziel` | Where do the independent encrypted backups live, what retention applies, who holds the private key, and who supplies it for the monthly restore test? |
 | O-120 | `int-camt-bezugsweg` | How do CAMT.053 files reach the platform — upload or SFTP — which banks, and which IBAN per entity? · **Voreinstellung → D-802** |
 | O-121 | `int-ki-eu-ersatz` | When no model with EU processing and zero retention is offered for a needed capability: leave it switched off, or add an alternative EU-hosted provider to the stack? · **Voreinstellung → D-786** |
 | O-122 | `int-geokodierung` | Should an object's address be resolved to coordinates automatically, and with which EU-hosted or self-run service? · **Voreinstellung → D-802** |
-| O-123 | `int-n8n-betrieb` | Is n8n self-hosted (where, by whom) or run as an EU cloud instance, is there a DPA, and which external tools should be connected? |
+| O-123 | `int-n8n-betrieb` | Is n8n self-hosted (where, by whom) or run as an EU cloud instance, is there a DPA, and which external tools should be connected? · **Voreinstellung → D-803** |
 | O-124 | `int-belegtransfer` | How should receipts reach the tax adviser — DATEV Unternehmen online / Belegtransfer, or a ZIP beside the EXTF file? · **Voreinstellung → D-802** |
 | O-125 | `int-systemnachricht-vorabfreigabe` | System messages go out over a mechanism separate from the agent path — confirm the wording and the pre-approval · **Voreinstellung → D-786** |
 | O-126 | `int-aufrufprotokoll-aufbewahrung` | How long may the integrations' call logs be kept before automatic deletion? · **Voreinstellung → D-798** |
@@ -5559,7 +5559,7 @@ niemand ihn suchen.
 | O-372 | **Soll die Gruppenansicht eine lesende Social-Übersicht über alle vier Gesellschaften bekommen?** Die Daten lassen es zu: die Policies in `0163` geben `gruppe.social.lesen` frei, und ein Beitrag trägt seinen Mandanten. Die Seitenkarte führt in §6 aber keine `/portal/gruppe/social`, und eine Route zu erfinden hiesse, eine Seite zu bauen, die niemand bestellt hat. Bis zur Antwort steht social nicht in `GRUPPEN_NAVIGATION` — vorher stand es dort mit dem Mandantenpfad und führte auf 404 (D-561). | SOC-01, TEN-05, `0163`, `registry/navigation.ts`, D-561 · **Voreinstellung → D-799** |
 | O-373 | **Wie lange bleiben Bewerberdaten?** Die Plattform setzt die Uhr beim Eingang (`bewerbung.aufbewahrung_bis`) und der Nachtlauf räumt danach ab — nur die ZAHL gehört dem Mandanten. Die übliche Praxis orientiert sich an § 15 Abs. 4 AGG (zwei Monate zur Geltendmachung) plus der dreimonatigen Klagefrist, woraus in der Literatur meist sechs Monate ab Absage werden; das ist eine überwiegende PRAXIS, keine Vorschrift. Hinterlegt sind 180 Tage als `plattform_einstellung` mit `ist_vorlaeufig = true`, änderbar ohne Code. Offen ist ausserdem, ob die Frist ab EINGANG oder ab ABSAGE läuft — heute ab Eingang, weil eine Bewerbung ohne Entscheidung sonst nie abliefe. | REC-07, LEG-11, `0166`, D-569 · **Voreinstellung → D-797** |
 | O-374 | **Welche Jobbörse wird wirklich beauftragt — und mit welchem Vertrag?** Die Bundesagentur für Arbeit hat eine echte Arbeitgeber-Schnittstelle, setzt aber eine Betriebsnummer und eine freigeschaltete Kennung voraus. Indeed und StepStone stehen in CLAUDE.md unter „Out of scope" — verboten ist dort das SCRAPEN; eine Anzeige über eine offizielle Arbeitgeber-API wäre etwas anderes, nur gibt es dafür weder Vertrag noch Zugang. Bis zur Antwort sind alle vier Ziele sichtbar und dauerhaft `nicht_verbunden`, mit dem Grund an der Zeile: eine Liste, in der ein Ziel einfach fehlt, liest sich wie „geht nicht", und die Frage ist „noch nicht beauftragt". | REC-09, D-02, `versand/stellenboerse.ts`, D-569 |
-| O-375 | **Wohin gehen Bewerbungsunterlagen?** Das Karriereformular nimmt heute keine Datei an: der Belegspeicher ist nicht verbunden (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Feld, das eine Datei annimmt und sie nirgends ablegt, ist schlimmer als keines — der Mensch glaubt, sie sei angekommen. Offen ist damit auch, wie lange ein Lebenslauf im Speicher bleibt und ob er beim Löschen der Bewerbung mitgeht (er muss). | REC-03, REC-04, REC-07, `karriere/Formular.tsx`, D-569 |
+| O-375 | **Wohin gehen Bewerbungsunterlagen?** Das Karriereformular nimmt heute keine Datei an: der Belegspeicher ist nicht verbunden (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY), und ein Feld, das eine Datei annimmt und sie nirgends ablegt, ist schlimmer als keines — der Mensch glaubt, sie sei angekommen. Offen ist damit auch, wie lange ein Lebenslauf im Speicher bleibt und ob er beim Löschen der Bewerbung mitgeht (er muss). | REC-03, REC-04, REC-07, `karriere/Formular.tsx`, D-569 · **Voreinstellung → D-803** |
 | O-376 | **Wie lange bleiben die Bewerbungsunterlagen eines EINGESTELLTEN Bewerbers, und wandern sie in die Personalakte?** Das öffentliche Formular sagt seit REC-03 zu: gelöscht nach der Frist, „sofern kein Arbeitsverhältnis zustande kommt". Der Nachtlauf `bewerber_loeschung` las bis dahin nur die Frist und nahm auch `status = 'eingestellt'` mit — samt `einstellungsentscheidung`, also genau dem Nachweis, den REC-08 verlangt. Zusage und Verhalten liefen auseinander; vor der Aufsicht zählt die Zusage. Der Lauf hält eingestellte Bewerbungen jetzt zurück und zeigt sie auf `/recruiting/datenschutz` als solche. Eine eigene Frist dafür erfindet diese Plattform nicht: das ist Personalaktenpraxis und gehört dem Mandanten. | REC-03, REC-07, REC-08, LEG-11, `jobs/bewerberLoeschung.ts`, `karriere/Formular.tsx`, O-373 · **Voreinstellung → D-797** |
 | O-500 | **Wie lange gilt ein Einladungs- und ein Zurücksetzungslink, wie viele Wiederherstellungscodes werden ausgegeben, und gilt eine Mindestlänge über zwölf Zeichen hinaus?** Die SPEC nennt keine Zahl. `plattform_einstellung` führt vier vorläufige Werte (168 h, 2 h, 10 Codes, 12 Zeichen); sie sind als `ist_vorlaeufig = true` markiert und über eine Zeile änderbar, ohne Code. Die Auswahl folgt gängiger Praxis, nicht einer Entscheidung: ein Einladungslink überlebt ein Wochenende, ein Zurücksetzungslink nicht. | AUT-01, AUT-04, `0155`, D-502 · **Voreinstellung → D-790** |
 | O-501 | **Welches Supabase-Projekt in der EU-Region (Frankfurt), welcher Auftragsverarbeitungsvertrag — und soll die Anmeldung über ein Firmenverzeichnis (SAML/OIDC) laufen?** Dieselbe Frage trägt den Postausgang: welcher in der EU gehostete Mailanbieter, welche Absenderadresse je Gesellschaft, laufen DKIM und DMARC über die bestehenden Domains? Ohne beides gibt es keinen Zurücksetzungs- und keinen Einladungslink, der ankommt. Bis zur Antwort prüft die Plattform das Kennwort selbst (`kern.zugangsdaten`, bcrypt), `/auth/callback` antwortet `501` statt eine Sitzung auszustellen, und `/auth/passwort-vergessen` sagt „nicht verbunden" statt „gesendet" (D-501, D-503). | AUT-01, AUT-04, NOT-02, `0155`, D-501 |
@@ -25859,4 +25859,85 @@ tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-802), 24 keinen —
 die Betreiberdaten (D-803) und O-183.
 
 | Betrifft | O-06, O-11, O-33, O-34, O-94, O-95, O-120, O-122, O-124, O-127, O-131, O-205, O-207, O-512, O-652; V-385, V-386, V-293; `next.config.ts`, `scripts/content-import.ts`, `src/app/sitemap.ts`, `src/app/check-in/[token]/Stempeluhr.tsx`, `src/app/portal/[mandant]/freigaben/pruefdauer/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/rechtsgrundlage/page.tsx`, `src/app/(public)/werbewiderspruch/[token]/page.tsx`, `src/app/(public)/barrierefreiheit/Erklaerung.tsx`, `src/app/api/buchhaltung/bank/route.ts`, `src/app/api/crm/notiz/route.ts`, `src/components/oeffentlich/Kontaktwege.tsx`, `src/lib/annahmen.ts`, `src/lib/i18n/texte.ts`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/services/akquise/entwurf.ts`, `src/server/services/crm/uwg-matrix.ts`, `src/server/services/lead/annahme.ts`, `src/server/services/buchhaltung/exportpaket.ts`, `src/server/services/inhalt/{jsonld,sitemap}.ts`, `src/server/storage/mime.ts`, `src/server/db/seed/{inhalt,inhalt-en}.ts`, `tests/kern/oeffentliche-detailwege.test.ts`, `tests/e2e/{seo,sprachen}.spec.ts`, `docs/ANNAHMEN.md` |
+|---|---|
+
+### D-803 · Betreiberdaten: was bis dahin gilt und wo es hinkommt (dreiundzwanzigste Runde der Weisung vom 05.10.2026)
+
+**Der Anlass.** Nach D-802 tragen 376 der 400 Registerfragen einen Zeiger
+auf ihre Voreinstellung. Die übrigen 24 sind, bis auf O-183 (nicht Teil der
+Runden, D-779), Fragen, die nur der Betreiber beantworten kann: Angaben über
+die eigenen Gesellschaften, Konten, Verträge und Dateien. Die Weisung
+(`CLAUDE.md`, D-779) nimmt genau sie aus: „only operator data (tax IDs, bank
+details, credentials) stays to be entered by the owner". Diese Runde liest
+jede dieser Fragen gegen den Code, gibt drei von ihnen eine Voreinstellung,
+weil sie eine Wahl sind und kein Datum (O-118, O-123, O-375), und schreibt
+für die übrigen auf, was die Plattform bis dahin tut und wo der Betreiber es
+einträgt. Wo es keinen Eingabeweg gibt, steht eine V-Nummer.
+
+**Mit Voreinstellung.**
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-118 | Keine fremden Dienste für Fehlerverfolgung, Erreichbarkeit und Protokollweiterleitung: die Überwachung ist die eigene — Einstellungen › Betrieb zeigt gescheiterte, hängende und ausgebliebene Läufe, `jobs/alarm.ts` schreibt `JOB-ALARM`-Zeilen in die Funktionsprotokolle. Will der Betreiber einen Dienst, dann in der EU mit Auftragsverarbeitungsvertrag. Wie gebaut; der Kommentar in `auftragsverarbeiter.ts`, der eine Zeile im Register der Anbindungen versprach, ist berichtigt. | `betrieb/ueberwachung.ts`, `jobs/alarm.ts`, `einstellungen/dpa` |
+| O-123 | n8n wird nicht betrieben: keine Anbindung braucht es heute, die Nachtläufe der Plattform laufen ohne. Kommt eine externe Verknüpfung, läuft n8n selbst gehostet in der EU; Ort, Betrieb und Vertrag trägt der Betreiber ein. Die Zeile unter Integrationen sagt das statt „nicht entschieden". | `registry/integrationen.ts` |
+| O-375 | Unterlagen gehen in den privaten Belegspeicher der Plattform und werden mit der Bewerbung gelöscht (wie die Bewerbungsakte es seit D-797 sagt; D-784 und D-797 führten die Frage noch als Betreiberdatum, Betreiberdatum ist nur der Speicher). Gebaut ist der Weg nicht: das Formular nimmt keine Datei an, auch nicht mit verbundenem Speicher (V-387); die Akte sagt das jetzt, statt den Weg mit dem Speicher kommen zu lassen. | `(public)/karriere/Formular.tsx`, `recruiting/bewerbungen/[id]` |
+
+**Betreiberdaten — keine Voreinstellung, kein Zeiger.** Was bis dahin
+gilt, ist gebaut und sichtbar gekennzeichnet; nichts davon tut so, als sei
+es verbunden.
+
+| Frage | Was die Plattform bis dahin tut | Wo der Betreiber es einträgt |
+|---|---|---|
+| O-01 | Rechtsform der CSE Operations. Bis sie eingetragen ist, stellt Operations keine Rechnung unter eigener Nummer: kein eigener Kreis, die Vorabprüfung und `fin.rechnung_nummer_ziehen` sagen „eine Abteilung fakturiert über eine der drei Gesellschaften". Die Frage bleibt in `OFFEN_GEBLIEBEN` (`annahmen.test.ts`) — jede Vorbelegung wäre eine Behauptung über eine Rechtsform; der Kopf von `annahmen.ts` nennt sie jetzt (er nannte O-05 statt O-01). | `mandant.ist_rechtseinheit`, `eigener_nummernkreis` — ohne Oberfläche (V-390) |
+| O-09 | Datenmengen für die Migration. Die Plattform legt keine Mengen fest; die Übernahme aus dem Altsystem wartet auf dessen Exportformat (O-128). | im Gespräch zur Migration |
+| O-10 | Plattformkonten für Social Media und Jobbörsen: jeder Kanal nicht verbunden, ein Beitrag bleibt Entwurf. | Konto, Administrator und AV-Vertrag je Plattform; Zugang über Umgebungsvariablen |
+| O-12 | Exaktes CSE-Rot und SVG-Logos: angenommenes Rot `#E30613` (`annahmen.ts`), Platzhalter-Logos, sichtbar gekennzeichnet. | Logos unter Einstellungen › Identität (braucht den Speicher); das Rot in DESIGN §1 |
+| O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Die Sperre vor dem Livegang ist nicht verdrahtet (V-389). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
+| O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | `mandant` ohne Oberfläche (V-390); Bankkonten unter Finanzen › Bankkonten |
+| O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
+| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | `plattform_einstellung` `sicherheit.kontakt` — ohne Oberfläche (V-390) |
+| O-82 | SMS-Gateway in der EU mit Ausgabendeckel: nicht verbunden; die Schichtleitung gibt Codes von Hand aus (D-790). | Gateway und Vertrag; Anbindung in `auth/sms.ts` |
+| O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Entwürfe lesen sie noch nicht (V-391), versendet wird ohne Postausgang nichts. | Einstellungen › Identität |
+| O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
+| O-119 | Unabhängige, verschlüsselte Sicherung: gesichert wird beim Anbieter (Supabase, Frankfurt; Verfahrensdokumentation 4.3); ein eigenes Sicherungsziel, seine Frist und der Schlüsselhalter fehlen, der Wiederherstellungstest ist eingeplant und nicht erbracht (Abschnitt 5 nennt jetzt O-119). | Sicherungsziel und Schlüssel; Test in ROADMAP Phase 10 |
+| O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: die Plattform führt Bescheinigungen der Kunden und Lieferanten, nicht die eigenen (V-388). | — (V-388) |
+| O-132 | Karten- und Geokodierungsdienst: nicht verbunden; Objekte stehen als Liste, Koordinaten trägt ein Mensch ein (O-122, D-802). | Anbieter und Vertrag |
+| O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | `mandant` ohne Oberfläche (V-390) |
+| O-374 | Jobbörse und Vertrag: keine verbunden; „Veröffentlichen" vermerkt den Versuch als nicht verbunden. | Vertrag und Kennung je Börse; Anbindung in `versand/stellenboerse.ts` |
+| O-501 | Supabase-Projekt, Auftragsverarbeitungsvertrag, Anmeldeweg: angemeldet wird über die eigene Kennwortprüfung, Administration mit 2FA; ein Firmenverzeichnis (SAML/OIDC) gibt es nicht; E-Mails gehen nicht hinaus. | Projekt und Vertrag; der Codetausch in `auth/callback` kommt mit dem Projekt |
+| O-509 | KI-Endpunkte im Auftragsverarbeitungsvertrag: zugelassen ist `eu.api.openai.com`, jeder andere Host wird abgewiesen. | `OPENAI_EU_HOSTS` |
+| O-596 | Recherchequelle der Akquise: keine verbunden; ein Lauf ohne Quelle steht als „übersprungen" mit Grund (D-786). | Quelle und Vertrag; Anbindung über `akquise/quelle.ts` |
+| O-603 | Transaktionsmailer für den Rechnungsversand: nicht verbunden; die Rechnung wird von Hand versendet, XRechnung und ZUGFeRD bleiben herunterladbar (D-787). | wie O-116 |
+
+**Wortlaut berichtigt.** Wo die Oberfläche zu Betreiberdaten noch „offen"
+sagte: der Spaltenkopf „Offene Frage" unter Integrationen und Import heisst
+„Frage im Register"; die Nachrichtenseite sagt „nicht verbunden — trägt der
+Betreiber ein (O-82)" statt „(offen O-82)"; die Meldung des Postausgangs
+sagt „trägt der Betreiber ein" statt „Offen: …"; die Mahnungsmeldung nannte
+den Brief eine „Voreinstellung" zu O-116; die Firmenangaben „stehen bewusst
+sichtbar offen" (de/en); SMS-, Karten- und Identitätshinweis sagten „nicht
+gewählt"; die DPA-Seite zählte die Überwachung zu den ungewählten Diensten.
+Die Kalkulation vermerkt „Unbestätigte Voreinstellungen: O-16, O-56" statt
+„Offene Fragen". Dazu drei Kommentare, die etwas anderes behaupteten: der
+TODO der Weiterleitungen hing an O-13 (Fotografie) statt an O-08 (Domain),
+`assertKeinePlatzhalter()` sollte „vom Produktionsbuild aufgerufen" werden
+und wird es nicht (V-389), `auftragsverarbeiter.ts` versprach eine Zeile
+zu O-118. Die TODOs der Betreiberdaten sagen „Betreiberdaten — trägt der
+Betreiber ein" (O-10, O-35, O-132, O-374, O-501, O-509).
+
+**Was sich NICHT ändert.** Keine Logik, kein Recht, keine Migration;
+Platzhalterbilder heissen weiter Platzhalter, weil sie welche sind. Die
+Meldung zu O-01 bleibt wortgleich mit `fin.rechnung_nummer_ziehen` (0110),
+einer angewandten Migration.
+
+**Prüfung.** `tests/kern` komplett (`annahmen.test.ts` mit erzeugtem
+`docs/ANNAHMEN.md`, `integrationen.test.ts` mit unveränderter Liste der
+Zeilen mit Frage), `pnpm guards` (jeder TODO mit Registerzeile),
+`pnpm katalog:check`, `pnpm typecheck`.
+
+**Was nach dieser Runde bleibt.** Das Register führt 400 Fragen; 379
+tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-803), 21 keinen
+— die zwanzig Betreiberdaten oben und O-183.
+
+| Betrifft | O-01, O-09, O-10, O-12, O-13, O-24, O-28, O-35, O-82, O-115, O-116, O-118, O-119, O-123, O-130, O-132, O-353, O-374, O-375, O-501, O-509, O-596, O-603; V-387 bis V-391; `src/app/portal/[mandant]/einstellungen/{integrationen,import,dpa,identitaet}/page.tsx`, `src/app/portal/[mandant]/nachrichten/page.tsx`, `src/app/portal/[mandant]/objekte/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/app/(public)/karriere/Formular.tsx`, `src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts`, `src/app/auth/callback/route.ts`, `src/components/oeffentlich/Gesellschaften.tsx`, `src/lib/{annahmen,placeholder-assets,weiterleitungen}.ts`, `src/server/registry/{integrationen,auftragsverarbeiter}.ts`, `src/server/versand/{email,social-plattform,stellenboerse,modell-openai}.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/services/{angebot/index,betrieb/ueberwachung,buchhaltung/verfahrensdokumentation,finanz/mahnung/index,finanz/rechnung,inhalt/sicherheit-txt}.ts`, `docs/ANNAHMEN.md` |
 |---|---|

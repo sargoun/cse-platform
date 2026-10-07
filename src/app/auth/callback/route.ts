@@ -16,9 +16,10 @@ import { erwarteterUrsprung } from '@/server/auth/ursprung';
  * ist, tauscht genau diese Stelle den `code` gegen eine Sitzung — die
  * Tauschanweisung ist das Einzige, was dann hier dazukommt.
  *
- * TODO(client): O-501 — welches Supabase-Projekt in der EU-Region (Frankfurt),
- * welcher Auftragsverarbeitungsvertrag, und welche Anmeldewege sollen darueber
- * laufen (nur Kennwort, oder auch ein Firmenverzeichnis per SAML/OIDC)?
+ * TODO(client, O-501): Betreiberdaten — das Supabase-Projekt in der EU-Region
+ * (Frankfurt) und den Auftragsverarbeitungsvertrag traegt der Betreiber ein
+ * (D-803). Angemeldet wird bis dahin ueber die eigene Kennwortpruefung; ein
+ * Firmenverzeichnis per SAML/OIDC gibt es nicht.
  */
 export function GET(anfrage: NextRequest): NextResponse {
   if (anbieter() === 'demo') {

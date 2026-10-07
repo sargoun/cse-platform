@@ -446,7 +446,8 @@ export default async function IdentitaetSeite(
                    defaultValue={identitaet.emailAbsender ?? ''} />
             <p className="mt-s2 text-xs text-text-muted">
               Ein Absender hier verschickt noch nichts: ein EU-gehosteter
-              Transaktionsmailer ist nicht gewählt (O-36), also geht nichts hinaus. Die
+              Transaktionsmailer ist nicht verbunden — ihn trägt der Betreiber ein (O-36) —,
+              also geht nichts hinaus. Die
               Adresse steht trotzdem auf Angeboten und Briefen.
             </p>
 

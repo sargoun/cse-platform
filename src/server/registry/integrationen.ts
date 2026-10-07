@@ -111,7 +111,7 @@ export function anbindungen(): readonly Anbindung[] {
       stand: sms.verbunden ? 'verbunden' : devFlaechenAn() ? 'entwicklung' : 'nicht_verbunden',
       hinweis: sms.verbunden
         ? 'Codes gehen per SMS.'
-        : `Adapter: ${sms.name}. Ein EU-Gateway mit Vertrag zur Auftragsverarbeitung ist nicht gewählt.`,
+        : `Adapter: ${sms.name}. Nicht verbunden — das EU-Gateway mit Vertrag zur Auftragsverarbeitung trägt der Betreiber ein.`,
       offen: 'O-82',
     },
     {
@@ -141,7 +141,8 @@ export function anbindungen(): readonly Anbindung[] {
       schluessel: 'karte', name: 'Karten und Geokodierung',
       zweck: 'Objekte auf einer Karte, Anfahrt (OPS-01)',
       stand: 'nicht_verbunden',
-      hinweis: 'Jeder Kartenaufruf gibt Koordinaten und IP an den Anbieter — ohne Vertrag keine Karte.',
+      hinweis: 'Jeder Kartenaufruf gibt Koordinaten und IP an den Anbieter — ohne Vertrag keine Karte. '
+        + 'Anbieter und Vertrag trägt der Betreiber ein.',
       offen: 'O-132',
     },
     {
@@ -254,7 +255,10 @@ export function anbindungen(): readonly Anbindung[] {
       schluessel: 'n8n', name: 'n8n',
       zweck: 'Externe Verknüpfungen, nur als Klebstoff (CLAUDE.md, Stack)',
       stand: 'nicht_verbunden',
-      hinweis: 'Ob selbst gehostet oder als EU-Instanz, ist nicht entschieden.',
+      // TODO(client, O-123): Voreinstellung — n8n wird nicht betrieben, bis eine externe
+      // Verknüpfung es braucht; dann selbst gehostet in der EU (D-803).
+      hinweis: 'Voreinstellung: nicht betrieben — keine Anbindung braucht es heute. Kommt eine, '
+        + 'läuft n8n selbst gehostet in der EU; Ort, Betrieb und Vertrag trägt der Betreiber ein.',
       offen: 'O-123',
     },
   ];
