@@ -19,7 +19,9 @@
  *     schon freigegeben, geschlossen, fremde Gesellschaft, keine Kennung.
  *  4. Ohne `nummernkreis.verwalten` geht es nicht — weder über den Dienst
  *     noch an ihm vorbei; die Grammatik der Maske hält auch die
- *     Datenbankfunktion; und cse_app ändert die Spalte nicht selbst.
+ *     Datenbankfunktion; und cse_app ändert die Spalte nicht selbst. Die
+ *     vier Definer-Policies der Verwaltung gelten nur unter dem
+ *     Vorgangsmarker — kein anderer Definer wird durch sie breiter.
  */
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -322,4 +324,52 @@ describe('(4) die Schranken', () => {
       .then(() => null, (x: unknown) => x as { code?: string });
     expect(e?.code).toBe('42501');
   });
+
+  it('die vier Verwaltungspolicies gelten nur unter dem Vorgangsmarker — kein Definer wird breiter', async () => {
+    // Zwei Typen, für die kein Zieher eine Definer-Policy hat (PR 46, rechnung.test.ts).
+    const kreis = await platzhalter(f.reinigung, { typ: 'angebot' });
+    const anderer = await platzhalter(f.reinigung, { typ: 'leistungsnachweis' });
+    const sichtbar = async (tx: postgres.TransactionSql): Promise<number> =>
+      ((await tx.unsafe(`select count(*)::int as n from nummernkreis where id = $1::uuid`,
+        [kreis])) as unknown as { n: number }[])[0]!.n;
+    const schliesse = async (tx: postgres.TransactionSql): Promise<number> =>
+      (await tx.unsafe(`update nummernkreis set geschlossen_am = app.berlin_heute() where id = $1::uuid`,
+        [kreis])).count;
+
+    // Angemeldet, aber ohne nummernkreis.verwalten — wie hinter einem Zieher.
+    const l = await leitung(f.reinigung);
+    expect(await alsDefiner(l, null, sichtbar)).toBe(0);
+    expect(await alsDefiner(l, null, schliesse)).toBe(0);
+    expect(await alsDefiner(l, anderer, schliesse)).toBe(0);
+    // Unter dem Marker sieht der Definer den Kreis — die Policy ist, was ihn gewährt …
+    expect(await alsDefiner(l, kreis, sichtbar)).toBe(1);
+    // … und ändern darf er ohne nummernkreis.verwalten trotzdem nur den Zähler (0013).
+    await expect(alsDefiner(l, kreis, schliesse)).rejects.toThrow(/nur der Zähler/u);
+    expect((await zeile(kreis)).ist_platzhalter).toBe(true);
+  });
 });
+
+/** Als cse_definer in der aktiven Gesellschaft, mit oder ohne Marker — und zurückgerollt. */
+async function alsDefiner<T>(
+  wer: string, marker: string | null, fn: (tx: postgres.TransactionSql) => Promise<T>,
+): Promise<T> {
+  const zurueck = Symbol('zurueck');
+  let wert: { ergebnis: T } | null = null;
+  try {
+    await sql.begin(async (tx: postgres.TransactionSql) => {
+      await tx.unsafe(`select set_config('app.mandant_id', $1, true)`, [f.reinigung]);
+      await tx.unsafe(`select set_config('app.scope', 'mandant', true)`);
+      await tx.unsafe(`select set_config('app.benutzer_id', $1, true)`, [wer]);
+      if (marker !== null) {
+        await tx.unsafe(`select set_config('app.kreisverwaltung', $1, true)`, [marker]);
+      }
+      await tx.unsafe(`set local role cse_definer`);
+      wert = { ergebnis: await fn(tx) };
+      throw zurueck;
+    });
+  } catch (fehler) {
+    if (fehler !== zurueck) throw fehler;
+  }
+  if (wert === null) throw new Error('alsDefiner: kein Ergebnis');
+  return (wert as { ergebnis: T }).ergebnis;
+}

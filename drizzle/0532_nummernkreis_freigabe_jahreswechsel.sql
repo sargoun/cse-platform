@@ -52,8 +52,20 @@
 --
 -- Definer, weil cse_app weder anlegen noch schliessen noch die Maske
 -- aendern darf — und das bleibt so: der Weg sind diese zwei Funktionen mit
--- ihren Pruefungen. cse_definer bekommt dafuer die Spalten und die Policies,
--- alle auf den aktiven Mandanten begrenzt.
+-- ihren Pruefungen. cse_definer bekommt dafuer die Spalten und vier Policies,
+-- alle auf den aktiven Mandanten begrenzt UND an den Vorgangsmarker
+-- app.kreisverwaltung gebunden (wie app.angebot_versand, 0024): jede der zwei
+-- Funktionen setzt ihn transaktionslokal auf den Kreis, den sie verwaltet, und
+-- loescht ihn vor der Rueckkehr. Ohne ihn gelten die vier nicht. Der Grund:
+-- permissive Policies werden ODER-verknuepft — ungebunden haetten sie die
+-- Zieher der einzelnen Kreistypen (d_rechnungskreis_*, d_eingangskreis_*,
+-- d_mahnkreis_*, je NUR ihr Typ) auf jeden offenen Kreis der Gesellschaft
+-- geweitet (rechnung.test.ts, „genau die aufgezaehlten cse_definer-Policies").
+-- Die Spalten der Verwaltung (Maske, Ruecksetzung, Jahr, Bezeichnung,
+-- geschlossen_am, ist_platzhalter) haelt cse_definer als Rolle; was ein
+-- Zieher davon ueber seine eigene Policy aendern koennte, haelt
+-- fin.nummernkreis_pruefen (0006) auf: ohne nummernkreis.verwalten nur der
+-- Zaehler, nach der ersten Vergabe Maske und Geltungsbereich nie.
 --
 -- Nur Kommentare mit Doppelstrich.
 
@@ -81,6 +93,9 @@ begin
     raise exception 'Kreisfreigabe: die Maske ist nicht bestaetigt'
       using errcode = 'check_violation';
   end if;
+
+  -- Der Vorgangsmarker: ohne ihn gelten die vier Policies dieser Migration nicht.
+  perform set_config('app.kreisverwaltung', coalesce(p_kreis::text, ''), true);
 
   select * into v_kreis from public.nummernkreis
    where id = p_kreis and mandant_id = app.aktiver_mandant()
@@ -140,6 +155,7 @@ begin
          geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
    where id = v_kreis.id;
 
+  perform set_config('app.kreisverwaltung', '', true);
   return v_jahr;
 end $$;
 
@@ -176,6 +192,9 @@ begin
     raise exception 'Nachfolgekreis: die Maske ist nicht bestaetigt'
       using errcode = 'check_violation';
   end if;
+
+  -- Der Vorgangsmarker: ohne ihn gelten die vier Policies dieser Migration nicht.
+  perform set_config('app.kreisverwaltung', coalesce(p_vorgaenger::text, ''), true);
 
   select * into v_alt from public.nummernkreis
    where id = p_vorgaenger and mandant_id = app.aktiver_mandant()
@@ -227,6 +246,7 @@ begin
      coalesce(v_alt.letzter_hash, v_alt.genesis_hash),
      v_heute, false, 'mensch', app.aktueller_benutzer());
 
+  perform set_config('app.kreisverwaltung', '', true);
   return v_neu;
 end $$;
 
@@ -243,25 +263,39 @@ grant execute on function fin.nummernkreis_nachfolger_eroeffnen(uuid, boolean) t
 grant update (geschlossen_am, format_maske, zuruecksetzung, jahr, bezeichnung, ist_platzhalter)
   on nummernkreis to cse_definer;
 
+-- Der Marker wird als Text verglichen, nicht nach uuid gewandelt: ein
+-- unbrauchbarer Wert soll keine Policy-Auswertung zum Fehler machen, sondern
+-- schlicht nichts gewaehren. Ungesetzt liefert current_setting(…, true) null,
+-- geloescht ''; beides trifft keine Kennung.
 create policy d_kreisverwaltung_lesen on nummernkreis for select to cse_definer
-  using (mandant_id = app.aktiver_mandant());
+  using (mandant_id = app.aktiver_mandant()
+         and current_setting('app.kreisverwaltung', true) <> '');
 create policy d_kreis_freigeben on nummernkreis for update to cse_definer
-  using      (mandant_id = app.aktiver_mandant() and ist_platzhalter and geschlossen_am is null)
-  with check (mandant_id = app.aktiver_mandant());
+  using      (mandant_id = app.aktiver_mandant()
+              and id::text = current_setting('app.kreisverwaltung', true)
+              and ist_platzhalter and geschlossen_am is null)
+  with check (mandant_id = app.aktiver_mandant()
+              and id::text = current_setting('app.kreisverwaltung', true));
 create policy d_nachfolger_schliessen on nummernkreis for update to cse_definer
-  using      (mandant_id = app.aktiver_mandant() and not ist_platzhalter and geschlossen_am is null)
-  with check (mandant_id = app.aktiver_mandant());
+  using      (mandant_id = app.aktiver_mandant()
+              and id::text = current_setting('app.kreisverwaltung', true)
+              and not ist_platzhalter and geschlossen_am is null)
+  with check (mandant_id = app.aktiver_mandant()
+              and id::text = current_setting('app.kreisverwaltung', true));
 create policy d_nachfolger_anlegen on nummernkreis for insert to cse_definer
-  with check (mandant_id = app.aktiver_mandant() and vorgaenger_nummernkreis_id is not null);
+  with check (mandant_id = app.aktiver_mandant()
+              and vorgaenger_nummernkreis_id::text = current_setting('app.kreisverwaltung', true));
 
 comment on policy d_kreisverwaltung_lesen on nummernkreis is
-  'V-284, D-848: Freigabe und Jahreswechsel lesen die Kreise der aktiven Gesellschaft.';
+  'V-284, D-848: Freigabe und Jahreswechsel lesen die Kreise der aktiven Gesellschaft — nur, '
+  'solange eine der zwei Funktionen den Vorgangsmarker app.kreisverwaltung gesetzt hat.';
 comment on policy d_kreis_freigeben on nummernkreis is
-  'V-284, D-848: fin.nummernkreis_freigeben aendert nur einen offenen Platzhalterkreis der '
-  'aktiven Gesellschaft (Maske, Ruecksetzung, Jahr, Bezeichnung, ist_platzhalter).';
+  'V-284, D-848: fin.nummernkreis_freigeben aendert nur den offenen Platzhalterkreis, den ihr '
+  'Vorgangsmarker nennt, in der aktiven Gesellschaft (Maske, Ruecksetzung, Jahr, Bezeichnung, '
+  'ist_platzhalter).';
 comment on policy d_nachfolger_schliessen on nummernkreis is
-  'V-284, D-848: fin.nummernkreis_nachfolger_eroeffnen schliesst einen offenen, freigegebenen '
-  'Kreis der aktiven Gesellschaft (geschlossen_am — die Spaltenliste ist die Schranke).';
+  'V-284, D-848: fin.nummernkreis_nachfolger_eroeffnen schliesst nur den offenen, freigegebenen '
+  'Kreis, den ihr Vorgangsmarker nennt, in der aktiven Gesellschaft.';
 comment on policy d_nachfolger_anlegen on nummernkreis is
-  'V-284, D-848: fin.nummernkreis_nachfolger_eroeffnen legt nur Nachfolger an — mit Vorgaenger, '
-  'in der aktiven Gesellschaft.';
+  'V-284, D-848: fin.nummernkreis_nachfolger_eroeffnen legt nur den Nachfolger des Kreises an, '
+  'den ihr Vorgangsmarker nennt, in der aktiven Gesellschaft.';

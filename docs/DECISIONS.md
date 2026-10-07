@@ -28682,12 +28682,23 @@ nur den Zähler und den Kettenkopf:
   `TODO(client, O-352)` am Dienst.
 - **Rechte und Policies.** `cse_definer` bekommt die Spalten
   `geschlossen_am`, `format_maske`, `zuruecksetzung`, `jahr`,
-  `bezeichnung`, `ist_platzhalter` und drei Policies, alle auf den aktiven
-  Mandanten begrenzt (Freigabe nur auf offene Platzhalter, Schliessen nur
-  auf offene freigegebene Kreise, Anlegen nur mit Vorgänger). `cse_app`
-  bekommt nichts dazu: der Weg sind die zwei Funktionen. Nach der ersten
-  Nummer friert `fin.nummernkreis_pruefen` (0006) Maske und
-  Geltungsbereich wie bisher ein.
+  `bezeichnung`, `ist_platzhalter` und vier Policies (Lesen, Freigabe nur
+  auf den offenen Platzhalter, Schliessen nur auf den offenen
+  freigegebenen Kreis, Anlegen nur des Nachfolgers), alle auf den aktiven
+  Mandanten begrenzt **und an den Vorgangsmarker `app.kreisverwaltung`
+  gebunden**: jede der zwei Funktionen setzt ihn transaktionslokal auf den
+  Kreis, den sie verwaltet, und löscht ihn vor der Rückkehr; ohne ihn
+  gelten die vier nicht. Ungebunden hätten sie sich — permissive Policies
+  werden ODER-verknüpft — mit den Ziehern der einzelnen Kreistypen
+  (`d_rechnungskreis_*`, `d_eingangskreis_*`, `d_mahnkreis_*`, je nur ihr
+  Typ) verbunden und jeden Definer auf jeden offenen Kreis der
+  Gesellschaft geweitet; die Wache „genau die aufgezählten
+  cse_definer-Policies" (`rechnung.test.ts`) hat das in PR #46 gemeldet,
+  `nummernkreis-freigabe.test.ts` beweist die Bindung am Verhalten.
+  `cse_app` bekommt nichts dazu: der Weg sind die zwei Funktionen. Ohne
+  `nummernkreis.verwalten` bewegt ein angemeldeter Aufrufer weiterhin nur
+  den Zähler, und nach der ersten Nummer friert `fin.nummernkreis_pruefen`
+  (0006, 0013) Maske und Geltungsbereich wie bisher ein.
 - **Die Seite `/finanzen/nummernkreise`** (zweisprachig): ein Abschnitt
   „Freigabe" je offenem Platzhalterkreis mit Maske, Rücksetzung,
   Bezeichnung (ohne die Klammer der Voreinstellung vorgeschlagen), der
