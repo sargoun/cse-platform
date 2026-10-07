@@ -71,7 +71,8 @@ export default async function Kundenfreigabe(
   const { zugang } = tor;
   const { sitzung } = zugang;
   const darf = await haeltRechte(
-    sitzung, 'auftrag.lesen', 'referenz.schreiben', 'dokument.lesen', 'crm.lesen');
+    sitzung, 'auftrag.lesen', 'referenz.schreiben', 'dokument.lesen', 'crm.lesen',
+    'aufgabe.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -244,12 +245,21 @@ export default async function Kundenfreigabe(
             {herausnahme.map((h) => (
               <li key={h.aufgabeId} className="flex flex-wrap items-center gap-s3 py-s2"
                   data-cse="herausnahme-aufgabe">
-                <Link
-                  href={`/portal/${mandant}/aufgaben/${h.aufgabeId}`}
-                  className="text-sm text-text underline underline-offset-2 hover:text-brand"
-                >
-                  {h.titel}
-                </Link>
+                {/*
+                  * Der Verweis nur mit `aufgabe.lesen` — dem Recht des Ziels
+                  * (AUT-06). Wer widerrufen hat, sieht seine Aufgabe auch
+                  * ohne (`t_aufgabe_eigene`), das Aufgabenblatt aber nicht.
+                  */}
+                {darf['aufgabe.lesen'] === true ? (
+                  <Link
+                    href={`/portal/${mandant}/aufgaben/${h.aufgabeId}`}
+                    className="text-sm text-text underline underline-offset-2 hover:text-brand"
+                  >
+                    {h.titel}
+                  </Link>
+                ) : (
+                  <span className="text-sm text-text">{h.titel}</span>
+                )}
                 <span className="text-sm text-text-muted">
                   {h.faelligAm === null
                     ? tReferenz.herausnahmeOhneFrist
