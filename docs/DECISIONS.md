@@ -2980,7 +2980,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-184 | Does the construction entity self-bill subcontractors by Gutschrift (§14 Abs. 2 UStG) — generally or per contract? · **Voreinstellung → D-787** |
 | O-185 | Are there expenses that may be booked without a receipt (Eigenbeleg), and up to what amount? · **Voreinstellung → D-779** |
 | O-186 | Is an electronic register with TSE (§146a AO) used, or an open cash box with a Kassenbuch? · **Voreinstellung → D-779** |
-| O-187 | Who files the §48a EStG Bauabzugsteuer return — accounting or the tax adviser — and should the platform only prepare, or also keep the deadline calendar? · **Voreinstellung → D-787** |
+| O-187 | Who files the §48a EStG Bauabzugsteuer return — accounting or the tax adviser — and should the platform only prepare, or also keep the deadline calendar? · **Voreinstellung → D-787, D-847** |
 | O-188 | Who signs the Verfahrensdokumentation per entity, and at what interval is it reviewed? · **Voreinstellung → D-787** |
 | O-189 | Will any of the three entities ever invoice, or receive invoices, in a currency other than EUR? · **Voreinstellung → D-779** |
 | O-190 | Is the counter-signed Leistungsnachweis (CLN-04) kept as evidence behind a cleaning invoice line, in addition to the time entries? · **Voreinstellung → D-787** |
@@ -25046,7 +25046,7 @@ gelesen.
 | O-181 | Inkasso-Übergabe und Mahnbescheid sind die Folgeaktion der letzten Mahnstufe (`mahn_folgeaktion`), gesetzt in den Mahneinstellungen von wer `mahnung.schreiben` hält; keine Betragsgrenze; die Plattform vermerkt die Folgeaktion und löst sie nicht aus — ein Mensch übergibt. Seit V-313 (D-840) sagt das Mahnungsblatt, ab wann sie fällig ist und dass sie fällig ist (Tag nach der Zahlungsfrist einer versendeten Mahnung), und hält den Übergabevermerk fest (`mahnung_eskalation`, Mensch und Serverzeit). | `finanz/mahnung/stufen.ts`, `finanz/mahnung/folgeaktion.ts`, Einstellungen › Mahnwesen, Mahnungsblatt |
 | O-182 | Keine Aufrechnung in der Plattform (§ 387 BGB): Kundengutschrift und Lieferantenverbindlichkeit werden getrennt ausgeglichen; entscheidet die Geschäftsführung eine Aufrechnung, bucht die Buchhaltung beide Seiten mit Zahlweg `verrechnung` (0121) — eine Verknüpfung gibt es nicht (V-314). | `finanz/zahlung/index.ts`, `finanz/ausgabe.ts` |
 | O-184 | Keine Gutschriftsabrechnung (§ 14 Abs. 2 Satz 2 UStG) mit Nachunternehmern: sie stellen Rechnungen, die als Eingangsrechnung mit § 13b-Prüfung laufen (`lieferant.leistungsart`, `ist_bauleistender_bis`); „Gutschrift" ist in der Plattform der Stornobeleg (Kreis `gutschrift`). Wie gebaut. | `finanz/eingangsrechnung.ts`, `finanz/lieferant.ts`, `finanz/nummernkreis.ts` |
-| O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab; einen Fristenkalender führt die Plattform nicht (V-315). | `finanz/estg48/abzug.ts`, `buchhaltung/buchungssatz.ts` |
+| O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab. Seit V-315 (D-847) bereitet die Plattform sie vor: Einbehalt je Lieferant und Zahlungsmonat (anteilig nach den Zahlungen), die Frist am 10. des Folgemonats (§ 108 Abs. 3 AO) auf dem Blatt `/finanzen/bauabzug` und im Kalender; ELSTER ist nicht verbunden. | `finanz/estg48/abzug.ts`, `finanz/estg48/anmeldung.ts`, `buchhaltung/buchungssatz.ts` |
 | O-188 | Die Geschäftsführung der Gesellschaft zeichnet die Verfahrensdokumentation; geprüft wird jährlich und bei jedem Schemastand-Wechsel (der Stand steht im Dokument: `schemastand`, `auslieferung`). Seit V-316 (D-837) mit Zeichnungsvermerk: wer `buchhaltung_konfiguration.verwalten` hält, zeichnet die beim Zeichnen erzeugte Fassung (Hash, Schemastand) mit seiner Funktion; die Seite sagt, ob die letzte Zeichnung noch gilt (Turnus zwölf Monate, Schemastand). Das Dokument nennt die Voreinstellung weiter unter „offen". | `buchhaltung/verfahrensdokumentation.ts`, `buchhaltung/verfahrensdokumentation-zeichnung.ts` |
 | O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen. Den Leistungszeitraum im Modus `nach_leistungsnachweis` leiten die Abrechnungsarten seit V-337 (D-838) aus den unterschriebenen Nachweisen her, gefunden über die Leistungszeile — nicht über diese Quelle, die nach `quelle_leistungsnachweis_uk` genau eine Zeile belegt. | `finanz/positionsquelle.ts`, `finanz/abrechnungsart/typen.ts` |
 | O-363 | **Gebaut:** bei zwei passenden § 13b-Gruppen (0 %, AE) entscheidet das Gewerk des Lieferanten — `lieferant.leistungsart` bau → `ust_0_13b_bau`, gebaeudereinigung → `ust_0_13b_reinigung` (`GRUPPE_JE_LEISTUNGSART`, `waehleGruppeNachLeistungsart`); der Befund nennt die Voreinstellung. Ohne Gewerk im Stamm bleibt das Feld unsicher, und ein Mensch wählt (wie bisher); die Freigabe des Belegs bleibt menschlich (Invariante 7). | `finanz/eingang/vorschlag.ts`, `tests/kern/eingang-steuersatzgruppe.test.ts` (5) |
@@ -28571,4 +28571,59 @@ Verdrahtung), `tests/kern/jobs-bootstrap.test.ts`,
 `pnpm typecheck`, `pnpm lint`, `pnpm jobs:plan`.
 
 | Betrifft | V-388, O-130, O-67, D-803, D-845; `drizzle/0531_eigene_freistellung.sql`, `src/server/services/finanz/{steuerfall,rechnung,freistellung,freistellung-ablauf,kunde-steuer}.ts`, `src/server/jobs/{freistellungAblauf,bootstrap}.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/lib/i18n/konto.ts`, `src/lib/i18n/verwaltung/finanzen/freistellungen.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/freistellungen/page.tsx`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/{crm,index}.ts`, `docs/JOB-AUSLOESER.sql`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/{steuerfall,freistellung}.test.ts`, `tests/kern/{eigene-freistellung,jobs-bootstrap,kettenmeldung}.test.ts` |
+|---|---|
+
+### D-847 · Bauwelle 44: Die Bauabzugsteuer-Anmeldung wird vorbereitet — Monatssummen je Lieferant und die Frist im Kalender (V-315, O-187)
+
+**Der Anlass.** `estg48/abzug.ts` rechnete den Einbehalt je Rechnung,
+`buchungssatz.ts` wies ihn aus — aber die Anmeldung nach § 48a EStG (bis zum
+10. des Folgemonats, je Leistendem bei dessen Finanzamt) und ihre Frist
+führte die Plattform nicht, und eine Monatssumme der Einbehalte gab es nicht.
+Voreinstellung (O-187, D-787): der Steuerberater gibt die Anmeldung ab, die
+Plattform bereitet vor.
+
+**Was gebaut ist** (`finanz/estg48/anmeldung.ts`, rein bis auf den Lader).
+- **`anmeldungsFrist(monat)`**: der 10. des Folgemonats; fällt er auf einen
+  Sonnabend, Sonntag oder Berliner Feiertag, der nächste Werktag (§ 108
+  Abs. 3 AO; `istWerktag`, `lib/datum/werktage.ts`).
+- **`einbehaltJeZahlung`**: der Monat ist der der ZAHLUNG (die
+  Gegenleistung ist erbracht, wenn das Geld fließt). Der Einbehalt einer
+  Rechnung wird ihren Zahlungen im Verhältnis zum offenen Posten zugeordnet
+  — kumuliert und kaufmännisch auf den Cent gerundet, ganzzahlig
+  (Invariante 1): die Anteile ergeben genau den Einbehalt, sobald der Posten
+  bezahlt ist; Überzahlung trägt nichts. `TODO(client, O-187)` am Dienst.
+- **`monatsEinbehalte`** und **`ladeBauabzugUebersicht`**: je Lieferant und
+  Zahlungsmonat die Summe, die Zahl der Rechnungen und die Frist; gezählt
+  werden Zahlungen in Richtung `ausgang`, Zuordnungsart `zahlung`, nicht
+  storniert, auf den Kreditorposten freigegebener oder gebuchter
+  Eingangsrechnungen mit Einbehalt. Was keiner Zahlung zugeordnet ist (noch
+  offen, oder ohne Geld ausgeglichen — Skonto, Differenz), steht als „noch
+  keinem Monat zugeordnet" da und wird nicht geraten.
+- **Das Blatt `/finanzen/bauabzug`** (zweisprachig, `eingang.lesen`): Monat,
+  Lieferant mit Steuernummer, Einbehalt, Zahl der Rechnungen, Frist und ihr
+  Stand; die offenen Beträge darunter; „ELSTER: nicht verbunden" — die
+  Plattform meldet nichts an und überweist nichts (Invariante 7). Ohne
+  `zahlung.lesen` sagt das Blatt, warum alles offen steht. Karte auf der
+  Finanzübersicht.
+- **Der Kalender** sammelt die Frist als Quelle `bauabzug` (ganztägig, Weg
+  auf das Blatt): sie folgt aus den Zahlungen eines Monats und wird mit
+  derselben `anmeldungsFrist` gerechnet wie auf dem Blatt; wie Projektende
+  und Vergabefrist gehört sie der Gesellschaft und steht nicht im
+  persönlichen Kalender (D-517).
+- **Nicht gebaut:** die Tabelle `bauabzug_anmeldung` aus `05-FINANZEN.md`
+  §8.6 (der Vermerk „angemeldet am", die Abrechnung an den Leistenden, der
+  Posten gegenüber dem Finanzamt) und der Wächter am 5. — die Anmeldung
+  bleibt beim Steuerberater (O-187); das Blatt ist seine Vorlage.
+
+**Prüfung.** `tests/kern/bauabzug-anmeldung.test.ts` (Frist an Werktag,
+Wochenende, Ostermontag, Jahreswechsel; Anteile bei einer, zwei und drei
+Zahlungen, Rundung 33 + 34 + 33, Überzahlung, Teilzahlung; Monatssummen und
+Offenes; Wörter und Verdrahtung). `tests/isolation/bauabzug-anmeldung.test.ts`
+(zwei Raten in zwei Monaten mit Frist je Monat; stornierte Zahlung;
+Teilzahlung; ohne Einbehalt oder Pflicht nichts; ohne `zahlung.lesen` alles
+offen; die Frist im Kalender mit Weg, nicht im persönlichen).
+`tests/isolation/kalender.test.ts` (die Quelle steht in der eigenen Prüfung).
+Dazu `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-315, O-187, D-787, FIN-10, LEG-06; `src/server/services/finanz/estg48/anmeldung.ts`, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/finanzen/{bauabzug/page.tsx,page.tsx}`, `src/app/portal/[mandant]/kalender/{page.tsx,QuellenPill.tsx}`, `src/lib/i18n/verwaltung/finanzen/{bauabzug,uebersicht}.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/kern/bauabzug-anmeldung.test.ts`, `tests/isolation/{bauabzug-anmeldung,kalender}.test.ts` |
 |---|---|

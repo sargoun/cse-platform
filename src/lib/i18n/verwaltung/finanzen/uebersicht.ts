@@ -58,6 +58,7 @@ export type KartenZiel =
   | 'finanzen/eingangsrechnungen'
   | 'finanzen/lieferanten'
   | 'finanzen/freistellungen'
+  | 'finanzen/bauabzug'
   | 'finanzen/mahnungen'
   | 'finanzen/ausgangsbuch'
   | 'finanzen/ausgaben'
@@ -362,6 +363,11 @@ const DE: UebersichtTexte = {
       titel: 'Freistellungsbescheinigungen',
       text: '§ 48b EStG: erfassen, widerrufen, den Scan verknüpfen — ohne gültige '
         + 'Bescheinigung werden bei Bauleistungen 15 % einbehalten.',
+    },
+    'finanzen/bauabzug': {
+      titel: 'Bauabzugsteuer-Anmeldung',
+      text: '§ 48a EStG: der Einbehalt je Lieferant und Zahlungsmonat, mit der Frist am 10. '
+        + 'des Folgemonats — vorbereitet für den Steuerberater.',
     },
     'finanzen/belege': {
       titel: 'Belege',
@@ -738,6 +744,11 @@ const EN: UebersichtTexte = {
       titel: 'Freistellungsbescheinigungen (exemption certificates)',
       text: '§ 48b EStG: record, revoke, link the scan — without a valid certificate, '
         + '15 % is withheld on construction work.',
+    },
+    'finanzen/bauabzug': {
+      titel: 'Bauabzugsteuer-Anmeldung (withholding tax return)',
+      text: '§ 48a EStG: the withholding per supplier and month of payment, with the deadline on '
+        + 'the 10th of the following month — prepared for the tax adviser.',
     },
     'finanzen/belege': {
       titel: 'Belege (source documents)',

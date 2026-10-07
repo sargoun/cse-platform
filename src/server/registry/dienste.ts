@@ -331,6 +331,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   /** V-388 — wann die eigene Bescheinigung erinnert (O-130, D-846); rein, schreibt nichts. */
   { modul: 'finanzen', pfad: 'finanz/freistellung-ablauf', schreibend: false },
+  /** V-315 — die Anmeldung nach § 48a EStG, vorbereitet (O-187, D-847); liest nur. */
+  { modul: 'finanzen', pfad: 'finanz/estg48/anmeldung', schreibend: false },
   /**
    * V-011 — der Schreibweg der Ausgabe.
    *

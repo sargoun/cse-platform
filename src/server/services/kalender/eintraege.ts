@@ -24,6 +24,7 @@ import 'server-only';
 
 import type { Abfrage } from '../bericht/kennzahlen.js';
 import type { Zeitraum } from '../bericht/zeitraum.js';
+import { anmeldungsFrist } from '../finanz/estg48/anmeldung.js';
 
 /**
  * Woher ein Eintrag stammt. Sie steht in jeder Zeile, weil ein Kalender ohne
@@ -37,7 +38,8 @@ export type Quelle =
   | 'vergabe'     // Angebotsfrist einer Ausschreibung
   | 'freigabe'    // Frist im Freigabe-Posteingang
   | 'gespraech'   // Bewerbungsgespraech (REC-06)
-  | 'lead';       // SLA-Frist einer Anfrage
+  | 'lead'        // SLA-Frist einer Anfrage
+  | 'bauabzug';   // Frist der Bauabzugsteuer-Anmeldung (§ 48a EStG, V-315)
 
 export interface KalenderZeile {
   readonly id: string;
@@ -331,6 +333,54 @@ export async function kalenderZeilen(
   for (const f of fristen) {
     if (!zeigt(lage, f.quelle)) continue;
     alle.push(...await db.abfrage<KalenderZeile>(f.sql, w));
+  }
+
+  /*
+   * **Die Frist der Bauabzugsteuer-Anmeldung** (§ 48a EStG, V-315, D-847).
+   *
+   * Sie hat keine eigene Zeile, die man lesen könnte — sie FOLGT aus den
+   * Zahlungen: hat die Gesellschaft in einem Monat an einen Bauleistenden
+   * gezahlt und dabei einbehalten, ist die Anmeldung bis zum 10. des
+   * Folgemonats fällig (am nächsten Werktag, § 108 Abs. 3 AO). Gelesen wird
+   * der Monat der Zahlung, gerechnet die Frist in `anmeldungsFrist` — dieselbe
+   * Funktion wie auf dem Blatt `/finanzen/bauabzug`, damit Kalender und Blatt
+   * denselben Tag nennen.
+   *
+   * Wie Projektende und Vergabefrist gehört sie der GESELLSCHAFT, nicht einem
+   * Menschen: im persönlichen Kalender steht sie nicht (D-517). Und die RLS
+   * entscheidet wie überall — ohne `zahlung.lesen` und `eingang.lesen` keine
+   * Zeile.
+   */
+  if (zeigt(lage, 'bauabzug') && (lage.nurBenutzerId ?? null) === null) {
+    const monate = await db.abfrage<{ mandant: string; slug: string; monat: string }>(
+      `select distinct z.mandant_id::text as mandant, m.slug,
+              to_char(z.zahlungsdatum, 'YYYY-MM') as monat
+         from zahlung z
+         join zahlung_zuordnung zz
+           on zz.mandant_id = z.mandant_id and zz.zahlung_id = z.id and zz.art = 'zahlung'
+         join offener_posten op
+           on op.mandant_id = zz.mandant_id and op.id = zz.offener_posten_id
+          and op.art = 'kreditor'
+         join eingangsrechnung er
+           on er.mandant_id = op.mandant_id and er.id = op.eingangsrechnung_id
+         join mandant m on m.id = z.mandant_id
+        where z.richtung = 'ausgang' and z.storniert_am is null
+          and er.bauabzugsteuer_pflichtig and er.bauabzugsteuer_cent > 0
+          and z.zahlungsdatum between ($1::date - interval '2 months')::date and $2::date`,
+      [lage.zeitraum.von, lage.zeitraum.bis]);
+    for (const m of monate) {
+      const frist = anmeldungsFrist(m.monat);
+      if (frist < lage.zeitraum.von || frist > lage.zeitraum.bis) continue;
+      alle.push({
+        id: `${m.mandant}:${m.monat}`, quelle: 'bauabzug',
+        titel: `Bauabzugsteuer anmelden: ${m.monat}`,
+        beginn: frist, ende: frist, ganztaegig: true, ort: null,
+        beschreibung: 'Anmeldung nach § 48a EStG für die Zahlungen dieses Monats — '
+          + 'Voreinstellung (O-187): über den Steuerberater.',
+        abgesagt: false, geaendert: null,
+        weg: `/portal/${m.slug}/finanzen/bauabzug`,
+      });
+    }
   }
 
   /*

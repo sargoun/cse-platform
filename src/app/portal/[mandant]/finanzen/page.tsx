@@ -71,6 +71,8 @@ const KARTEN: readonly Karte[] = [
   { pfad: 'finanzen/lieferanten', icon: 'gruppe' },
   /* V-283: die § 48b-Bescheinigungen — bis D-845 ohne Schreibweg und ohne Eingang. */
   { pfad: 'finanzen/freistellungen', icon: 'schloss' },
+  /* V-315: die Monatssummen des Einbehalts und die Frist der Anmeldung (§ 48a EStG). */
+  { pfad: 'finanzen/bauabzug', icon: 'kalender' },
   { pfad: 'finanzen/mahnungen', icon: 'warnung' },
   { pfad: 'finanzen/ausgangsbuch', icon: 'export' },
   { pfad: 'finanzen/ausgaben', icon: 'euro' },

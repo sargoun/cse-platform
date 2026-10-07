@@ -44,7 +44,7 @@ import { QuellenPill, quellenWort } from './QuellenPill';
 export const dynamic = 'force-dynamic';
 
 const QUELLEN: readonly Quelle[] = [
-  'termin', 'einsatz', 'gespraech', 'projekt', 'vergabe', 'freigabe', 'lead',
+  'termin', 'einsatz', 'gespraech', 'projekt', 'vergabe', 'freigabe', 'lead', 'bauabzug',
 ];
 
 const WOCHENTAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as const;
