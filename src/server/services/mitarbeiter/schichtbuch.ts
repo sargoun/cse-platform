@@ -18,7 +18,8 @@
  * TODO(client, O-151): Voreinstellung — die Uebergabe zeigt die Eintraege der
  * letzten zwoelf Stunden vor Schichtbeginn an DIESEM Objekt; ausgeliefert ist
  * das Fenster mit 0 (0033), gesetzt wird es je Gesellschaft ueber
- * `wachbuch.uebergabe_fenster` — ein Eingabeweg dafuer fehlt (V-323). D-789.
+ * `wachbuch.uebergabe_fenster` auf Security › Wachbuch
+ * (`security/uebergabefenster.ts`, gebaut mit V-323, D-808). D-789.
  */
 import type { LeseKontext } from '../../kontext/index.js';
 import { leseBuch, type EintragZeile } from '../security/wachbuch.js';

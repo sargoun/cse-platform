@@ -16,7 +16,12 @@ import {
 } from '@/server/services/security/wachbuch';
 import { listeWachbuchMedien } from '@/server/services/mitarbeiter/medien';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
-import { WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
+import { UEBERGABEFENSTER_TEXTE, WACHBUCH_TEXTE } from '@/lib/i18n/verwaltung/wachbuch';
+import {
+  UEBERGABE_HOECHSTENS_STUNDEN, UEBERGABE_VOREINSTELLUNG_STUNDEN, leseUebergabefenster,
+  type UebergabefensterStand,
+} from '@/server/services/security/uebergabefenster';
+import { Hinweis } from '@/components/ui/Hinweis';
 
 /**
  * `/portal/[mandant]/security/wachbuch` — das Buch über alle Objekte
@@ -56,7 +61,7 @@ export default async function Wachbuch(
     return <Wechselblatt aktuell={tor.aktuell} zielTitel={tor.zielName ?? mandant} zielSlug={tor.ziel} zurueck={tor.zurueck} />;
   }
   const { sitzung } = zugang;
-  const darf = await haeltRechte(sitzung, 'wachbuch.schreiben');
+  const darf = await haeltRechte(sitzung, 'wachbuch.schreiben', 'system.einstellung_verwalten');
   if (sitzung.aktiverMandantId === null) notFound();
 
   const einzeln = (feld: string): string | null => {
@@ -67,7 +72,7 @@ export default async function Wachbuch(
   const artRoh = einzeln('art');
   const artFilter = istWachbuchArt(artRoh) ? artRoh : null;
 
-  const { eintraege, objekte, fotos } = await (db().begin(
+  const { eintraege, objekte, fotos, fenster } = await (db().begin(
     SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         const buch = await leseBuch(kontext, {
@@ -82,12 +87,18 @@ export default async function Wachbuch(
           ),
           /* V-181: wie viele Fotos an jeder Seite hängen — geöffnet werden sie am Blatt. */
           fotos: await listeWachbuchMedien(kontext, buch.map((e) => e.id)),
+          /* V-323: das Übergabefenster dieser Gesellschaft. */
+          fenster: await leseUebergabefenster(kontext),
         };
       })) as Promise<{
         eintraege: readonly EintragZeile[]; objekte: readonly Objektzeile[];
-        fotos: ReadonlyMap<string, readonly unknown[]>;
+        fotos: ReadonlyMap<string, readonly unknown[]>; fenster: UebergabefensterStand;
       }>);
   const tW = nachSprache(WACHBUCH_TEXTE, zugang.sprache);
+  const tF = nachSprache(UEBERGABEFENSTER_TEXTE, zugang.sprache);
+  /* Nur Schlüssel kommen zurück (V-275, D-769) — die Sätze stehen hier. */
+  const fensterGesetzt = einzeln('erfolg') === 'fenster_gesetzt';
+  const fensterAusserhalb = einzeln('fehler') === 'fenster_ausserhalb';
 
   /**
    * Die Filterpille als LINK, nicht als Knopf.
@@ -206,6 +217,45 @@ export default async function Wachbuch(
           ))}
         </ul>
       )}
+
+      {/* V-323, O-151: das Übergabefenster — Stand für alle, die das Buch lesen,
+          das Feld nur mit `system.einstellung_verwalten` (Manifest). */}
+      <section className="mt-s6 rounded-lg border border-line bg-surface p-s5"
+               data-cse="uebergabefenster">
+        <h2 className="m-0 mb-s2 text-h3 text-text">{tF.titel}</h2>
+        {fensterGesetzt && (
+          <Hinweis art="erfolg" rolle="status" cse="uebergabefenster-gesetzt">
+            {tF.gesetzt}
+          </Hinweis>
+        )}
+        {fensterAusserhalb && (
+          <Hinweis art="warnung" rolle="alert" cse="uebergabefenster-ausserhalb">
+            {tF.ausserhalb}
+          </Hinweis>
+        )}
+        <p className="m-0 text-sm text-text" data-cse="uebergabefenster-stand">
+          {fenster.stunden === null ? tF.nieEingestellt
+            : fenster.stunden === 0 ? tF.aus : tF.stunden(fenster.stunden)}
+        </p>
+        <p className="m-0 mt-s2 max-w-prose text-xs text-text-subtle">
+          {tF.voreinstellung(UEBERGABE_VOREINSTELLUNG_STUNDEN)}
+        </p>
+        {darf['system.einstellung_verwalten'] === true && (
+          <form action="/api/security/uebergabefenster" method="post"
+                className="mt-s4 flex flex-wrap items-end gap-s3"
+                data-cse="uebergabefenster-formular">
+            <label className="flex flex-col gap-s1 text-sm text-text-muted">
+              {tF.feld}
+              <input type="number" name="stunden" required min={0}
+                     max={UEBERGABE_HOECHSTENS_STUNDEN} step={1}
+                     defaultValue={fenster.stunden !== null && fenster.stunden > 0
+                       ? fenster.stunden : UEBERGABE_VOREINSTELLUNG_STUNDEN}
+                     className="min-h-11 w-32 rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+            </label>
+            <Button type="submit" variante="secondary">{tF.speichern}</Button>
+          </form>
+        )}
+      </section>
     </PortalRahmen>
   );
 }

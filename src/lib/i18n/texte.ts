@@ -1117,8 +1117,9 @@ export interface MeinTexte {
   readonly uebergabe: string;
   /**
    * Das Uebergabefenster ist GAR NICHT eingestellt (`uebergabeFenster ===
-   * null`) — Voreinstellung (O-151, D-789): zwoelf Stunden, zu setzen je
-   * Gesellschaft (V-323).
+   * null`) — Voreinstellung (O-151, D-789): zwoelf Stunden, gesetzt je
+   * Gesellschaft auf Security › Wachbuch (`system.einstellung_verwalten`,
+   * V-323).
    *
    * Getrennt von `uebergabeAus`, weil `Schichtbuch.uebergabeFenster` die zwei
    * Faelle mit Absicht unterscheidet: `null` heisst „nie eingerichtet",
@@ -1578,7 +1579,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'Übergabe',
     uebergabeNichtEingestellt:
       'Das Übergabefenster ist nicht eingestellt — Voreinstellung (O-151): die Einträge '
-      + 'der letzten zwölf Stunden der Vorschicht, gesetzt von der Sicherheitsleitung je '
+      + 'der letzten zwölf Stunden der Vorschicht, eingestellt von der Verwaltung je '
       + 'Gesellschaft. Bis dahin stehen hier nur die eigenen Einträge.',
     uebergabeAus:
       'Das Übergabefenster steht auf null — die Einträge der Vorschicht bleiben verdeckt. '
@@ -1974,7 +1975,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'Handover',
     uebergabeNichtEingestellt:
       'The handover window is not configured — default (O-151): the previous shift\u2019s '
-      + 'entries of the last twelve hours, set by the security management per entity. '
+      + 'entries of the last twelve hours, set by the administration per entity. '
       + 'Until then only your own entries appear here.',
     uebergabeAus:
       'The handover window is set to zero — the previous shift\u2019s entries stay hidden. '
@@ -2357,7 +2358,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'التسليم',
     uebergabeNichtEingestellt:
       'فترة التسليم غير مضبوطة — الإعداد الافتراضي (O-151): قيود الوردية السابقة خلال آخر اثنتي عشرة '
-      + 'ساعة، تضبطها إدارة الأمن لكل شركة. حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
+      + 'ساعة، تضبطها الإدارة لكل شركة. حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
     uebergabeAus:
       'فترة التسليم مضبوطة على صفر — تبقى قيود الوردية السابقة مخفية. الإعداد الافتراضي (O-151) '
       + 'هو اثنتا عشرة ساعة؛ تُضبط الفترة لكل شركة. تظهر هنا قيودك أنت فقط.',
@@ -2735,7 +2736,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'Devir teslim',
     uebergabeNichtEingestellt:
       'Devir teslim penceresi ayarlanmadı — varsayılan (O-151): önceki vardiyanın son on iki '
-      + 'saatteki kayıtları; pencereyi güvenlik yönetimi şirket başına ayarlar. O zamana kadar '
+      + 'saatteki kayıtları; pencereyi yönetim şirket başına ayarlar. O zamana kadar '
       + 'burada yalnızca kendi kayıtlarınız görünür.',
     uebergabeAus:
       'Devir teslim penceresi sıfırda — önceki vardiyanın kayıtları gizli kalır. Varsayılan '

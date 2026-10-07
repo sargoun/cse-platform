@@ -934,6 +934,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'wachbuch.schreiben',
   },
   /**
+   * Das Uebergabefenster des Wachbuchs (V-323) schreibt eine Zeile in
+   * `mandant_einstellung` — unter `system.einstellung_verwalten`, wie die
+   * Policy dort es verlangt (0033). Eine Betriebsregel, keine Wachbuchseite.
+   */
+  {
+    modul: 'system', pfad: 'security/uebergabefenster',
+    schreibend: true, schreibRecht: 'system.einstellung_verwalten',
+  },
+  /**
    * Die Eventbesetzung trägt `dienstplan.schreiben` und NICHT
    * `security.schreiben`: was sie anlegt, ist eine Schicht und eine
    * Einteilung, und beides gehört dem Dienstplan. Ein eigenes „Security darf

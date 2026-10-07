@@ -25158,7 +25158,7 @@ nicht gebaut ist (V-323 bis V-328). Jede Zeile ist gegen den Dienst gelesen.
 | O-146 | Ein ausgefallener Turnus mindert die Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des Monats); so ist die Ausnahme vorbelegt (`abrechnungsrelevant`, O-700, D-783). Gerechnet wird die Minderung nirgends — die Monatspauschale rechnet aus der Pauschale allein (V-327). | `reinigung/turnus.ts`, `finanz/abrechnungsart/monatspauschale.ts` |
 | O-149 | Wie D-783 (O-342): für Kräfte ohne festen Posten (Veranstaltung, Springer, kurzfristige Vertretung) gilt die mandantenweite Grundanforderung § 34a-Unterrichtung, bei Veranstaltungen dazu die Sachkunde — auf Knopfdruck angelegt, unbestätigt, als Warnung; ohne Zeile meldet das Tor `anforderungenGefunden = 0`. | `nachweis/tor.ts`, `security/anforderung.ts` |
 | O-150 | Massgeblich ist der Berliner Kalendertag des Schichtbeginns (`stichtagVon`): ein Nachweis, der um Mitternacht abläuft, deckt die begonnene Nachtschicht; die nächste Schicht braucht einen gültigen. Wie gebaut. | `nachweis/gueltigkeit.ts` |
-| O-151 | Die Übergabe zeigt die Einträge der letzten zwölf Stunden vor Schichtbeginn am selben Objekt. Ausgeliefert ist das Fenster mit 0 (`wachbuch.uebergabe_fenster`, 0033), gesetzt wird es je Gesellschaft — ein Eingabeweg fehlt (V-323); die Wachbuchseite nennt die Voreinstellung in vier Sprachen statt „offene Frage". | `mitarbeiter/schichtbuch.ts`, `texte.ts`, Mein › Wachbuch |
+| O-151 | Die Übergabe zeigt die Einträge der letzten zwölf Stunden vor Schichtbeginn am selben Objekt. Ausgeliefert ist das Fenster mit 0 (`wachbuch.uebergabe_fenster`, 0033), gesetzt wird es je Gesellschaft auf Security › Wachbuch (0 bis 24 Stunden, `system.einstellung_verwalten`, protokolliert — gebaut mit V-323, D-808); die Wachbuchseite der Kraft nennt die Voreinstellung in vier Sprachen. | `mitarbeiter/schichtbuch.ts`, `texte.ts`, Mein › Wachbuch |
 | O-152 | Kein Pflichtnachweis je Rundgang; wo ein Vertrag einen verlangt, trägt der Kontrollpunkt seine Nachweisart (`nfc`, `qr`, `barcode`, `manuell`; `unbestimmt` als Vorgabe), und ein Präsenznachweis im Wachbuch nennt den Kontrollpunkt. Wie gebaut (0070). | `security/wachbuch.ts` |
 | O-153 | `neue_version_oeffnet_pflicht = true`: jede neue Fassung einer Dienstanweisung verlangt eine neue Bestätigung; wer die Anweisung veröffentlicht (`security.schreiben`), kann es je Anweisung abschalten. Eine Sperre folgt daraus nicht (O-241 bleibt). Wie gebaut. | `security/dienstanweisung.ts` |
 | O-155 | Sechs Positionsarten (unbestimmt, Normal-, Bedarfs-, Alternativ-, Zuschlags-, Grundposition); Normal-, Zuschlags- und Grundposition zählen in die Auftragssumme, Bedarfs- und Alternativposition nicht, eine unbestimmte zählt wie eine Normalposition (03-GEWERKE §3.3, `zaehltPositionsartInSumme`). Wie gebaut. | `bau/lv.ts`, `bau/lv-quelle.ts` |
@@ -26168,13 +26168,14 @@ die Bewerberfrist ab der Absage (O-373, D-797).
 | Betrifft | V-393, V-331, V-365; O-512, O-79, O-373; `drizzle/0498_bewerberfrist_ab_absage.sql`, `src/app/(public)/karriere/**`, `src/app/(public)/en/karriere/**`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/sitemap.ts`, `src/lib/sprache.ts`, `src/lib/oeffentliche-navigation.ts`, `src/server/services/konto/sitzungen.ts`, `src/app/api/konto/sitzung/route.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/lib/i18n/konto.ts`, `docs/DESIGN.md`, `src/server/services/reinigung/qualitaet.ts`, `src/server/db/seed/{bau,index}.ts` |
 |---|---|
 
-### D-808 · Bauwelle 4: Erfassung bis Schichtende plus Ausstempeltoleranz, Nachtragswache ohne Bauleitung, Rücknahme einer Abwesenheit meldet sich, Witterungskennzeichen im Bautagebuch (V-326, V-381, V-353, V-328)
+### D-808 · Bauwelle 4: Erfassung bis Schichtende plus Ausstempeltoleranz, Nachtragswache ohne Bauleitung, Rücknahme einer Abwesenheit meldet sich, Witterungskennzeichen im Bautagebuch, Übergabefenster des Wachbuchs (V-326, V-381, V-353, V-328, V-323)
 
-**Der Anlass.** Vier Voreinstellungen standen beschlossen und ungebaut: die
+**Der Anlass.** Fünf Voreinstellungen standen beschlossen und ungebaut: die
 Erfassung bis Schichtende plus Ausstempeltoleranz (O-740, D-789), der
 Ersatzempfänger der Nachtragswache (O-30, D-800), die Meldung einer
-Selbstrücknahme an die Personalstelle (O-895, D-795) und das
-Witterungskennzeichen im Bautagebuch (O-158, D-789).
+Selbstrücknahme an die Personalstelle (O-895, D-795), das
+Witterungskennzeichen im Bautagebuch (O-158, D-789) und der Eingabeweg für das
+Übergabefenster des Wachbuchs (O-151, D-789).
 
 **Was gebaut ist.**
 - **Schichtende plus Ausstempeltoleranz (V-326).** 0499:
@@ -26223,6 +26224,16 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789).
   0083 nie kannte: ein geschlossener Tag liess sich im Wetter noch ändern.
   0501 nimmt die zehn Spalten ins Einfrieren auf; Wetterlauf und Anheften
   schreiben ohnehin nur offene Tage.
+- **Übergabefenster des Wachbuchs (V-323).** Security › Wachbuch zeigt den
+  Stand — nie eingestellt, abgeschaltet (0) oder N Stunden — und wer
+  `system.einstellung_verwalten` hält, stellt ihn ein: ganze Stunden von 0 bis
+  24, vorgeschlagen sind zwölf (`POST /api/security/uebergabefenster`,
+  `security/uebergabefenster.ts`). Gespeichert wird `PT<n>H`, wie 0033 es
+  ausliefert und `app.uebergabe_fenster` es liest; die Auditzeile nennt alten
+  und neuen Wert. Ausgeliefert bleibt 0 — das Fenster zeigt Einträge anderer
+  Menschen (O-06). Die Sätze der Kraft sagten „von der Sicherheitsleitung
+  gesetzt"; das Recht hält nach der Rechtematrix die Super-Administration, sie
+  sagen jetzt „von der Verwaltung" (de/en/ar/tr).
 
 **Voreinstellungen** (Regel 1, D-778).
 
@@ -26233,13 +26244,15 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789).
 | O-30 | Ohne Bauleitung an alle, die in der Gesellschaft Nachträge einreichen dürfen — wie D-800, jetzt gebaut. | `jobs/nachtragWache.ts` |
 | O-895 | Jede Selbstrücknahme meldet sich bei der Personalstelle — wie D-795, jetzt gebaut. | `drizzle/0500`, `abwesenheit/benachrichtigung.ts` |
 | O-158 | Keine Schwelle: die Bauleitung kennzeichnet die Witterung am Tag, die DWD-Werte stehen daneben — wie D-789, jetzt gebaut. | `bau/bautagebuch.ts`, `drizzle/0501` |
+| O-151 | Zwölf Stunden vor Schichtbeginn am selben Objekt, vorgeschlagen im Formular; ausgeliefert bleibt 0, gesetzt wird je Gesellschaft — wie D-789, jetzt mit Eingabeweg. | `security/uebergabefenster.ts`, Security › Wachbuch |
 
 **Prüfung.** `tests/isolation/mitarbeiterportal-schicht.test.ts`,
 `tests/isolation/mein-dokumente-objekte.test.ts`, `tests/isolation/bau-nachtrag.test.ts`,
 `tests/isolation/abwesenheit-ruecknahme.test.ts`, `tests/isolation/bau-bautagebuch.test.ts`
 (in der CI), `tests/kern/mein-ruecknahme-route.test.ts`,
-`tests/kern/bautagebuch-witterung-route.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`tests/kern/bautagebuch-witterung-route.test.ts`, `tests/isolation/uebergabefenster.test.ts`
+(in der CI), `tests/kern/uebergabefenster-route.test.ts`, `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
-| Betrifft | V-326, V-381, V-353, V-328; O-740, O-211, O-852, O-853, O-30, O-895, O-158; `drizzle/0499_schichtende_toleranz.sql`, `drizzle/0500_abwesenheit_ruecknahme_melden.sql`, `src/server/services/mitarbeiter/schichten.ts`, `src/app/portal/mein/bausteine.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,leistungsnachweis,fotos,bautagebuch}/page.tsx`, `src/lib/i18n/texte.ts`, `src/server/jobs/nachtragWache.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/server/services/abwesenheit/benachrichtigung.ts`, `src/app/api/mein/abwesenheit/[id]/zurueckziehen/route.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `drizzle/0501_bautag_wetter_einfrieren.sql`, `src/server/services/bau/bautagebuch.ts`, `src/app/api/bau/bautagebuch/route.ts`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/behinderungen/[bid]/page.tsx` |
+| Betrifft | V-326, V-381, V-353, V-328, V-323; O-740, O-211, O-852, O-853, O-30, O-895, O-158, O-151; `drizzle/0499_schichtende_toleranz.sql`, `drizzle/0500_abwesenheit_ruecknahme_melden.sql`, `src/server/services/mitarbeiter/schichten.ts`, `src/app/portal/mein/bausteine.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,leistungsnachweis,fotos,bautagebuch}/page.tsx`, `src/lib/i18n/texte.ts`, `src/server/jobs/nachtragWache.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/server/services/abwesenheit/benachrichtigung.ts`, `src/app/api/mein/abwesenheit/[id]/zurueckziehen/route.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `drizzle/0501_bautag_wetter_einfrieren.sql`, `src/server/services/bau/bautagebuch.ts`, `src/app/api/bau/bautagebuch/route.ts`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/behinderungen/[bid]/page.tsx`, `src/server/services/security/uebergabefenster.ts`, `src/app/api/security/uebergabefenster/route.ts`, `src/app/portal/[mandant]/security/wachbuch/page.tsx`, `src/lib/i18n/verwaltung/wachbuch.ts`, `src/server/auth/route-manifest.ts` |
 |---|---|
