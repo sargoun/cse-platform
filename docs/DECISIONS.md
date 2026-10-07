@@ -25516,7 +25516,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 |---|---|---|
 | O-894 | Die Sperre der vier GoBD-Klassen endet mit der Frist nicht von selbst: nach Ablauf schlägt der Aufbewahrungslauf die Löschung vor, ein Mensch gibt sie frei, nachdem er die Ablaufhemmung geprüft hat (§ 147 Abs. 3 Satz 5 AO: offene Festsetzungsfrist, laufende Prüfung) — Art. 5 Abs. 1 lit. e DSGVO verlangt die Obergrenze, die AO die Prüfung davor. Nicht gebaut: die Sperre ist heute dauerhaft (V-354). | `jobs/dokumentAufbewahrung.ts`, `datenschutz/loeschkonzept.ts` |
 | O-906 | Rechnungen und Buchungsbelege bleiben zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts, eine zu kurze ist nicht nachholbar. Die Untergrenze ist davon getrennt (V-372, D-818): Rechnung und Beleg acht, Buchhaltung zehn Jahre (`UNTERGRENZE`, `kern.aufbewahrung_untergrenze` in 0514) — wo der Steuerberater acht Jahre zulässt, trägt eine Gesellschaft sie ein; die Löschsperre der drei Finanzklassen bleibt Pflicht. Berichtigt im Prüfstand PR #36: hier stand, der Steuerberater entscheide — eintragen könnte er es nicht. | `dokument/aufbewahrung.ts` (`UNTERGRENZE`) |
-| O-933 | Der Leistungsort einer Rechnung darf einem anderen Kunden gehören als dem Empfänger (Hausverwaltung, Generalunternehmer, Muttergesellschaft): `OBJEKT_KUNDE_REGEL` heisst jetzt `frei` statt `offen`; geprüft wird die Sichtbarkeit, die Masken ordnen die Objekte des Kunden zuerst, der Beleg nennt den Ort mit Bezeichnung und Anschrift (BG-13). Wie gebaut — und seit dem Prüfstand PR #36 austauschbar: `pruefeObjektZuordnung` liest die Regel, `gleich` wiese ein Objekt eines anderen Kunden ab (Kern-Test). Eine Einstellung je Gesellschaft gibt es nicht; die Regel ist eine Zeile. | `finanz/rechnung.ts`, `finanz/entwurf.ts`, Rechnung › Neu, Entwurf; `tests/kern/rechnung-entwurf.test.ts` |
+| O-933 | Der Leistungsort einer Rechnung darf einem anderen Kunden gehören als dem Empfänger (Hausverwaltung, Generalunternehmer, Muttergesellschaft): `OBJEKT_KUNDE_REGEL` heisst jetzt `frei` statt `offen`; geprüft wird die Sichtbarkeit, die Masken ordnen die Objekte des Kunden zuerst, der Beleg nennt den Ort mit Bezeichnung und Anschrift (BG-13). Wie gebaut — und seit dem Prüfstand PR #36 austauschbar: `pruefeObjektZuordnung` liest die Regel, `gleich` weist ein Objekt eines anderen Kunden ab (Kern-Test). Seit V-373 (D-836) eine Einstellung je Gesellschaft unter Einstellungen › Rechnungen. | `finanz/rechnung.ts`, `finanz/entwurf.ts`, Rechnung › Neu, Entwurf; `tests/kern/rechnung-entwurf.test.ts` |
 | O-934 | Keine Sperre bei fehlenden Briefkopfangaben: wer eine Mahnung freigibt, sieht vorher, was fehlt, und entscheidet (die Folge eines Verstosses gegen § 35a GmbHG ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung); eine Gesellschaft ohne Registereintrag führt die Angaben ihrer Rechtsform, die Angaben selbst sind Betreiberdaten (O-24, O-353). Wie gebaut. | `finanz/mahnung/index.ts` (`fehlendeBriefkopfangaben`) |
 | O-129 | Ein DATEV-Export sperrt keine Periode: exportierte Buchungen tragen den Stapel (`datev_export_id`) und gehen in keinen zweiten Export, ein später Beleg fällt in den nächsten; gesperrt wird eine Periode nur durch den Periodenabschluss (vorläufig, endgültig). Wie gebaut. | `buchhaltung/datev/export.ts`, `buchhaltung/periodenschluss.ts` |
 | O-114 | Die Tarif- bzw. Zuschlagsgruppe ist ein Attribut der Rechnungsposition, nicht Teil ihrer Identität: Objekt, Leistung und Einheit bestimmen sie, eine geänderte Zuschlagsgruppe erscheint als Änderung derselben Zeile mit Delta. Wie gebaut (`ZUSAETZLICHE_SCHLUESSEL_MERKMALE = []`). | `freigabe/vergleich-schluessel.platzhalter.ts`, `freigabe/diff.ts` |
@@ -27855,4 +27855,52 @@ vor der Erzeugung. Dazu `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`,
 `pnpm lint`.
 
 | Betrifft | V-347, V-282, O-843, D-794; `drizzle/0525_kundenabruf_spur.sql`, `src/server/services/kundenportal/rechnung.ts`, `src/app/api/kunde/rechnungen/[id]/{zugferd.pdf,xrechnung.xml}/route.ts`, `tests/isolation/kundenportal.test.ts`, `tests/kern/kundenportal.test.ts` |
+|---|---|
+
+### D-836 · Bauwelle 33: Die Regel zum Leistungsort ist eine Einstellung je Gesellschaft (V-373, O-933)
+
+**Der Anlass.** Ob der Leistungsort (das Objekt) einer Rechnung einem anderen
+Kunden gehören darf als dem Rechnungsempfänger, war seit dem Prüfstand von
+PR #36 austauschbar — aber nur im Code (`OBJEKT_KUNDE_REGEL`, `frei`). Eine
+Gesellschaft, die nur für ihre eigenen Objektkunden abrechnet, konnte nicht
+„gleich" wählen. Voreinstellung (O-933, D-796): `frei`.
+
+**Was gebaut ist.**
+- **`finanz/leistungsort-regel.ts`:** die Regel (`frei` | `gleich`) mit der
+  Voreinstellung, `pruefeLeistungsortArt` für die Eingabe, `leseLeistungsortRegel`
+  über `app.einstellung` (Definer, 0033 — wer einen Entwurf anlegt, muss die
+  Einstellungen nicht lesen dürfen, um ihre Regel zu befolgen) und
+  `setzeLeistungsortRegel` (Sperre je Gesellschaft, Upsert in
+  `mandant_einstellung` unter `rechnung.leistungsort_regel`, Protokollzeile mit
+  altem und neuem Wert; derselbe Wert ein zweites Mal ändert nichts und
+  protokolliert nichts). Eine Zeile mit unbekanntem Wert gilt als nicht
+  gesetzt — sie macht die Regel weder strenger noch lockerer, als die
+  Gesellschaft entschieden hat. `OBJEKT_KUNDE_REGEL` und `ObjektKundeRegel`
+  bleiben unter ihrem alten Namen aus `rechnung.ts` erreichbar.
+- **Befolgt** in `legeEntwurfAn` und `aendereEntwurfKopf`: beide lesen die
+  Regel der aktiven Gesellschaft und geben sie an `pruefeObjektZuordnung`.
+  Festgeschriebene Rechnungen bleiben, wie sie sind.
+- **Einstellungen › Rechnungen** (`/portal/[mandant]/einstellungen/rechnungen`,
+  neu in der Seitenkarte §5.24, lesen mit `system.einstellung_lesen`, setzen
+  mit `system.einstellung_verwalten`; zweisprachig): sagt, was gilt — auch
+  „nicht gesetzt, es gilt die Voreinstellung" —, bietet die zwei Regeln mit
+  ihrer Bedeutung für den Beleg an und nennt das Recht, wo es fehlt. Route
+  `POST /api/einstellungen/rechnungen` (im Routenmanifest), zurück mit genau
+  einem Schlüssel `?leistungsort=`. Karte auf der Einstellungsübersicht.
+
+**Prüfung.** `tests/isolation/leistungsort-regel.test.ts`: Voreinstellung
+`frei` (die Hausverwaltung empfängt die Rechnung für das Haus der
+Eigentümer); Setzen schreibt Einstellung und Protokoll, ein zweites Setzen
+desselben Werts nichts; unter `gleich` weist `legeEntwurfAn` das Objekt eines
+anderen Kunden ab und lässt das eigene und eines ohne Kunden zu;
+`aendereEntwurfKopf` befolgt dieselbe Regel und wieder `frei` lässt die
+Änderung durch; die Regel der Reinigung bindet den Bau nicht; ohne
+`system.einstellung_verwalten` lässt die Datenbank das Setzen nicht zu, und
+wer die Einstellungen nicht lesen darf, befolgt die Regel trotzdem; eine
+kaputte Zeile gilt als Voreinstellung. `tests/kern/leistungsort-regel.test.ts`
+(die zwei Arten, die Eingabe, der eine Schlüssel). `tests/e2e/einstellungen.spec.ts`
+(die Seite sagt, was gilt, und setzt). Dazu `tests/kern` komplett (Routen- und
+Satzwachen), `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-373, O-933, D-796, D-798; `src/server/services/finanz/{leistungsort-regel,rechnung,entwurf}.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/app/portal/[mandant]/einstellungen/{page,rechnungen/page}.tsx`, `src/app/api/einstellungen/rechnungen/route.ts`, `src/lib/i18n/verwaltung/einstellungen/rechnungen.ts`, `tests/isolation/leistungsort-regel.test.ts`, `tests/kern/leistungsort-regel.test.ts`, `tests/e2e/einstellungen.spec.ts` |
 |---|---|

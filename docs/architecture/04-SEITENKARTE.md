@@ -1928,6 +1928,7 @@ the back door into the cost base that the module ceiling closes elsewhere.
 | `/portal/[mandant]/einstellungen/rollen` , `/[rolle]` — the permission matrix, editable per mandant | `system.rolle_lesen` / `system.rolle_verwalten` (**write requires `aal2`**, K-15) | `M1` | AUT-03, AUT-05 | 1 |
 | `/portal/[mandant]/einstellungen/module` — which modules an admin holds in this mandant | `system.module_zuweisen` (**`aal2`**) | `M1` | AUT-01, AUT-03, TEN-08 | 1 |
 | `/portal/[mandant]/einstellungen/steuer` — tax-rate groups and this entity's own tax identity (§5.3) | `buchhaltung_konfiguration.verwalten` | `M1` | LEG-05, FIN-09 | 6 |
+| `/portal/[mandant]/einstellungen/rechnungen` — invoice rules of this entity: may the place of service (Objekt) belong to another customer than the recipient (O-933, V-373) | `system.einstellung_lesen` / `system.einstellung_verwalten` | `M1` | FIN-04, O-933 | 6 |
 | `/portal/[mandant]/einstellungen/abrechnungsarten` — the five billing types and their parameters | `abrechnung.schreiben` | `M1` | FIN-01, O-04 | 6 |
 | `/portal/[mandant]/einstellungen/mahnwesen` — escalation levels, day offsets, fee per level, interest basis | `mahnung.schreiben` | `M1` | FIN-15 | 6 |
 | `/portal/[mandant]/einstellungen/arbeitszeit` — Arbeitszeitmodelle: Wochenstunden, Sollzeit, carry-forward; and any **stricter** collective break agreement | `stammdaten.verwalten` | `M1` | EMP-04, TIM-06 | 5 |

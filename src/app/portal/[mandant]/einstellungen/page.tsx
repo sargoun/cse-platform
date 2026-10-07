@@ -38,6 +38,8 @@ const KARTEN: readonly Karte[] = [
     text: 'Welche Gewerke diese Gesellschaft gebucht hat — und was deshalb sichtbar ist.' },
   { pfad: 'einstellungen/steuer', titel: 'Steuer', icon: 'rechnung',
     text: 'Steuersatzgruppen der Plattform und die steuerliche Identität dieser Gesellschaft.' },
+  { pfad: 'einstellungen/rechnungen', titel: 'Rechnungen', icon: 'rechnung',
+    text: 'Regeln, nach denen die Rechnungen entstehen — ob der Leistungsort einem anderen Kunden gehören darf (O-933).' },
   { pfad: 'einstellungen/abrechnungsarten', titel: 'Abrechnungsarten', icon: 'euro',
     text: 'Die fünf Arten und ihre Parameter — was davon noch unbestätigt ist.' },
   { pfad: 'einstellungen/mahnwesen', titel: 'Mahnwesen', icon: 'warnung',

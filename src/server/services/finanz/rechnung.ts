@@ -34,6 +34,10 @@ import { zahlungsmittelCode } from './zahlungsmittel.js';
 import { waehleRechnungsLogo } from './rechnungslogo.js';
 import { steuerzeileAufDemBeleg } from './steuerzeile.js';
 import {
+  OBJEKT_KUNDE_REGEL as VOREINSTELLUNG_LEISTUNGSORT, objektKundeRegel,
+  type ObjektKundeRegel as LeistungsortRegel,
+} from './leistungsort-regel.js';
+import {
   buildKanonischePayload, SCHEMA_VERSION,
   type Position, type Quelle, type RechnungVollstaendig, type Steuerzeile, type Zuschlag,
 } from './kanonisch.js';
@@ -291,15 +295,13 @@ export async function pruefeAuftragZuordnung(
  *
  * `pruefeObjektZuordnung` liest die Regel (Prüfstand PR #36): `gleich` wiese
  * ein Objekt ab, das einem anderen Kunden als dem der Rechnung zugeordnet ist.
- * Eine Einstellung je Gesellschaft gibt es noch nicht — die Regel ist heute
- * diese eine Zeile (V-373).
+ * Seit V-373 (D-836) ist sie eine Einstellung je Gesellschaft
+ * (`leistungsort-regel.ts`, Einstellungen › Rechnungen); `legeEntwurfAn` und
+ * `aendereEntwurf` lesen sie dort.
  */
-export interface ObjektKundeRegel {
-  readonly art: 'frei' | 'gleich';
-  readonly frage: 'O-933';
-}
-
-export const OBJEKT_KUNDE_REGEL: ObjektKundeRegel = { art: 'frei', frage: 'O-933' };
+export {
+  OBJEKT_KUNDE_REGEL, type ObjektKundeRegel,
+} from './leistungsort-regel.js';
 
 /**
  * **Ein Leistungsort, den dieser Mensch sehen darf** (V-209, D-702).
@@ -314,7 +316,7 @@ export const OBJEKT_KUNDE_REGEL: ObjektKundeRegel = { art: 'frei', frage: 'O-933
  */
 export async function pruefeObjektZuordnung(
   db: Abfrage, objektId: string, kundeId: string,
-  regel: ObjektKundeRegel = OBJEKT_KUNDE_REGEL,
+  regel: LeistungsortRegel = VOREINSTELLUNG_LEISTUNGSORT,
 ): Promise<void> {
   const [o] = await db.abfrage<{ id: string; kunde_id: string | null }>(
     `select id::text as id, kunde_id::text as kunde_id from objekt where id = $1::uuid`,
@@ -360,7 +362,9 @@ export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promi
   if (auftragId !== null) await pruefeAuftragZuordnung(db, eingabe.kundeId, auftragId);
   /* V-209: ein Leistungsort, den dieser Mensch sehen darf. */
   const objektId = eingabe.objektId ?? null;
-  if (objektId !== null) await pruefeObjektZuordnung(db, objektId, eingabe.kundeId);
+  if (objektId !== null) {
+    await pruefeObjektZuordnung(db, objektId, eingabe.kundeId, await objektKundeRegel(db));
+  }
   const ziel = eingabe.zahlungszielTage ?? await ermittleZahlungsziel(db, eingabe.kundeId);
 
   const [zeile] = await db.abfrage<{ id: string }>(

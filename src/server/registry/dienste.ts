@@ -1214,6 +1214,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Entwurf verlassen hat, steht mit null Netto und null Steuer da.
    */
   { modul: 'finanzen', pfad: 'finanz/steuerzeile', schreibend: false },
+  /*
+   * Die Regel zum Leistungsort (V-373, O-933, D-836): gelesen beim Anlegen und
+   * Ändern eines Entwurfs, gesetzt unter Einstellungen › Rechnungen.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/leistungsort-regel',
+    schreibend: true, schreibRecht: 'system.einstellung_verwalten',
+  },
   {
     modul: 'finanzen', pfad: 'finanz/rechnung',
     schreibend: true, schreibRecht: 'finanzen.festschreiben',

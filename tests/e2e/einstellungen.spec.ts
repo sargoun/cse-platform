@@ -124,4 +124,25 @@ test.describe('Einstellungen', () => {
     await expect(page.locator('[data-cse="dpa-zaehler"]')).toHaveAttribute('data-ohne-vertrag', '3');
     await expect(page.locator('[data-cse="dpa-register"] [data-cse="tabelle"] tbody tr')).toHaveCount(3);
   });
+
+  test('Rechnungen: die Regel zum Leistungsort sagt, was gilt, und lässt sich setzen (V-373)', async ({ page }) => {
+    await alsKonto(page, KONTO.adminReinigung);
+    await page.goto('/portal/reinigung/einstellungen/rechnungen');
+    await expect(page.getByRole('heading', { name: 'Rechnungen', level: 1 })).toBeVisible();
+    const gilt = page.locator('[data-cse="leistungsort-gilt"]');
+    // Nichts gesetzt: es gilt die Voreinstellung (O-933), und die Seite sagt es.
+    await expect(gilt).toHaveAttribute('data-art', 'frei');
+    await expect(gilt).toHaveAttribute('data-gesetzt', 'nein');
+
+    await page.locator('[data-cse="leistungsort-gleich"]').check();
+    await page.locator('[data-cse="leistungsort-speichern"]').click();
+    await expect(page.locator('[data-cse="leistungsort-ergebnis"]')).toBeVisible();
+    await expect(gilt).toHaveAttribute('data-art', 'gleich');
+    await expect(gilt).toHaveAttribute('data-gesetzt', 'ja');
+
+    // Zurück auf die Voreinstellung — die übrigen Abläufe legen Rechnungen an.
+    await page.locator('[data-cse="leistungsort-frei"]').check();
+    await page.locator('[data-cse="leistungsort-speichern"]').click();
+    await expect(gilt).toHaveAttribute('data-art', 'frei');
+  });
 });

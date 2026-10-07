@@ -2313,6 +2313,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Regel zum Leistungsort einer Rechnung setzen (V-373, O-933, D-836):
+     * frei oder gleich, je Gesellschaft. Die Policy auf `mandant_einstellung`
+     * (0033) prüft dasselbe Recht ein zweites Mal.
+     */
+    pfad: 'api/einstellungen/rechnungen',
+    recht: 'system.einstellung_verwalten',
+  },
+  {
+    /**
      * Ein Dokument samt Datei entfernen (V-026, DOC-07, LEG-01).
      *
      * **`dokument.archivieren` und nicht `dokument.schreiben`.** Wer ablegen

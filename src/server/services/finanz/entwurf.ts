@@ -8,6 +8,7 @@ import {
   type Abfrage, type EntwurfRechnungsart,
 } from './rechnung.js';
 import { gibPositionFrei, QuellenFehler } from './positionsquelle.js';
+import { objektKundeRegel } from './leistungsort-regel.js';
 import { schreibeSteuerfall } from './steuerfall.js';
 import { zahlungsmittelCode } from './zahlungsmittel.js';
 import {
@@ -196,7 +197,7 @@ export async function aendereEntwurfKopf(
    * nicht neu geprüft (auch ein inzwischen archivierter bleibt stehen).
    */
   if (kopf.objektId !== null && kopf.objektId !== alt.objekt_id) {
-    await pruefeObjektZuordnung(db, kopf.objektId, alt.kunde_id);
+    await pruefeObjektZuordnung(db, kopf.objektId, alt.kunde_id, await objektKundeRegel(db));
   }
 
   await pruefeZeitraumGebunden(db, rechnungId, kopf.leistungVon, kopf.leistungBis);
