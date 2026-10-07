@@ -196,3 +196,107 @@ export async function ladeVerwaltungskontoEin(
     kontoId: z.konto_id, neuesKonto: z.neues_konto,
   };
 }
+
+/* ── Link neu ausstellen und Rolle wechseln (V-302, O-980, O-981, D-821) ── */
+
+/**
+ * Der kurzlebige Keks, in dem die Route den neuen Link an das Benutzerblatt
+ * reicht — ein eigener Name, weil er unter einem anderen Pfad gilt als der
+ * Einladungskeks.
+ */
+export const LINK_NEU_COOKIE = 'cse_verwaltungslink';
+
+/** Warum `app.verwaltungskonto_link_neu` oder `…_rolle_wechseln` nichts getan hat. */
+export const VERWALTUNG_GRUENDE = [
+  'kein_verwaltungskonto', 'deaktiviert', 'gesperrt', 'rolle_unzulaessig', 'selbst',
+  'nicht_ausgefuehrt',
+] as const;
+export type VerwaltungGrund = (typeof VERWALTUNG_GRUENDE)[number];
+
+function verwaltungGrund(wert: string): VerwaltungGrund {
+  return (VERWALTUNG_GRUENDE as readonly string[]).includes(wert)
+    ? wert as VerwaltungGrund : 'nicht_ausgefuehrt';
+}
+
+/** Der Zweck des neuen Links: wartet das Konto, ist es eine Einladung, sonst ein Kennwortlink. */
+export type LinkZweck = 'einladung' | 'zuruecksetzen';
+
+export type LinkNeuErgebnis =
+  | { readonly ok: true; readonly zweck: LinkZweck; readonly token: string }
+  | { readonly ok: false; readonly grund: VerwaltungGrund };
+
+/** `42501` aus einem der beiden Definer: dieselbe Abbildung wie beim Einladen. */
+function abgewiesen(fehler: unknown): never {
+  if ((fehler as { code?: unknown }).code === '42501') {
+    throw new EinladungFehler(
+      'Die Datenbank hat den Vorgang abgewiesen.', 'nicht_erlaubt', 403, { cause: fehler });
+  }
+  throw fehler;
+}
+
+/**
+ * Einen neuen Link für ein Verwaltungskonto ausstellen (V-302, O-980).
+ *
+ * Der alte verfällt — jeder offene Link des Kontos, gleich welcher Zweck
+ * (`app.verwaltungskonto_link_neu`, 0517). Wartet das Konto noch, ist der neue
+ * Link eine Einladung; ist es aktiv, ein Link zum Setzen eines neuen
+ * Kennworts — derselbe Annahmeweg (`/auth/einladung/[token]` →
+ * `/auth/passwort-neu`, der den Zweck aus dem Token liest). Wie beim
+ * Einladen: der Klartext entsteht hier, steht einmal auf dem Schirm, und
+ * gespeichert ist nur sein SHA-256. Mit Supabase Auth als Anbieter gibt es
+ * diesen Weg nicht (`pruefeAnbieter`).
+ *
+ * TODO(client, O-980): Voreinstellung — die Super-Administration stellt den
+ * Link am Benutzerblatt neu aus, der alte verfällt. D-784, D-821.
+ */
+export async function stelleLinkNeuAus(
+  kontext: SchreibKontext, benutzerId: string,
+): Promise<LinkNeuErgebnis> {
+  pruefeAnbieter();
+  const token = neuerToken();
+  let zeilen: readonly { ok: boolean; grund: string; zweck: string | null }[];
+  try {
+    zeilen = await kontext.schreibe<{ ok: boolean; grund: string; zweck: string | null }>(
+      `select ok, grund, zweck from app.verwaltungskonto_link_neu($1::uuid, $2)`,
+      [benutzerId, tokenHash(token)]);
+  } catch (fehler: unknown) {
+    abgewiesen(fehler);
+  }
+  const z = zeilen[0];
+  if (z === undefined) return { ok: false, grund: 'nicht_ausgefuehrt' };
+  if (z.ok && (z.zweck === 'einladung' || z.zweck === 'zuruecksetzen')) {
+    return { ok: true, zweck: z.zweck, token };
+  }
+  return { ok: false, grund: verwaltungGrund(z.grund) };
+}
+
+export type RollenwechselErgebnis =
+  | { readonly ok: true; readonly grund: 'gewechselt' | 'unveraendert' }
+  | { readonly ok: false; readonly grund: VerwaltungGrund };
+
+/**
+ * Die Rolle eines Verwaltungskontos in dieser Gesellschaft wechseln — `admin`
+ * oder `leitung` (V-302, O-981). Nicht am eigenen Konto; protokolliert mit
+ * alter und neuer Rolle (`app.verwaltungskonto_rolle_wechseln`, 0517).
+ *
+ * TODO(client, O-981): Voreinstellung — die Super-Administration wechselt die
+ * Rolle am Benutzerblatt zwischen Administration und Leitung. D-784, D-821.
+ */
+export async function wechsleVerwaltungsrolle(
+  kontext: SchreibKontext, benutzerId: string, rolle: EinladbareRolle,
+): Promise<RollenwechselErgebnis> {
+  let zeilen: readonly { ok: boolean; grund: string }[];
+  try {
+    zeilen = await kontext.schreibe<{ ok: boolean; grund: string }>(
+      `select ok, grund from app.verwaltungskonto_rolle_wechseln($1::uuid, $2)`,
+      [benutzerId, rolle]);
+  } catch (fehler: unknown) {
+    abgewiesen(fehler);
+  }
+  const z = zeilen[0];
+  if (z === undefined) return { ok: false, grund: 'nicht_ausgefuehrt' };
+  if (z.ok && (z.grund === 'gewechselt' || z.grund === 'unveraendert')) {
+    return { ok: true, grund: z.grund };
+  }
+  return { ok: false, grund: verwaltungGrund(z.grund) };
+}

@@ -20,8 +20,9 @@ import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { LeseKontext, SchreibKontext } from '../../src/server/kontext/index.js';
-import { EinladungFehler, ladeVerwaltungskontoEin }
-  from '../../src/server/services/system/verwaltungskonto.js';
+import {
+  EinladungFehler, ladeVerwaltungskontoEin, stelleLinkNeuAus, wechsleVerwaltungsrolle,
+} from '../../src/server/services/system/verwaltungskonto.js';
 
 let f: Fixtur;
 let chef = '';      // super_admin, global
@@ -237,5 +238,140 @@ describe('(3) die Grenzen, die das Tor eng halten', () => {
     }));
     expect(e.ok).toBe(false);
     expect(e.grund).toBe('kundenkonto');
+  });
+});
+
+/**
+ * **Neuer Link und Rollenwechsel** (V-302, O-980, O-981, D-821, 0517).
+ *
+ * Bis 0517 gab es für einen verlorenen oder abgelaufenen Link keinen neuen —
+ * eine zweite Einladung derselben Adresse wies die Datenbank ab —, und die
+ * Rolle einer Mitgliedschaft änderte kein Weg. Geprüft wird an echtem
+ * Postgres: wer darf (nur die Super-Administration mit zweitem Faktor), was
+ * verfällt (jeder offene Link), welcher Zweck (Einladung oder Kennwort), was
+ * im Protokoll steht, und die Grenzen — kein fremdes Konto, kein eigenes,
+ * keine fremde Rolle.
+ */
+describe('(4) V-302 — einen neuen Link ausstellen', () => {
+  async function offeneTokens(b: string): Promise<{ zweck: string; n: number }[]> {
+    return sql.unsafe<{ zweck: string; n: number }[]>(
+      `select zweck, count(*)::int as n from kern.kennwort_token
+        where benutzer_id = $1 and eingeloest_am is null group by zweck order by zweck`, [b]);
+  }
+
+  it('für eine wartende Einladung: ein neuer Einladungslink, der alte verfällt — protokolliert', async () => {
+    const e = await einladen(chef);
+    expect(e.ok).toBe(true);
+    const neu = await als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), e.kontoId!));
+    expect(neu).toMatchObject({ ok: true, zweck: 'einladung' });
+    expect(neu.ok && neu.token).not.toBe(e.token);
+    expect(await offeneTokens(e.kontoId!)).toEqual([{ zweck: 'einladung', n: 1 }]);
+    const [z] = await sql.unsafe<{ nachher: Record<string, unknown> }[]>(
+      `select nachher from audit_log where aktion = 'system.verwaltungskonto_link_neu'
+        and objekt_id = $1`, [e.kontoId!]);
+    expect(z!.nachher).toMatchObject({ zweck: 'einladung' });
+  });
+
+  it('für ein aktives Konto: ein Kennwortlink — jeder offene Link verfällt', async () => {
+    const leitung = await konto('leitung');
+    await mitglied(leitung, f.reinigung, 'leitung');
+    await sql.unsafe(
+      `insert into kern.kennwort_token (benutzer_id, zweck, token_hash, gueltig_bis)
+       values ($1, 'zuruecksetzen', repeat('c', 64), now() + interval '1 day')`, [leitung]);
+    const neu = await als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), leitung));
+    expect(neu).toMatchObject({ ok: true, zweck: 'zuruecksetzen' });
+    expect(await offeneTokens(leitung)).toEqual([{ zweck: 'zuruecksetzen', n: 1 }]);
+    const [alt] = await sql.unsafe<{ eingeloest: boolean }[]>(
+      `select eingeloest_am is not null as eingeloest from kern.kennwort_token
+        where token_hash = repeat('c', 64)`);
+    expect(alt!.eingeloest).toBe(true);
+  });
+
+  it('kein Verwaltungskonto, gesperrt, deaktiviert: ein Schlüssel — und kein Token', async () => {
+    const mitarbeiter = await konto('mitarbeiter');
+    await mitglied(mitarbeiter, f.reinigung, 'mitarbeiter');
+    expect(await als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), mitarbeiter)))
+      .toEqual({ ok: false, grund: 'kein_verwaltungskonto' });
+
+    const gesperrt = await konto('gesperrt');
+    await mitglied(gesperrt, f.reinigung, 'leitung');
+    await sql.unsafe(`update benutzer set status = 'gesperrt' where id = $1`, [gesperrt]);
+    expect(await als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), gesperrt)))
+      .toEqual({ ok: false, grund: 'gesperrt' });
+
+    const weg = await konto('weg');
+    await mitglied(weg, f.reinigung, 'admin');
+    await sql.unsafe(
+      `update benutzer set status = 'deaktiviert', deaktiviert_am = now() where id = $1`, [weg]);
+    expect(await als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), weg)))
+      .toEqual({ ok: false, grund: 'deaktiviert' });
+
+    for (const b of [mitarbeiter, gesperrt, weg]) expect(await offeneTokens(b)).toEqual([]);
+  });
+
+  it('ein Admin der Gesellschaft nicht, und nicht ohne zweiten Faktor', async () => {
+    const leitung = await konto('leitung');
+    await mitglied(leitung, f.reinigung, 'leitung');
+    await expect(als(admin, (tx) => stelleLinkNeuAus(kontextAus(tx, admin), leitung)))
+      .rejects.toSatisfy((e: unknown) => e instanceof EinladungFehler && e.grund === 'nicht_erlaubt');
+    await expect(als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), leitung), 'aal1'))
+      .rejects.toSatisfy((e: unknown) => e instanceof EinladungFehler && e.grund === 'nicht_erlaubt');
+    expect(await offeneTokens(leitung)).toEqual([]);
+  });
+});
+
+describe('(5) V-302 — die Rolle wechseln', () => {
+  async function rolle(b: string): Promise<string> {
+    const [r] = await sql.unsafe<{ s: string }[]>(
+      `select r.schluessel as s from benutzer_mandant bm join rolle r on r.id = bm.rolle_id
+        where bm.benutzer_id = $1 and bm.mandant_id = $2 and bm.entzogen_am is null`,
+      [b, f.reinigung]);
+    return r!.s;
+  }
+
+  it('Leitung wird Administration und zurück — protokolliert mit alt und neu', async () => {
+    const leitung = await konto('leitung');
+    await mitglied(leitung, f.reinigung, 'leitung');
+    expect(await als(chef, (tx) => wechsleVerwaltungsrolle(kontextAus(tx, chef), leitung, 'admin')))
+      .toEqual({ ok: true, grund: 'gewechselt' });
+    expect(await rolle(leitung)).toBe('admin');
+    const [z] = await sql.unsafe<{ vorher: Record<string, unknown>; nachher: Record<string, unknown> }[]>(
+      `select vorher, nachher from audit_log
+        where aktion = 'system.verwaltungskonto_rolle_gewechselt' order by id desc limit 1`);
+    expect([z!.vorher['rolle'], z!.nachher['rolle']]).toEqual(['leitung', 'admin']);
+
+    expect(await als(chef, (tx) => wechsleVerwaltungsrolle(kontextAus(tx, chef), leitung, 'admin')))
+      .toEqual({ ok: true, grund: 'unveraendert' });
+    expect(await als(chef, (tx) => wechsleVerwaltungsrolle(kontextAus(tx, chef), leitung, 'leitung')))
+      .toEqual({ ok: true, grund: 'gewechselt' });
+    expect(await rolle(leitung)).toBe('leitung');
+  });
+
+  it('nie zur Super-Administration, nie am eigenen Konto, nie an einem Mitarbeiterkonto', async () => {
+    const leitung = await konto('leitung');
+    await mitglied(leitung, f.reinigung, 'leitung');
+    const roh = (wer: string, ziel: string, r: string) => als(wer, (tx) => tx.unsafe<{ ok: boolean; grund: string }[]>(
+      `select ok, grund from app.verwaltungskonto_rolle_wechseln($1::uuid, $2)`, [ziel, r]));
+    expect((await roh(chef, leitung, 'super_admin'))[0]).toEqual({ ok: false, grund: 'rolle_unzulaessig' });
+    await mitglied(chef, f.reinigung, 'admin');
+    expect((await roh(chef, chef, 'leitung'))[0]).toEqual({ ok: false, grund: 'selbst' });
+    const mitarbeiter = await konto('mitarbeiter');
+    await mitglied(mitarbeiter, f.reinigung, 'mitarbeiter');
+    expect((await roh(chef, mitarbeiter, 'admin'))[0])
+      .toEqual({ ok: false, grund: 'kein_verwaltungskonto' });
+    expect(await rolle(mitarbeiter)).toBe('mitarbeiter');
+  });
+
+  it('ein Admin der Gesellschaft nicht — und cse_app schreibt die Rolle nicht direkt um', async () => {
+    const leitung = await konto('leitung');
+    await mitglied(leitung, f.reinigung, 'leitung');
+    await expect(als(admin, (tx) => wechsleVerwaltungsrolle(kontextAus(tx, admin), leitung, 'admin')))
+      .rejects.toSatisfy((e: unknown) => e instanceof EinladungFehler && e.grund === 'nicht_erlaubt');
+    await expect(als(chef, (tx) => tx.unsafe(
+      `update benutzer_mandant set rolle_id = (select id from rolle where schluessel = 'admin'
+                                               and mandant_id is null)
+        where benutzer_id = $1`, [leitung])))
+      .rejects.toThrow();
+    expect(await rolle(leitung)).toBe('leitung');
   });
 });

@@ -24855,8 +24855,8 @@ weiter keine Adresse, also ordnet der Katalog ihnen keine Plattform zu.
 | O-355 | Die Modulbuchung trägt die Super-Administration beim Vertragsschluss ein; bis dahin wird nicht gefiltert. Eingetragen wird unter Einstellungen › Module (`app.mandant_module_buchen`, 0502, Super-Administration mit `system.module_zuweisen`, protokolliert); der Seed überschreibt eine eingetragene Buchung nicht — gebaut mit V-298 (D-809). | Einstellungen › Module |
 | O-358 | Den Basiszinssatz nach § 247 BGB trägt die Buchhaltung der CSE Operations zentral für die Gruppe ein, zum 1. Januar und 1. Juli nach Bekanntmachung der Bundesbank; der Wächter meldet am 15. Juni und 15. Dezember einen fehlenden Satz als gescheiterten Lauf und benachrichtigt niemanden eigens. Eingetragen wird je Kalenderhalbjahr unter Einstellungen › Mahnwesen von der Super-Administration (`system.referenzdaten_verwalten`, die Policies aus 0125) — für die Buchhaltung der CSE Operations heißt das: über ein Konto der Super-Administration; gebaut mit V-299 (D-809). | Einstellungen › Mahnwesen, `jobs/basiszinssatz.ts` |
 | O-128 | Übernahme aus den Altsystemen als CSV-Export (UTF-8, Semikolon): Aplano die Zeiten, Lexware die Belege, Excel die Listen; Zeitraum ab Beginn des laufenden Geschäftsjahres; Altdaten bleiben im Altsystem revisionssicher archiviert. Der Leser ist nicht gebaut (V-300). | Einstellungen › Import |
-| O-980 | Einen verlorenen oder abgelaufenen Einladungslink ersetzt die Super-Administration durch „Link neu ausstellen" an der offenen Einladung — der alte verfällt (wie der Kundenzugang, 0249). Gebaut ist der Weg noch nicht (V-302). | `verwaltungskonto.ts` (i18n) |
-| O-981 | Die Rolle einer Mitgliedschaft wechselt die Super-Administration am Benutzerblatt (admin ↔ leitung), protokolliert. Gebaut ist der Weg noch nicht (V-302). | `verwaltungskonto.ts` (i18n) |
+| O-980 | Einen verlorenen oder abgelaufenen Einladungslink ersetzt die Super-Administration durch „Link neu ausstellen" am Benutzerblatt — der alte verfällt (wie der Kundenzugang, 0249). Gebaut mit V-302 (D-821): `app.verwaltungskonto_link_neu` (0517); an einem aktiven Konto ist der neue Link ein Kennwortlink, weil kein Mailversand verbunden ist. | `verwaltungskonto.ts` (i18n), `system/verwaltungskonto.ts`, Benutzerblatt |
+| O-981 | Die Rolle einer Mitgliedschaft wechselt die Super-Administration am Benutzerblatt (admin ↔ leitung), protokolliert. Gebaut mit V-302 (D-821): `app.verwaltungskonto_rolle_wechseln` (0517), nicht am eigenen Konto; eine Modulzuweisung bleibt stehen. | `verwaltungskonto.ts` (i18n), `system/verwaltungskonto.ts`, Benutzerblatt |
 | O-830 | Eine Beschäftigte darf von sich aus eine Nachricht an die Einsatzleitung ihres laufenden Einsatzes eröffnen. Gebaut ist das noch nicht (`EIGENER_FADEN_MOEGLICH = false`, V-295); antworten funktioniert. | `texte.ts` (de/en/ar/tr), Mein › Nachrichten |
 | O-831 | Anlagen einer internen Nachricht sind im Arbeiterportal zu öffnen. Gebaut ist das noch nicht (`ANLAGEN_ABRUFBAR = false`, V-296); die Zahl der Anlagen steht an der Zeile. | `texte.ts` (de/en/ar/tr), Mein › Nachrichten |
 | O-850 | Ein Dokument betrifft eine Person, wenn es an ihrer Anstellung hängt (`anstellung_id`); bis Spalte, Policy und Freigabeschritt gebaut sind (V-297), zeigt die Seite, was die Gesellschaft der Belegschaft freigegeben hat. | `texte.ts` (de/en/ar/tr), Mein › Dokumente |
@@ -26978,4 +26978,60 @@ abgewiesen, `cse_app` ohne Ausführungsrecht; die Formel aus 0204 gegen
 `tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-336; O-623; `drizzle/0516_audit_kette_nachtlauf.sql`, `src/server/jobs/auditKette.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql`, `tests/isolation/audit-kette.test.ts`, `tests/kern/jobs-bootstrap.test.ts` |
+|---|---|
+
+### D-821 · Bauwelle 18: Ein Verwaltungskonto bekommt einen neuen Link und eine andere Rolle (V-302)
+
+**Der Anlass.** 0372 legt ein Verwaltungskonto an und stellt EINEN
+Einladungslink aus. Ging er verloren oder lief er ab, gab es keinen neuen: eine
+zweite Einladung derselben Adresse weist die Datenbank als „schon eingetragen"
+ab, und „Kennwort vergessen" braucht den Postausgang, der nicht verbunden ist
+(O-501). Die Rolle einer Mitgliedschaft änderte kein Weg — obwohl der Satz der
+Datenbank genau das riet. Voreinstellung zu O-980 und O-981 (D-784).
+
+**Was gebaut ist.**
+- **`app.verwaltungskonto_link_neu` (0517)**: für ein Verwaltungskonto der
+  aktiven Gesellschaft (lebende, vergebene Mitgliedschaft mit der
+  Plattformrolle `admin` oder `leitung`) einen neuen Link. Wartet das Konto,
+  ist er eine Einladung; ist es aktiv, ein Link zum Setzen eines neuen
+  Kennworts — derselbe Annahmeweg (`/auth/einladung/[token]`, 0155). Jeder
+  offene Link des Kontos verfällt; ein gesperrtes oder deaktiviertes Konto
+  bekommt keinen. Protokolliert (`system.verwaltungskonto_link_neu`, mit Zweck).
+- **`app.verwaltungskonto_rolle_wechseln` (0517)**: zwischen `admin` und
+  `leitung`, nie zur Super-Administration (D-617), nie am eigenen Konto, nie an
+  einem Mitarbeiter- oder Kundenkonto. Eine Modulzuweisung bleibt stehen — an
+  der Leitung eine Einschränkung, nie eine Erweiterung. Protokolliert mit alter
+  und neuer Rolle. Ein direktes Umschreiben durch `cse_app` hält der
+  Auslöser aus 0416 weiterhin auf.
+- Beide wie 0372: nur die Super-Administration
+  (`system.verwaltungskonto_erstellen`, `nur_global`), mit zweitem Faktor, im
+  internen Portal, in genau einer Gesellschaft (`kern.verwaltungskonto_tor`).
+  Abweisungen kommen als Schlüssel, nicht als Satz.
+- **Route und Blatt**: `POST /api/system/verwaltungskonto` mit
+  `aktion=link_neu` bzw. `aktion=rolle`, zurück aufs Benutzerblatt mit
+  `?verwaltung=<stand>`; der neue Link reist wie bei der Einladung in einem
+  `httpOnly`-Keks unter dem Pfad des Blatts und steht genau einmal da. Das
+  Benutzerblatt zeigt beide Handlungen der Super-Administration an einem
+  fremden Verwaltungskonto (de/en). Die Sätze der Einladungsseite, die sagten,
+  der Weg sei nicht gebaut, nennen ihn jetzt.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-980 | Die Super-Administration stellt einen verlorenen oder abgelaufenen Link am Benutzerblatt neu aus, der alte verfällt; an einem aktiven Konto ist es ein Kennwortlink — wie D-784, jetzt gebaut. | `drizzle/0517`, `system/verwaltungskonto.ts` |
+| O-981 | Die Super-Administration wechselt die Rolle am Benutzerblatt zwischen Administration und Leitung, protokolliert — wie D-784, jetzt gebaut. | `drizzle/0517`, `system/verwaltungskonto.ts` |
+
+**Prüfung.** `tests/isolation/verwaltungskonto-einladung.test.ts` §4/§5 (7:
+neuer Einladungslink entwertet den alten, mit Protokoll; Kennwortlink für ein
+aktives Konto, jeder offene Link verfällt; kein Verwaltungskonto, gesperrt,
+deaktiviert; ein Admin der Gesellschaft nicht, nicht ohne zweiten Faktor;
+Leitung ↔ Administration mit Protokoll und `unveraendert`; nie
+Super-Administration, nie selbst, nie ein Mitarbeiterkonto; `cse_app` schreibt
+die Rolle nicht direkt um), `tests/kern/verwaltungskonto-pflege.test.ts` (14:
+die echte Route mit beiden Aktionen, Keks, Schlüssel, Sätze de/en),
+`tests/kern/verwaltungskonto-rueckweg.test.ts` (die Sätze nennen den Weg),
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-302; O-980, O-981; `drizzle/0517_verwaltungskonto_link_und_rolle.sql`, `src/server/services/system/verwaltungskonto.ts`, `src/app/api/system/verwaltungskonto/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `src/app/portal/[mandant]/einstellungen/benutzer/VerwaltungskontoPflege.tsx`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto-pflege.ts` |
 |---|---|

@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -9,6 +10,11 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { haeltRechte } from '@/app/portal/rechte';
 import { KontoHandlungen } from '../KontoHandlungen';
 import { ModulZuweisung } from '../ModulZuweisung';
+import { NeuerLink, VerwaltungskontoPflege } from '../VerwaltungskontoPflege';
+import { LINK_NEU_COOKIE } from '@/server/services/system/verwaltungskonto';
+import {
+  VERWALTUNGSKONTO_PFLEGE_ERFOLGE, VERWALTUNGSKONTO_PFLEGE_TEXTE,
+} from '@/lib/i18n/verwaltung/einstellungen/verwaltungskonto-pflege';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { ZUGANG_TEXTE } from '@/lib/i18n/verwaltung/einstellungen/zugang';
@@ -48,6 +54,9 @@ interface Kopf {
 interface Mitgliedschaft {
   readonly id: string;
   readonly rolle: string;
+  /** `rolle.schluessel` — und ob es die Plattformrolle ist (`mandant_id is null`). */
+  readonly rolle_schluessel: string;
+  readonly plattform_rolle: boolean;
   /** `admin` mit `rolle.mandant_id is null` — nur ihr werden Module zugewiesen (0416). */
   readonly plattform_admin: boolean;
   readonly erfordert_2fa: boolean;
@@ -100,7 +109,7 @@ export default async function Benutzerblatt(
   const selbst = id.toLowerCase() === zugang.sitzung.benutzerId.toLowerCase();
   const darf = await haeltRechte(
     zugang.sitzung, 'system.benutzer_verwalten', 'system.sitzung_widerrufen',
-    'system.module_zuweisen');
+    'system.module_zuweisen', 'system.verwaltungskonto_erstellen');
   const suche = await searchParams;
   const tZugang = nachSprache(ZUGANG_TEXTE, zugang.sprache);
   /*
@@ -121,6 +130,12 @@ export default async function Benutzerblatt(
   const modulMeldung = eigenerEintrag(tModule.meldung, modulStandRoh);
   const modulStand = modulMeldung === undefined ? null : modulStandRoh;
   const sprache = internSprache(zugang.sprache);
+  /* V-302 (D-821): neuer Link und Rollenwechsel kommen als `?verwaltung=` zurück. */
+  const tPflege = nachSprache(VERWALTUNGSKONTO_PFLEGE_TEXTE, zugang.sprache);
+  const pflegeRoh = typeof suche['verwaltung'] === 'string' ? suche['verwaltung'] : null;
+  const pflegeSatz = eigenerEintrag(tPflege.stand, pflegeRoh);
+  const neuerLink = pflegeRoh === 'link_einladung' || pflegeRoh === 'link_kennwort'
+    ? (await cookies()).get(LINK_NEU_COOKIE)?.value ?? null : null;
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, zugang.sitzung, async (kontext) => {
@@ -138,6 +153,7 @@ export default async function Benutzerblatt(
       if (kopf === undefined) return null;
       const mitgliedschaften = await kontext.abfrage<Mitgliedschaft>(
         `select bm.id, r.bezeichnung as rolle,
+                r.schluessel as rolle_schluessel, (r.mandant_id is null) as plattform_rolle,
                 (r.schluessel = 'admin' and r.mandant_id is null) as plattform_admin,
                 r.erfordert_2fa, bm.module, bm.aus_anstellung,
                 bm.ist_standard,
@@ -178,6 +194,15 @@ export default async function Benutzerblatt(
     : undefined;
   const zuweisbar = lebenderAdmin === undefined
     ? null : { id: lebenderAdmin.id, module: lebenderAdmin.module };
+  /*
+   * Ein Verwaltungskonto (0372): eine lebende, vergebene Mitgliedschaft mit
+   * der Plattformrolle `admin` oder `leitung`. Nur daran pflegt die
+   * Super-Administration Link und Rolle — und nie am eigenen Konto.
+   */
+  const verwaltung = darf['system.verwaltungskonto_erstellen'] === true && !selbst
+    ? mitgliedschaften.find((m) => m.entzogen_am === null && !m.aus_anstellung
+      && m.plattform_rolle && (m.rolle_schluessel === 'admin' || m.rolle_schluessel === 'leitung'))
+    : undefined;
 
   return (
     <PortalRahmen
@@ -267,6 +292,29 @@ export default async function Benutzerblatt(
         sprache={sprache}
         t={tModule}
       />
+
+      {pflegeSatz === undefined ? null : (
+        <Hinweis
+          art={pflegeRoh !== null && VERWALTUNGSKONTO_PFLEGE_ERFOLGE.has(pflegeRoh) ? 'erfolg'
+            : pflegeRoh === 'unveraendert' ? 'hinweis' : 'warnung'}
+          cse="vk-pflege-stand"
+          className="mb-s5 max-w-prose"
+        >
+          {pflegeSatz}
+        </Hinweis>
+      )}
+      {neuerLink === null ? null : (
+        <NeuerLink token={neuerLink} einladung={pflegeRoh === 'link_einladung'} t={tPflege} />
+      )}
+      {verwaltung === undefined ? null : (
+        <VerwaltungskontoPflege
+          mandant={mandant}
+          benutzerId={kopf.id}
+          wartet={kopf.status === 'eingeladen'}
+          rolle={verwaltung.rolle_schluessel === 'admin' ? 'admin' : 'leitung'}
+          t={tPflege}
+        />
+      )}
 
       <KontoHandlungen
         mandant={mandant}
