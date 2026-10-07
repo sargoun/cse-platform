@@ -46,6 +46,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const aktion = String(daten.get('aktion') ?? 'anlegen');
 
   let ziel = zurueck;
+  /*
+   * V-361: was bei „Anschrift schon vorhanden" mit zurückreist, damit der
+   * Mensch nicht alles neu tippt. Zutrittshinweis und Bemerkung NICHT — sie
+   * können Codes tragen, und eine Adresse landet in Protokollen.
+   */
+  let mitgegeben: Record<string, string> | null = null;
   try {
     ziel = await db().begin(async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
@@ -102,8 +108,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           return `/portal/${bereich}/objekte/${id}`;
         }
 
+        mitgegeben = Object.fromEntries(Object.entries({
+          bezeichnung: felder.bezeichnung, strasse: felder.strasse, plz: felder.plz,
+          ort: felder.ort, hausnummer: felder.hausnummer, adresszusatz: felder.adresszusatz,
+          land: felder.land, kundeId: felder.kundeId, gebaeudetyp: felder.gebaeudetyp,
+          etagenAnzahl: felder.etagenAnzahl, geoLat: felder.geoLat, geoLon: felder.geoLon,
+          objektnummer: wert('objektnummer'),
+        }).filter((e): e is [string, string] => typeof e[1] === 'string' && e[1].trim() !== ''));
         const neu = await legeObjektAn(kontext, {
           ...felder, objektnummer: wert('objektnummer'),
+          trotzDublette: String(daten.get('trotzDublette') ?? '') === 'ja',
         });
         /*
          * Nach dem Anlegen auf das OBJEKT und nicht zurueck auf das leere
@@ -125,7 +139,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
        */
       return NextResponse.redirect(internesZiel(
         `${zurueck}${trenner}fehler=${encodeURIComponent(fehler.grund)}`
-        + (fehler.anzahl === null ? '' : `&anzahl=${String(fehler.anzahl)}`),
+        + (fehler.anzahl === null ? '' : `&anzahl=${String(fehler.anzahl)}`)
+        + (fehler.grund === 'anschrift_vorhanden' && mitgegeben !== null
+          ? `&werte=${encodeURIComponent(JSON.stringify(mitgegeben))}` : ''),
         '/portal', anfrage), 303);
     }
     const autorisierung = autorisierungsAntwort(fehler, anfrage);

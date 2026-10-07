@@ -1164,6 +1164,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'objekt', pfad: 'objekt/anlegen',
     schreibend: true, schreibRecht: 'objekt.schreiben',
   },
+  /** V-361 — ob zwei Anschriften dieselbe sind, und was ins Formular zurückreist; rein. */
+  { modul: 'objekt', pfad: 'objekt/anschrift', schreibend: false },
   /**
    * V-044 — was an einem Objekt haengt: Reviere, Posten,
    * Dienstanweisungen, Schluessel, Auftraege, Einsaetze, Dokumente,

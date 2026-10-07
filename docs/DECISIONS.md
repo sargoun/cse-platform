@@ -25315,7 +25315,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 | O-65 | Vertraglich notwendig ist, was der Durchführung des Vertrags dient — Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist, was eine neue oder zusätzliche Leistung anbietet (Zusatzleistung, Newsletter, Jahresgruss), auch an Bestandskunden. `app.darf_kontaktiert_werden` weist `transaktional` bei Werbewiderspruch heute noch ab — der restriktive Zweig bleibt in Kraft, bis die Funktion per Migration mit Isolationstest umgestellt ist (V-339); vier Bildschirme und zwei Dienste sagen Voreinstellung und Stand. | Datenschutz › Widersprüche, Vorgang, `/werbewiderspruch/[token]`, `datenschutz/werbewiderspruch.ts`, `crm/uwg-matrix.ts`, `bau/behinderung.ts` |
 | O-68 | Wie O-154 (D-782): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf bei BGB (§ 634a Abs. 1 Nr. 2), gerechnet von der Gesamtabnahme am Projekt und je Auftrag überschreibbar; Dienstleistungsaufträge (Reinigung, Sicherheit) führen keine. `auftrag.gewaehrleistung_bis` trägt der Abschluss von Hand ein; die am Projekt gerechnete Frist kommt noch nicht an den Auftrag (V-341), und das Kundenportal zeigt die Auftragsspalte. | `kundenportal/auftrag.ts`, `auftrag/abschluss.ts`, `db/seed/bau.ts` |
 | O-69 | Kontrolliertes Vokabular UND Freitext: die sieben Gebäudetypen des Anfrageformulars sind die Vorschläge des Objektformulars (`<datalist>`), `objekt.gebaeudetyp` bleibt `text` (0021), damit ein Flughafen oder eine Baustelle erfassbar bleibt. Gespeichert wird der deutsche Klartext; die englische Oberfläche zeigt die englische Bezeichnung aus `FORMULAR_EN` (Prüfstand PR #35). Gebaut: `lib/formular/vokabular.ts`, Vorschlagsliste und Hinweis (de/en) im Objektformular. | `objekte/ObjektFormular.tsx`, `lib/i18n/verwaltung/objekte.ts` |
-| O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Eine Konvention, keine Sperre: `kunde_id` ist nullbar, eine Dublettenprüfung je Anschrift gibt es nicht — zwei Erfasser können dasselbe Haus zweimal anlegen (Prüfstand PR #35); die Prüfung steht als V-361 (D-796). | `objekt/anlegen.ts` |
+| O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Eine Konvention, keine Sperre, aber eine Rückfrage: `kunde_id` ist nullbar; findet sich unter derselben Anschrift (Postleitzahl, Strasse, Hausnummer, normalisiert) schon ein lebendes Objekt der Gesellschaft, legt `legeObjektAn` erst nach einer bewussten Bestätigung an — gebaut mit V-361 (D-817). | `objekt/anlegen.ts` |
 | O-71 | Abgeleitete Befunde, Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz (Zeiteintrag, Person, Einsatz) und brauchen keine eigene Löschentscheidung; Abwesenheiten fallen mit der Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO) und werden dann anonymisiert, der Werbewiderspruch bleibt als Nachweis (§ 7 UWG). Die Matrix kennt keinen Sperrgrund „Voreinstellung" (V-340); ihre O-71-Zeilen stehen weiter auf „offen", die Löschseite sagt die Voreinstellung dazu. | `datenschutz/loeschentscheidung.ts` (`O71_VOREINSTELLUNG`), Datenschutz › Vorgang › Löschung, `db/seed/datenschutz.ts` |
 | O-72 | Keine Projekte ohne Auftrag: Akquise lebt in `akquise_ziel` und `lead`, bis ein Auftrag entsteht; interne Vorhaben sind kein Bauprojekt dieser Plattform. Wie gebaut (`projekt_auftrag_uk`). | `bau/projekt.ts` |
 | O-73 | Die Arbeitsvokabulare sind die Enums der Migrationen 0017, 0024 und 0025: `lead_status` (neu, in_bearbeitung, angebot, gewonnen, verloren, kein_bedarf), `lead_prioritaet` (niedrig, normal, hoch), `angebot_status`, `angebotsposition_typ`, `auftrag_art` (einzelauftrag, rahmenvertrag, dauerauftrag, projekt), `auftrag_status` (angelegt, aktiv, pausiert, abgeschlossen, storniert); ein weiterer Wert ist eine Migration, kein Freitext. Die Kundenseiten sagen „Voreinstellung" statt „Platzhalter". | Kundenportal › Angebote, Aufträge; `drizzle/0017`, `0024`, `0025` |
@@ -26765,4 +26765,52 @@ der Freigabe; fremdes Wort abgewiesen), `tests/isolation/recruiting.test.ts`,
 `tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-362; O-200, O-374; `drizzle/0512_stelle_beschaeftigungsart.sql`, `src/server/services/recruiting/beschaeftigungsart.ts`, `src/server/services/recruiting/dienst.ts`, `src/server/services/recruiting/stellenentwurf.ts`, `src/app/api/recruiting/stellen/felder.ts`, `src/app/api/recruiting/stellen/[id]/route.ts`, `src/app/api/recruiting/stellen/entwurf/route.ts`, `src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts`, `src/server/versand/stellenboerse.ts`, `src/app/portal/[mandant]/recruiting/stellen/{neu,[id]}/page.tsx`, `src/app/(public)/karriere/{daten,texte}.ts`, `src/app/(public)/karriere/Seiten.tsx`, `src/lib/i18n/verwaltung/recruiting-{stellenentwurf,rueckmeldung}.ts`, `src/server/db/seed/{recruiting,stellenentwurf}.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-817 · Bauwelle 14: Dasselbe Gebäude nicht zweimal als Objekt (V-361)
+
+**Der Anlass.** Ein Gebäude ist ein Objekt (O-70, D-792) — zwei hiessen zwei
+Raumbücher, zwei Schlüsselsätze und zwei Objektnummern für dieselbe Tür.
+`legeObjektAn` legte aber jedes Mal an; weder `objekt` (0021) noch der Dienst
+prüften die Anschrift, und zwei Erfasser konnten dasselbe Haus zweimal anlegen
+(Prüfstand PR #35).
+
+**Was gebaut ist.**
+- **Dieselbe Anschrift** (`objekt/anschrift.ts`, rein): der Schlüssel aus
+  Postleitzahl, Strasse und Hausnummer, normalisiert — Gross- und
+  Kleinschreibung, Umlaute und ß, Akzente, „Straße"/„Strasse"/„Str." am
+  Wortende, Leerzeichen und Satzzeichen zählen nicht. Eine andere Hausnummer
+  (`5` und `5a`), eine andere Postleitzahl und „Str" mitten im Wort
+  („Strassburger Platz") bleiben verschieden. Verglichen wird im Dienst,
+  gesucht je Postleitzahl in der Datenbank — eine zweite Fassung der Regel in
+  SQL liefe ihr davon.
+- **Die Rückfrage** (`findeAnschriftDubletten`, `legeObjektAn`): gibt es unter
+  derselben Anschrift schon lebende Objekte der aktiven Gesellschaft, wird nur
+  mit `trotzDublette` angelegt; sonst `anschrift_vorhanden` (409) mit der Zahl.
+  Archivierte Objekte und andere Gesellschaften zählen nicht. Eine Wohnanlage
+  mit einer Hausnummer bleibt möglich — nach der Bestätigung.
+- **Das Formular** (Objekte › Neu): nach der Rückfrage stehen die Eingaben
+  wieder im Formular, die Seite nennt die vorhandenen Objekte mit Verweis (aus
+  der Datenbank, nicht aus der Adresse) und verlangt ein Häkchen „Ich habe die
+  vorhandenen Objekte gesehen und lege trotzdem ein weiteres an". Zutrittshinweis
+  und Bemerkung reisen nicht über die Adresse (sie können Codes tragen, und eine
+  Adresse landet in Protokollen) — die Seite sagt es. de/en.
+- **Nicht Teil:** eine Änderung der Anschrift eines bestehenden Objekts fragt
+  nicht nach; sie ist selten und betrifft ein Objekt, das schon Raumbuch und
+  Schlüssel hat.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-70 | Ein Gebäude ist ein Objekt; unter derselben Anschrift legt die Plattform ein weiteres Objekt erst nach einer bewussten Bestätigung an — wie D-792, jetzt mit Rückfrage. | `objekt/anlegen.ts`, `objekt/anschrift.ts`, Objekte › Neu |
+
+**Prüfung.** `tests/kern/objekt-anschrift.test.ts` (gleiche und verschiedene
+Schreibweisen, „Str" im Wort, Rücktransport), `tests/isolation/objekt-anlegen.test.ts`
+§V-361 (Rückfrage mit Zahl, Bestätigung, Hausnummer, Gesellschaft, Archiv; die
+übrigen Fälle bestätigen ihre gemeinsame Testanschrift ausdrücklich),
+`tests/isolation/revier-anlegen.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-361; O-70; `src/server/services/objekt/anschrift.ts`, `src/server/services/objekt/anlegen.ts`, `src/app/api/objekt/route.ts`, `src/app/portal/[mandant]/objekte/neu/page.tsx`, `src/app/portal/[mandant]/objekte/ObjektFormular.tsx`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/registry/dienste.ts` |
 |---|---|

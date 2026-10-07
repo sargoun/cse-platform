@@ -65,9 +65,15 @@ function sitzung(mandantId = f.reinigung) {
            readonly: false, portal: 'intern' as const };
 }
 
+/*
+ * Diese Fälle legen bewusst viele Objekte unter EINER Anschrift an — es geht
+ * um Nummern, Koordinaten und Grenzen, nicht um Dubletten. Die Bestätigung
+ * steht deshalb hier; die Dublettenprüfung selbst prüft §V-361 unten mit
+ * eigenen Anschriften.
+ */
 const GRUND = {
   bezeichnung: 'Bürohaus Testallee', strasse: 'Testallee',
-  plz: '10115', ort: 'Berlin',
+  plz: '10115', ort: 'Berlin', trotzDublette: true,
 } as const;
 
 describe('§1 die Objektnummer', () => {
@@ -346,3 +352,43 @@ describe('§6 Koordinaten (V-170, OPS-01, BAU-08)', () => {
     expect(await lies(a.id)).toEqual({ geo_lat: '52.500000', geo_lon: '13.400000' });
   });
 });
+
+describe('§V-361 dasselbe Gebäude nicht zweimal (O-70, D-817)', () => {
+  const zufall = (): string => String(Math.random()).slice(2, 8);
+  const anlegen = (mandant: string, eingabe: Record<string, unknown>) =>
+    alsApp(sitzung(mandant), (tx) => legeObjektAn(kontextAus(tx, mandant), {
+      bezeichnung: 'Haus', ort: 'Berlin', ...eingabe,
+    } as never));
+
+  it('dieselbe Anschrift in anderer Schreibweise fragt nach — mit der Zahl', async () => {
+    const strasse = `Dublettenstraße ${zufall()}`;
+    await anlegen(f.reinigung, { strasse, hausnummer: '5a', plz: '10117' });
+    const variante = strasse.replace('straße', 'str.').toUpperCase();
+    await expect(anlegen(f.reinigung, { strasse: variante, hausnummer: '5 A', plz: '10117' }))
+      .rejects.toMatchObject({ grund: 'anschrift_vorhanden', anzahl: 1, status: 409 });
+  });
+
+  it('mit Bestätigung legt es an — ein weiteres Haus einer Wohnanlage', async () => {
+    const strasse = `Anlagenweg ${zufall()}`;
+    const a = await anlegen(f.reinigung, { strasse, hausnummer: '1', plz: '10117' });
+    const b = await anlegen(f.reinigung, {
+      strasse, hausnummer: '1', plz: '10117', trotzDublette: true,
+    });
+    expect(b.id).not.toBe(a.id);
+    // Und das dritte nennt jetzt zwei.
+    await expect(anlegen(f.reinigung, { strasse, hausnummer: '1', plz: '10117' }))
+      .rejects.toMatchObject({ grund: 'anschrift_vorhanden', anzahl: 2 });
+  });
+
+  it('eine andere Hausnummer, eine andere Gesellschaft, ein archiviertes Objekt zählen nicht', async () => {
+    const strasse = `Grenzweg ${zufall()}`;
+    const a = await anlegen(f.reinigung, { strasse, hausnummer: '7', plz: '10117' });
+    await anlegen(f.reinigung, { strasse, hausnummer: '7b', plz: '10117' });
+    await anlegen(f.security, { strasse, hausnummer: '7', plz: '10117' });
+    await anlegen(f.reinigung, { strasse, hausnummer: '7', plz: '10119' });
+    await alsApp(sitzung(), (tx) => archiviereObjekt(kontextAus(tx, f.reinigung), a.id));
+    const c = await anlegen(f.reinigung, { strasse, hausnummer: '7', plz: '10117' });
+    expect(c.id).not.toBe(a.id);
+  });
+});
+
