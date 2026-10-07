@@ -12,6 +12,11 @@ import {
   fehlendeBriefkopfangaben, findeMahnung, mahnungstext, type MahnungStatus,
 } from '@/server/services/finanz/mahnung/index';
 import { tagInSprache } from '@/lib/datum/kalendertag';
+import { zeitpunktInSprache } from '@/lib/datum/zeitpunkt';
+import { Recht } from '@/components/ui/Recht';
+import {
+  ladeFolgeaktion, type FolgeaktionStand,
+} from '@/server/services/finanz/mahnung/folgeaktion';
 import { haeltRechte } from '@/app/portal/rechte';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { portalZugang } from '../../../../zugang';
@@ -68,10 +73,16 @@ export default async function MahnungDetail(
   const t = nachSprache(MAHNUNGEN_TEXTE, zugang.sprache);
   const g = verwaltungTexte(zugang.sprache);
 
-  const vorgang = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => findeMahnung(kontext, id)))
-    ) as Awaited<ReturnType<typeof findeMahnung>>;
-  if (vorgang === null) notFound();
+  const geladen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => {
+      const v = await findeMahnung(kontext, id);
+      return v === null ? null : { vorgang: v, folge: await ladeFolgeaktion(kontext, id) };
+    }))) as {
+      vorgang: NonNullable<Awaited<ReturnType<typeof findeMahnung>>>;
+      folge: FolgeaktionStand | null;
+    } | null;
+  if (geladen === null) notFound();
+  const { vorgang, folge } = geladen;
   const { kopf, positionen } = vorgang;
   /*
    * Das Schreiben, wie es hinausgeht (V-213, V-214) — aus DERSELBEN Funktion,
@@ -80,7 +91,7 @@ export default async function MahnungDetail(
    */
   const schreiben = mahnungstext(kopf, positionen);
   const briefkopfLuecken = fehlendeBriefkopfangaben(kopf.absender);
-  const darf = await haeltRechte(sitzung, 'dokument.lesen');
+  const darf = await haeltRechte(sitzung, 'dokument.lesen', 'mahnung.schreiben');
   const sp = zugang.sprache;
   const geld = (c: Parameters<typeof formatiereGeldIn>[0]): string => formatiereGeldIn(c, sp);
 
@@ -344,6 +355,61 @@ export default async function MahnungDetail(
           </form>
         </section>
       ) : null}
+
+      {/*
+        * **Die Folgeaktion der Stufe** (V-313, O-181, D-840): wann sie fällig
+        * wird, dass sie fällig ist — und der Vermerk, dass ein Mensch sie
+        * ausgelöst hat. Die Plattform übergibt nichts.
+        */}
+      {folge === null || folge.art === 'keine' || folge.art === 'erledigt' ? null : (
+        <section
+          aria-labelledby="folgeaktion-titel"
+          data-cse="mahn-folgeaktion" data-stand={folge.art}
+          className="mt-s5 max-w-prose rounded-lg border border-line bg-surface p-s5"
+        >
+          <h2 id="folgeaktion-titel" className="text-h2 text-text">{t.folgeaktionTitel}</h2>
+          {folge.art === 'wartet' ? (
+            <p className="mt-s2 text-sm text-text" data-cse="mahn-folgeaktion-wartet">
+              {t.folgeaktionWartet(t.folgeaktionNamen[folge.aktion], tagInSprache(folge.abTag, sp))}
+            </p>
+          ) : folge.art === 'faellig' ? (
+            <>
+              <Hinweis art="warnung" cse="mahn-folgeaktion-faellig" className="mt-s3">
+                {t.folgeaktionFaellig(t.folgeaktionNamen[folge.aktion], tagInSprache(folge.seitTag, sp))}
+              </Hinweis>
+              <p className="mt-s3 text-xs text-text-muted">{t.folgeaktionMensch}</p>
+              {darf['mahnung.schreiben'] === true ? (
+                <form method="post" action={`/api/finanzen/mahnungen?mandant=${mandant}`}
+                      data-cse="mahn-folgeaktion-formular">
+                  <input type="hidden" name="aktion" value="folgeaktion" />
+                  <input type="hidden" name="mahnungId" value={kopf.id} />
+                  <label className="mt-s3 block text-sm text-text" htmlFor="folge-begruendung">
+                    {t.folgeaktionVermerk}
+                  </label>
+                  <input
+                    id="folge-begruendung" name="begruendung" type="text" required minLength={5}
+                    className={feld} placeholder={t.folgeaktionPlatzhalter}
+                  />
+                  <button type="submit" className={knopf}>{t.folgeaktionKnopf}</button>
+                </form>
+              ) : (
+                <p className="mt-s3 text-sm text-text-muted" data-cse="mahn-folgeaktion-ohne-recht">
+                  {t.folgeaktionOhneRechtVor}{' '}<Recht schluessel="mahnung.schreiben" sprache={sp} />{' '}{t.folgeaktionOhneRechtNach}
+                </p>
+              )}
+            </>
+          ) : (
+            <Hinweis art="erfolg" cse="mahn-folgeaktion-vermerkt" className="mt-s3">
+              {t.folgeaktionVermerkt(
+                t.folgeaktionNamen[folge.aktion],
+                zeitpunktInSprache(folge.vermerk.vermerktAm, sp),
+                folge.vermerk.vermerktVon ?? t.unbekannt)}
+              <span className="mt-s1 block text-xs text-text-muted">{folge.vermerk.begruendung}</span>
+            </Hinweis>
+          )}
+          <p className="mt-s3 text-xs text-text-muted">{t.folgeaktionVoreinstellung}</p>
+        </section>
+      )}
 
       {/*
         * **Abschliessen** (V-084).

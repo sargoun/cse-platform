@@ -25,9 +25,12 @@ import { verbucheZahlungseingang, storniereZahlung }
 import { ermittleVorschlaege, legeMahnentwurfAn }
   from '../../src/server/services/finanz/mahnung/lauf.js';
 import {
-  KanalNichtVerbundenFehler, MahnungFehler, dokumentiereVersand, findeMahnung,
+  KanalNichtVerbundenFehler, MahnungFehler, dokumentiereVersand, erledige, findeMahnung,
   gibFrei, mahnungNutzlast, mahnungstext, verwirf,
 } from '../../src/server/services/finanz/mahnung/index.js';
+import {
+  FolgeaktionFehler, ladeFolgeaktion, vermerkeUebergabe,
+} from '../../src/server/services/finanz/mahnung/folgeaktion.js';
 import { StufenFehler, bestaetigeStufe, mahnstufen }
   from '../../src/server/services/finanz/mahnung/stufen.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
@@ -106,19 +109,23 @@ async function macheFakturierfaehig(mandantId: string): Promise<void> {
 /** Eine bestätigte Stufe — der Gegenstand von O-19, hier als Vorrichtung. */
 async function legeStufeAn(
   stufe: number, tage: number,
-  optionen: { gebuehrCent?: bigint; zins?: 'keine' | 'gesetzlich_b2b' } = {},
+  optionen: {
+    gebuehrCent?: bigint; zins?: 'keine' | 'gesetzlich_b2b';
+    folgeaktion?: 'keine' | 'lieferstopp' | 'inkasso' | 'mahnbescheid';
+  } = {},
 ): Promise<string> {
   const [s] = await sql.unsafe<{ id: string }[]>(
     `insert into mahnstufe
        (mandant_id, stufe, bezeichnung, tage_nach_faelligkeit, gebuehr_cent,
         zinsberechnung, zins_methode, ist_platzhalter, gueltig_ab,
-        erstellt_von_art, erstellt_von_dienst)
+        erstellt_von_art, erstellt_von_dienst, folgeaktion)
      values ($1, $2, $3, $4, $5, $6::mahn_zinsberechnung,
              case when $6 = 'keine' then null else 'act_365'::zins_methode end,
-             false, '2026-01-01', 'system', 'job:test')
+             false, '2026-01-01', 'system', 'job:test', $7::mahn_folgeaktion)
      returning id`,
     [f.reinigung, stufe, `Stufe ${String(stufe)}`, tage,
-     (optionen.gebuehrCent ?? 0n).toString(), optionen.zins ?? 'keine']);
+     (optionen.gebuehrCent ?? 0n).toString(), optionen.zins ?? 'keine',
+     optionen.folgeaktion ?? 'keine']);
   return s!.id;
 }
 
@@ -1150,5 +1157,125 @@ describe('(9) die Freigabe friert den Brief ein', () => {
       'select status::text as status, nummer from mahnung where id = $1', [mahnungId]);
     expect(zeile!.status).toBe('entwurf');
     expect(zeile!.nummer).toBeNull();
+  });
+});
+
+/*
+ * V-313 (O-181, D-840): die Folgeaktion der Stufe. Fällig ist sie am Tag nach
+ * der Zahlungsfrist einer versendeten Mahnung; ein Mensch vermerkt, dass er
+ * sie ausgelöst hat — die Plattform übergibt nichts.
+ */
+describe('(10) V-313 — die Folgeaktion der Stufe wird fällig gesagt und vermerkt', () => {
+  async function versendet(
+    folgeaktion: 'keine' | 'inkasso', zahlbarVorTagen: number,
+  ): Promise<string> {
+    const id = await festgeschrieben();
+    await macheUeberfaellig(id, 40);
+    await legeStufeAn(1, 14, { gebuehrCent: 500n, folgeaktion });
+    const mahnungId = await alsApp(sitzung(), async (tx) => {
+      const lage = await ermittleVorschlaege(alsDienst(tx));
+      return legeMahnentwurfAn(alsDienst(tx), lage.vorschlaege[0]!);
+    });
+    await alsApp(sitzung(), async (tx) =>
+      gibFrei(kontextAus(tx), mahnungId, 'Freigegeben zur Versendung als Brief.'));
+    await alsApp(sitzung(), async (tx) => dokumentiereVersand(
+      kontextAus(tx), { id: mahnungId, versandart: 'brief', empfaenger: 'Beispiel GmbH' },
+      new LokalerSpeicher()));
+    /* Die Zahlungsfrist verschieben — als Eigentümer, mit abgeschalteten Auslösern. */
+    await sql.begin(async (tx) => {
+      await tx.unsafe(`set local session_replication_role = replica`);
+      await tx.unsafe(
+        `update mahnung set mahndatum = least(mahndatum, app.berlin_heute() - $2::integer),
+                            zahlbar_bis = app.berlin_heute() - $2::integer
+          where id = $1`, [mahnungId, zahlbarVorTagen] as never[]);
+    });
+    return mahnungId;
+  }
+
+  const stand = (mahnungId: string) =>
+    alsApp(sitzung(), (tx) => ladeFolgeaktion(kontextAus(tx), mahnungId));
+  const vermerke = (mahnungId: string, begruendung: string) =>
+    alsApp(sitzung(), (tx) => vermerkeUebergabe(kontextAus(tx), mahnungId, { begruendung }));
+  const grund = (p: Promise<unknown>) => p.then(() => 'kein_fehler',
+    (e: unknown) => (e instanceof FolgeaktionFehler ? e.grund : String(e)));
+  const heute = async (plus = 0): Promise<string> => {
+    const [h] = await sql.unsafe<{ tag: string }[]>(
+      `select (app.berlin_heute() + $1::integer)::text as tag`, [plus]);
+    return h!.tag;
+  };
+
+  it('am letzten Tag der Frist wartet sie — fällig am Tag danach', async () => {
+    const mahnungId = await versendet('inkasso', 0);
+    expect(await stand(mahnungId)).toEqual({ art: 'wartet', aktion: 'inkasso', abTag: await heute(1) });
+    expect(await grund(vermerke(mahnungId, 'Übergeben an Inkassobüro Muster'))).toBe('noch_nicht_faellig');
+  });
+
+  it('nach der Frist ist sie fällig; der Vermerk hält Aktion, Grund, Mensch und Serverzeit fest', async () => {
+    const mahnungId = await versendet('inkasso', 1);
+    expect(await stand(mahnungId)).toEqual({ art: 'faellig', aktion: 'inkasso', seitTag: await heute() });
+    expect(await grund(vermerke(mahnungId, ' kurz '))).toBe('ohne_begruendung');
+
+    expect(await vermerke(mahnungId, '  Übergeben an Inkassobüro Muster, Akte 123  '))
+      .toEqual({ aktion: 'inkasso' });
+    const [e] = await sql.unsafe<{
+      aktion: string; begruendung: string; von: string; jetzt: boolean;
+      freigabe: string | null; ausgefuehrt: string | null; art: string;
+    }[]>(
+      `select aktion::text as aktion, begruendung, freigegeben_von::text as von,
+              freigegeben_am between now() - interval '1 minute' and now() as jetzt,
+              freigabe_id::text as freigabe, ausgefuehrt_am::text as ausgefuehrt,
+              erstellt_von_art::text as art
+         from mahnung_eskalation where mahnung_id = $1`, [mahnungId]);
+    expect(e).toEqual({
+      aktion: 'inkasso', begruendung: 'Übergeben an Inkassobüro Muster, Akte 123',
+      von: benutzer, jetzt: true, freigabe: null, ausgefuehrt: null, art: 'mensch',
+    });
+    const protokoll = await sql.unsafe<{ aktion: string }[]>(
+      `select nachher ->> 'aktion' as aktion from audit_log
+        where aktion = 'mahnung.folgeaktion_vermerkt' and objekt_id = $1`, [mahnungId]);
+    expect(protokoll).toEqual([{ aktion: 'inkasso' }]);
+
+    const danach = await stand(mahnungId);
+    expect(danach).toMatchObject({ art: 'vermerkt', aktion: 'inkasso',
+      vermerk: { begruendung: 'Übergeben an Inkassobüro Muster, Akte 123' } });
+    expect(await grund(vermerke(mahnungId, 'Noch einmal übergeben'))).toBe('schon_vermerkt');
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from mahnung_eskalation where mahnung_id = $1`, [mahnungId]);
+    expect(n!.n).toBe(1);
+  });
+
+  it('eine Stufe ohne Folgeaktion sagt nichts und nimmt keinen Vermerk', async () => {
+    const mahnungId = await versendet('keine', 5);
+    expect(await stand(mahnungId)).toEqual({ art: 'keine' });
+    expect(await grund(vermerke(mahnungId, 'Übergeben an Inkassobüro Muster'))).toBe('keine_folgeaktion');
+  });
+
+  it('eine erledigte Sache braucht keine Folgeaktion mehr', async () => {
+    const mahnungId = await versendet('inkasso', 3);
+    /*
+     * V-084, 0527: der Übergang versendet → erledigt stand im Auslöser, war
+     * aber hinter der Sperre unerreichbar — „Als erledigt vermerken"
+     * scheiterte an der Datenbank. Jetzt geht er, und nur einmal.
+     */
+    await alsApp(sitzung(), (tx) => erledige(kontextAus(tx), mahnungId));
+    const [z] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from mahnung where id = $1`, [mahnungId]);
+    expect(z!.status).toBe('erledigt');
+    await expect(alsApp(sitzung(), (tx) => erledige(kontextAus(tx), mahnungId)))
+      .rejects.toSatisfy((e: unknown) => e instanceof MahnungFehler && e.grund === 'nicht_versendet');
+    await expect(sql.unsafe(`update mahnung set status = 'versendet' where id = $1`, [mahnungId]))
+      .rejects.toThrow(/nicht mehr umgestellt/u);
+    expect(await stand(mahnungId)).toEqual({ art: 'erledigt' });
+    expect(await grund(vermerke(mahnungId, 'Übergeben an Inkassobüro Muster'))).toBe('nicht_versendet');
+  });
+
+  it('eine lesende Sitzung vermerkt nichts', async () => {
+    const mahnungId = await versendet('inkasso', 2);
+    await expect(alsApp({ ...sitzung(), readonly: true }, (tx) =>
+      vermerkeUebergabe(kontextAus(tx), mahnungId, { begruendung: 'Übergeben an Inkassobüro' })))
+      .rejects.toThrow();
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from mahnung_eskalation where mahnung_id = $1`, [mahnungId]);
+    expect(n!.n).toBe(0);
   });
 });

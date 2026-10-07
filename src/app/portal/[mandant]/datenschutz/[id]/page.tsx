@@ -8,7 +8,7 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import {
-  ART_TEXT, ZUORDNUNG_TEXT, kandidaten, type Kandidat,
+  ART_TEXT, ZUORDNUNG_TEXT, antwortwegVorgabe, antwortwegeFuer, kandidaten, type Kandidat,
 } from '@/server/services/datenschutz/anfrage';
 import { erteilte, type AuskunftZeile } from '@/server/services/datenschutz/auskunft';
 import { liste as berichtigungen } from '@/server/services/datenschutz/berichtigung';
@@ -501,6 +501,25 @@ export default async function Vorgangsakte(
               <textarea name="entscheidung" rows={4} required className={feld}
                         data-cse="abschluss-text" />
             </label>
+            {/*
+              * **Der Antwortweg** (V-370, O-892). Die Plattform versendet
+              * nichts; festgehalten wird, wie ein Mensch geantwortet hat.
+              * Angeboten wird nur, was erreichbar ist — vorgewählt der Weg, auf
+              * dem die Anfrage kam.
+              */}
+            <fieldset className="m-0 border-0 p-0" data-cse="abschluss-antwortweg">
+              <legend className="mb-s2 text-sm text-text">Die Antwort geht</legend>
+              <div className="flex flex-wrap gap-s4">
+                {antwortwegeFuer(z).map((w) => (
+                  <label key={w} className="flex min-h-11 items-center gap-s2 text-sm text-text">
+                    <input type="radio" name="antwortweg" value={w}
+                           defaultChecked={w === antwortwegVorgabe(z)}
+                           className="h-4 w-4 accent-[var(--farbe-brand)]" />
+                    {w === 'email' ? `per E-Mail an ${z.email ?? ''}` : 'per Brief an die Anschrift'}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <div className="flex flex-wrap gap-s2">
               <Button type="submit" name="handlung" value="beantwortet"
                       variante="primary">

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  AnfrageFehler, AUFNAHME_WEGE, istAufnahmeWeg, nimmAnfrageAuf,
+  AnfrageFehler, AUFNAHME_WEGE, entscheide, istAufnahmeWeg, lade, nimmAnfrageAuf,
 } from '../../src/server/services/datenschutz/anfrage.js';
 
 /**
@@ -276,4 +276,114 @@ describe('§4 die Eingaben werden geprüft, nicht durchgereicht', () => {
     expect(z!.name).toBe('Amira Said');
     expect(z!.email).toBe('amira@post.invalid');
   });
+});
+
+/*
+ * **§5 Ohne E-Mail-Adresse, mit Anschrift** (V-370, O-892, D-844, 0529).
+ *
+ * Bis hierher war die Adresse auch beim Brief Pflicht, und die Anschrift
+ * stand in der Nachricht. Jetzt: E-Mail ODER Anschrift, und die Antwort geht
+ * auf dem Weg, auf dem die Anfrage kam — festgehalten bei der Entscheidung.
+ */
+describe('§5 die Anfrage per Brief braucht keine E-Mail-Adresse', () => {
+  const ANSCHRIFT = 'Amira Said\nLindenstraße 12\n10969 Berlin';
+
+  async function zeile(id: string) {
+    const [z] = await alsRolle('', (tx) => tx.unsafe(
+      `select email, anschrift, antwortweg, status::text as status
+         from betroffenenanfrage where id = $1`, [id]),
+    ) as unknown as {
+      email: string | null; anschrift: string | null; antwortweg: string | null; status: string;
+    }[];
+    return z!;
+  }
+
+  it('ein Brief mit Anschrift und ohne Adresse wird zur Zeile', async () => {
+    const a = await imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+      ...BRIEF, email: '', anschrift: `  ${ANSCHRIFT}\r\n`,
+    }));
+    const z = await zeile(a.id);
+    expect(z.email).toBeNull();
+    expect(z.anschrift).toBe(ANSCHRIFT);
+    expect(z.antwortweg).toBeNull();
+    // Die Seite liest sie wie jede andere — mit leerer Adresse.
+    const gelesen = await imKontext(dsb, (k) => lade(k, a.id));
+    expect(gelesen).toMatchObject({ email: null, anschrift: ANSCHRIFT, antwortweg: null });
+  });
+
+  it('weder Adresse noch Anschrift, eine kaputte Adresse, eine zu lange Anschrift: je ein Grund',
+    async () => {
+      await expect(imKontext(dsb, (k) => nimmAnfrageAuf(k, { ...BRIEF, email: '  ' })))
+        .rejects.toMatchObject({ grund: 'nicht_erreichbar' });
+      await expect(imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+        ...BRIEF, email: 'amira', anschrift: ANSCHRIFT,
+      }))).rejects.toMatchObject({ grund: 'email_ungueltig' });
+      await expect(imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+        ...BRIEF, email: '', anschrift: 'x'.repeat(501),
+      }))).rejects.toMatchObject({ grund: 'anschrift_zu_lang' });
+    });
+
+  it('die Datenbank hält dasselbe: erreichbar, und das Formular nur mit Adresse', async () => {
+    await expect(alsRolle('', (tx) => tx.unsafe(
+      `insert into betroffenenanfrage (mandant_id, art, name, eingangsweg, erfasst_von)
+       values ($1, 'auskunft', 'Amira Said', 'brief', $2)`, [f.reinigung, dsb])))
+      .rejects.toThrow(/betroffenenanfrage_erreichbar/);
+    await expect(alsRolle('', (tx) => tx.unsafe(
+      `insert into betroffenenanfrage (mandant_id, art, name, anschrift, eingangsweg)
+       values ($1, 'auskunft', 'Amira Said', 'Lindenstraße 12', 'formular')`, [f.reinigung])))
+      .rejects.toThrow(/betroffenenanfrage_formular_mit_email/);
+  });
+
+  it('die Antwort auf einen Brief ohne Adresse geht per Brief — per E-Mail geht sie nicht',
+    async () => {
+      const a = await imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+        ...BRIEF, email: '', anschrift: ANSCHRIFT,
+      }));
+      await expect(imKontext(dsb, (k) => entscheide(k, a.id, 'beantwortet',
+        'Auskunft nach Art. 15 erteilt.', 'email')))
+        .rejects.toMatchObject({ grund: 'antwortweg_unmoeglich' });
+      expect((await zeile(a.id)).status).toBe('neu');
+      await imKontext(dsb, (k) => entscheide(k, a.id, 'beantwortet',
+        'Auskunft nach Art. 15 erteilt, per Brief.'));
+      expect(await zeile(a.id)).toMatchObject({ antwortweg: 'brief', status: 'beantwortet' });
+    });
+
+  it('der Weg der Anfrage ist die Vorgabe, gewählt wird unter dem Erreichbaren', async () => {
+    // Ein Brief mit beidem: die Antwort geht per Brief, wenn niemand wählt …
+    const brief = await imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+      ...BRIEF, anschrift: ANSCHRIFT,
+    }));
+    await imKontext(dsb, (k) => entscheide(k, brief.id, 'abgelehnt', 'Offensichtlich unbegründet.'));
+    expect((await zeile(brief.id)).antwortweg).toBe('brief');
+    // … ein Anruf mit Adresse per E-Mail; per Brief ginge sie ohne Anschrift nicht.
+    const anruf = await imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+      ...BRIEF, eingangsweg: 'telefon',
+    }));
+    await expect(imKontext(dsb, (k) => entscheide(k, anruf.id, 'beantwortet', 'Erteilt.', 'brief')))
+      .rejects.toMatchObject({ grund: 'antwortweg_unmoeglich' });
+    await imKontext(dsb, (k) => entscheide(k, anruf.id, 'beantwortet', 'Erteilt.'));
+    expect((await zeile(anruf.id)).antwortweg).toBe('email');
+    // Gewählt wird auch gegen die Vorgabe, wenn der Weg erreichbar ist.
+    const beides = await imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+      ...BRIEF, anschrift: ANSCHRIFT,
+    }));
+    await imKontext(dsb, (k) => entscheide(k, beides.id, 'beantwortet', 'Erteilt.', 'email'));
+    expect((await zeile(beides.id)).antwortweg).toBe('email');
+  });
+
+  it('die Datenbank nimmt keinen Antwortweg, der nicht erreicht — und keinen vor der Entscheidung',
+    async () => {
+      const a = await imKontext(dsb, (k) => nimmAnfrageAuf(k, {
+        ...BRIEF, email: '', anschrift: ANSCHRIFT,
+      }));
+      await expect(alsRolle('', (tx) => tx.unsafe(
+        `update betroffenenanfrage set antwortweg = 'brief' where id = $1`, [a.id])))
+        .rejects.toThrow(/betroffenenanfrage_antwortweg_nur_entschieden/);
+      await expect(alsRolle('', (tx) => tx.unsafe(
+        `update betroffenenanfrage
+            set status = 'beantwortet', entscheidung = 'x', beantwortet_am = now(),
+                beantwortet_von = $2, antwortweg = 'email'
+          where id = $1`, [a.id, dsb])))
+        .rejects.toThrow(/betroffenenanfrage_antwortweg_erreichbar/);
+    });
 });

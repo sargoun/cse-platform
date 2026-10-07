@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
@@ -51,8 +52,10 @@ import { Recht } from '@/components/ui/Recht';
  * `abrechnung.freistellung_pflegen` öffnet und das Lesen der Rechnung
  * `eingang.lesen` verlangt. Drei verschiedene Schlüssel für einen Bildschirm.
  * Welcher gelten soll, ist eine Entscheidung am Rechtemodell und keine, die
- * eine Seite trifft (O-604). Bis dahin zeigt sie die Bescheinigungen und
- * verlinkt dorthin, wo sie gepflegt werden.
+ * eine Seite trifft (O-604). Die Voreinstellung (D-779) folgt der Policy:
+ * gepflegt wird mit `finanzen.schreiben`, und zwar auf der eigenen Seite
+ * `/finanzen/freistellungen` (V-283, D-845). Diese Seite zeigt die
+ * Bescheinigungen und verweist dorthin.
  */
 export const dynamic = 'force-dynamic';
 
@@ -127,7 +130,7 @@ export default async function Steuerblatt(
    * statt einen leeren Bildschirm zu zeigen.
    */
   const darf = await haeltRechte(
-    sitzung, 'eingang.lesen', 'finanzen.lesen', 'finanzen.schreiben');
+    sitzung, 'eingang.lesen', 'finanzen.lesen', 'finanzen.schreiben', 'dokument.lesen');
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
@@ -652,26 +655,36 @@ export default async function Steuerblatt(
               },
               {
                 schluessel: 'dokument', kopf: t.beleg,
+                /* Die Datei-Adresse verlangt `dokument.lesen` — ohne es kein Knopf (AUT-06). */
                 zelle: (b) => (b.dokumentId === null
                   ? <span className="text-text-subtle">{t.keinDokument}</span>
-                  : (
+                  : darf['dokument.lesen'] === true ? (
                     <a
                       href={`/api/dokumente/${b.dokumentId}/datei`}
                       className="text-text underline-offset-2 hover:text-brand hover:underline"
                     >
                       {g.oeffnen}
                     </a>
-                  )),
+                  ) : <span className="text-text-subtle">{t.dokumentOhneRecht}</span>),
               },
             ]}
           />
         )}
 
-        <Hinweis art="warnung" cse="steuer-pflege-offen" className="mt-s5">
+        {/*
+          * V-283 (D-845): gepflegt wird auf der eigenen Seite der Bescheinigungen.
+          * Der Verweis nur mit `finanzen.lesen` — ohne es antwortet sie 404 (AUT-06).
+          */}
+        <Hinweis art="hinweis" cse="steuer-pflege" className="mt-s5">
           <p className="m-0 max-w-prose">
-            <strong>{t.pflegeOffenBetont}</strong> {t.pflegeOffenVor}{' '}
-            <Recht schluessel={RECHT_FINANZEN_SCHREIBEN} sprache={zugang.sprache} />{t.pflegeOffenDrei}{' '}
-            <Recht schluessel={RECHT_FREISTELLUNG_PFLEGEN} sprache={zugang.sprache} />{t.pflegeOffenNach}
+            <strong>{t.pflegeBetont}</strong> {t.pflegeOrt}{' '}
+            {darf[RECHT_FINANZEN_LESEN] === true ? (
+              <Link href={`/portal/${mandant}/finanzen/freistellungen`} data-cse="steuer-pflege-verweis"
+                    className="text-text underline underline-offset-2 hover:text-brand">
+                {t.pflegeVerweis}
+              </Link>
+            ) : t.pflegeVerweis}.{' '}
+            {t.pflegeRechtVor}{' '}<Recht schluessel={RECHT_FINANZEN_SCHREIBEN} sprache={zugang.sprache} />{' '}{t.pflegeRechtNach}
           </p>
         </Hinweis>
       </section>
@@ -686,5 +699,5 @@ export default async function Steuerblatt(
   );
 }
 
-// TODO(client, O-604): Welches Recht öffnet die Pflege der §48b-Freistellungsbescheinigung — `abrechnung.freistellung_pflegen` (so das Routenregister), `finanzen.schreiben` (so die Policy auf `freistellungsbescheinigung`) oder `eingang.lesen` (so der Beleg daneben)? Bis zur Antwort pflegt diese Seite nichts und nennt bei fehlendem `finanzen.lesen` den Ausgang ausdrücklich „nicht bewertbar" statt „Einbehalt".
+// TODO(client, O-604): Voreinstellung — die §48b-Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben` (dem Recht der Policy auf `freistellungsbescheinigung`) auf `/finanzen/freistellungen` (V-283, D-845); diese Seite öffnet weiter mit `abrechnung.freistellung_pflegen` (so das Routenregister), liest nur und nennt bei fehlendem `finanzen.lesen` den Ausgang ausdrücklich „nicht bewertbar" statt „Einbehalt".
 // TODO(client, O-605): Voreinstellung — der §13b-Status der EIGENEN Gesellschaft als Leistungsempfängerin wird am Beleg gespeichert und nicht tagesaktuell neu bewertet; als Zeitreihe (wie `kunde_bauleistender_status`) ist er nicht gebaut (V-318). Die Bescheinigung USt 1 TG trägt der Betreiber ein (D-787).

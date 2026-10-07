@@ -36,9 +36,11 @@ import {
   type HerkunftVerweis,
   type RechnungspositionEntwurf,
   fehler,
+  ladeSignierteNachweise,
   leistungszeitraum,
   loeseSteuergruppe,
   parameterGanzzahl,
+  pruefeNachweisZeitraum,
   pruefeParameter,
   warnung,
 } from './typen.js';
@@ -182,6 +184,7 @@ export const STUNDENBASIERT: Abrechnungsart = {
         + 'erfasst. Eine Stundenlohnrechnung über null Minuten wäre keine (FIN-18).',
       ));
     }
+    befunde.push(...await pruefeNachweisZeitraum(db, eingabe.konfiguration, [eingabe.periode]));
     return befunde;
   },
 
@@ -222,7 +225,8 @@ export const STUNDENBASIERT: Abrechnungsart = {
       jeLeistung.set(z.auftrag_leistung_id, liste);
     }
 
-    const zeitraum = leistungszeitraum(konfiguration, periode);
+    const zeitraum = leistungszeitraum(
+      konfiguration, periode, await ladeSignierteNachweise(db, konfiguration, periode));
     const mindestMinuten = konfiguration.mindestabnahmeStunden === null
       ? 0n
       : (konfiguration.mindestabnahmeStunden * 60n) / 1000n;

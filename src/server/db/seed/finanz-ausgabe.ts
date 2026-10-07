@@ -39,10 +39,12 @@ import type postgres from 'postgres';
  *    die Regel umgeht.
  *
  *  · **`freistellungsbescheinigung`** eines LIEFERANTEN: sie hängt nicht an
- *    einem Beleg (`dokument_id` ist nullable) und liesse sich anlegen — aber
- *    gezeigt wird sie ausschliesslich auf dem Steuerblatt einer
- *    Eingangsrechnung. Ohne die wäre sie eine Zeile, die in keiner Ansicht
- *    vorkommt: Demodaten, die nichts vorführen.
+ *    einem Beleg (`dokument_id` ist nullable) und liesse sich anlegen. Seit
+ *    V-283 (D-845) zeigt sie auch `/finanzen/freistellungen` — aber dort
+ *    führt die Bescheinigung des Bau-Kunden aus `crm.ts` (`DEMO-48b-0001`)
+ *    Liste, Stand, Widerruf und Beleg schon vor, und für einen Lieferanten
+ *    ist der Weg derselbe. Ihre eigentliche Bühne, das Steuerblatt einer
+ *    Eingangsrechnung, bleibt ohne Eingangsrechnung leer (siehe oben).
  *
  *  · **`rechnung_versand`**: der Auslöser `rechnung_versand_2_kanal_verbunden`
  *    (0181) lässt für einen unverbundenen Kanal nur `status =

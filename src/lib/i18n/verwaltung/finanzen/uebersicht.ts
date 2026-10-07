@@ -57,6 +57,7 @@ export type KartenZiel =
   | 'finanzen/zahlungen'
   | 'finanzen/eingangsrechnungen'
   | 'finanzen/lieferanten'
+  | 'finanzen/freistellungen'
   | 'finanzen/mahnungen'
   | 'finanzen/ausgangsbuch'
   | 'finanzen/ausgaben'
@@ -356,6 +357,11 @@ const DE: UebersichtTexte = {
       text: 'Kreditoren und Nachunternehmen: Nummer, Steuerangaben, '
         + '§-13b-Umkehr und §-48-Freistellung — die Stammdaten, gegen die jede '
         + 'Eingangsrechnung läuft.',
+    },
+    'finanzen/freistellungen': {
+      titel: 'Freistellungsbescheinigungen',
+      text: '§ 48b EStG: erfassen, widerrufen, den Scan verknüpfen — ohne gültige '
+        + 'Bescheinigung werden bei Bauleistungen 15 % einbehalten.',
     },
     'finanzen/belege': {
       titel: 'Belege',
@@ -727,6 +733,11 @@ const EN: UebersichtTexte = {
       text: 'Creditors and subcontractors: number, tax details, § 13b reverse '
         + 'charge and § 48 exemption — the master data every incoming invoice '
         + 'is checked against.',
+    },
+    'finanzen/freistellungen': {
+      titel: 'Freistellungsbescheinigungen (exemption certificates)',
+      text: '§ 48b EStG: record, revoke, link the scan — without a valid certificate, '
+        + '15 % is withheld on construction work.',
     },
     'finanzen/belege': {
       titel: 'Belege (source documents)',

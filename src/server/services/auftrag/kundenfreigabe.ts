@@ -26,6 +26,8 @@
  * pruefen. Tut er es nicht, laesst sich die Erlaubnis eines Kunden mit dem
  * Schreiben eines anderen belegen, und nichts daran sieht falsch aus.
  */
+import { tagDeutsch } from '../../../lib/datum/kalendertag.js';
+import { werktageNach } from '../../../lib/datum/werktage.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -400,12 +402,18 @@ export async function erfasseKundenfreigabe(
  * das zaehlt, und `auftrag_referenz_idx` liest es genau so: der Index deckt
  * `freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`.
  *
- * Was ein Widerruf fuer eine BEREITS veroeffentlichte Referenz bedeutet, ist
- * offen (O-735) — diese Funktion entfernt deshalb keine `referenz`-Zeile.
+ * **Eine BEREITS veroeffentlichte Referenz bekommt eine Aufgabe** (V-287,
+ * O-735, D-780, D-841): je Referenz aus diesem Auftrag, die die Website zeigt,
+ * entsteht in derselben Transaktion „Referenz herausnehmen" mit der Frist aus
+ * `herausnahmeFrist`. Herausgenommen wird von Hand — diese Funktion entfernt
+ * keine `referenz`-Zeile und setzt keinen Status.
  */
 export async function widerrufeKundenfreigabe(
   db: Abfrage, auftragId: string, grund: string,
-): Promise<{ readonly auftragsnummer: string }> {
+): Promise<{
+  readonly auftragsnummer: string;
+  readonly herausnahme: readonly HerausnahmeAufgabe[];
+}> {
   const [auftrag] = await db.abfrage<{
     auftragsnummer: string; freigegeben: boolean; widerrufen_am: Date | null;
   }>(
@@ -453,9 +461,140 @@ export async function widerrufeKundenfreigabe(
    * fest — mehr, als das Anhaengen je konnte, und an der Stelle, an der man
    * im Nachhinein danach sucht.
    */
+  const herausnahme = await stelleHerausnahmeAufgaben(db, auftragId, auftrag.auftragsnummer);
   await db.abfrage(
     `select app.protokolliere('auftrag.kundenfreigabe_widerrufen', 'auftrag',
                               $1, null, $2::jsonb, app.aktiver_mandant())`,
-    [auftragId, JSON.stringify({ grund: grund.trim() })]);
-  return { auftragsnummer: auftrag.auftragsnummer };
+    /*
+     * Das OBJEKT, nicht `JSON.stringify(...)` (D-467, D-841): der Treiber
+     * serialisiert einen `::jsonb`-Parameter selbst. Bis V-287 stand hier der
+     * JSON-Text, und das Protokoll hielt eine jsonb-ZEICHENKETTE —
+     * `nachher ->> 'grund'` war NULL, der Grund nur als Text im Text lesbar.
+     */
+    [auftragId, {
+      grund: grund.trim(),
+      herausnahme: herausnahme.map((h) => ({ referenz: h.referenzId, aufgabe: h.aufgabeId })),
+    }]);
+  return { auftragsnummer: auftrag.auftragsnummer, herausnahme };
+}
+
+/* ------------------------------------------------- Die Herausnahme (V-287) */
+
+/**
+ * Binnen wie vielen Arbeitstagen eine veroeffentlichte Referenz nach einem
+ * Widerruf von der Website genommen wird (O-735, D-780, D-841). Ein
+ * Arbeitstag ist Montag bis Freitag ohne gesetzlichen Feiertag in Berlin
+ * (`lib/datum/werktage.ts`); der Tag des Widerrufs zaehlt nicht mit.
+ */
+// TODO(client, O-735): Voreinstellung — eine veröffentlichte Referenz nimmt die Website-Pflege binnen 5 Arbeitstagen nach dem Widerruf von Hand heraus, nicht rückwirkend; die Aufgabe dazu entsteht mit dem Widerruf, ohne Einzelzuweisung, mit Priorität „hoch". D-780, D-841.
+export const HERAUSNAHME_WERKTAGE = 5;
+
+/** Der Doppelungsschluessel der Aufgabe (`aufgabe.quelle_job`, 0230). */
+export const HERAUSNAHME_QUELLE = 'ereignis:referenz_widerruf';
+
+/**
+ * Der Berliner Kalendertag, bis zu dem die Referenz herausgenommen ist —
+ * `widerrufTag` ist der Berliner Tag des Widerrufs (`JJJJ-MM-TT`).
+ */
+export function herausnahmeFrist(widerrufTag: string): string {
+  return werktageNach(widerrufTag, HERAUSNAHME_WERKTAGE);
+}
+
+/**
+ * Titel und Beschreibung der Aufgabe. Daten wie jede Aufgabe — deutsch, wie
+ * die Domänensprache; die Frist steht als Tag darin, weil die Aufgabe sie
+ * ohne Blick in die Spalte nennen soll.
+ */
+export function herausnahmeText(
+  referenz: string, auftragsnummer: string, faelligAm: string,
+): { readonly titel: string; readonly beschreibung: string } {
+  return {
+    titel: `Referenz herausnehmen: ${referenz}`,
+    beschreibung:
+      `Der Kunde hat die Kundenfreigabe am Auftrag ${auftragsnummer} widerrufen. Die `
+      + `Referenz „${referenz}" steht noch auf der Website: bis zum ${tagDeutsch(faelligAm)} `
+      + 'über „Zurückziehen" auf ihrem Blatt von der Website nehmen. Die Zeile bleibt, '
+      + 'gelöscht wird nichts (Voreinstellung O-735).',
+  };
+}
+
+export interface HerausnahmeAufgabe {
+  readonly referenzId: string;
+  readonly referenz: string;
+  /**
+   * Die neue Aufgabe — oder `null`: zu dieser Referenz steht schon eine
+   * offene (`aufgabe_job_uk`), etwa aus einem frueheren Widerruf.
+   */
+  readonly aufgabeId: string | null;
+  /** Der Berliner Kalendertag der Frist, `JJJJ-MM-TT`. */
+  readonly faelligAm: string;
+}
+
+/**
+ * Stellt je veroeffentlichter Referenz aus diesem Auftrag die Aufgabe
+ * „Referenz herausnehmen" — in der Transaktion des Widerrufs.
+ *
+ * **Gelesen wird, was die Website zeigt.** `t_referenz_oeffentlich` gibt jede
+ * Referenz heraus, die freigegeben, veroeffentlicht und nicht geloescht ist —
+ * auch einer Sitzung ohne `referenz.lesen`. Genau das macht eine Referenz zu
+ * einer, die herausgenommen werden muss; ein Entwurf braucht keine Aufgabe.
+ *
+ * **Geschrieben wird ueber `app.referenz_herausnahme_aufgabe` (0528).** Wer
+ * widerrufen darf (`referenz.kundenfreigabe_erfassen`), haelt nicht
+ * zwingend `aufgabe.schreiben` — eine Modulbeschraenkung der Mitgliedschaft
+ * (AUT-01) oder eine Rolle je Gesellschaft nimmt es weg. Die Pflicht haengt
+ * nicht daran: die Funktion legt genau diese eine Art Aufgabe an, nur fuer
+ * eine veroeffentlichte Referenz der eigenen Gesellschaft, deren Auftrag in
+ * DIESER Transaktion widerrufen wurde.
+ */
+async function stelleHerausnahmeAufgaben(
+  db: Abfrage, auftragId: string, auftragsnummer: string,
+): Promise<readonly HerausnahmeAufgabe[]> {
+  const referenzen = await db.abfrage<{ id: string; titel: string; heute: string }>(
+    `select r.id, r.titel, app.berlin_heute()::text as heute
+       from referenz r
+      where r.auftrag_id = $1 and r.mandant_id = app.aktiver_mandant()
+        and r.freigegeben_vom_kunden and r.status = 'veroeffentlicht'
+        and r.geloescht_am is null
+      order by r.titel, r.id`, [auftragId]);
+  const ergebnis: HerausnahmeAufgabe[] = [];
+  for (const r of referenzen) {
+    const faelligAm = herausnahmeFrist(r.heute);
+    const text = herausnahmeText(r.titel, auftragsnummer, faelligAm);
+    const [z] = await db.abfrage<{ id: string | null }>(
+      `select app.referenz_herausnahme_aufgabe($1::uuid, $2::date, $3, $4)::text as id`,
+      [r.id, faelligAm, text.titel, text.beschreibung]);
+    ergebnis.push({ referenzId: r.id, referenz: r.titel, aufgabeId: z?.id ?? null, faelligAm });
+  }
+  return ergebnis;
+}
+
+/** Eine Herausnahme-Aufgabe, wie die Seite am Auftrag sie zeigt. */
+export interface HerausnahmeStand {
+  readonly aufgabeId: string;
+  readonly titel: string;
+  readonly status: string;
+  /** Der Berliner Kalendertag der Frist, `JJJJ-MM-TT`. */
+  readonly faelligAm: string | null;
+}
+
+/**
+ * Die Herausnahme-Aufgaben zu den Referenzen DIESES Auftrags — die neuesten
+ * zuerst. Die RLS auf `aufgabe` entscheidet, was die Sitzung sieht: wer
+ * widerrufen hat, sieht seine (`t_aufgabe_eigene`, er steht in
+ * `erstellt_von`), wer `aufgabe.lesen` haelt, alle.
+ */
+export async function ladeHerausnahmeAufgaben(
+  db: Abfrage, auftragId: string,
+): Promise<readonly HerausnahmeStand[]> {
+  return db.abfrage<HerausnahmeStand>(
+    `select a.id as "aufgabeId", a.titel, a.status::text as status,
+            a.faellig_datum::text as "faelligAm"
+       from aufgabe a
+      where a.mandant_id = app.aktiver_mandant()
+        and a.quelle_job = $2 and a.bezug_typ = 'referenz'
+        and a.geloescht_am is null
+        and a.bezug_id in (select r.id from referenz r
+                            where r.auftrag_id = $1 and r.mandant_id = app.aktiver_mandant())
+      order by a.erstellt_am desc, a.id`, [auftragId, HERAUSNAHME_QUELLE]);
 }

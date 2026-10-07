@@ -217,12 +217,22 @@ export default async function BauUebersicht(
           <h2 className="m-0 text-h3 text-text">
             Nachträge: angemeldet, nicht eingereicht
           </h2>
-          <Link
-            href={`/portal/${mandant}/bau/nachtraege`}
-            className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
-          >
-            Alle Nachträge
-          </Link>
+          <span className="flex flex-wrap items-baseline gap-s4">
+            {/* V-384: der Katalog, aus dem ein Nachtrag seine Grundlage wählt. */}
+            <Link
+              href={`/portal/${mandant}/bau/nachtragsgrundlagen`}
+              className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+              data-cse="nachtragsgrundlagen"
+            >
+              Anspruchsgrundlagen
+            </Link>
+            <Link
+              href={`/portal/${mandant}/bau/nachtraege`}
+              className="text-sm text-text-muted underline-offset-2 hover:text-text hover:underline"
+            >
+              Alle Nachträge
+            </Link>
+          </span>
         </div>
         {daten.nachtraege.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

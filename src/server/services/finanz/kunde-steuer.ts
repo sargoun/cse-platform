@@ -3,6 +3,7 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { istUuid } from '../../../lib/uuid.js';
 import type { Bauleistungsart, StatusZeile } from './steuer/nachweis.js';
 import type { Uebertragungsweg, Rechnungsformat } from '../crm/erechnung.js';
+import { FreistellungFehler, widerrufeFreistellung } from './freistellung.js';
 
 /**
  * Das Steuerblatt eines KUNDEN — §13b-Zeitscheiben, §48b-Bescheinigungen und
@@ -74,7 +75,8 @@ export const STEUER_GRUENDE = [
   /* §13b-Zeitscheibe */
   'grundlage_fehlt', 'ohne_beginn', 'zeitraum_verdreht', 'ueberlapp', 'ueberlapp_gleichzeitig',
   /* §48b-Bescheinigung und Widerruf */
-  'nummer_fehlt', 'finanzamt_fehlt', 'zeitraum_fehlt', 'umfang_unstimmig', 'ohne_datum',
+  'nummer_fehlt', 'nummer_vergeben', 'finanzamt_fehlt', 'zeitraum_fehlt', 'umfang_unstimmig',
+  'ohne_datum', 'widerruf_rueckwirkend', 'widerruf_nach_ablauf',
   /* E-Rechnung */
   'weg_unbekannt', 'format_unbekannt', 'schema_fehlt',
   /* gemeinsam */
@@ -474,6 +476,19 @@ export async function legeBescheinigungAn(
       'kein_schreibrecht', 403);
   }
 
+  /*
+   * Eine Nummer gibt es je Gesellschaft einmal (`fsb_nummer_uk`, 0118) — als
+   * Satz statt als Verletzung des Schlüssels, die eine 500 wäre.
+   */
+  const [vergeben] = await kontext.abfrage<{ id: string }>(
+    `select id from freistellungsbescheinigung
+      where mandant_id = app.aktiver_mandant() and bescheinigung_nummer = $1`, [nummer]);
+  if (vergeben !== undefined) {
+    throw new SteuerFehler(
+      'Eine Bescheinigung mit dieser Nummer ist in dieser Gesellschaft schon erfasst.',
+      'nummer_vergeben', 409);
+  }
+
   const zeilen = await kontext.schreibe<{ id: string }>(
     `insert into freistellungsbescheinigung
        (mandant_id, kunde_id, bescheinigung_nummer, finanzamt, gueltig_von,
@@ -514,14 +529,26 @@ export async function widerrufeBescheinigung(
       + 'noch gedeckt waren.', 'ohne_datum');
   }
 
-  const zeilen = await kontext.schreibe<{ id: string }>(
-    `update freistellungsbescheinigung
-        set widerrufen_am = $2::date, geaendert_am = now(),
-            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
-      where mandant_id = app.aktiver_mandant() and id = $1::uuid
-        and widerrufen_am is null
-      returning id`, [id, am]);
-  if (zeilen[0] === undefined) {
+  /*
+   * **Ein Weg für den Widerruf** (V-283, D-845): dieselbe Regel wie unter
+   * Finanzen › Freistellungsbescheinigungen — ab heute oder später, nie
+   * rückwirkend, nie nach dem Ablauf, einmal. Seit 0530 hält die Datenbank
+   * das auch; ohne diese Prüfung würde aus einem Tag in der Vergangenheit
+   * eine Verletzung des Auslösers und damit eine 500 statt eines Satzes.
+   */
+  try {
+    await widerrufeFreistellung(kontext, id, am.trim());
+  } catch (fehler) {
+    if (!(fehler instanceof FreistellungFehler)) throw fehler;
+    if (fehler.grund === 'widerruf_rueckwirkend') {
+      throw new SteuerFehler(
+        'Ein Widerruf wirkt ab heute oder später — für die Zeit davor durfte ohne Einbehalt '
+        + 'ausgezahlt werden.', 'widerruf_rueckwirkend');
+    }
+    if (fehler.grund === 'widerruf_nach_ablauf') {
+      throw new SteuerFehler(
+        'Nach ihrem Ablauf widerriefe ein Widerruf nichts mehr.', 'widerruf_nach_ablauf');
+    }
     throw new SteuerFehler(
       'Diese Bescheinigung gibt es nicht — oder sie ist schon widerrufen.',
       'nicht_gefunden', 404);

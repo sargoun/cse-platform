@@ -26,8 +26,9 @@ import {
   type Abrechnungsart,
 } from '../../src/server/services/finanz/abrechnungsart/index.js';
 import {
-  alsTag, belegBenannt, monateDerPeriode, pruefeParameter, tageImMonat, ueberschneidet,
-  zerlegeTag, type BisherigerAnspruch, type VertragAbrechnung,
+  alsTag, belegBenannt, leistungszeitraum, monateDerPeriode, pruefeNachweisZeitraum,
+  pruefeParameter, tageImMonat, ueberschneidet, zeitraumAusNachweisen, zerlegeTag,
+  type BisherigerAnspruch, type SignierterNachweis, type VertragAbrechnung,
 } from '../../src/server/services/finanz/abrechnungsart/typen.js';
 import { MONATSPAUSCHALE } from '../../src/server/services/finanz/abrechnungsart/monatspauschale.js';
 import {
@@ -182,21 +183,142 @@ describe('ein fehlender Parameter blockiert, bevor gerechnet wird', () => {
       .toEqual([]);
   });
 
-  it('`nach_leistungsnachweis` blockiert für sich allein (FIN-05, O-54)', () => {
+  it('`nach_leistungsnachweis` sperrt nicht mehr pauschal — die Prüfung je Abschnitt übernimmt (V-337)', () => {
     /**
-     * FIN-05 nennt den Leistungszeitraum das am häufigsten fehlende
-     * Pflichtfeld und hält fest, dass sein Fehlen dem Kunden den
-     * Vorsteuerabzug kostet. Wie er aus einem Leistungsnachweis hergeleitet
-     * wird, ist offen — also wird nicht der Kalendermonat unterstellt.
+     * Bis V-337 blockierte der Modus hier für sich allein, weil die
+     * Herleitung aus den Nachweisen fehlte. Jetzt sperrt
+     * `pruefeNachweisZeitraum` nur noch den Abschnitt ohne gegengezeichneten
+     * Nachweis (unten); ein pauschaler Befund hier sperrte auch den, der einen
+     * hat.
      */
     const art = hole('monatspauschale');
     const befunde = pruefeParameter(
       art,
       konfiguration('monatspauschale', { teilmonat: 'keine' }, 'nach_leistungsnachweis'),
     );
-    const treffer = befunde.find((b) => b.feld === 'leistungszeitraum_modus');
-    expect(treffer?.art).toBe('fehler');
-    expect(treffer?.offeneFrage).toBe('O-54');
+    expect(befunde.find((b) => b.feld === 'leistungszeitraum_modus')).toBeUndefined();
+  });
+});
+
+/*
+ * V-337 (D-838): der Leistungszeitraum aus den gegengezeichneten Nachweisen
+ * des Abschnitts — frühester Beginn bis spätestes Ende, beschnitten auf den
+ * Abschnitt (O-54). Gegen Postgres: `tests/isolation/leistungszeitraum-nachweis.test.ts`.
+ */
+describe('der Leistungszeitraum aus den Leistungsnachweisen (V-337, O-54)', () => {
+  const nachweis = (von: string, bis: string, nummer = 'LN-1'): SignierterNachweis =>
+    ({ id: `id-${nummer}`, nummer, von, bis });
+  /** Zwei Nachweise über die Monatsgrenze. */
+  const ZWEI = [nachweis('2026-08-20', '2026-08-31', 'LN-1'), nachweis('2026-09-01', '2026-09-10', 'LN-2')];
+  const AUGUST = { von: '2026-08-01', bis: '2026-08-31' };
+  const SEPTEMBER = { von: '2026-09-01', bis: '2026-09-30' };
+
+  it('zwei Nachweise über eine Monatsgrenze: frühester Beginn bis spätestes Ende', () => {
+    expect(zeitraumAusNachweisen(ZWEI, { von: '2026-08-15', bis: '2026-09-15' }))
+      .toEqual({ von: '2026-08-20', bis: '2026-09-10' });
+    // Die Reihenfolge der Liste spielt keine Rolle.
+    expect(zeitraumAusNachweisen([...ZWEI].reverse(), { von: '2026-08-15', bis: '2026-09-15' }))
+      .toEqual({ von: '2026-08-20', bis: '2026-09-10' });
+  });
+
+  it('je Monatsabschnitt nur, was in ihm liegt', () => {
+    expect(zeitraumAusNachweisen(ZWEI, AUGUST)).toEqual({ von: '2026-08-20', bis: '2026-08-31' });
+    expect(zeitraumAusNachweisen(ZWEI, SEPTEMBER)).toEqual({ von: '2026-09-01', bis: '2026-09-10' });
+    expect(zeitraumAusNachweisen(ZWEI, { von: '2026-10-01', bis: '2026-10-31' })).toBeNull();
+  });
+
+  it('ein Nachweis über die Monatsgrenze wird auf den Abschnitt beschnitten', () => {
+    /*
+     * Ohne den Schnitt stünde auf der Augustzeile „bis 05.09." — und die
+     * Doppelabrechnungssperre der Pauschale hielte den September für schon
+     * berechnet.
+     */
+    const ueber = [nachweis('2026-08-25', '2026-09-05')];
+    expect(zeitraumAusNachweisen(ueber, AUGUST)).toEqual({ von: '2026-08-25', bis: '2026-08-31' });
+    expect(zeitraumAusNachweisen(ueber, SEPTEMBER)).toEqual({ von: '2026-09-01', bis: '2026-09-05' });
+    const augustZeile: BisherigerAnspruch = {
+      rechnungId: 'r', nummer: 'RE-1', angelegtAm: '2026-09-01',
+      leistungVon: '2026-08-25', leistungBis: '2026-08-31', nettoCent: cent(100n),
+    };
+    expect(ueberschneidet(augustZeile, SEPTEMBER)).toBe(false);
+  });
+
+  it('beide Grenzen gehören dazu: ein Nachweis, der am Monatsletzten endet, berührt den Monat', () => {
+    expect(zeitraumAusNachweisen([nachweis('2026-07-20', '2026-08-01')], AUGUST))
+      .toEqual({ von: '2026-08-01', bis: '2026-08-01' });
+    expect(zeitraumAusNachweisen([nachweis('2026-07-01', '2026-07-31')], AUGUST)).toBeNull();
+  });
+
+  it('leistungszeitraum: im Modus aus den Nachweisen, sonst der Abschnitt', () => {
+    const modus = konfiguration('stundenbasiert', {}, 'nach_leistungsnachweis');
+    expect(leistungszeitraum(modus, AUGUST, ZWEI)).toEqual({ von: '2026-08-20', bis: '2026-08-31' });
+    expect(leistungszeitraum(modus, AUGUST, [])).toEqual({ von: null, bis: null });
+    expect(leistungszeitraum(konfiguration('stundenbasiert'), AUGUST, ZWEI)).toEqual(AUGUST);
+  });
+
+  /** Ein Testdoppel der Datenbank: das Recht und die Nachweise, sonst nichts. */
+  function db(antwort: { darf?: boolean; nachweise?: readonly SignierterNachweis[] }) {
+    const fragen: string[] = [];
+    const abfrage = async <T,>(anweisung: string): Promise<readonly T[]> => {
+      fragen.push(anweisung);
+      if (anweisung.includes('app.hat_recht')) return [{ darf: antwort.darf ?? true }] as unknown as T[];
+      if (anweisung.includes('from leistungsnachweis')) return (antwort.nachweise ?? []) as unknown as T[];
+      throw new Error(`unerwartete Abfrage: ${anweisung}`);
+    };
+    return { db: { abfrage } as Abfrage, fragen };
+  }
+
+  it('pruefeNachweisZeitraum: ein Befund je Abschnitt OHNE Nachweis, blockierend, mit O-54', async () => {
+    const { db: d } = db({ nachweise: [nachweis('2026-08-20', '2026-08-31')] });
+    const befunde = await pruefeNachweisZeitraum(
+      d, konfiguration('monatspauschale', { teilmonat: 'keine' }, 'nach_leistungsnachweis'),
+      [AUGUST, SEPTEMBER]);
+    expect(befunde).toHaveLength(1);
+    expect(befunde[0]).toMatchObject({ art: 'fehler', feld: 'leistungszeitraum_modus', offeneFrage: 'O-54' });
+    expect(befunde[0]!.textDe).toContain('01.09.2026 bis 30.09.2026');
+  });
+
+  it('ohne das Recht, Nachweise zu lesen, sagt der Befund das — nicht „kein Nachweis"', async () => {
+    const { db: d, fragen } = db({ darf: false, nachweise: [nachweis('2026-08-20', '2026-08-31')] });
+    const befunde = await pruefeNachweisZeitraum(
+      d, konfiguration('stundenbasiert', {}, 'nach_leistungsnachweis'), [AUGUST]);
+    expect(befunde).toHaveLength(1);
+    expect(befunde[0]!.textDe).toContain('Sie zu lesen verlangt das Recht');
+    expect(befunde[0]!.textDe).not.toContain('nachweis.lesen');
+    expect(fragen.some((q) => q.includes('from leistungsnachweis'))).toBe(false);
+  });
+
+  it('in den anderen Modi fragt die Prüfung die Datenbank gar nicht', async () => {
+    const { db: d, fragen } = db({});
+    expect(await pruefeNachweisZeitraum(d, konfiguration('stundenbasiert'), [AUGUST])).toEqual([]);
+    expect(fragen).toEqual([]);
+  });
+
+  it('die Pauschale vergleicht im Modus den ganzen Monat mit dem schon Berechneten', async () => {
+    /*
+     * Anteilig nach Kalendertagen vergleicht die Pauschale sonst nur ihren
+     * Abschnitt. Im Modus trägt die Zeile aber den Zeitraum ihrer Nachweise —
+     * kürzer als die berechneten Tage —, und gegen ihn verglichen bliebe ein
+     * schon berechneter Tag abrechenbar.
+     */
+    const schon: BisherigerAnspruch = {
+      rechnungId: 'r', nummer: 'RE-00007', angelegtAm: '2026-08-20',
+      leistungVon: '2026-08-05', leistungBis: '2026-08-10', nettoCent: cent(50_000n),
+    };
+    const eingabe = (modus: string) => ({
+      konfiguration: {
+        ...konfiguration('monatspauschale', { teilmonat: 'kalendertage' }, modus),
+        pauschaleNettoCent: cent(189_000n),
+      },
+      periode: { von: '2026-08-15', bis: '2026-08-31' },
+      bisher: [schon],
+    });
+    const { db: d } = db({ nachweise: [nachweis('2026-08-16', '2026-08-30')] });
+    const ohne = await MONATSPAUSCHALE.pruefe(d, eingabe('kalendermonat'));
+    expect(ohne.filter((b) => b.feld === 'leistung_von')).toEqual([]);
+    const mit = await MONATSPAUSCHALE.pruefe(d, eingabe('nach_leistungsnachweis'));
+    expect(mit.filter((b) => b.feld === 'leistung_von').map((b) => b.textDe).join(' '))
+      .toContain('RE-00007');
   });
 });
 

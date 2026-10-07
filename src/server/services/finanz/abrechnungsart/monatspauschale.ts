@@ -16,12 +16,14 @@
  *                      Monatslaenge (BT-149/150), damit sie exakt ist — als
  *                      Bruchteil eines Monats waere `15/31` in drei
  *                      Nachkommastellen nicht darstellbar.
- *   · `arbeitstage`  — und hier wird NICHT gerechnet: welche Tage als
- *                      Arbeitstage dieses Vertrages gelten (Mo–Fr? Mo–Sa nach
- *                      §3 BUrlG? welche Feiertagsliste?), steht nirgends. Eine
- *                      geratene Antwort verschoebe jede Teilmonatsrechnung um
- *                      einen zweistelligen Prozentsatz, und der Beleg ist
- *                      unveraenderlich.
+ *   · `arbeitstage`  — anteilig nach Arbeitstagen: `10 Arbeitstage je 21`.
+ *                      Voreinstellung (V-281, O-04, O-167, D-843): Montag bis
+ *                      Freitag ohne gesetzliche Feiertage in Berlin, fuer jedes
+ *                      Objekt, bis ein Objekt sein Land traegt. Gezaehlt wird
+ *                      mit `arbeitstageZwischen` (lib/datum/werktage.ts), die
+ *                      Feiertagsliste ist ihre Eingabe. Wie bei den
+ *                      Kalendertagen fuehrt die Zeile TAGE als Menge und die
+ *                      Arbeitstage des Monats als `preis_basismenge`.
  *
  * // TODO(client, O-04): sind dies exakt die fuenf Abrechnungsarten?
  * Bezeichnung, Rundung und Satzbasis je Art bestaetigen. Fuer diese Art
@@ -41,9 +43,11 @@ import {
   belegBenannt,
   fehler,
   ganzeMenge,
+  ladeSignierteNachweise,
   leistungszeitraum,
   monateDerPeriode,
   parameterText,
+  pruefeNachweisZeitraum,
   pruefeParameter,
   steuergruppeDerLeistung,
   steuergruppeDesAuftrags,
@@ -52,6 +56,9 @@ import {
   zerlegeTag,
 } from './typen.js';
 import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
+import {
+  arbeitstageZwischen, gesetzlicheFeiertageBerlin,
+} from '../../../../lib/datum/werktage.js';
 
 /** Wie viele Kalendertage dieser Abschnitt aus seinem Monat abdeckt. */
 function abgedeckteTage(abschnitt: Periode): number {
@@ -69,6 +76,22 @@ function istVollerMonat(abschnitt: Periode): boolean {
   const von = zerlegeTag(abschnitt.von);
   const bis = zerlegeTag(abschnitt.bis);
   return von.tag === 1 && bis.tag === tageImMonat(bis.jahr, bis.monat);
+}
+
+/**
+ * Die Arbeitstage eines angebrochenen Monats — im Abschnitt und im ganzen
+ * Monat (V-281, D-843). Rein: die Feiertagsliste ist die Berliner.
+ */
+// TODO(client, O-167): Voreinstellung — Arbeitstage sind Montag bis Freitag ohne gesetzliche Feiertage in Berlin, für jedes Objekt; ein Objekt in einem anderen Land bekommt dessen Liste, sobald es sein Land trägt. D-781, D-843.
+export function arbeitstageImAbschnitt(
+  abschnitt: Periode,
+): { readonly tage: number; readonly imMonat: number } {
+  const monat = ganzerMonat(abschnitt);
+  const feiertage = gesetzlicheFeiertageBerlin(monat.von, monat.bis);
+  return {
+    tage: arbeitstageZwischen(abschnitt.von, abschnitt.bis, feiertage),
+    imMonat: arbeitstageZwischen(monat.von, monat.bis, feiertage),
+  };
 }
 
 const MONATSNAMEN = [
@@ -143,12 +166,20 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
      * Welcher Zeitraum das ist, sagt der eigene Parameter: eine VOLLE
      * Pauschale (voller Monat, oder `teilmonat = keine`) verlangt den ganzen
      * Monat — zwei Rechnungen über je eine Hälfte des Novembers wären sonst
-     * zwei volle Novemberpauschalen. Nur anteilig nach Kalendertagen deckt
-     * die Zeile genau ihre Tage, und die zweite Hälfte bleibt abrechenbar.
+     * zwei volle Novemberpauschalen. Nur anteilig — nach Kalender- oder nach
+     * Arbeitstagen (V-281) — deckt die Zeile genau ihre Tage, und die zweite
+     * Hälfte bleibt abrechenbar.
+     *
+     * Im Modus `nach_leistungsnachweis` immer der ganze Monat (D-838): die
+     * Zeile trägt dort den Zeitraum ihrer Nachweise, und der kann kürzer sein
+     * als die Tage, die sie berechnet — gegen ihn verglichen, bliebe ein schon
+     * berechneter Tag abrechenbar.
      */
     const teilmonat = konfiguration.parameter['teilmonat'];
+    const anteilig = teilmonat === 'kalendertage' || teilmonat === 'arbeitstage';
+    const nachNachweis = konfiguration.leistungszeitraumModus === 'nach_leistungsnachweis';
     for (const abschnitt of teile) {
-      const bereich = istVollerMonat(abschnitt) || teilmonat !== 'kalendertage'
+      const bereich = istVollerMonat(abschnitt) || !anteilig || nachNachweis
         ? ganzerMonat(abschnitt) : abschnitt;
       const schon = eingabe.bisher.filter((a) => ueberschneidet(a, bereich));
       if (schon.length === 0) continue;
@@ -160,17 +191,23 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         + 'dieses Entwurfs anpassen, oder den anderen Beleg verwerfen bzw. stornieren.',
       ));
     }
-    if (konfiguration.parameter['teilmonat'] === 'arbeitstage'
-        && teile.some((t) => !istVollerMonat(t))) {
+    /*
+     * Nach Arbeitstagen kann ein angebrochener Monat KEINEN haben — ein
+     * Vertrag, der an einem Samstag endet und am Freitag davor nichts mehr
+     * deckt. Dann entsteht für ihn keine Zeile; liegt im ganzen Zeitraum kein
+     * Arbeitstag, ist nichts zu berechnen, und die Prüfung sagt es vorher.
+     */
+    if (teilmonat === 'arbeitstage' && teile.length > 0
+        && teile.every((t) => !istVollerMonat(t) && arbeitstageImAbschnitt(t).tage === 0)) {
       befunde.push(fehler(
         'parameter.teilmonat',
-        'Unbestätigter Wert: „arbeitstage" verlangt eine Definition der Arbeitstage '
-        + 'dieses Vertrages (Mo–Fr, Mo–Sa nach §3 BUrlG?) und eine Feiertagsliste. '
-        + 'Beides ist offen — für einen angebrochenen Monat wird deshalb nicht '
-        + 'gerechnet.',
+        `Im Zeitraum ${tagDeutsch(teile[0]!.von)} bis ${tagDeutsch(teile[teile.length - 1]!.bis)} `
+        + 'liegt kein Arbeitstag (Montag bis Freitag ohne gesetzlichen Feiertag in Berlin) — '
+        + 'nach „arbeitstage" ist nichts zu berechnen (Voreinstellung O-04, O-167).',
         'O-04',
       ));
     }
+    befunde.push(...await pruefeNachweisZeitraum(db, konfiguration, teile));
     return befunde;
   },
 
@@ -198,9 +235,10 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
       ? await steuergruppeDesAuftrags(db, konfiguration.auftragId, periode.bis)
       : await steuergruppeDerLeistung(db, konfiguration, periode.bis);
 
+    const nachweise = await ladeSignierteNachweise(db, konfiguration, periode);
     const entwuerfe: RechnungspositionEntwurf[] = [];
     for (const abschnitt of teile) {
-      const zeitraum = leistungszeitraum(konfiguration, abschnitt);
+      const zeitraum = leistungszeitraum(konfiguration, abschnitt, nachweise);
       const voll = istVollerMonat(abschnitt);
 
       if (voll || modus === 'keine') {
@@ -229,11 +267,40 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         continue;
       }
 
+      if (modus === 'arbeitstage') {
+        const { tage, imMonat } = arbeitstageImAbschnitt(abschnitt);
+        /* Kein Arbeitstag im angebrochenen Teil: für ihn ist nichts zu berechnen. */
+        if (tage === 0) continue;
+        const menge = ganzeMenge(tage);
+        const basis = ganzeMenge(imMonat);
+        entwuerfe.push({
+          bezeichnung: `Monatspauschale ${monatsName(abschnitt)} (anteilig)`,
+          beschreibung:
+            `${String(tage)} von ${String(imMonat)} Arbeitstagen — Montag bis Freitag ohne `
+            + `gesetzliche Feiertage in Berlin (${abschnitt.von} bis ${abschnitt.bis}) `
+            + '— Voreinstellung (O-04, O-167)',
+          menge,
+          einheit: 'tag',
+          preisBasismenge: basis,
+          einzelpreisCent: pauschale,
+          nettoCent: berechneNetto(menge, basis, pauschale, 0),
+          steuergruppe,
+          abrechnungsart: MONATSPAUSCHALE.schluessel,
+          vertragAbrechnungId: konfiguration.id,
+          auftragLeistungId: konfiguration.auftragLeistungId,
+          lvPositionId: null,
+          leistungVon: zeitraum.von,
+          leistungBis: zeitraum.bis,
+          herkunft: [{ art: 'vertrag_abrechnung', id: konfiguration.id, anteil: menge }],
+        });
+        continue;
+      }
+
       if (modus !== 'kalendertage') {
         throw new AbrechnungFehler(
           `Ein angebrochener Monat (${abschnitt.von} bis ${abschnitt.bis}) wird nach `
-          + `„${modus}" berechnet; Voreinstellung ist „kalendertage" — die Arbeitstagsdefinition `
-          + 'für diesen Modus ist noch nicht hinterlegt (O-04, V-281). Bitte im Vertrag „kalendertage" wählen.',
+          + `„${modus}" berechnet — diese Lesart gibt es nicht; die Vereinbarung nennt `
+          + '„kalendertage", „arbeitstage" oder „keine" (O-04).',
           'parameter_offen',
         );
       }
@@ -262,6 +329,13 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         leistungBis: zeitraum.bis,
         herkunft: [{ art: 'vertrag_abrechnung', id: konfiguration.id, anteil: menge }],
       });
+    }
+    if (entwuerfe.length === 0) {
+      throw new AbrechnungFehler(
+        `Zwischen ${periode.von} und ${periode.bis} liegt kein Arbeitstag, den die Pauschale `
+        + 'deckt — nach „arbeitstage" ist nichts zu berechnen (O-04, O-167).',
+        'nichts_abzurechnen',
+      );
     }
     return entwuerfe;
   },

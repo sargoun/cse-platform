@@ -65,8 +65,10 @@ import {
   belegBenannt,
   fehler,
   ganzeMenge,
+  ladeSignierteNachweise,
   leistungszeitraum,
   parameterText,
+  pruefeNachweisZeitraum,
   pruefeParameter,
   steuergruppeDerLeistung,
   steuergruppeDesAuftrags,
@@ -166,6 +168,7 @@ export const FESTPREIS_LOS: Abrechnungsart = {
         ));
       }
     }
+    befunde.push(...await pruefeNachweisZeitraum(db, konfiguration, [periode]));
     return befunde;
   },
 
@@ -181,7 +184,8 @@ export const FESTPREIS_LOS: Abrechnungsart = {
     }
 
     const auftrag = await ladeAuftrag(db, konfiguration.auftragId);
-    const zeitraum = leistungszeitraum(konfiguration, periode);
+    const zeitraum = leistungszeitraum(
+      konfiguration, periode, await ladeSignierteNachweise(db, konfiguration, periode));
     /**
      * **Der Steuersatz kommt aus dem Geltungsbereich der Konfiguration.**
      *

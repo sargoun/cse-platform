@@ -62,6 +62,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           art: feld('art') as AnfrageArt,
           name: feld('name'),
           email: feld('email'),
+          anschrift: feld('anschrift'),
           nachricht: feld('nachricht'),
           rolleAngabe: feld('rolle'),
           eingangsweg: feld('eingangsweg') as Eingangsweg,

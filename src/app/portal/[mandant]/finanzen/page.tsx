@@ -69,6 +69,8 @@ const KARTEN: readonly Karte[] = [
    * Gegenüber, und § 13b und § 48 hängen an genau diesen Zeilen.
    */
   { pfad: 'finanzen/lieferanten', icon: 'gruppe' },
+  /* V-283: die § 48b-Bescheinigungen — bis D-845 ohne Schreibweg und ohne Eingang. */
+  { pfad: 'finanzen/freistellungen', icon: 'schloss' },
   { pfad: 'finanzen/mahnungen', icon: 'warnung' },
   { pfad: 'finanzen/ausgangsbuch', icon: 'export' },
   { pfad: 'finanzen/ausgaben', icon: 'euro' },

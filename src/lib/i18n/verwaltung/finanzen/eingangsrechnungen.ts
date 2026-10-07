@@ -317,10 +317,12 @@ export interface EingangsrechnungenTexte {
   readonly giltAndererAuftrag: string;
   readonly giltNicht: string;
   readonly keinDokument: string;
-  readonly pflegeOffenBetont: string;
-  readonly pflegeOffenVor: string;
-  readonly pflegeOffenDrei: string;
-  readonly pflegeOffenNach: string;
+  readonly dokumentOhneRecht: string;
+  readonly pflegeBetont: string;
+  readonly pflegeOrt: string;
+  readonly pflegeVerweis: string;
+  readonly pflegeRechtVor: string;
+  readonly pflegeRechtNach: string;
   readonly schluss: string;
   readonly geprueftNichtVermerkt: string;
   readonly geprueftAm: string;
@@ -747,17 +749,14 @@ const DE: EingangsrechnungenTexte = {
   giltAndererAuftrag: 'gilt für einen anderen Auftrag',
   giltNicht: 'gilt am Stichtag nicht',
   keinDokument: 'kein Dokument',
-  pflegeOffenBetont:
-    'Hochladen, Gültigkeit setzen und Widerruf sind hier noch nicht möglich — Voreinstellung '
-    + '(O-604): die Buchhaltung pflegt sie mit dem Schreibrecht der Finanzen; der Schreibweg folgt (V-283).',
-  pflegeOffenVor:
-    'Für diese Seite ist kein Schreibrecht eingetragen; die Datenbank nimmt eine '
-    + 'Freistellungsbescheinigung nur mit',
-  pflegeOffenDrei: ' an, während die Seite mit',
-  pflegeOffenNach:
-    ' öffnet. Welches Recht gelten soll, ist eine Entscheidung am '
-    + 'Rechtemodell — und eine Maske, die die Datenbank abweist, ist schlechter '
-    + 'als keine.',
+  dokumentOhneRecht: 'hinterlegt — zum Öffnen fehlt das Leserecht für Dokumente',
+  pflegeBetont:
+    'Diese Seite liest die Bescheinigungen nur — Voreinstellung (O-604): die Buchhaltung '
+    + 'pflegt sie mit dem Schreibrecht der Finanzen (V-283).',
+  pflegeOrt: 'Erfasst, widerrufen und mit ihrem Scan verknüpft werden sie unter',
+  pflegeVerweis: 'Finanzen › Freistellungsbescheinigungen',
+  pflegeRechtVor: 'Das kann, wer',
+  pflegeRechtNach: 'hält.',
   schluss:
     'Der Einbehaltbetrag kommt aus einer geprüften Rechenregel des Programms und '
     + 'nie aus einem Modell (Invariante 6).',
@@ -1185,16 +1184,14 @@ const EN: EingangsrechnungenTexte = {
   giltAndererAuftrag: 'valid for a different Auftrag (order)',
   giltNicht: 'not valid on the cut-off date',
   keinDokument: 'no document',
-  pflegeOffenBetont:
-    'Uploading, setting validity and revoking are not possible here yet — default '
-    + '(O-604): accounting maintains them with the finance write right; the write path follows (V-283).',
-  pflegeOffenVor:
-    'No write right is entered for this page; the database accepts a '
-    + 'Freistellungsbescheinigung (exemption certificate) only with',
-  pflegeOffenDrei: ', while the page opens with',
-  pflegeOffenNach:
-    '. Which right is to apply is a decision about the rights model — and a '
-    + 'form that the database rejects is worse than no form at all.',
+  dokumentOhneRecht: 'on file — opening it needs the read right for documents',
+  pflegeBetont:
+    'This page only reads the certificates — default (O-604): accounting maintains them '
+    + 'with the finance write right (V-283).',
+  pflegeOrt: 'They are recorded, revoked and linked to their scan under',
+  pflegeVerweis: 'Finance › Freistellungsbescheinigungen',
+  pflegeRechtVor: 'Whoever holds',
+  pflegeRechtNach: 'may do so.',
   schluss:
     'The retained amount comes from a tested calculation rule of the program '
     + 'and never from a model (invariant 6).',

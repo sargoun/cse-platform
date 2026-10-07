@@ -120,6 +120,14 @@ export default async function NachtraegeUeberProjekte(
         >
           Angemeldet, nicht eingereicht
         </Link>
+        {/* V-384: bestätigen und archivieren, worauf ein Nachtrag stehen kann. */}
+        <Link
+          href={`/portal/${mandant}/bau/nachtragsgrundlagen`}
+          className="ml-auto text-text-muted underline-offset-2 hover:text-text hover:underline"
+          data-cse="nachtragsgrundlagen"
+        >
+          Anspruchsgrundlagen
+        </Link>
       </p>
 
       <AusserhalbLvWarnungen

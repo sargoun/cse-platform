@@ -86,6 +86,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * dass jemand hochgeladen hat.
    */
   { modul: 'vergabe', pfad: 'vergabe/mappe', schreibend: true, schreibRecht: 'vergabe.schreiben' },
+  /* V-307, O-112, D-839 — der interne Vorlauf vor der amtlichen Frist, gerechnet. */
+  { modul: 'vergabe', pfad: 'vergabe/vorlauf', schreibend: false },
   {
     modul: 'vergabe', pfad: 'vergabe/einreichung',
     schreibend: true, schreibRecht: 'vergabe.einreichung_erfassen',
@@ -316,6 +318,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'finanzen', pfad: 'finanz/lieferant',
     schreibend: true, schreibRecht: 'eingang.schreiben',
+  },
+  /**
+   * V-283 — die Freistellungsbescheinigungen nach § 48b EStG (O-604,
+   * D-845). Sie SCHREIBT `freistellungsbescheinigung` (erfassen, widerrufen,
+   * Beleg verknüpfen) mit `finanzen.schreiben` — dem Recht der `WITH
+   * CHECK`-Hälfte von `freistellungsbescheinigung.t_mandant` (0118).
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/freistellung',
+    schreibend: true, schreibRecht: 'finanzen.schreiben',
   },
   /**
    * V-011 — der Schreibweg der Ausgabe.
@@ -1067,6 +1079,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'bau.schreiben',
   },
   /**
+   * V-384 — die Anspruchsgrundlagen der Nachträge (O-23, D-842). Sie
+   * SCHREIBT `nachtrag_grundlage` (bestätigen, archivieren, wieder aufnehmen)
+   * mit `bau.schreiben` — dem Recht der `WITH CHECK`-Hälfte von
+   * `nachtrag_grundlage.t_mandant` (0080), wie beim Gewerkekatalog.
+   */
+  {
+    modul: 'bau', pfad: 'bau/nachtrag-grundlage',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  /**
    * Die Reinigung — die Sollzeitrechnung und der Abzug LESEN, der Rest
    * schreibt.
    *
@@ -1749,6 +1771,11 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'mahnung', pfad: 'finanz/mahnung/zins', schreibend: false },
   { modul: 'mahnung', pfad: 'finanz/mahnung/stufen.platzhalter', schreibend: false },
+  /* V-313, O-181, D-840 — die Folgeaktion der Stufe: fällig gesagt, von einem Menschen vermerkt. */
+  {
+    modul: 'mahnung', pfad: 'finanz/mahnung/folgeaktion',
+    schreibend: true, schreibRecht: 'mahnung.schreiben',
+  },
   {
     modul: 'mahnung', pfad: 'finanz/mahnung/lauf',
     schreibend: true, schreibRecht: 'mahnung.schreiben',

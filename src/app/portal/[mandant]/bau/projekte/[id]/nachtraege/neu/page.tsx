@@ -167,10 +167,13 @@ export default async function NachtragAnmelden(
               ))}
             </select>
             <span className="mt-s1 block text-xs text-text-subtle">
-              Die Liste steht vollständig aus dem Gesetzestext und ist als
-              unbestätigt gekennzeichnet, bis feststeht, welche Grundlagen die
-              Gruppe tatsächlich verwendet (O-23). Ein Freitextfeld gibt es
-              hier nicht.
+              Die Liste steht vollständig aus dem Gesetzestext; eine Grundlage
+              ist als unbestätigt gekennzeichnet, bis die Gesellschaft sie unter{' '}
+              <Link href={`/portal/${mandant}/bau/nachtragsgrundlagen`}
+                    className="underline underline-offset-2 hover:text-text">
+                Anspruchsgrundlagen
+              </Link>{' '}
+              bestätigt (Voreinstellung O-23). Ein Freitextfeld gibt es hier nicht.
             </span>
           </label>
 

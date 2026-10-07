@@ -136,7 +136,21 @@ export function Vorgangskopf({ mandant, z, zuordnung, aktiv, darf }: {
           className="m-0 mb-s5 grid grid-cols-1 gap-s4 sm:grid-cols-2 lg:grid-cols-4">
         <Feld kopf="Anfragende Person">
           {z.name}
-          <span className="block text-xs text-text-muted">{z.email}</span>
+          {z.email !== null && (
+            <span className="block text-xs text-text-muted">{z.email}</span>
+          )}
+          {/* V-370: eine Anfrage per Brief trägt ihre Anschrift, oft ohne E-Mail. */}
+          {z.anschrift !== null && (
+            <span className="block whitespace-pre-line text-xs text-text-muted"
+                  data-cse="vorgang-anschrift">
+              {z.anschrift}
+            </span>
+          )}
+          {z.antwortweg !== null && (
+            <span className="block text-xs text-text-muted" data-cse="vorgang-antwortweg">
+              {z.antwortweg === 'brief' ? 'Antwort per Brief' : 'Antwort per E-Mail'}
+            </span>
+          )}
         </Feld>
         {/*
           * **Der Eingang nennt seinen WEG** (V-031, Art. 12 Abs. 1).

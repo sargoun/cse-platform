@@ -2840,7 +2840,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | # | Question | Blocks |
 |---|---|---|
 | O-01 | Is **CSE Operations** a GmbH or a department? | invoice circle, Phase 1 |
-| O-04 | The exact five billing types, and their rules — rounding, minimum unit, night and Sunday surcharges, call-off versus monthly flat | Phase 6 · **Voreinstellung → D-779** |
+| O-04 | The exact five billing types, and their rules — rounding, minimum unit, night and Sunday surcharges, call-off versus monthly flat | Phase 6 · **Voreinstellung → D-779, D-843** |
 | O-05 | DATEV: Beraternummer, Mandantennummer per entity, SKR03/04, Sachkontenlänge, Steuerschlüssel, fiscal year start — **plus a real sample EXTF export** | Phase 7 · **Voreinstellung → D-779** |
 | O-06 | Is there a **Betriebsrat**? §87 Abs. 1 Nr. 6 BetrVG governs geolocation, check-in audit trails, the APR-08 review-duration measurement and login metadata | geolocation capture, LEG-10 · **Voreinstellung → D-802** |
 | O-07 | Which procurement platforms is the group registered on, under which identifier? | RAD-09 · **Voreinstellung → D-784** |
@@ -2864,7 +2864,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-20 | Abschlagszahlungen: which VOB/B §16 terms apply; Sicherheits-/Gewährleistungseinbehalt percentage, release date, and replacement by a Bürgschaft | 50 · **Voreinstellung → D-779** |
 | O-21 | §48 EStG: which Bagatellgrenze, at which date (Leistungsdatum or payment), and which customers count as Leistungsempfänger | 51 · **Voreinstellung → D-779** |
 | O-22 | Leitweg-IDs per public client and the required transmission route (OZG-RE / ZRE / Landesportal / Peppol / e-mail) | 52 · **Voreinstellung → D-779** |
-| O-23 | The §2 VOB/B basis list; VOB/C deduction and Übermessung rules per trade — automatic or manual | 43, 44 · **Voreinstellung → D-800** |
+| O-23 | The §2 VOB/B basis list; VOB/C deduction and Übermessung rules per trade — automatic or manual | 43, 44 · **Voreinstellung → D-800, D-842** |
 | O-24 | Handelsregister data, USt-IdNr. and bank details per entity | 26, 47 |
 | O-25 | Retention period and legal basis per document category, beyond the GoBD ten years; and how long applicant documents are kept after a rejection | 9, 85 · **Voreinstellung → D-779** |
 | O-26 | Monthly AI budget per entity and per agent | 74 · **Voreinstellung → D-786** |
@@ -3154,7 +3154,7 @@ Beantworten helfen:
 | O-601 | **Welche Vorab-Pruefungen soll `/finanzen/pruefungen` ausser FIN-18 fuehren — und welche davon blockiert die Festschreibung, welche warnt nur?** Die Seitenkarte nennt „and the other pre-invoice checks", ohne sie aufzuzaehlen. Heute gefuehrt: FIN-18 (abgeschlossener Auftrag ohne erfasste Minute, warnt), „abgeschlossener Auftrag ohne Rechnung" (FIN-01/FIN-16, warnt) und „Entwurfszeile ohne wirksame Herkunft" (FIN-07, blockiert). Die Seite nennt die Luecke unter „Was diese Liste NOCH NICHT prueft", statt sie mit erfundenen Regeln zu fuellen. | FIN-18, FIN-07, FIN-01, `services/finanz/vorabpruefung.ts`, SEITENKARTE §5.14 · **Voreinstellung → D-779** |
 | O-602 | **Innerhalb welcher Frist nach Auftragsabschluss muss abgerechnet werden?** Ohne eine gesetzte Frist kann die Vorab-Liste keinen Auftrag als „ueberfaellig" zeigen. Eine hier erfundene waere eine Geschaeftsregel, die sich eine Liste selbst gibt — und sie erschiene jeder Buchhaltung als vereinbart. Bis zur Antwort setzt die Seite keine Frist und sagt das. | FIN-18, `services/finanz/vorabpruefung.ts` · **Voreinstellung → D-779** |
 | O-603 | **Welcher EU-gehostete Transaktionsmailer liefert den Rechnungsversand aus, und unter welchem Auftragsverarbeitungsvertrag?** Fortschreibung von O-36 auf `rechnung_versand`: ohne Antwort bleibt `versand.email.verbunden` false, der DB-Ausloeser `rechnung_versand_2_kanal_verbunden` laesst nur `status = nicht_verbunden` zu, es gibt keinen Sendeknopf, und die Rechnung wird von Hand versendet. Die Datei bleibt ueber `/api/finanzen/rechnungen/[id]/xrechnung.xml` und `/zugferd.pdf` abrufbar. | FIN-11, FIN-12, O-36, O-22, `services/finanz/versand.ts`, `drizzle/0181` |
-| O-604 | **Welches Recht oeffnet die Pflege der §48b-Freistellungsbescheinigung?** Drei Schluessel stehen nebeneinander: das Routenregister fuehrt fuer `/finanzen/eingangsrechnungen/[id]/steuer` `lesen: [abrechnung.freistellung_pflegen]` und `schreiben: []`, die Policy auf `eingangsrechnung` verlangt zum Lesen `eingang.lesen`, die auf `freistellungsbescheinigung` `finanzen.lesen` zum Lesen und `finanzen.schreiben` zum Schreiben. Bis zur Entscheidung ist die Seite lesend; ohne `finanzen.lesen` nennt sie den §48-Ausgang ausdruecklich „nicht bewertbar" statt „Einbehalt", weil eine durch RLS geleerte Bescheinigungsliste kein Ausgang ist. | FIN-10, LEG-06, AUT-06, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` · **Voreinstellung → D-779** |
+| O-604 | **Welches Recht oeffnet die Pflege der §48b-Freistellungsbescheinigung?** Drei Schluessel stehen nebeneinander: das Routenregister fuehrt fuer `/finanzen/eingangsrechnungen/[id]/steuer` `lesen: [abrechnung.freistellung_pflegen]` und `schreiben: []`, die Policy auf `eingangsrechnung` verlangt zum Lesen `eingang.lesen`, die auf `freistellungsbescheinigung` `finanzen.lesen` zum Lesen und `finanzen.schreiben` zum Schreiben. Bis zur Entscheidung ist die Seite lesend; ohne `finanzen.lesen` nennt sie den §48-Ausgang ausdruecklich „nicht bewertbar" statt „Einbehalt", weil eine durch RLS geleerte Bescheinigungsliste kein Ausgang ist. | FIN-10, LEG-06, AUT-06, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` · **Voreinstellung → D-779, D-845** |
 | O-605 | **Soll der §13b-Status der EIGENEN Gesellschaft als Leistungsempfaengerin als Zeitreihe gefuehrt werden — und wer pflegt ihn?** `mandant` traegt kein entsprechendes Feld; `kunde_bauleistender_status` beschreibt die Ausgangsseite. Bis zur Antwort zeigt das Steuerblatt den auf dem BELEG gespeicherten Stand und bewertet nicht tagesaktuell neu — eine Neubewertung alter Belege waere eine Aussage ueber die Vergangenheit, die niemand getroffen hat. | FIN-10, §13b UStG, `finanzen/eingangsrechnungen/[id]/steuer/page.tsx` · **Voreinstellung → D-787** |
 | O-606 | **Gehoert `ist_platzhalter` der Demo-Rechnungskreise auf `true` — und mit welcher Wirkung auf bereits festgeschriebene Belege?** Die drei `ausgangsrechnung`-Kreise heissen „Ausgangsrechnungen (DEMO — Maske unbestaetigt, O-134)" und tragen `ist_platzhalter = false`. Der Name behauptet den Schutz, die Spalte hebt ihn auf, und fuer Rechnungskreise sitzt der Platzhalterschutz ausschliesslich in `fin.rechnung_nummer_ziehen` und prueft genau diese Spalte. `/finanzen/nummernkreise` stellt beides nebeneinander und loest es nicht auf. | TEN-02, FIN-03, FIN-16, O-134, `services/finanz/kreisuebersicht.ts`, `db/seed/index.ts` · **Voreinstellung → D-779** |
 **Personal**
@@ -3296,7 +3296,7 @@ Beantworten helfen:
 | O-731 | **Which Zeitwerte (minutes per unit) and which Standardeinzelpreise apply per Leistungskatalog position, and who releases them?** This is the position side of the same gap as O-17 (Leistungswerte per Belagsart) and additionally covers the time value and the standard price. The CHECK `lkp_kalkulierbar` does not allow a position without any of the three values, so „do not invent a value" cannot mean „leave it NULL": every position carries a clearly marked placeholder with `ist_platzhalter = true` (the column's default), the list shows the placeholder share per Fassung, and the confirm tick says explicitly „for THIS Fassung" — it does not answer O-17 or this row. | `services/katalog/index.ts`, `/leistungskatalog`, `/leistungskatalog/[id]`, OPS-06, CLN-05, O-17, O-16, O-37 · **Voreinstellung → D-780** |
 | O-732 | **May a granted Preisfreigabe be revoked while the offer has not yet been sent — and if so, by whom and under what logging duty?** The release became its own step when `versendeAngebot` was split (`angebot.preis_freigeben` vs `angebot.versenden`), and with it the question of taking it back. Until answered it is **immutable**: `kern.angebot_preisfreigabe_pruefen` rejects any change to `freigegeben_von`/`freigegeben_am` once set, and a different price needs a new offer version — the same shape as invariant 4. Allowing a revocation would be an invented rule; allowing it silently would be an invented rule without a trace. | `drizzle/0295`, `services/angebot/index.ts` (`gibPreisFrei`), `/angebote/[id]/freigabe`, invariant 4, invariant 7 · **Voreinstellung → D-780** |
 | O-734 | **Must a closed order be re-openable (Nachtrag, warranty case) — and what then happens to the FIN-18 warning the closure armed?** `pruefeZeiterfassung` reads `status = 'abgeschlossen' or abgeschlossen_am is not null` as the signal that arms the FIN-18 block in the invoice path (D-366). A silent re-opening would therefore disarm a warning somebody deliberately decided on, and leave no trace. Until answered the closure is **one-way**: `abgeschlossen_am` is immutable and the status cannot leave `abgeschlossen`; correction runs through a Nachtrag or a new order. | `drizzle/0296`, `services/auftrag/abschluss.ts`, `/auftraege/[id]/abschluss`, FIN-18, D-366, D-367 · **Voreinstellung → D-780** |
-| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart. Since V-161 (`drizzle/0410`, D-654) a new `referenz` records the `auftrag` it was created from (`auftrag_id`, composite FK over the Gesellschaft, immutable) — as PROVENANCE, not coupling: nothing cascades, no trigger on `auftrag` reads it, and the reference keeps its own release; the reference sheet shows a revocation on its origin order as information. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. | `drizzle/0296`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 · **Voreinstellung → D-780** |
+| O-735 | **Is the customer's Referenzfreigabe time-limited (how long does the permission hold), and does a revocation work retroactively** — must already-published references be taken down, or only no new ones created? The order row keeps the proof either way: `freigabe_widerrufen_am` is the field that counts, and `auftrag_referenz_idx` reads it that way (`freigegeben_vom_kunden AND freigabe_widerrufen_am IS NULL`). Until answered, a revocation removes **no** `referenz` row — PRO-05 keeps the two acts apart. Since V-161 (`drizzle/0410`, D-654) a new `referenz` records the `auftrag` it was created from (`auftrag_id`, composite FK over the Gesellschaft, immutable) — as PROVENANCE, not coupling: nothing cascades, no trigger on `auftrag` reads it, and the reference keeps its own release; the reference sheet shows a revocation on its origin order as information. A revocation is not a dead end either: `freigegeben_vom_kunden` stays `true` (the CHECK requires it), and a fresh customer statement clears `freigabe_widerrufen_am` and takes effect again — the customer may change their mind twice. The revocation reason goes to the audit log (`auftrag.kundenfreigabe_widerrufen`), never into `freigabe_text`: that column holds the customer's own wording and is the proof PRO-05 relies on. Since V-287 (D-841) the revocation also creates, per published reference from the order, the task „Referenz herausnehmen" (five Berlin working days, `app.referenz_herausnahme_aufgabe`, 0528) — still no row is removed and no status set automatically. | `drizzle/0296`, `drizzle/0528`, `services/auftrag/kundenfreigabe.ts`, `/auftraege/[id]/kundenfreigabe`, PRO-05 · **Voreinstellung → D-780, D-841** |
 | O-736 | **Which document categories may EVER be released to a customer?** DOC-01 lists `mitarbeiter` and `buchhaltung` alongside the customer-facing ones; releasing a payslip or a bank statement to a customer must be impossible, not merely unusual. Today the database checks only the right (`dokument.kunde_freigeben`, `drizzle/0297`), so the release screen names the category prominently and the audit entry records it with every switch. A release without `kunde_id` is rejected outright. | `drizzle/0297`, `services/dokument/kundenfreigabe.ts`, `/dokumente/[id]/kundenfreigabe`, DOC-01, DOC-03, DOC-04, O-671 · **Voreinstellung → D-780** |
 | O-737 | **Does a later change to `raum.flaeche_qm` or `raum.belagsart_id` affect running offers and orders** — must the Kalkulation be recomputed and the customer informed — **or does it apply only to future calculations?** Both values feed every cleaning price (OPS-02, OPS-07) and every Revier target time, so one measurement moves numbers in several other places. Until answered the room sheet changes only the room, and it shows underneath **what hangs on it**: the Richtzeit this room contributes, its Reviere with their overrides, and its import history. Blocking the change would be wrong — a re-measured room is the truth, and the numbers beside it are what must follow. | `services/raumbuch/raum.ts`, `services/kalkulation/raumbuch.ts` (`ladeRaumRichtzeit`), `/objekte/[id]/raumbuch/[raumId]`, OPS-02, OPS-03, OPS-07 · **Voreinstellung → D-780** |
 **Mitarbeiterportal**
@@ -3354,7 +3354,7 @@ Beantworten helfen:
 | O-927 | **Welche Leistungszeile darf die Zeit einer Schicht tragen — über die Wahl eines Menschen beim Planen hinaus?** Seit V-191 setzt ein Mensch die Leistungszeile an Einzelschicht, Turnus und Posten; der Zeiteintrag erbt sie beim Erfassen (`z_erben`, 0034) und hält sie danach fest (`z_unveraenderlich`). Jede der vier Fragen entscheidet, bei welchem Kunden eine geleistete Stunde abgerechnet wird, und keine davon beantwortet SPEC oder das Datenmodell: **(1) Nachträgliche Zuordnung.** Darf Zeit, die schon OHNE Leistungszeile erfasst ist (`zeiteintrag_ohne_auftrag`, Ursache `einsatz_ohne_leistung`), einer Leistungszeile zugeordnet werden — und bis wann: vor der Freigabe, nach der Freigabe, nach der Abrechnung, in einem gesperrten Monat (dort verlangt jede Korrektur eine Gegenbuchung, O-891)? Heute übernimmt eine Korrektur die Zeile der alten Fassung, und die Zeit bleibt ohne Auftrag; für den Abruf stellt O-708 dieselbe Frage. **(2) Der Anker des Reviers.** `revier.auftrag_leistung_id` (0029) liest niemand; der Generator nimmt den des Turnus. Soll ein Turnus ohne eigene Zeile die seines Reviers übernehmen, und welche gilt, wenn beide gesetzt sind und auseinandergehen? **(3) Der Kunde.** Muss der Auftrag der gewählten Zeile dem Kunden des Objekts (Reviers, Postens) gehören, an dem die Schicht stattfindet? Die Datenbank prüft nur, dass Zeile und Auftrag zusammengehören (`einsatz_leistung_fk`); seit V-192 nennt die Auswahl Kunde und Objekt jeder Zeile, verhindert aber nichts — eine Hausverwaltung, die für einen Eigentümer bestellt, wäre ein Fall, in dem beide auseinandergehen dürfen. **(4) Der Zustand des Auftrags.** In welchen Zuständen nimmt ein Auftrag neue Zeit an? `storniert` nie (einwegig, 0389), `abgeschlossen` nicht, solange O-734 offen ist. Offen sind `angelegt` (ein neuer Auftrag steht dort, bis jemand ihn aktiviert) und `pausiert`. Der Platzhalter `ANKERBARE_AUFTRAGSZUSTAENDE` nimmt `aktiv` und `pausiert` — dieselbe Menge wie die Auftragsauswahl der Einzelschicht (V-013); die Antwort ersetzt nur ihn. | TIM-12, FIN-07, O-708, O-734, O-891, D-685, D-686, V-191, V-192, `src/server/services/dienstplan/leistungsanker.ts` (`ANKERBARE_AUFTRAGSZUSTAENDE`), `drizzle/0029`, `drizzle/0034`, `drizzle/0050` · **Voreinstellung → D-795** · Revieranker → D-826 · Zuordnung per Korrektur → D-827 |
 | O-928 | **Darf der Sprachkeks „cse_sprache" über die Browsersitzung hinaus bestehen — und wenn ja, wie lange?** Seit V-200 merkt sich das Telefon einer Kraft die Sprache der Flächen ohne Sitzung (Stempeluhr, Anmeldung): ein Keks mit einem von vier Werten (de, en, ar, tr), gesetzt nur auf ausdrückliche Wahl — die Sprachwahl dieser Flächen oder das Speichern der Sprache im Profil der Arbeiterhülle —, gelesen vor der Anmeldung, und die Abmeldung löscht ihn nicht, weil die Stempeluhr ohne Anmeldung benutzt wird. V-200 gab ihm ein Jahr, begründet mit „eine Spracheinstellung ist keine Sitzung"; das war eine still entschiedene Rechtsfrage (§ 25 Abs. 2 Nr. 2 TDDDG, vormals TTDSG: „unbedingt erforderlich" für einen ausdrücklich gewünschten Dienst — die Art.-29-Gruppe (WP194) nennt Oberflächen-Kekse ohne weiteren Hinweis nur als Sitzungs- oder Kurzzeitkeks ausgenommen). **Ausgeliefert ist der Sitzungskeks** (`SPRACH_KEKS_SEKUNDEN = null`, kein `Max-Age`): er endet mit dem Browser; `Accept-Language` trägt die Sprache des Telefons ohnehin. Die Datenschutzerklärung (Seed de/en) beschreibt genau das. Zu entscheiden: (1) Sitzungskeks oder dauerhaft; (2) falls dauerhaft, die Dauer und ob der Hinweis in der Erklärung genügt; (3) ob die Erklärung den Namen des Gesetzes auf TDDDG umstellen soll (der ganze Absatz nennt noch TTDSG). Die Antwort ändert `SPRACH_KEKS_SEKUNDEN` und den Satz der Erklärung, nicht die Aufrufer. | EMP-12, TIM-07, D-61, D-694, D-751, V-200, `src/lib/i18n/geraetesprache.ts` (`SPRACH_KEKS_SEKUNDEN`), `src/server/konto/sprach-keks.ts`, `src/server/db/seed/{inhalt,inhalt-en}.ts` · **Voreinstellung → D-795** |
 | O-893 | **Darf die Verwaltung einen Urlaubsantrag im Namen einer Arbeiterin stellen — und wer gilt dann als Antragsteller?** Seit V-025 kann das Büro eine Abwesenheit aufnehmen; sie entsteht als `erfasst` — zur Kenntnis genommen, nicht genehmigt, wie die Krankmeldung auf dem Weg der Arbeiterin selbst. Der Urlaubsantrag ist etwas anderes: er ist eine WILLENSERKLÄRUNG, und wer ihn stellt, verlangt etwas für sich. Ein von der Verwaltung gestellter Antrag hätte in `antrag.gestellt_von` den Menschen aus dem Büro und in der Sache die Arbeiterin — und bei einer Ablehnung wäre nicht mehr feststellbar, wer den Urlaub eigentlich wollte. Drei Antworten sind denkbar: (a) gar nicht — der Antrag bleibt der Arbeiterin vorbehalten, und das Büro nimmt ihn telefonisch entgegen und trägt ihn als bereits genehmigte Abwesenheit ein; (b) mit einer eigenen Spalte „im Auftrag von", die beide Menschen nennt; (c) frei, und die Spur steht nur im `audit_log`. **Die Plattform erfindet keine davon**: das Büro nimmt auf, was zur Kenntnis genommen wird, und der Antragsweg (`/api/mein/antraege`) bleibt, wo er ist. | EMP-09, V-025, `src/app/api/personal/abwesenheit/route.ts`, `src/server/services/abwesenheit/index.ts` · **Voreinstellung → D-781** |
-| O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` · **Voreinstellung → D-798** |
+| O-892 | **Soll eine rein postalische Betroffenenanfrage ohne E-Mail-Adresse erfassbar sein — und wohin geht dann die Antwort?** `betroffenenanfrage.email` ist `not null` mit Formatprüfung (`0176`), weil die einzige Quelle das öffentliche Formular war und dort die E-Mail-Adresse der Rückkanal ist. Seit das Büro einen Brief aufnehmen kann (V-031), gibt es den Fall ohne: ein Schreiben mit Anschrift und ohne Adresse. Art. 12 Abs. 3 verlangt die Antwort „in der Regel in derselben Form", in der der Antrag gestellt wurde — also postalisch, und dann ist die E-Mail-Spalte eine Pflichtangabe ohne Zweck. Drei Antworten sind denkbar: (a) die Spalte nullable machen und eine Anschrift daneben führen; (b) sie Pflicht lassen und die Aufnehmende eine erreichbare Adresse erfragen lassen; (c) eine Ersatzadresse der Gesellschaft eintragen und die Anschrift in die Nachricht schreiben. **Die Plattform erfindet keine davon**: sie verlangt die Adresse weiter und sagt im Formular, dass eine reine Anschrift in die Nachricht gehört — der Vorgang entsteht damit vollständig, die Frist läuft, und keine Zeile behauptet einen Rückkanal, den es nicht gibt. | LEG-09, V-031, Art. 12 Abs. 1 und Abs. 3 DSGVO, `drizzle/0176`, `src/server/services/datenschutz/anfrage.ts` · **Voreinstellung → D-798, D-844** |
 | O-891 | **Wie wird eine Korrektur an einem GESPERRTEN Monat gebucht, die keine Minuten bewegt?** Der Auslöser `kern.korrektur_sperre_ausgleich` verlangt bei einem gesperrten Zeiteintrag zwingend eine `ausgleich_bewegung_id`; `bucheKorrektur` weist eine Buchung über **null** Minuten ihrerseits ab („Eine Korrektur ueber null Minuten ist keine."). Dazwischen liegt eine reale Lage: die Stunden stimmen, aber das Objekt, das Revier oder die Auftragszuordnung war falsch — eine Korrektur, die abgerechnet nichts verschiebt und fachlich trotzdem nötig ist (sie entscheidet, welcher Kunde belastet wird). Drei Antworten sind denkbar: (a) eine Bewegung über 0 Minuten zulassen, rein als Beleg; (b) die Sperrprüfung auf Korrekturen beschränken, die Zeiten ändern; (c) solche Korrekturen in einem gesperrten Monat ganz verbieten. **Die Plattform erfindet keine davon**: die Gegenbuchung entsteht nur, wenn eine Differenz da ist, und ohne sie spricht der Auslöser — mit seinem eigenen, lesbaren Satz. | EMP-04, V-065, §12.2, `drizzle/0036`, `src/server/services/zeit/korrektur.ts` · **Voreinstellung → D-795** · Zuordnung per Korrektur → D-827 |
 | O-890 | **Muss ein von der Verwaltung geschlossener Zeiteintrag gegengezeichnet werden, bevor er abrechenbar ist?** `zeiteintrag_status` führt seit `0034` den Wert `offen_nacherfassung`, und **nichts im Baum schreibt ihn**. Er wäre der ehrliche Zustand für „von der Planung gesetzt, aber noch nicht bestätigt" — nur beschreibt kein Dokument, **wer** ihn wieder wegnimmt und was bis dahin gilt: zählt die Stunde ins Stundenkonto? Steht sie im Monatsnachweis? Darf sie abgerechnet werden? Ein Eintrag in einem Zustand, aus dem kein Weg herausführt, ist schlimmer als keiner. Gebaut ist deshalb der Weg, der am wenigsten erfindet: `schliesseLaufendenEintrag` schliesst nach `abgeschlossen`, und die Spur bleibt vollständig (`quelle_ende = 'planer_entscheidung'`, `nacherfasst = true`, `behauptet_ende`, Begründung in `notiz`). Das Recht `zeit.nacherfassung_pruefen` existiert bereits — sobald die Antwort da ist, ist die Umkehr **eine Zeile** im Dienst plus ein Filter auf der Prüfseite. | TIM-11, V-064, `drizzle/0034`, `src/server/services/zeit/laufender-eintrag.ts` · **Voreinstellung → D-781** |
 | O-889 | **Soll eine Benachrichtigung in der Sprache der Empfängerin entstehen (`person.sprache`) oder in der Sprache der Gesellschaft, die sie versendet?** `benachrichtigung` trägt **gespeicherten** Text: Titel und Text entstehen beim Erzeugen und stehen danach fest — eine Meldung, deren Sprache sich später ändert, gibt es nicht. **Ausgeliefert ist seit V-102 die Sprache der EMPFÄNGERIN**, und der Grund ist der Zweck der Meldung: sie soll gelesen werden. Eine Ablaufwarnung kündigt eine Sperre nach § 34a GewO an; wer sie nicht lesen kann, erscheint zur Schicht und wird weggeschickt. Betroffen sind **genau die drei Arten, die in `/portal/mein` landen** (`nachweis.ablauf_60/30/7`, `zeit.einwand_entschieden`, `dienstplan.plan_veroeffentlicht`); alle übrigen bleiben deutsch, weil das interne Portal deutsch ist und seine Begriffe juristische Bedeutung tragen — `tests/kern/benachrichtigung-sprachen.test.ts` §5 hält diesen Umfang fest. **Eingesetzter Text wird NICHT übersetzt**: die Bezeichnung einer Qualifikation, die Begründung der Planung, der Name der Gesellschaft — sie zu übersetzen hiesse, sie zu erfinden. Übersetzt wird dagegen, was die Plattform selbst formuliert, bis hin zur Fügung zwischen zwei Kalendertagen. **Offen bleibt die Bestätigung**: sagt der Auftraggeber, es solle die Sprache der Gesellschaft sein, ist die Änderung eine Zeile je Erzeuger — die Sprache steht als `sprache` im `BenachrichtigungsKontext` und nicht in den Texten. | NOT-01, NOT-02, SPEC §10, D-419, V-102, `src/lib/i18n/benachrichtigung.ts`, `src/server/benachrichtigung/registry.ts` · **Voreinstellung → D-795** |
@@ -24484,7 +24484,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 
 | Frage | Voreinstellung (gilt, bis der Betreiber sie ändert) | Wo |
 |---|---|---|
-| O-04 | Fünf Abrechnungsarten (Stundensatz, Monatspauschale, Einheitspreis je Fläche, Stück/Einsatz, Aufmaß); Rundung kaufmännisch auf ganze Cent je Position; angebrochener Monat der Pauschale nach `kalendertage` — der Modus `arbeitstage` braucht den Feiertagskalender und ist noch nicht gebaut (V-281); Zuschläge Nacht 25 %, Sonntag 50 %, Feiertag 100 % je Vertrag. Die Zeilen heissen „Voreinstellung (O-04)" statt „provisorisch". | `vertrag_abrechnung`, `abrechnungsart/*` |
+| O-04 | Fünf Abrechnungsarten (Stundensatz, Monatspauschale, Einheitspreis je Fläche, Stück/Einsatz, Aufmaß); Rundung kaufmännisch auf ganze Cent je Position; angebrochener Monat der Pauschale nach `kalendertage` — der Modus `arbeitstage` zählt seit V-281 (D-843) Montag bis Freitag ohne gesetzliche Feiertage in Berlin; Zuschläge Nacht 25 %, Sonntag 50 %, Feiertag 100 % je Vertrag. Die Zeilen heissen „Voreinstellung (O-04)" statt „provisorisch". | `vertrag_abrechnung`, `abrechnungsart/*` |
 | O-05 | SKR03, Sachkontenlänge 4, Wirtschaftsjahr = Kalenderjahr, Sollversteuerung, EXTF 700. Berater- und Mandantennummer sind Betreiberdaten; die Demodaten tragen gekennzeichnete Demowerte (1000001 / 1000x). Die Konfiguration steht als Voreinstellung (`ist_platzhalter`), der Export entsteht nach der Bestätigung unter Buchhaltung › DATEV; eine alte leere Seed-Zeile wird nachgefüllt, wenn sie unberührt ist (eingetragene Nummern bleiben). Aufwandskategorien und Kontenzuordnung folgen dem SKR03; die Zuordnungszeilen (`konto_mapping`) folgen unter V-285. Die gesonderte Buchung eines Bauabzugsteuer-Einbehalts ist nicht gebaut; der Prüfhinweis sagt das. | Seed, `datev_konfiguration` |
 | O-19, O-44 | Drei Mahnstufen: Zahlungserinnerung ab 7 Tagen (0 €), 1. Mahnung ab 21 Tagen (5 €), 2. Mahnung ab 35 Tagen (10 €); Mahntexte als Voreinstellung. **Kein Verzugszins in der Voreinstellung:** der Zuschlag nach § 288 BGB hängt am Kundentyp (9 Punkte B2B, 5 Punkte Verbraucher), die Stufe kennt den Kunden nicht — die Buchhaltung wählt die Zinsart je Stufe beim Bestätigen. Demodaten: freigegeben, damit der Lauf ausprobiert werden kann (ein Vorschlag ist ohnehin ein Entwurf, Invariante 7); Betrieb: Übernahme unter Einstellungen › Mahnwesen. Ein Bestand mit den alten Seed-Platzhaltern wird nachgeführt, nur wo die Zeile unberührt ist. Kein Basiszinssatz im Seed — eine echte Zahl der Bundesbank. | Seed `mahnstufe`, `mahnung/lauf.ts` |
 | O-20 | Kein Sicherheitseinbehalt, solange der Auftrag keinen vereinbart (VOB/B § 17 Abs. 1 verlangt die Vereinbarung); Abschläge nach § 16 Abs. 1 VOB/B in Höhe der nachgewiesenen Leistung; zwei widersprüchliche Angaben im Auftrag halten den Abschluss an (`einbehalt_doppelt`) — nur eine führen, bevorzugt den Prozentsatz. | `abschlag/bedingungen*`, `rechnung-ausgabe.ts` |
@@ -24505,7 +24505,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder und nur mit `finanzen.lesen` (das Recht des Prüfberichts); die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
-| O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg (Hochladen, Gültigkeit, Widerruf) folgt (V-283). | `eingangsrechnungen.ts` |
+| O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg ist gebaut (V-283, D-845): `/finanzen/freistellungen` erfasst, widerruft ab heute und verknüpft den Scan; erfasst steht eine Bescheinigung fest (0530). | `eingangsrechnungen.ts`, `finanz/freistellung.ts` |
 | O-902 | Ein bezahlter offener Posten schliesst seine Mahnung nicht von selbst; ein Mensch vermerkt es. | `mahnungen.ts` |
 | O-931 | Material wird zum Einstand plus 10 % Aufschlag weiterberechnet; der Einzelpreis wird im Entwurf von Hand gesetzt. | `rechnung-entwurf.ts` |
 | O-27 | Lohnexport als generische CSV je Gesellschaft, bis der Betreiber das Lohnsystem einträgt. | Lohnexport-Seiten |
@@ -24571,7 +24571,7 @@ und eine Frist: Reklamationen bekommen beim Anlegen `faellig_am`.
 | O-730 | Befunde vor dem Abschluss warnen, sperren nicht; die Buchhaltung sieht sie und entscheidet. | Auftrag › Abschluss |
 | O-732 | Eine erteilte Preisfreigabe wird nicht widerrufen; ein anderer Preis braucht eine neue Angebotsversion. | Angebot › Freigabe |
 | O-734 | Ein abgeschlossener Auftrag wird nicht wieder geöffnet; Korrektur über Nachtrag oder neuen Auftrag. | `auftrag/status.ts`, `auftrag/aendern.ts` |
-| O-735 | Widerruf einer Referenzfreigabe: die Website-Pflege nimmt eine veröffentlichte Referenz binnen 5 Arbeitstagen VON HAND heraus, nicht rückwirkend; die Referenzzeile bleibt, das Referenzblatt zeigt den Widerruf am Ursprungsauftrag. Eine Aufgabe dafür entsteht noch nicht von selbst (V-287) — die Frist ist eine Dienstpflicht, keine Automatik. | Auftrag › Kundenfreigabe |
+| O-735 | Widerruf einer Referenzfreigabe: die Website-Pflege nimmt eine veröffentlichte Referenz binnen 5 Arbeitstagen VON HAND heraus, nicht rückwirkend; die Referenzzeile bleibt, das Referenzblatt zeigt den Widerruf am Ursprungsauftrag. Seit V-287 (D-841) entsteht mit dem Widerruf je veröffentlichter Referenz die Aufgabe „Referenz herausnehmen" (Priorität hoch, Frist 5 Arbeitstage, Aufgabenliste der Gesellschaft); herausgenommen wird weiter von Hand. | Auftrag › Kundenfreigabe |
 | O-737 | Eine Flächenänderung im Raumbuch lässt laufende Angebote und Aufträge unverändert; sie steht am Raum, die Kalkulation zeigt sie zur Prüfung. | Raumbuch |
 | O-907 | Von Hand erfasste Kontakte, Empfehlungen und Bekanntmachungen sind keine Anfrage; nur was der Kontakt selbst an die Gesellschaft richtet (Formular, E-Mail, Anruf mit Datum und Quelle), begründet eine. | `crm-lead.ts` |
 | O-941 | Pipeline-Bericht: „gefunden" ist eine nicht ausgeschlossene Bewertung, in der eine Regel zur LEISTUNG positiv trifft — ein CPV-Code des Profils mit Wirkung positiv oder ein Positiv-Stichwort (`FUND_PLATZHALTER`, Regeln `cpv` und `stichwort`) —, und jede Bekanntmachung, zu der ein Mensch einen Vorgang eröffnet hat (`pipelineZahlen`). Region, Wert, Frist und Schwellenwert bewerten einen Fund, sie begründen keinen; eine Bewertung allein ist kein Fund. | `radar/fund.platzhalter.ts`, `bericht/kennzahlen.ts`, Berichte › Pipeline |
@@ -24637,7 +24637,7 @@ weiter keine Rechte über die Matrix (V-290). Eine eigene Abwesenheitsart ohne
 | O-616 | Die Genehmigung einer kundeneigenen Antragsart ohne Abwesenheit protokolliert die Entscheidung; die Umsetzung macht die Verwaltung von Hand. | Personal › Anträge |
 | O-860 | Die Einstellungsmaske sieht nur die Zahl gleichnamiger Menschen in der Gruppe, nicht Name oder Kennung, und legt ihre eigene Personenzeile an. | Personal › Anstellung anlegen |
 | O-893 | Das Büro stellt keinen Urlaubsantrag im Namen einer Arbeiterin; einen telefonisch erbetenen Urlaub nimmt es als Abwesenheit auf („erfasst", Vermerk in der Bemerkung). | `personal.ts` |
-| O-167 | Feiertage: Berlin für alle Objekte; Brandenburg für Objekte dort folgt mit dem Land am Objekt (V-281). | `feiertage.ts` |
+| O-167 | Feiertage: Berlin für alle Objekte — im Dienstplan wie in der Monatspauschale nach Arbeitstagen (D-843); Brandenburg für Objekte dort folgt mit dem Land am Objekt (V-396). | `feiertage.ts`, `werktage.ts` |
 | O-142 | Die drei Systemarten genügen: jede Abwesenheit läuft über den Abwesenheitsantrag mit gewählter Art; Schichtabgabe und Stammdatenänderung legt die Gesellschaft als eigene Art an (K-17), deren Genehmigung protokolliert (O-616). | Stammdaten › Antragsarten |
 | O-55 | Reinigungsklassen als eigenes Schema (RK1 Büro und Besprechung, RK2 Verkehrsfläche, RK3 Sanitär, RK4 Technik und Lager); die Klasse beschreibt den Raum und steuert weder Frequenz noch Preis (ergänzt D-780). | Stammdaten › Reinigungsklassen |
 | O-17 | Wie D-780: branchenübliche m²/h-Werte je Belagsart als Voreinstellung; die Bereichsleitung bestätigt sie. | Stammdaten › Belagsarten |
@@ -24950,7 +24950,7 @@ Voreinstellung nicht gebaut ist, steht es dabei, mit V-Zeile.
 | O-109 | Routine ist nur, was gegenüber der Vorperiode unverändert ist: `diffLeer && hatVergleich` bei Monatsrechnung und Anfrageantwort → `niedrig`; Toleranz 0 € und 0 %, jede Abweichung ist `mittel`, ein Fall ohne Vergleich `hoch`. Die Stapelmappe zeigt jeden Fall einzeln. Wie gebaut. | `freigabe/posteingang.ts`, `freigabe/stapel-mappe.ts` |
 | O-110 | Aus: kein Foto verlässt das System, eine Prüfung `motiv_plausibel` gibt es nicht; geprüft werden Typ und Metadaten der Datei selbst (`storage/mime.ts`, `storage/exif.ts`). Ein EU-Bildendpunkt wird erst angebunden, wenn der Betreiber ihn bestellt und der AV-Vertrag ihn deckt. | `dokument/upload.ts`, `zeit/medien.ts` |
 | O-111 | Ein Muster liegt vor, wenn in einer Woche mindestens 20 Entscheidungen fallen und mehr als die Hälfte unter drei Sekunden dauert (der erste Eimer der Verteilung); eine Warteschlange ab 50 offenen Fällen je Rolle oder mehr als 100 neuen Freigaben am Tag warnt; Empfänger sind Leitung und Administration der Gesellschaft, nie die Person (O-06). Gebaut ist die Verteilung ohne Schwelle und Meldung (V-308). | `freigabe/pruefdauer.ts` |
-| O-112 | Fünf Werktage interner Vorlauf vor der amtlichen Frist — dieselbe Zahl wie die Fristwarnung des Radars (`FRIST_KNAPP_TAGE`, RAD-06). Die Mappe rechnet den Vorlauf nicht (V-307). | `radar/gewichte.platzhalter.ts`, `vergabe/mappe.ts` |
+| O-112 | Fünf Werktage interner Vorlauf vor der amtlichen Frist — dieselbe Zahl wie die Fristwarnung des Radars (`FRIST_KNAPP_TAGE`, RAD-06). Seit V-307 (D-839) gerechnet: `vergabe/vorlauf.ts` (Werktag = Montag bis Freitag ohne gesetzlichen Feiertag in Berlin), angezeigt am Blatt der Vergabemappe mit Warnung am Tag selbst und danach. | `radar/gewichte.platzhalter.ts`, `vergabe/vorlauf.ts`, `lib/datum/werktage.ts` |
 | O-121 | Aus lassen: ohne Modell mit EU-Verarbeitung und Nullspeicherung wirft `fordereModell` `RESIDENCY_BLOCKED`, die Aufgabe steht auf `fehlgeschlagen`, kein Anbieter ausserhalb der EU springt ein. Wie gebaut. | `agent/modell/auswahl.ts` |
 | O-125 | Systemnachrichten (Einladung, Kennwort, Check-in-Link) laufen nicht über den Agentenpfad und nicht über `policy.ts`; ihr Wortlaut steht im Code und gilt damit als vorab freigegeben. Versendet wird heute nichts: der Postausgang ist nicht verbunden (`EmailNichtVerbundenFehler`), Links werden von Hand weitergegeben (D-618, V-302). | `versand/email.ts` |
 | O-191 | Ein Negativ-Stichwort zieht ab (`ABZUG_PLATZHALTER.stichwort`), ausgeschlossen wird nur, was ein Mensch je CPV-Zeile auf „schliesst aus" stellt; nicht mehr machbar ist eine Bekanntmachung unter `frist_min_tage` des Profils, knapp heisst unter fünf Tagen (RAD-06). Wie gebaut. | `radar/gewichte.platzhalter.ts`, `radar/bewertung.ts`, Profilblatt |
@@ -25043,12 +25043,12 @@ gelesen.
 | O-178 | Kein Teilstorno: jede Korrektur ist der Storno des ganzen Belegs plus Neuausstellung (`korrigiere`: drei Belege, drei Nummern aus demselben Kreis, `rechnung_beziehung` storno/ersetzt); das Original bleibt lesbar. Wie gebaut (Invariante 4). | `finanz/rechnung.ts` |
 | O-179 | Ein Zeiteintrag gehört in den Abrechnungszeitraum, in dem seine Schicht beginnt — Berliner Kalendertag von `beginn_zeitpunkt`; eine Nachtschicht über die Monatsgrenze wird nicht geteilt, ihre ganze Nettodauer fällt in den Monat des Beginns. Wie gebaut. | `finanz/abrechnungsart/stunden.ts` |
 | O-180 | Kein Lagerbestand: Material und Gerät werden je Auftrag beschafft, in der Kalkulation als Kostenposition erfasst (`kostenart` material/geraet, OPS-07) und über die Rechnungsposition weiterberechnet; ein Lager wird nicht geführt und nicht gebaut. | `kalkulation/kostenposition.ts` |
-| O-181 | Inkasso-Übergabe und Mahnbescheid sind die Folgeaktion der letzten Mahnstufe (`mahn_folgeaktion`), gesetzt in den Mahneinstellungen von wer `mahnung.schreiben` hält; keine Betragsgrenze; die Plattform vermerkt die Folgeaktion und löst sie nicht aus — ein Mensch übergibt (wie gebaut). Ein Hinweis am fälligen Posten fehlt (V-313). | `finanz/mahnung/stufen.ts`, Einstellungen › Mahnwesen |
+| O-181 | Inkasso-Übergabe und Mahnbescheid sind die Folgeaktion der letzten Mahnstufe (`mahn_folgeaktion`), gesetzt in den Mahneinstellungen von wer `mahnung.schreiben` hält; keine Betragsgrenze; die Plattform vermerkt die Folgeaktion und löst sie nicht aus — ein Mensch übergibt. Seit V-313 (D-840) sagt das Mahnungsblatt, ab wann sie fällig ist und dass sie fällig ist (Tag nach der Zahlungsfrist einer versendeten Mahnung), und hält den Übergabevermerk fest (`mahnung_eskalation`, Mensch und Serverzeit). | `finanz/mahnung/stufen.ts`, `finanz/mahnung/folgeaktion.ts`, Einstellungen › Mahnwesen, Mahnungsblatt |
 | O-182 | Keine Aufrechnung in der Plattform (§ 387 BGB): Kundengutschrift und Lieferantenverbindlichkeit werden getrennt ausgeglichen; entscheidet die Geschäftsführung eine Aufrechnung, bucht die Buchhaltung beide Seiten mit Zahlweg `verrechnung` (0121) — eine Verknüpfung gibt es nicht (V-314). | `finanz/zahlung/index.ts`, `finanz/ausgabe.ts` |
 | O-184 | Keine Gutschriftsabrechnung (§ 14 Abs. 2 Satz 2 UStG) mit Nachunternehmern: sie stellen Rechnungen, die als Eingangsrechnung mit § 13b-Prüfung laufen (`lieferant.leistungsart`, `ist_bauleistender_bis`); „Gutschrift" ist in der Plattform der Stornobeleg (Kreis `gutschrift`). Wie gebaut. | `finanz/eingangsrechnung.ts`, `finanz/lieferant.ts`, `finanz/nummernkreis.ts` |
 | O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab; einen Fristenkalender führt die Plattform nicht (V-315). | `finanz/estg48/abzug.ts`, `buchhaltung/buchungssatz.ts` |
 | O-188 | Die Geschäftsführung der Gesellschaft zeichnet die Verfahrensdokumentation; geprüft wird jährlich und bei jedem Schemastand-Wechsel (der Stand steht im Dokument: `schemastand`, `auslieferung`). Seit V-316 (D-837) mit Zeichnungsvermerk: wer `buchhaltung_konfiguration.verwalten` hält, zeichnet die beim Zeichnen erzeugte Fassung (Hash, Schemastand) mit seiner Funktion; die Seite sagt, ob die letzte Zeichnung noch gilt (Turnus zwölf Monate, Schemastand). Das Dokument nennt die Voreinstellung weiter unter „offen". | `buchhaltung/verfahrensdokumentation.ts`, `buchhaltung/verfahrensdokumentation-zeichnung.ts` |
-| O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen; eine Abrechnungsart, die den Leistungszeitraum aus ihm herleitet, bleibt gesperrt (O-54). Wie gebaut. | `finanz/positionsquelle.ts` |
+| O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen. Den Leistungszeitraum im Modus `nach_leistungsnachweis` leiten die Abrechnungsarten seit V-337 (D-838) aus den unterschriebenen Nachweisen her, gefunden über die Leistungszeile — nicht über diese Quelle, die nach `quelle_leistungsnachweis_uk` genau eine Zeile belegt. | `finanz/positionsquelle.ts`, `finanz/abrechnungsart/typen.ts` |
 | O-363 | **Gebaut:** bei zwei passenden § 13b-Gruppen (0 %, AE) entscheidet das Gewerk des Lieferanten — `lieferant.leistungsart` bau → `ust_0_13b_bau`, gebaeudereinigung → `ust_0_13b_reinigung` (`GRUPPE_JE_LEISTUNGSART`, `waehleGruppeNachLeistungsart`); der Befund nennt die Voreinstellung. Ohne Gewerk im Stamm bleibt das Feld unsicher, und ein Mensch wählt (wie bisher); die Freigabe des Belegs bleibt menschlich (Invariante 7). | `finanz/eingang/vorschlag.ts`, `tests/kern/eingang-steuersatzgruppe.test.ts` (5) |
 | O-365 | Beschreibungsstandard Version 1.0; die DTD liegt dem Z3-Paket nicht bei (sie ist nicht Teil des Repositories), `index.xml` nennt sie; Abnahme durch Probeimport beim Steuerberater (D-485). Wie gebaut. | `buchhaltung/z3.ts`, Buchhaltung › Z3-Export |
 | O-600 | Der Hash genügt als Nachweis der Fassung (`nutzlast_sha256`, `artefakt`); die XRechnung entsteht aus dem festgeschriebenen Payload wieder (`xrechnung/aus-snapshot.ts`); das PDF wird nicht archiviert, `rechnung_dokument` fehlt (V-317). | `finanz/versand.ts` |
@@ -25304,7 +25304,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-53 | Ja — ein Auftrag trägt Positionen verschiedener Abrechnungsarten (Monatspauschale und Sonderreinigung nach Stunden im selben Vertrag); die Konfiguration hängt deshalb an der Leistungszeile (`auftrag_leistung_id`), `null` ist der Sonderfall einer Pauschale über den ganzen Auftrag, und eine auftragsweite Pauschale über Zeilen mit verschiedenen Steuersätzen wird abgewiesen. Wie gebaut. | `finanz/abrechnungsart/index.ts`, `typen.ts` (`steuergruppeDesAuftrags`) |
-| O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Die Herleitung aus den Nachweisen ist nicht gebaut (V-337); bis dahin bleibt der Modus gesperrt, und der Befund sagt die Voreinstellung statt „offen". | `finanz/abrechnungsart/typen.ts` (`pruefeParameter`), `positionsquelle.ts` |
+| O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Seit V-337 (D-838) gebaut: beschnitten auf den Abschnitt; ein Nachweis zählt, wenn er unterschrieben ist und im Kopf oder in einer Zeile eine Leistungszeile des Auftrags nennt; blockiert wird nur noch der Abschnitt ohne einen solchen Nachweis. | `finanz/abrechnungsart/typen.ts` (`zeitraumAusNachweisen`, `ladeSignierteNachweise`, `pruefeNachweisZeitraum`), die fünf Strategien |
 | O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie kann je nach Leistung und Empfänger die Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 EStG auslösen (`reverseChargeLage`, `abzugLage` prüfen das schon) und gehört in der Preisbegründung getrennt ausgewiesen; die Kostenart ist kein Steuerkennzeichen. Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und Rechenweg fehlen (V-338); die Kalkulationsseite sagt es zweisprachig. | `kalkulation/kostenposition.ts`, Angebot › Kalkulation |
 | O-58 | Ein Angebot aus dem Raumbuch trägt seine Kalkulation und geht erst mit bestätigten Werten hinaus (`kern.angebot_versand_pruefen`); ein Angebot von Hand (Katalog, Kleinauftrag, Pauschale) hat keine Kalkulation und geht ohne hinaus — die Verantwortung für den Preis trägt, wer freigibt (O-920). Wie gebaut. | `angebot/index.ts`, `angebot/von-hand.ts` |
 | O-59 | Die Zeitwerte und Listenpreise des Leistungskatalogs sind die Voreinstellung jeder Kalkulation (`ist_platzhalter`); bestätigt werden sie je Kalkulation mit den Zahlen des Angebots (`kalkulation/bestaetigung.ts`), nicht gruppenweit. Ein Weg, Katalogwerte im Katalog zu bestätigen, fehlt und ist bis zu den Richtwerten des Betreibers (O-16, O-17) nicht vorgesehen. Wie gebaut. | `kalkulation/bestaetigung.ts` |
@@ -25610,7 +25610,7 @@ Nachträge aus dem Prüfstand von PR #36 (V-372, V-373).
 | O-126 | Aufrufprotokolle der Anschlüsse (`integration_aufruf`) 90 Tage, ohne Nutzlast — Zeitpunkt, Ziel, Ergebnis, Dauer, Fehlertext —, dann gelöscht. Die Tabelle gibt es nicht; sie entsteht mit dem ersten verbundenen Anschluss (V-371). Nachtläufe protokolliert `job_lauf` (O-92). | `registry/integrationen.ts` |
 | O-362 | Verantwortliche für Gruppenauftritt und Portale ist die CSE Dienstleistungen GmbH, wie beim bisherigen Auftritt (die Erklärung nennt sie, wie gebaut); für die Daten ihrer Beschäftigten, Bewerber und Kunden ist jede Gesellschaft selbst Verantwortliche. Ob ein Datenschutzbeauftragter benannt ist und wer, trägt der Betreiber ein (Betreiberdaten). Anfragen bleiben sechs Jahre als Geschäftsbrief (O-71); die Erklärung sagt das jetzt (de/en) und nennt für Formulare Art. 6 Abs. 1 lit. b und f statt einer Einwilligung (O-63). | `db/seed/inhalt{,-en}.ts` (`/datenschutz`) |
 | O-514 | **Rechtsgrundlagen** je Tätigkeit: Personalstammdaten und Anstellungen Art. 6 Abs. 1 lit. b (Arbeitsvertrag) und c (Lohnsteuer, Sozialversicherung); Arbeitszeit lit. c (§ 16 Abs. 2 ArbZG, § 17 MiLoG); Dienstplanung lit. b; Abwesenheiten lit. b und c, Gesundheitsangaben Art. 9 Abs. 2 lit. b DSGVO mit § 26 Abs. 3 BDSG; Bewerbungen lit. b (Anbahnung); Kunden und Anfragen lit. b, Werbung an Bestandskunden lit. f mit § 7 Abs. 3 UWG; Rechnungen und Buchführung lit. c (HGB, AO, UStG); Dokumente lit. b oder c je Dokument; Objektbetrieb (Wachbuch, Leistungsnachweis, Bautagebuch) lit. b und f, Bewachungsnachweise lit. c; Konten und Protokoll lit. b, c und f (Art. 32); Agentenläufe lit. f (keine Entscheidung nach Art. 22); Betroffenenrechte lit. c. **Fristen:** Personalstammdaten und Nachweise drei Jahre nach Ende der letzten Beschäftigung (§ 195 BGB), was in den Lohnexport ging zehn Jahre (§ 147 Abs. 1 AO, wie Abwesenheiten nach O-71); Dienstpläne zwei Jahre (wie § 16 Abs. 2 ArbZG); Wachbuch und Bautagebuch sechs Jahre als Geschäftsunterlage, das Bautagebuch mindestens bis zum Ende der Gewährleistung; Leistungsnachweise mit der Rechnung, an der sie hängen; Konten sechs Monate nach der letzten Rolle, Anmeldeversuche und Protokoll nach O-92; Agentenläufe ein Jahr; Betroffenenanfragen drei Jahre nach Abschluss (Nachweis, § 195 BGB). Keine dieser Angaben ist bestätigt; hinterlegt sind sie nicht (V-368), vollzogen auch nicht (V-369). Verzeichnis, Löschkonzept und Auskunft sagen „Voreinstellung, noch nicht hinterlegt", und die Auskunft verlangt weiter eine Bestätigung vor dem Abruf (`istBeziffert`, Kern-Test). | `registry/verarbeitungen.ts`, `datenschutz/{verzeichnis,auskunft,loeschkonzept,loeschentscheidung}.ts`, Datenschutz › Auskunft, Löschung, Löschkonzept, Verzeichnis |
-| O-892 | Eine rein postalische Anfrage ist ohne E-Mail-Adresse erfassbar, mit Anschrift, und die Antwort geht auf dem Weg, auf dem die Anfrage kam. Nicht gebaut (V-370); bis dahin bleibt die Adresse Pflicht und die Anschrift steht in der Nachricht. | `datenschutz/anfrage.ts` |
+| O-892 | Eine rein postalische Anfrage ist ohne E-Mail-Adresse erfassbar, mit Anschrift, und die Antwort geht auf dem Weg, auf dem die Anfrage kam — gebaut mit V-370 (D-844): E-Mail ODER Anschrift, der Antwortweg wird bei der Entscheidung festgehalten (Vorgabe: Brief mit Anschrift per Brief, sonst per E-Mail). | `datenschutz/anfrage.ts`, `drizzle/0529` |
 | O-903 | Eine Rückfrage nach Art. 12 Abs. 6 hemmt die Monatsfrist nicht — die vorsichtige Lesart; die Anfrage bleibt in der Fälligkeitsliste. Wie gebaut (0388). | `datenschutz/anfrage.ts`, Datenschutz › Vorgang |
 | O-905 | Ein Honigtopftreffer wird weder aufbewahrt noch gezählt: die Prüfung steht vor jeder Datenbankberührung, und eine Aufzeichnung wäre ein Verstärker. Den seltenen Fehlalarm vermeidet das Feld selbst (`tabIndex={-1}`, `autoComplete="off"`, unsichtbar). Wie gebaut. | `lead/annahme.ts`, `api/anfrage` |
 
@@ -25708,7 +25708,7 @@ ab). O-97 ist wortgleich mit O-41 und folgt dessen Voreinstellung (D-782).
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet; bestätigen lässt sie sich noch nicht (V-384). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
+| O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet, bis die Gesellschaft sie unter Bau › Anspruchsgrundlagen bestätigt oder archiviert (V-384, D-842). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
 | O-30 | 14 Tage (SPEC §14), gemeldet an die verantwortliche Bauleitung des Projekts, einmal (`ueberfaellig_gemeldet_am`); fehlt die Bauleitung, an alle, die in der Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`) und den Nachtrag lesen können (`bau.lesen`) — gebaut mit V-381 (D-808). | `bau/nachtrag.ts`, `jobs/nachtragWache.ts` |
 | O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle (`personal.nachweis_lesen` in der erfassenden Gesellschaft), ab 7 Tagen an die Leitung (Rolle `leitung`) — je Konto eine Meldung je Stufe, gebaut mit V-380 (`kern.nachweis_ablauf_empfaenger`, 0504, D-810); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
 | O-97 | Wie O-41 (D-782): Zielformat GAEB DA XML (X83/X84); gelesen wird heute CSV mit Semikolon, der GAEB-Leser fehlt (V-291). | `bau/lv-quelle.ts` |
@@ -28036,4 +28036,472 @@ und er prüft die neue. Gezeichnet wird nie der Hash aus dem Formular. Prüfung:
 `tests/kern/verfahrensdokumentation-zeichnung.test.ts`.
 
 | Betrifft | V-316, O-188, D-787, D-485, ACC-10; `drizzle/0526_verfahrensdokumentation_zeichnung.sql`, `src/server/db/schema/rls.ts`, `src/server/db/triggers/no-hard-delete.sql`, `scripts/generate-triggers.ts`, `src/server/services/buchhaltung/{verfahrensdokumentation,verfahrensdokumentation-zeichnung}.ts`, `src/server/registry/dienste.ts`, `src/server/auth/route-manifest.ts`, `src/app/api/buchhaltung/verfahrensdokumentation/zeichnung/route.ts`, `src/app/portal/[mandant]/buchhaltung/verfahrensdokumentation/{page,Zeichnungsvermerk}.tsx`, `src/lib/i18n/verwaltung/verfahrensdokumentation-zeichnung.ts`, `tests/isolation/verfahrensdokumentation-zeichnung.test.ts`, `tests/kern/verfahrensdokumentation-zeichnung.test.ts`, `tests/e2e/z3-verfahrensdokumentation.spec.ts` |
+|---|---|
+
+### D-838 · Bauwelle 35: Der Leistungszeitraum kommt aus den gegengezeichneten Leistungsnachweisen (V-337, O-54)
+
+**Der Anlass.** Im Modus `nach_leistungsnachweis` lieferte `leistungszeitraum()`
+leere Grenzen, und `pruefeParameter` sperrte den Modus pauschal — für jede
+Abrechnungsart, in jedem Abschnitt, auch wenn unterschriebene Nachweise
+vorlagen. Voreinstellung (O-54, D-792): der Leistungszeitraum ist der Zeitraum
+der gegengezeichneten Nachweise des Abschnitts, frühester Beginn bis spätestes
+Ende.
+
+**Was gebaut ist** (`finanz/abrechnungsart/typen.ts`).
+- **`zeitraumAusNachweisen`** — die reine Herleitung: frühester Beginn bis
+  spätestes Ende der Nachweise, die den Abschnitt berühren (beide Grenzen
+  einschließlich), **beschnitten auf den Abschnitt**. Ein Nachweis vom 25.08.
+  bis 05.09. gibt der Augustzeile 25.–31.08. und der Septemberzeile 01.–05.09.
+  Unbeschnitten stünde auf der Augustzeile „bis 05.09.": sie behauptete Tage,
+  die die Septemberzeile berechnet, und die Doppelabrechnungssperre der
+  Pauschale (`ueberschneidet`, V-207) hielte den September für schon
+  berechnet.
+- **`ladeSignierteNachweise`** — welche Nachweise zählen (Voreinstellung,
+  `TODO(client, O-54)`): unterschrieben (`signiert`), nicht storniert, und im
+  Kopf oder in einer Zeile eine Leistungszeile DIESES Auftrags nennend; bei
+  einer zeilenbezogenen Vereinbarung genau ihre Zeile. Ein Nachweis ohne
+  Leistungszeile zählt nicht — am Objekt allein lässt er sich keinem von zwei
+  Aufträgen zuordnen. Gelesen unter der RLS des Menschen (`nachweis.lesen`),
+  wie die Strategien ihre Zeiteinträge und Abrufe lesen.
+- **`pruefeNachweisZeitraum`** ersetzt den pauschalen Befund: je Abschnitt
+  OHNE gegengezeichneten Nachweis ein blockierender Befund (O-54) mit seinen
+  Tagen; fehlt das Recht, Nachweise zu lesen, sagt der Befund das Recht beim
+  Namen, statt „kein Nachweis" zu melden. In den anderen Modi fragt er die
+  Datenbank nicht.
+- **Die fünf Strategien** prüfen damit ihre Abschnitte (die Pauschale je
+  Monat, die anderen ihren Zeitraum) und geben die Nachweise an
+  `leistungszeitraum()`. Der Einzelabruf behält je Zeile den Tag seines
+  Abrufs — genauer als jeder Nachweis; der Nachweis ist dort das Tor.
+- **Die Pauschale vergleicht im Modus den ganzen Monat** mit dem schon
+  Berechneten: ihre Zeile trägt dort den Zeitraum der Nachweise, der kürzer
+  sein kann als die berechneten Tage; gegen ihn verglichen bliebe bei
+  anteiliger Abrechnung ein schon berechneter Tag abrechenbar.
+- **Nicht über die Quelle `leistungsnachweis`** (O-190): die Strategie rechnet,
+  bevor Quellen existieren, und ein Nachweis über die Monatsgrenze gehört zu
+  zwei Zeilen, belegt nach `quelle_leistungsnachweis_uk` aber genau eine. Die
+  Quelle bleibt der Beleg, den ein Mensch an eine Zeile hängt.
+
+**Prüfung.** `tests/isolation/leistungszeitraum-nachweis.test.ts` (6, die
+Nachweise entstehen über Entwurf, Vorlage und Unterschrift des Kunden): zwei
+Nachweise über die Monatsgrenze geben August und September ihre Tage; ein
+Nachweis über die Grenze wird je Monat beschnitten; ein vorgelegter Nachweis
+und einer ohne Leistungszeile zählen nicht, nur der Monat ohne Nachweis
+blockiert; der beschnittene August im Entwurf sperrt den September nicht, den
+August ein zweites Mal schon; eine zeilenbezogene Vereinbarung zählt nur ihre
+Zeile; ohne `nachweis.lesen` nennt der Befund das Recht und es wird nichts
+gerechnet. `tests/kern/abrechnungsart.test.ts`: der pauschale Befund ist weg;
+die Herleitung über die Monatsgrenze, der Schnitt, beide Grenzen
+einschließlich; `leistungszeitraum` je Modus; der Befund je Abschnitt, der
+Befund ohne Recht, keine Abfrage in den anderen Modi; die Pauschale vergleicht
+im Modus den ganzen Monat. Dazu `tests/kern` komplett, `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-337, O-54, O-190, D-792, D-787, V-207; `src/server/services/finanz/abrechnungsart/{typen,monatspauschale,stunden,festpreis-los,einzelabruf,einheitspreis-aufmass}.ts`, `src/server/services/finanz/positionsquelle.ts`, `tests/isolation/leistungszeitraum-nachweis.test.ts`, `tests/kern/abrechnungsart.test.ts` |
+|---|---|
+
+### D-839 · Bauwelle 36: Die Vergabemappe kennt ihren internen Vorlauf (V-307, O-112)
+
+**Der Anlass.** `vergabe/mappe.ts` führte die Prüfliste, rechnete aber keinen
+internen Abgabetag; nur der Radar warnte ab fünf Tagen Restfrist
+(`FRIST_KNAPP_TAGE`, RAD-06). Voreinstellung (O-112, D-786): fünf Werktage
+vor der amtlichen Frist muss die Mappe vollständig sein.
+
+**Was gebaut ist.**
+- **`lib/datum/werktage.ts`:** `isoWochentag`, `istWerktag` (Montag bis
+  Freitag ohne gesetzlichen Feiertag in Berlin, `istFeiertag`) und
+  `werktageVor` (der Tag selbst zählt nicht). Werktag heißt hier der Tag, an
+  dem jemand an der Mappe arbeiten kann — nicht der Werktag des § 193 BGB, der
+  den Samstag mitzählt. Heiligabend und Silvester sind keine gesetzlichen
+  Feiertage und zählen deshalb mit.
+- **`vergabe/vorlauf.ts`:** `internerVorlauf(fristTag, heute, mappenstand)` →
+  der interne Tag und sein Stand (`offen`, `heute`, `ueberschritten`,
+  `erledigt` ab `vollstaendig`), `null` ohne Frist oder für eine verworfene
+  Mappe. `VORLAUF_WERKTAGE = 5` mit `TODO(client, O-112)`; ein Kern-Test
+  hält die Zahl gleich der Fristwarnung des Radars.
+- **Gerechnet, nicht gespeichert** — abweichend vom Wortlaut der V-Zeile
+  („`intern_faellig_am` an der Mappe"): die Frist kann sich ändern (eine
+  Bieterfrage verlängert sie), ein gespeicherter Tag liefe ihr nicht nach. Der
+  Lader der Seite rechnet ihn bei jedem Lesen aus dem Berliner Kalendertag der
+  Frist und `app.berlin_heute()`.
+- **Am Blatt der Vergabemappe** steht unter dem Zähler „Intern fertig bis …
+  — 5 Werktage vor der Abgabe." mit der Voreinstellung; am Tag selbst und
+  danach (Mappe noch nicht vollständig) eine Warnung oben. Die Sätze sind
+  zweisprachig (`i18n/verwaltung/vergabe-vorlauf.ts`), die Seite um sie bleibt
+  auf der Ausnahmeliste der Übersetzungswache.
+
+**Prüfung.** `tests/kern/vergabe-vorlauf.test.ts` (Wochentag; Wochenende,
+Karfreitag, Ostermontag, Himmelfahrt, Pfingstmontag, Frauentag als
+Nicht-Werktage, Heiligabend und Silvester als Werktage; fünf Werktage vor
+einem Donnerstag, über Ostern, über den Jahreswechsel, von einem Sonntag aus;
+falsche Eingaben; die vier Stände; kein Vorlauf ohne Frist und für eine
+verworfene Mappe; die Sätze in beiden Sprachen).
+`tests/e2e/vergabemappe.spec.ts` (das Blatt nennt den Tag, Stand `offen`).
+Dazu `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-307, O-112, D-786, RAD-06; `src/lib/datum/werktage.ts`, `src/server/services/vergabe/vorlauf.ts`, `src/server/registry/dienste.ts`, `src/app/portal/[mandant]/radar/[id]/mappe/{daten.ts,page.tsx}`, `src/lib/i18n/verwaltung/vergabe-vorlauf.ts`, `tests/kern/vergabe-vorlauf.test.ts`, `tests/e2e/vergabemappe.spec.ts` |
+|---|---|
+
+### D-840 · Bauwelle 37: Die Folgeaktion einer Mahnstufe wird fällig gesagt und vermerkt (V-313, O-181) — und „erledigt" ist erreichbar (V-084)
+
+**Der Anlass.** `mahn_folgeaktion` (`lieferstopp`, `inkasso`, `mahnbescheid`)
+stand an der Stufe und wurde in den Mahneinstellungen gesetzt; kein Blatt
+nannte sie am offenen Vorgang, und es gab keinen Ort für den Vermerk, dass ein
+Mensch sie ausgelöst hat. Voreinstellung (O-181, D-787): Inkasso-Übergabe und
+Mahnbescheid folgen der letzten Stufe ohne Betragsgrenze; frei gibt, wer
+`mahnung.schreiben` hält; ausgelöst wird beides von einem Menschen.
+
+**Was gebaut ist.**
+- **`finanz/mahnung/folgeaktion.ts`:** `folgeaktionStand` (reine Rechnung):
+  `keine` (Stufe ohne Folgeaktion, oder Mahnung nicht versendet), `wartet`
+  (versendet, Frist läuft — fällig ab dem Tag NACH `zahlbar_bis`, der letzte
+  Tag gehört dem Schuldner), `faellig`, `vermerkt`, `erledigt`.
+  `ladeFolgeaktion` liest Stufe, Vermerke und `app.berlin_heute()`.
+  `vermerkeUebergabe` (nur wenn fällig; Begründung ab fünf Zeichen; Zeile
+  gesperrt): eine Zeile in `mahnung_eskalation` mit Aktion der Stufe,
+  Begründung, `freigegeben_von` = Mensch der Sitzung, `freigegeben_am` =
+  Serverzeit; ein zweiter Vermerk derselben Aktion wird abgewiesen
+  (`me_aktion_uk`); eine Protokollzeile. `freigabe_id` und `ausgefuehrt_am`
+  bleiben leer — beide gehören zu einem Schritt, den die PLATTFORM ausführt
+  (Invariante 7, `me_ausfuehrung_freigegeben`), und die Übergabe tut ein
+  Mensch draußen.
+- **Route** `POST /api/finanzen/mahnungen`, `aktion=folgeaktion`, unter
+  `mahnung.schreiben` wie das Erledigen (O-181); die Policy auf
+  `mahnung_eskalation` (0125) prüft dasselbe Recht noch einmal.
+- **Das Mahnungsblatt** trägt den Abschnitt „Folgeaktion" (zweisprachig in
+  `i18n/verwaltung/finanzen/mahnungen.ts`): ab wann fällig, die Warnung, wenn
+  fällig, der Satz „die Plattform übergibt nichts", das Formular für den
+  Vermerk (sonst „Vermerken kann, wer … hält."), der Vermerk mit Zeit und Name
+  und die Voreinstellung.
+- **0527 — ein Altfehler, gefunden beim Bau.** `fin.mahnung_uebergang`
+  (0125, ersetzt in 0130) sperrte jeden Wechsel aus `versendet`, BEVOR es den
+  einzigen erlaubten Weg heraus prüfte — `versendet → erledigt` war
+  unerreichbar, der Knopf „Als erledigt vermerken" (V-084) scheiterte an der
+  Datenbank, und kein Test hatte es je versucht. 0527 ersetzt die Funktion
+  Wort für Wort und prüft diesen Übergang vor der Sperre.
+- **Kein Seed.** Ohne `CSE_DEV_FLAECHEN` legt der Seed keine Ausgangsrechnung
+  an (O-134) und damit keine Mahnung; der Weg wird im Isolationstest gegangen.
+
+**Prüfung.** `tests/isolation/mahnung.test.ts` (10): am letzten Fristtag
+wartet die Folgeaktion, fällig am Tag danach; der Vermerk hält Aktion,
+Begründung, Mensch und Serverzeit fest, ohne Freigabesatz und ohne
+Ausführung, mit Protokollzeile; ein zweiter wird abgewiesen; eine Stufe ohne
+Folgeaktion nimmt keinen; eine erledigte Sache braucht keinen — und
+`versendet → erledigt` geht, einmal, und zurück nicht; eine lesende Sitzung
+vermerkt nichts. `tests/kern/mahnung-folgeaktion.test.ts` (die Stände, die
+Grenze am Fristtag, Monats- und Jahreswechsel, Vermerk anderer Aktion, die
+Wörter in beiden Sprachen). Dazu `tests/kern` komplett, `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-313, V-084, O-181, D-787; `drizzle/0527_mahnung_erledigt_erreichbar.sql`, `src/server/services/finanz/mahnung/folgeaktion.ts`, `src/server/registry/dienste.ts`, `src/app/api/finanzen/mahnungen/route.ts`, `src/app/portal/[mandant]/finanzen/mahnungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/finanzen/mahnungen.ts`, `tests/isolation/mahnung.test.ts`, `tests/kern/mahnung-folgeaktion.test.ts` |
+|---|---|
+
+### D-841 · Bauwelle 38: Der Widerruf einer Referenzfreigabe stellt die Aufgabe „Referenz herausnehmen" (V-287, O-735)
+
+**Der Anlass.** `widerrufeKundenfreigabe` stempelte den Auftrag und
+protokollierte den Grund. Eine schon veröffentlichte Referenz aus diesem
+Auftrag blieb auf der Website, bis jemand daran dachte. Die Voreinstellung zu
+O-735 (D-780) sagt: die Website-Pflege nimmt sie binnen fünf Arbeitstagen von
+Hand heraus, nicht rückwirkend — eine Frist ohne Aufgabe ist eine Pflicht, an
+die niemand erinnert wird.
+
+**Was gebaut ist.**
+- **`lib/datum/werktage.ts`:** `werktageNach(tag, anzahl)` — das Gegenstück zu
+  `werktageVor` (D-839), dieselbe Zählung: Montag bis Freitag ohne
+  gesetzlichen Feiertag in Berlin, der Ausgangstag zählt nicht mit.
+- **`auftrag/kundenfreigabe.ts`:** `HERAUSNAHME_WERKTAGE = 5` mit
+  `TODO(client, O-735)`, `herausnahmeFrist` (fünf Arbeitstage nach dem
+  Berliner Tag des Widerrufs), `herausnahmeText` (Titel „Referenz
+  herausnehmen: <Titel>", Beschreibung mit Auftrag, Tag, dem Knopf
+  „Zurückziehen" und „gelöscht wird nichts"). `widerrufeKundenfreigabe` liest
+  in derselben Transaktion die Referenzen aus dem Auftrag, die die Website
+  zeigt (freigegeben, veröffentlicht, nicht gelöscht — `t_referenz_oeffentlich`
+  gibt sie jeder Sitzung heraus), und stellt je Referenz die Aufgabe; das
+  Protokoll nennt Grund und Aufgaben. `ladeHerausnahmeAufgaben` für die Seite.
+- **0528, `app.referenz_herausnahme_aufgabe`:** ein Definer, weil das Recht
+  zum Widerruf (`referenz.kundenfreigabe_erfassen`) und `aufgabe.schreiben`
+  verschiedene Rechte sind — eine Modulbeschränkung der Mitgliedschaft
+  (AUT-01) oder eine Rolle je Gesellschaft nimmt das zweite weg, und unter
+  FORCE RLS schlüge das Anlegen fehl und nähme den Widerruf mit. Die Funktion
+  legt genau eine Art an (offen, hoch, Frist als Kalendertag, Bezug
+  `referenz`, Quelle `ereignis`, Schlüssel `ereignis:referenz_widerruf`) und
+  prüft selbst: Sitzung mit Gesellschaft und Konto, nicht lesend, mit
+  Freigaberecht; Text nicht leer; Frist nach heute und höchstens einen Monat
+  weit; die Referenz gehört zur Gesellschaft, steht auf der Website, und ihr
+  Auftrag wurde IN DIESER TRANSAKTION widerrufen (`freigabe_widerrufen_am =
+  now()`). Eine offene Aufgabe je Referenz (`aufgabe_job_uk`); die Kennung
+  vergibt die Funktion selbst, damit sie ohne Leserecht auf `aufgabe`
+  auskommt. `cse_definer` liest die Referenz und legt die Aufgabe an — beides
+  auf den aktiven Mandanten begrenzt, das Anlegen auf genau diese Art.
+- **An wen.** Niemandem einzeln: die Aufgabe steht in der Aufgabenliste der
+  Gesellschaft, die jeder mit `aufgabe.lesen` sieht — und damit jeder, der
+  eine Referenz zurückziehen darf (`referenz.veroeffentlichen`). Wer sie
+  übernimmt, weist sie sich zu. Wer widerrufen hat, steht in `erstellt_von`
+  und sieht sie auch ohne `aufgabe.lesen`. Voreinstellung, mit der Frist
+  (O-735).
+- **Die Seiten.** Die Kundenfreigabe am Auftrag zeigt nach einem Widerruf die
+  Aufgaben mit Frist und Zustand und sagt beim Widerrufen, was entsteht (der
+  Satz „entsteht noch nicht von selbst" ist fort). Das Referenzblatt nennt die
+  Voreinstellung statt „beim Auftraggeber angefragt" (zweisprachig, mit der
+  Frist des Dienstes). Die Detailseite der Aufgabe führt auf das Blatt der
+  Referenz (`AUFLOESER.referenz`) — nur mit `referenz.lesen`, weil eine
+  veröffentlichte Referenz über die öffentliche Policy jeder Sitzung lesbar
+  ist und der Verweis sonst auf ein Blatt führte, das sie nicht öffnen darf.
+- **Nebenbefund, behoben.** Das Protokoll des Widerrufs übergab den Grund als
+  `JSON.stringify(...)` an `$2::jsonb`; der Treiber kodiert ein zweites Mal,
+  und `audit_log.nachher` hielt eine jsonb-ZEICHENKETTE (`nachher ->> 'grund'`
+  war NULL) — derselbe Fehler wie D-467. Jetzt das Objekt.
+- **Kein Seed.** Die Demoreferenz aus dem Auftrag ist ein Entwurf ohne eigene
+  Freigabe (O-913); ein Widerruf im Seed widerriefe eine Demozustimmung, die
+  die übrigen Abläufe brauchen. Der Weg wird im Isolationstest gegangen.
+
+**Prüfung.** `tests/isolation/referenz-herausnahme.test.ts`: je
+veröffentlichter Referenz eine Aufgabe mit allen Feldern und im Protokoll;
+Entwurf, Referenz ohne eigene Freigabe, gelöschte und fremde Herkunft
+bekommen keine; ohne `aufgabe.schreiben` und `aufgabe.lesen` entsteht sie
+trotzdem (von Hand legt dasselbe Konto keine an) und der Widerrufende sieht
+sie; ein zweiter Widerruf bei offener Aufgabe stellt keine zweite, nach
+Erledigung eine neue; die Funktion weist alten Widerruf, fremde Gesellschaft,
+Entwurf, fehlendes Freigaberecht, Gruppenansicht, falsche Frist und leeren
+Text ab; die Policy ist an Mandant und Art gebunden; der Verweis der
+Detailseite folgt `referenz.lesen`. `tests/kern/referenz-herausnahme.test.ts`
+(`werktageNach` über Wochenende, Ostern, Weihnachten, Frauentag; Frist; die
+Wörter; die Seiten). Dazu `pnpm guards`, `pnpm typecheck`, `pnpm lint`,
+`pnpm db:triggers --check`.
+
+| Betrifft | V-287, O-735, D-780, D-467; `drizzle/0528_referenz_herausnahme_aufgabe.sql`, `src/lib/datum/werktage.ts`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/server/services/kern/aufgabe.ts`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/app/portal/[mandant]/website/referenzen/[id]/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `tests/isolation/referenz-herausnahme.test.ts`, `tests/kern/referenz-herausnahme.test.ts` |
+|---|---|
+
+### D-842 · Bauwelle 39: Die Anspruchsgrundlagen der Nachträge lassen sich bestätigen und archivieren (V-384, O-23)
+
+**Der Anlass.** `kern.nachtrag_grundlagen_vorbelegen` (0080) legt je
+Gesellschaft die vollständige Liste aus dem Gesetzestext an — § 1 Abs. 3 und 4,
+§ 2 Abs. 3 bis 8 VOB/B, § 650b BGB —, jede Zeile als `ist_platzhalter`. Kein
+Dienst schrieb `nachtrag_grundlage`: jede Grundlage trug im Nachtrag für immer
+„unbestätigter Wert", und eine Gesellschaft, die nur VOB/B-Verträge schliesst,
+konnte § 650b BGB nicht aus der Auswahl nehmen. Voreinstellung (O-23, D-800):
+die vollständige Liste, bestätigbar je Gesellschaft.
+
+**Was gebaut ist.**
+- **`bau/nachtrag-grundlage.ts`:** `leseGrundlagenKatalog` (lebende in der
+  Ordnung des Gesetzes, archivierte danach; je Zeile Stand und Zahl der
+  Nachträge auf ihr), `bestaetigeGrundlage` (nimmt den Platzhaltervermerk;
+  Text und Fundstelle bleiben — geändert wird kein Wort, und eine eigene
+  Grundlage legt niemand an, K-17), `archiviereGrundlage` (aus der Auswahl
+  eines neuen Nachtrags; Nachträge auf ihr behalten sie — der Fremdschlüssel
+  zeigt weiter auf die Zeile, gelöscht wird nie), `nimmGrundlageWiederAuf`
+  (das Archivieren rückgängig; ein lebender Schlüssel derselben Art wird mit
+  Grund abgewiesen statt als 23505). Jede Handlung sperrt die Zeile, prüft den
+  Zustand, nennt jeden Fehler mit Grund und schreibt eine Protokollzeile mit
+  Schlüssel und Fundstelle (beim Archivieren mit der Zahl der Nachträge) —
+  `nachtrag_grundlage.bestaetigt`, `.archiviert`, `.wiederaufgenommen`,
+  neben den Zeilen des allgemeinen Prüfprotokolls. `TODO(client, O-23)` am
+  Dienst.
+- **Route** `POST /api/bau/nachtragsgrundlagen` (bestätigen, archivieren,
+  wieder aufnehmen) unter `bau.schreiben` — dasselbe Recht, das die
+  `WITH CHECK`-Hälfte von `nachtrag_grundlage.t_mandant` verlangt (0080), wie
+  beim Gewerkekatalog (V-182). Kein neues Recht: ein eigenes hätte die Policy
+  nicht ersetzt, sondern nur ein zweites Tor davor gestellt.
+- **Seite** `/portal/[mandant]/bau/nachtragsgrundlagen`, zweisprachig
+  (`i18n/verwaltung/nachtragsgrundlagen.ts`): die Voreinstellung als Satz,
+  jede Grundlage mit Fundstelle, Text, Stand, Ankündigungspflicht und Zahl der
+  Nachträge; die Knöpfe nur mit `bau.schreiben` und nicht in der
+  Gruppenansicht, sonst der Satz, wer es darf. Verweise von der Bau-Übersicht,
+  der Nachtragsliste und dem Formular eines neuen Nachtrags; Zeile in der
+  Seitenkarte (`bau.lesen` / `bau.schreiben`), Register neu erzeugt.
+- **Kein Seed.** Welche Grundlagen die Gruppe verwendet, ist die offene
+  Entscheidung (O-23); eine Bestätigung im Seed wäre eine Voreinstellung, die
+  sich als Tatsache ausgibt.
+
+**Prüfung.** `tests/isolation/nachtrag-grundlage.test.ts`: Bestätigen mit
+Mensch und Protokoll, Text unverändert, ein zweites abgewiesen; Archivieren
+nimmt aus der Auswahl, ein Nachtrag auf der Grundlage behält sie, das
+Protokoll zählt ihn; Wiederaufnehmen und danach Bestätigen; ohne
+`bau.schreiben`, in der Gruppenansicht und in fremder Gesellschaft ändert sich
+nichts; der Katalog der Seite in seiner Ordnung.
+`tests/kern/nachtrag-grundlage.test.ts` (Manifest und Recht, die drei
+Handlungen, jeder Grund und jedes Ergebnis mit Satz in beiden Sprachen, die
+Verweise, die Voreinstellung). Dazu `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-384, O-23, D-800, K-17; `src/server/services/bau/nachtrag-grundlage.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts`, `src/app/api/bau/nachtragsgrundlagen/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/bau/nachtragsgrundlagen/page.tsx`, `src/app/portal/[mandant]/bau/page.tsx`, `src/app/portal/[mandant]/bau/nachtraege/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/nachtraege/neu/page.tsx`, `src/lib/i18n/verwaltung/nachtragsgrundlagen.ts`, `tests/isolation/nachtrag-grundlage.test.ts`, `tests/kern/nachtrag-grundlage.test.ts` |
+|---|---|
+
+### D-843 · Bauwelle 40: Ein angebrochener Monat der Pauschale nach Arbeitstagen (V-281, O-04, O-167)
+
+**Der Anlass.** Der Teilmonats-Modus `arbeitstage` der Monatspauschale
+verweigerte jede Rechnung über einen angebrochenen Monat: welche Tage
+Arbeitstage sind, war nicht definiert. Die Voreinstellung (V-281, D-779,
+O-167): Montag bis Freitag ohne gesetzliche Feiertage des Landes, als reine
+Funktion mit Feiertagsliste als Eingabe; Berlin für alle Objekte.
+
+**Was gebaut ist.**
+- **`lib/datum/werktage.ts`:** `arbeitstageZwischen(von, bis, feiertage)` —
+  beide Tage eingeschlossen, Montag bis Freitag ohne die Tage der Liste; die
+  Liste ist die Eingabe, die Zählung kennt kein Land. Ein Samstag zählt nie
+  (der Werktag des § 3 BUrlG ist ein anderer). `gesetzlicheFeiertageBerlin(von,
+  bis)` liefert die Berliner Liste über Jahresgrenzen, nur gesetzliche Tage —
+  Heiligabend und Silvester sind Arbeitstage (O-167).
+- **`abrechnungsart/monatspauschale.ts`:** `arbeitstageImAbschnitt` (Teil
+  und Monat, `TODO(client, O-167)`); ein angebrochener Monat im Modus
+  `arbeitstage` wird eine Zeile mit den Arbeitstagen als Menge und den
+  Arbeitstagen des Monats als `preis_basismenge` — EINE Rundung, wie bei den
+  Kalendertagen (`189000 × 10 / 21 = 90000` Cent). Ein Teil ohne Arbeitstag
+  bekommt keine Zeile; liegt im ganzen Zeitraum keiner, nennt die Prüfung es
+  (O-04) und das Bestücken wirft „nichts abzurechnen" statt einer Zeile über
+  null. Die Zeile beansprucht nur ihre Tage — die zweite Hälfte eines Monats
+  bleibt abrechenbar, wie bei den Kalendertagen (V-207). Die Verweigerung ist
+  fort; eine unbekannte Lesart wirft weiter mit Satz.
+- **Was fehlt, steht als V-396:** das Land am Objekt. Bis es da ist, gilt
+  Berlin für jedes Objekt — im Dienstplan wie hier.
+- **Kein Seed.** Die Demovereinbarungen rechnen nach `kalendertage` und
+  `keine`; ein dritter Demovertrag änderte die Rechnungen, die der Seed und
+  die Browserläufe nachprüfen. Der Weg steht im Isolationstest.
+
+**Prüfung.** `tests/kern/arbeitstage-teilmonat.test.ts` — Zählung gegen
+unabhängig nachgezählte Monate (August, Mai und Dezember 2026, März 2027,
+ein Wochenende, eine fremde Liste), die Berliner Liste über den Jahreswechsel,
+Teil und Monat, die Prüfung (kein Fehler mehr, kein Arbeitstag benannt, die
+zweite Hälfte frei). `tests/isolation/abrechnungsart.test.ts` (1): 10 von 21
+Arbeitstagen ergeben 900,00 €, über Himmelfahrt und Pfingstmontag 9 von 18 —
+der Fall, der bis hierher die Verweigerung prüfte, prüft jetzt die Rechnung.
+Dazu `rechnung-entwurf`, `leistungszeitraum-nachweis`, `abruf-storno`,
+`tests/kern` komplett, `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+Dabei festgehalten: **V-397** — `freigabe/erteilen.ts` schreibt die Nutzlast
+eines Freigabeschnappschusses als jsonb-Zeichenkette (dasselbe Muster wie im
+Protokoll des Widerrufs, D-841); zu prüfen, bevor die Form sich ändert.
+
+| Betrifft | V-281, V-396, V-397, O-04, O-167, D-779, D-781; `src/lib/datum/werktage.ts`, `src/server/services/finanz/abrechnungsart/monatspauschale.ts`, `tests/kern/arbeitstage-teilmonat.test.ts`, `tests/isolation/abrechnungsart.test.ts` |
+|---|---|
+
+### D-844 · Bauwelle 41: Eine Betroffenenanfrage kommt auch ohne E-Mail-Adresse (V-370, O-892)
+
+**Der Anlass.** `betroffenenanfrage.email` war `not null` (0176). Seit das
+Büro Brief, Anruf und persönliche Vorsprache aufnimmt (V-031, 0378), musste
+auch für einen Brief mit Anschrift und ohne Adresse eine E-Mail-Adresse
+eingetragen werden, und die Anschrift stand in der Nachricht. Voreinstellung
+(O-892, D-798): erfassbar ohne E-Mail, mit Anschrift, Antwort auf demselben
+Weg.
+
+**Was gebaut ist.**
+- **0529:** `email` nullbar (die Formprüfung aus 0176 bleibt für jede
+  Adresse), neue Spalten `anschrift` (Text in Zeilen, nicht leer, höchstens
+  500 Zeichen) und `antwortweg` (`email` oder `brief`). Prüfungen: erreichbar
+  ist jede Anfrage über E-Mail ODER Anschrift; das öffentliche Formular nur
+  mit Adresse; ein Antwortweg nur, wenn er erreicht (per E-Mail mit Adresse,
+  per Brief mit Anschrift) und erst mit der Entscheidung. Vorgänge, die vor
+  0529 entschieden wurden, behalten einen leeren Antwortweg — ihn
+  nachzutragen hiesse, ihn zu erfinden.
+- **`datenschutz/anfrage.ts`:** `nimmAnfrageAuf` nimmt E-Mail ODER Anschrift
+  (`nicht_erreichbar`, `email_ungueltig`, `anschrift_zu_lang` — je ein Satz);
+  `entscheide` hält den Antwortweg fest: gewählt, sonst
+  `antwortwegVorgabe` — ein Brief mit Anschrift per Brief, sonst per E-Mail,
+  ohne Adresse per Brief (`TODO(client, O-892)`); ein Weg, der nicht
+  erreicht, wird mit Grund abgewiesen (`antwortweg_unmoeglich`).
+  `antwortwegeFuer` sagt, was erreichbar ist. Die Plattform versendet nichts
+  (Invariante 7): der Antwortweg ist der Vermerk, wie ein Mensch geantwortet
+  hat. Das öffentliche Formular (`nimmAn`) verlangt die Adresse weiter.
+- **Die Seiten:** das Aufnahmeformular trägt die Postanschrift, die E-Mail
+  ist kein Pflichtfeld mehr, und ein Satz sagt, dass eine der beiden da sein
+  muss (zweisprachig); das Vorgangsblatt nennt Anschrift und Antwortweg; die
+  Entscheidung bietet nur die erreichbaren Wege an, vorgewählt der Weg der
+  Anfrage; der Posteingang schreibt „per Brief", wo keine Adresse ist.
+- **Kein Seed.** Die Demoanfragen kommen über das Formular und tragen eine
+  Adresse; eine postalische Demoanfrage bräuchte eine erfundene Anschrift
+  einer Person.
+
+**Prüfung.** `tests/isolation/anfrage-aufnehmen.test.ts` §5: ein Brief mit
+Anschrift und ohne Adresse wird zur Zeile und liest sich; die Gründe für
+fehlende Erreichbarkeit, kaputte Adresse, zu lange Anschrift; die Datenbank
+hält Erreichbarkeit und Formular-mit-Adresse; die Antwort auf einen Brief
+ohne Adresse geht per Brief, per E-Mail nicht; die Vorgabe folgt dem Weg,
+gewählt wird unter dem Erreichbaren; die Datenbank nimmt keinen Antwortweg,
+der nicht erreicht, und keinen vor der Entscheidung. `betroffenenanfrage`,
+`datenschutz-abdeckung`, `loeschkonzept`, `schema-meta`, `spaltenrechte`.
+`tests/kern/anfrage-per-brief.test.ts` (Erreichbarkeit, Vorgabe für jede
+Kombination, Formular und Routen, die Wörter). Dazu `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-370, O-892, D-798, V-031; `drizzle/0529_betroffenenanfrage_per_brief.sql`, `src/server/services/datenschutz/anfrage.ts`, `src/app/api/datenschutz/aufnehmen/route.ts`, `src/app/api/datenschutz/bearbeiten/route.ts`, `src/app/portal/[mandant]/datenschutz/{AufnahmeFormular.tsx,Vorgangskopf.tsx,page.tsx,[id]/page.tsx}`, `src/lib/i18n/verwaltung/datenschutz.ts`, `tests/isolation/anfrage-aufnehmen.test.ts`, `tests/kern/anfrage-per-brief.test.ts` |
+|---|---|
+
+### D-845 · Bauwelle 42: Freistellungsbescheinigungen nach § 48b EStG lassen sich erfassen, widerrufen und belegen (V-283, O-604)
+
+**Der Anlass.** `freistellungsbescheinigung` (0118) trug Policy, Grant,
+Löschsperre und die Prüfungen des Zeitraums. Erfassen liess sich eine
+Bescheinigung nur am Steuerblatt eines KUNDEN (`/crm/kunden/[id]/steuer`,
+`kunde-steuer.ts`); für einen LIEFERANTEN — den Fall, an dem der Einbehalt
+auf eine Eingangsrechnung hängt — gab es keinen Weg ausser dem Seed. Die
+Steuerseite der Eingangsrechnung zeigte die Bescheinigungen und sagte „der
+Schreibweg folgt". Voreinstellung (O-604, D-779): die Buchhaltung pflegt sie
+mit `finanzen.schreiben`, dem Recht der `WITH CHECK`-Hälfte der Policy.
+
+**Was gebaut ist.**
+- **`finanz/freistellung.ts`:** `legeFreistellungAn` (für einen Kunden ODER
+  einen Lieferanten, unbeschränkt oder für EINEN Auftrag, optional mit Beleg;
+  jede unvollständige, unbekannte oder fremde Angabe mit eigenem Grund, die
+  Nummer je Gesellschaft einmal), `widerrufeFreistellung` (ab heute oder
+  später, nie rückwirkend, nie nach dem Ablauf, einmal; eine künftige
+  Bescheinigung ab ihrem ersten Tag, weil `fsb_widerruf` keinen Widerruf vor
+  dem Beginn zulässt), `verknuepfeFreistellungsbeleg` (der Scan aus
+  Dokumente › Ablage, Kategorie Beleg oder Buchhaltung, einmal),
+  `listeFreistellungen` (Stand am Berliner Tag der Datenbank: künftig,
+  gültig, abgelaufen, widerrufen; Zahl der Belege, die sie nennen),
+  `ladeFreistellungAuswahl`. Je mit Zeilensperre und Protokoll
+  (`freistellungsbescheinigung.angelegt`, `.widerrufen`,
+  `.beleg_verknuepft` — als Objekt, nicht als JSON-Text, D-467).
+  `TODO(client, O-604)` am Dienst.
+- **0530 (`kern.freistellung_fest`):** nach dem Erfassen ändern sich Träger,
+  Nummer, Finanzamt, Zeitraum, Umfang und Auftrag nicht mehr — auch nicht am
+  Dienst vorbei; festgeschriebene Belege nennen sie. Eine falsch erfasste
+  Bescheinigung wird widerrufen und neu erfasst. `widerrufen_am` wird einmal
+  gesetzt, nicht vor dem heutigen Berliner Tag und nicht nach dem letzten
+  gültigen Tag (nachgezogen in der Durchsicht von PR #45: der Dienst wies
+  das ab, die Datenbank noch nicht), `dokument_id` einmal.
+- **Der Scan-Verweis nur mit `dokument.lesen`** (Durchsicht PR #45): die
+  Datei-Adresse verlangt es; ohne das Recht steht der Titel da, kein Knopf,
+  der nur scheitern kann — auf der Pflegeseite und ebenso auf der Steuerseite
+  der Eingangsrechnung („hinterlegt — zum Öffnen fehlt das Leserecht").
+- **Route und Seite:** `POST /api/finanzen/freistellungen` unter
+  `finanzen.schreiben` (drei Handlungen: erfassen, widerrufen, Beleg); eine
+  abgewiesene Erfassung kommt mit ihren Eingaben zurück (V-240). Die
+  zweisprachige Seite `/finanzen/freistellungen` (lesen mit
+  `finanzen.lesen`) zeigt jede Bescheinigung mit Träger, Nummer, Finanzamt,
+  Zeitraum, Umfang, Beleg und Stand und bietet Widerruf und Beleg nur an, wo
+  sie gehen. Eine Karte auf der Finanzübersicht führt hin; die Steuerseite
+  der Eingangsrechnung sagt nicht mehr „der Schreibweg folgt", sondern
+  verweist auf die Pflege (der Verweis nur mit `finanzen.lesen`, AUT-06).
+- **Das Steuerblatt des Kunden geht denselben Weg.** Sein Widerruf nahm
+  jeden Tag an, auch einen vergangenen; seit 0530 wäre daraus eine
+  Verletzung des Auslösers und eine 500 geworden. `widerrufeBescheinigung`
+  ruft jetzt `widerrufeFreistellung` und meldet `widerruf_rueckwirkend` und
+  `widerruf_nach_ablauf` als Satz; das Datumsfeld bietet nur heute bis zum
+  Ablauf an. Eine schon vergebene Nummer kommt dort als `nummer_vergeben`
+  zurück statt als Verletzung von `fsb_nummer_uk`.
+- **Was die Rechte bedeuten.** Ein Konto mit `finanzen.schreiben` sieht einen
+  Lieferanten nur mit `eingang.lesen` (Policy auf `lieferant`, 0123); ohne es
+  erfasst es Bescheinigungen von Kunden, und die Auswahl der Lieferanten
+  bleibt leer. Die Leitung hält `finanzen.lesen`; `finanzen.schreiben` und
+  `eingang.lesen` sind für sie bindbar (0008).
+- **Seed.** Die Bescheinigung des Bau-Kunden (`DEMO-48b-0001`, `crm.ts`)
+  führt die Seite vor — gültig, ohne Beleg, Widerruf und Verknüpfen
+  angeboten. Eine Lieferantenbescheinigung legt der Seed weiterhin nicht an
+  (`finanz-ausgabe.ts`: der Weg ist derselbe, und ihr Steuerblatt bleibt ohne
+  Eingangsrechnung leer).
+
+**Prüfung.** `tests/isolation/freistellung.test.ts`: Erfassen für Lieferant
+und Kunde (auch für einen Auftrag) mit Mensch und Protokoll; jeder Grund der
+Abweisung; die Nummer einmal je Gesellschaft; 0530 hält Kernfelder,
+Widerruf und Beleg auch gegen ein direktes `update`; Widerruf ab heute,
+nicht gestern, nicht nach dem Ablauf, nicht zweimal, künftige ab ihrem ersten
+Tag; der Beleg einmal; ohne `finanzen.schreiben`, in der Gruppenansicht und
+in fremder Gesellschaft nichts; Lieferanten erst mit `eingang.lesen`; der
+Stand in der Liste; das Steuerblatt des Kunden meldet rückwirkenden Widerruf,
+Widerruf nach dem Ablauf und eine vergebene Nummer als Grund.
+`tests/kern/freistellung.test.ts`: Stand an den Grenzen,
+Manifest und Register, drei Handlungen, jeder Grund in beiden Sprachen, die
+Karte, die Steuerseite, 0530. Dazu `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-283, O-604, D-779, FIN-10, LEG-06; `drizzle/0530_freistellung_fest.sql`, `src/server/services/finanz/freistellung.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/{freistellungen/page.tsx,page.tsx,eingangsrechnungen/[id]/steuer/page.tsx}`, `src/lib/i18n/verwaltung/finanzen/{freistellungen,uebersicht,eingangsrechnungen}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/lib/i18n/verwaltung/crm-rueckweg.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/finanz-ausgabe.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/freistellung.test.ts`, `tests/kern/freistellung.test.ts` |
 |---|---|

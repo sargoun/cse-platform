@@ -742,7 +742,8 @@ export default async function Steuer(
                             <input type="hidden" name="bescheinigungId" value={z.id} />
                             <input type="hidden" name="zurueck" value={pfad} />
                             <input type="date" name="widerrufenAm" required
-                                   defaultValue={blatt.heute}
+                                   defaultValue={blatt.heute} min={blatt.heute}
+                                   max={z.gueltig_bis}
                                    className="min-h-11 rounded-md border border-line bg-surface px-s2 py-s1 text-xs text-text" />
                             <button
                               type="submit" data-cse="steuer-48b-widerrufen"

@@ -23,6 +23,7 @@ import { type Cent, cent } from '../geld.js';
 import { type MilliMenge, mengeAusPostgres, milliMenge } from '../menge.js';
 import type { Abfrage } from '../rechnung.js';
 import { tagDeutsch } from '../../../../lib/datum/kalendertag.js';
+import { rechtName } from '../../../../lib/i18n/rechtname.js';
 
 /**
  * Die fuenf Schluessel — WOERTLICH die Werte des Aufzaehlungstyps
@@ -382,18 +383,150 @@ export function monateDerPeriode(periode: Periode): readonly Periode[] {
  *
  * FIN-05 nennt den Leistungszeitraum das am haeufigsten fehlende Pflichtfeld
  * und haelt fest, dass sein Fehlen dem Kunden den Vorsteuerabzug kostet. Er
- * wird deshalb hergeleitet und nicht weggelassen — ausser im Modus
- * `nach_leistungsnachweis`, wo die Herleitung aus den Nachweisen noch nicht
- * gebaut ist (O-54, Voreinstellung D-792, V-337); dort meldet die Strategie
- * einen blockierenden Befund, statt den Kalendermonat zu unterstellen.
+ * wird deshalb hergeleitet und nicht weggelassen. Im Modus
+ * `nach_leistungsnachweis` kommt er aus den gegengezeichneten Nachweisen des
+ * Abschnitts (`zeitraumAusNachweisen`, O-54, D-792, D-838); liegt keiner vor,
+ * bleibt er leer — und `pruefeNachweisZeitraum` hat die Abrechnung dann schon
+ * blockiert, statt den Kalendermonat zu unterstellen.
  */
 export function leistungszeitraum(
   konfiguration: VertragAbrechnung, abschnitt: Periode,
+  nachweise: readonly SignierterNachweis[] = [],
 ): { von: string | null; bis: string | null } {
   if (konfiguration.leistungszeitraumModus === 'nach_leistungsnachweis') {
-    return { von: null, bis: null };
+    return zeitraumAusNachweisen(nachweise, abschnitt) ?? { von: null, bis: null };
   }
   return { von: abschnitt.von, bis: abschnitt.bis };
+}
+
+/** Ein gegengezeichneter Leistungsnachweis, so weit die Herleitung ihn braucht. */
+export interface SignierterNachweis {
+  readonly id: string;
+  readonly nummer: string | null;
+  /** `JJJJ-MM-TT`, Berliner Kalendertag, einschliesslich. */
+  readonly von: string;
+  readonly bis: string;
+}
+
+/**
+ * Der Leistungszeitraum aus den gegengezeichneten Nachweisen eines Abschnitts
+ * (O-54, D-792, V-337, D-838): fruehester Beginn bis spaetestes Ende der
+ * Nachweise, die den Abschnitt beruehren — BESCHNITTEN auf den Abschnitt.
+ * `null`, wenn keiner ihn beruehrt.
+ *
+ * **Beschnitten, weil eine Rechnung nur ihren Abschnitt verlangt.** Ein
+ * Nachweis vom 25.08. bis 05.09. gehoert zum August UND zum September; stuende
+ * auf der Augustzeile „bis 05.09.", behauptete sie Tage, die die
+ * Septemberzeile berechnet — und die Doppelabrechnungssperre der Pauschale
+ * (`ueberschneidet`) hielte den September fuer schon berechnet.
+ *
+ * Kalendertage im Format `JJJJ-MM-TT` lassen sich als Zeichenketten
+ * vergleichen; gerechnet wird nichts.
+ */
+export function zeitraumAusNachweisen(
+  nachweise: readonly SignierterNachweis[], abschnitt: Periode,
+): Periode | null {
+  let von: string | null = null;
+  let bis: string | null = null;
+  for (const n of nachweise) {
+    if (n.von > n.bis || n.von > abschnitt.bis || n.bis < abschnitt.von) continue;
+    if (von === null || n.von < von) von = n.von;
+    if (bis === null || n.bis > bis) bis = n.bis;
+  }
+  if (von === null || bis === null) return null;
+  return {
+    von: von < abschnitt.von ? abschnitt.von : von,
+    bis: bis > abschnitt.bis ? abschnitt.bis : bis,
+  };
+}
+
+/**
+ * Die gegengezeichneten Nachweise einer Vereinbarung, die den Zeitraum
+ * beruehren — nur im Modus `nach_leistungsnachweis`, sonst keine Abfrage.
+ *
+ * TODO(client, O-54): Voreinstellung — ein Nachweis zaehlt, wenn er
+ * unterschrieben (`signiert`) und nicht storniert ist und im Kopf oder in
+ * einer Zeile eine Leistungszeile dieses Auftrags nennt (bei einer
+ * zeilenbezogenen Vereinbarung: genau ihre). Ein Nachweis ohne Leistungszeile
+ * zaehlt nicht: am Objekt allein laesst er sich keinem von zwei Auftraegen
+ * zuordnen. D-792, D-838.
+ *
+ * Gelesen unter der RLS des Menschen (`nachweis.lesen`), wie die Strategien
+ * ihre Zeiteintraege und Abrufe lesen; fehlt das Recht, sagt
+ * `pruefeNachweisZeitraum` das, statt „kein Nachweis" zu melden.
+ */
+export async function ladeSignierteNachweise(
+  db: Abfrage, konfiguration: VertragAbrechnung, zeitraum: Periode,
+): Promise<readonly SignierterNachweis[]> {
+  if (konfiguration.leistungszeitraumModus !== 'nach_leistungsnachweis') return [];
+  return db.abfrage<SignierterNachweis>(
+    `select l.id::text as id, l.nummer,
+            to_char(l.leistungszeitraum_von, 'YYYY-MM-DD') as von,
+            to_char(l.leistungszeitraum_bis, 'YYYY-MM-DD') as bis
+       from leistungsnachweis l
+      where l.status = 'signiert'
+        and l.storniert_am is null
+        and l.leistungszeitraum_von <= $3::date
+        and l.leistungszeitraum_bis >= $2::date
+        and exists (
+          select 1 from auftrag_leistung al
+           where al.mandant_id = l.mandant_id
+             and al.auftrag_id = $1::uuid
+             and ($4::uuid is null or al.id = $4::uuid)
+             and (al.id = l.auftrag_leistung_id
+                  or exists (select 1 from leistungsnachweis_position p
+                              where p.mandant_id = l.mandant_id
+                                and p.leistungsnachweis_id = l.id
+                                and p.auftrag_leistung_id = al.id)))
+      order by l.leistungszeitraum_von, l.id`,
+    [konfiguration.auftragId, zeitraum.von, zeitraum.bis, konfiguration.auftragLeistungId],
+  );
+}
+
+/**
+ * Der Befund des Modus `nach_leistungsnachweis` — je Abschnitt ohne
+ * gegengezeichneten Nachweis einer, blockierend (O-54, D-838).
+ *
+ * Er tritt an die Stelle des pauschalen Befunds, der den Modus bis V-337
+ * ganz sperrte: gesperrt ist jetzt nur noch der Abschnitt, fuer den kein
+ * Nachweis vorliegt. Ohne das Recht, Nachweise zu lesen, sagt er das — eine
+ * leere Liste unter der RLS sieht sonst aus wie „kein Nachweis".
+ */
+export async function pruefeNachweisZeitraum(
+  db: Abfrage, konfiguration: VertragAbrechnung, abschnitte: readonly Periode[],
+): Promise<readonly AbrechnungsBefund[]> {
+  if (konfiguration.leistungszeitraumModus !== 'nach_leistungsnachweis') return [];
+  if (abschnitte.length === 0) return [];
+  const [recht] = await db.abfrage<{ darf: boolean }>(
+    `select app.hat_recht('nachweis.lesen', app.aktiver_mandant()) as darf`);
+  if (recht?.darf !== true) {
+    return [fehler(
+      'leistungszeitraum_modus',
+      'Der Leistungszeitraum dieser Vereinbarung kommt aus den gegengezeichneten '
+      + 'Leistungsnachweisen (Voreinstellung O-54). Sie zu lesen verlangt das Recht '
+      + `„${rechtName('nachweis.lesen')}" — ohne es lässt sich der Zeitraum nicht herleiten, `
+      + 'und ohne Leistungszeitraum verliert der Kunde den Vorsteuerabzug (FIN-05, '
+      + '§14 Abs. 4 Nr. 6 UStG).',
+      'O-54',
+    )];
+  }
+  const gesamt: Periode = {
+    von: abschnitte.reduce((a, b) => (b.von < a ? b.von : a), abschnitte[0]!.von),
+    bis: abschnitte.reduce((a, b) => (b.bis > a ? b.bis : a), abschnitte[0]!.bis),
+  };
+  const nachweise = await ladeSignierteNachweise(db, konfiguration, gesamt);
+  return abschnitte
+    .filter((a) => zeitraumAusNachweisen(nachweise, a) === null)
+    .map((a) => fehler(
+      'leistungszeitraum_modus',
+      `Für ${tagDeutsch(a.von)} bis ${tagDeutsch(a.bis)} liegt kein gegengezeichneter `
+      + 'Leistungsnachweis zu dieser Vereinbarung vor. Nach Voreinstellung (O-54) ist der '
+      + 'Leistungszeitraum der Zeitraum dieser Nachweise; ohne einen fehlte er der Rechnung, '
+      + 'und der Kunde verlöre den Vorsteuerabzug (FIN-05, §14 Abs. 4 Nr. 6 UStG). Ein '
+      + 'Nachweis zählt, wenn er unterschrieben ist und im Kopf oder in einer Zeile eine '
+      + 'Leistungszeile dieses Auftrags nennt.',
+      'O-54',
+    ));
 }
 
 /** Der Befund, den ein fehlender Parameter erzeugt — fuer alle fuenf gleich. */
@@ -421,25 +554,11 @@ export function pruefeParameter(
       ));
     }
   }
-  if (konfiguration.leistungszeitraumModus === 'nach_leistungsnachweis') {
-    /*
-     * TODO(client, O-54): Voreinstellung — der Leistungszeitraum einer
-     * Rechnung nach Leistungsnachweis ist der Zeitraum der gegengezeichneten
-     * Nachweise des Abschnitts (fruehester Beginn bis spaetestes Ende); die
-     * Pauschale nimmt den Kalendermonat, der Einheitspreis das Aufmassdatum.
-     * Die Herleitung aus den Nachweisen ist nicht gebaut (V-337); bis dahin
-     * bleibt der Modus gesperrt, statt den Kalendermonat zu unterstellen. D-792.
-     */
-    befunde.push(fehler(
-      'leistungszeitraum_modus',
-      'Voreinstellung (O-54): der Leistungszeitraum ist der Zeitraum der '
-      + 'gegengezeichneten Leistungsnachweise des Abschnitts. Diese Herleitung ist '
-      + 'noch nicht gebaut (V-337); bis dahin bleibt der Modus gesperrt. Ohne '
-      + 'Leistungszeitraum verliert der Kunde den Vorsteuerabzug (FIN-05, '
-      + '§14 Abs. 4 Nr. 6 UStG).',
-      'O-54',
-    ));
-  }
+  /*
+   * Der Modus `nach_leistungsnachweis` blockiert hier nicht mehr pauschal:
+   * seit V-337 (D-838) prueft `pruefeNachweisZeitraum` je Abschnitt, ob ein
+   * gegengezeichneter Nachweis vorliegt — dafuer braucht es die Datenbank.
+   */
   return befunde;
 }
 

@@ -31,9 +31,11 @@ import {
   type RechnungspositionEntwurf,
   centOderNull,
   fehler,
+  ladeSignierteNachweise,
   leistungszeitraum,
   loeseEinheit,
   loeseSteuergruppe,
+  pruefeNachweisZeitraum,
   pruefeParameter,
   warnung,
 } from './typen.js';
@@ -150,6 +152,7 @@ export const EINZELABRUF: Abrechnungsart = {
         ));
       }
     }
+    befunde.push(...await pruefeNachweisZeitraum(db, konfiguration, [periode]));
     return befunde;
   },
 
@@ -166,7 +169,8 @@ export const EINZELABRUF: Abrechnungsart = {
       );
     }
 
-    const zeitraum = leistungszeitraum(konfiguration, periode);
+    const zeitraum = leistungszeitraum(
+      konfiguration, periode, await ladeSignierteNachweise(db, konfiguration, periode));
     const entwuerfe: RechnungspositionEntwurf[] = [];
 
     /**

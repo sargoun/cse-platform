@@ -43,10 +43,12 @@ import {
   type VertragAbrechnung,
   centOderNull,
   fehler,
+  ladeSignierteNachweise,
   leistungszeitraum,
   loeseEinheit,
   loeseSteuergruppe,
   parameterListe,
+  pruefeNachweisZeitraum,
   pruefeParameter,
 } from './typen.js';
 
@@ -258,6 +260,8 @@ export const EINHEITSPREIS_AUFMASS: Abrechnungsart = {
         ));
       }
     }
+    befunde.push(...await pruefeNachweisZeitraum(
+      db, eingabe.konfiguration, [eingabe.periode]));
     return befunde;
   },
 
@@ -324,7 +328,8 @@ export const EINHEITSPREIS_AUFMASS: Abrechnungsart = {
     }
 
     const nummerJeBlatt = new Map(koepfe.map((k) => [k.id, k.nummer]));
-    const zeitraum = leistungszeitraum(konfiguration, periode);
+    const zeitraum = leistungszeitraum(
+      konfiguration, periode, await ladeSignierteNachweise(db, konfiguration, periode));
     const entwuerfe: RechnungspositionEntwurf[] = [];
 
     for (const gruppe of gruppen.values()) {
