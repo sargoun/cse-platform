@@ -153,7 +153,8 @@ async function schreibeOderSatz<T>(lauf: Promise<readonly T[]>): Promise<readonl
  * Die Warnschwelle, mit der die Maske vorbelegt ist und die der Seed setzt
  * (O-195, D-784): 80 % des Monatsbudgets. Gespeichert wird sie mit der Zeile;
  * eine Zeile ohne Schwelle bleibt möglich und wird auf der Seite genannt.
- * Ausgelöst wird durch sie heute nichts (V-292) — sie steht an der Zeile.
+ * Erreicht der Verbrauch sie, meldet die Buchung es einmal je Zeile an alle
+ * mit `agent.budget_verwalten` (`vermerkeWarnung`, V-292, D-810).
  *
  * Budget und Preisliste rechnen in Euro (Mikrocent); der Anbieter rechnet in
  * USD ab, umgerechnet wird beim Eintrag der Preisliste zum Kurs des

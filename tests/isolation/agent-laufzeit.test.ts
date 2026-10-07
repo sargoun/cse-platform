@@ -412,6 +412,82 @@ describe('(3) die Kosten stimmen mit den Schritten überein', () => {
   });
 });
 
+describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () => {
+  async function buche(budgetId: string, agent: string, mikrocent: bigint): Promise<void> {
+    await alsApp(sitzung(), async (tx) => {
+      const d = alsDienst(tx);
+      const a = await starteAufgabe(d, f.reinigung, {
+        agentKennung: 'finanzen', vorgangTyp: 'buchung_uebernehmen', titel: 'Beleg',
+      });
+      await bucheKosten(d, f.reinigung, {
+        agentId: agent, aufgabeId: a.id, budgetId, reservierungId: null,
+        kostenMikrocent: mikrocent, tokensEingabe: 10n, tokensAusgabe: 0n, tokensGedanken: 0n,
+        modell: null, preislisteId, betragOriginal: 1n, waehrungOriginal: 'USD',
+        wechselkurs: null,
+      });
+      await beendeAufgabe(d, f.reinigung, a.id, { status: 'abgeschlossen' });
+    });
+  }
+
+  async function stand(budgetId: string): Promise<{ status: string; gewarnt: boolean; meldungen: number }> {
+    const [b] = await sql.unsafe<{ status: string; gewarnt: boolean }[]>(
+      `select status::text as status, gewarnt_am is not null as gewarnt
+         from agent_budget where id = $1`, [budgetId]);
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from benachrichtigung
+        where art = 'agent.budget_warnschwelle' and objekt_id = $1`, [budgetId]);
+    return { status: b!.status, gewarnt: b!.gewarnt, meldungen: n!.n };
+  }
+
+  it('unter 80 % nichts, ab 80 % genau eine Meldung — auch bei der nächsten Buchung', async () => {
+    await schalteEin('finanzen');
+    const budgetId = await legeBudgetAn('mandant', 100);
+    await sql.unsafe(`update agent_budget set warnschwelle_prozent = 80 where id = $1`, [budgetId]);
+    const agent = await agentId('finanzen');
+
+    await buche(budgetId, agent, 79_000_000n);
+    expect(await stand(budgetId)).toEqual({ status: 'aktiv', gewarnt: false, meldungen: 0 });
+
+    await buche(budgetId, agent, 1_000_000n);
+    const nach = await stand(budgetId);
+    expect(nach.status).toBe('gewarnt');
+    expect(nach.gewarnt).toBe(true);
+    expect(nach.meldungen).toBeGreaterThan(0);
+    const [m] = await sql.unsafe<{ titel: string; ziel: string; sammelbar: boolean }[]>(
+      `select titel, ziel, sammelbar from benachrichtigung
+        where art = 'agent.budget_warnschwelle' and objekt_id = $1 limit 1`, [budgetId]);
+    expect(m!.titel).toContain('80 %');
+    expect(m!.ziel).toBe('/portal/reinigung/agenten/budget');
+    expect(m!.sammelbar).toBe(false);
+
+    await buche(budgetId, agent, 1_000_000n);
+    expect((await stand(budgetId)).meldungen).toBe(nach.meldungen);
+  });
+
+  it('ohne Schwelle oder ohne Grenze meldet nichts — und eine neue Grenze darf wieder warnen', async () => {
+    await schalteEin('finanzen');
+    const budgetId = await legeBudgetAn('mandant', 100);
+    const agent = await agentId('finanzen');
+    await buche(budgetId, agent, 95_000_000n);
+    expect((await stand(budgetId)).meldungen).toBe(0);
+
+    await sql.unsafe(`update agent_budget set warnschwelle_prozent = 80 where id = $1`, [budgetId]);
+    await buche(budgetId, agent, 1n);
+    const erste = (await stand(budgetId)).meldungen;
+    expect(erste).toBeGreaterThan(0);
+
+    // Was die Budgetpflege beim Ändern der Grenze tut (budget-pflege.ts): Status
+    // und Warnung fallen mit der alten Grenze.
+    await sql.unsafe(
+      `update agent_budget set budget_cent = 200, status = 'aktiv', gewarnt_am = null
+        where id = $1`, [budgetId]);
+    await buche(budgetId, agent, 1n);
+    expect((await stand(budgetId)).meldungen).toBe(erste);
+    await buche(budgetId, agent, 65_000_000n);
+    expect((await stand(budgetId)).meldungen).toBe(2 * erste);
+  });
+});
+
 describe('(5) die Nutzlast ist ein eigenes Tor (0129, SEC-A9)', () => {
   /**
    * `agent_schritt.eingabe` und `.ausgabe` fehlen `cse_app` schon im Grant

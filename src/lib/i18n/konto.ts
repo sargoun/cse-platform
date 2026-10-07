@@ -420,6 +420,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
       },
       art: {
         budget_erschoepft: 'KI-Budget erschöpft',
+        budget_warnschwelle: 'KI-Budget: Warnschwelle erreicht',
         nachtrag_ueberfaellig: 'Nachtrag überfällig',
         wiedervorlage_erinnerung: 'Erinnerung an eine Wiedervorlage',
         neuer_lead: 'Neue Anfrage',
