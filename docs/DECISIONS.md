@@ -24852,8 +24852,8 @@ weiter keine Adresse, also ordnet der Katalog ihnen keine Plattform zu.
 | O-08 | Eine Gruppendomain mit Pfaden je Bereich; eine eigene Domain je Bereich ist nicht vorgesehen, bis der Betreiber es anders entscheidet (wie `annahmen.ts`). | Einstellungen › Identität |
 | O-206 | „CSE Gruppe" ist ein Auftrittsname über vier eigenständigen Gesellschaften, kein Rechtsträger; strukturierte Daten nennen vier Unternehmen und kein Dach (wie gebaut). | `seed/index.ts`, `annahmen.ts` |
 | O-750 | Ohne Eintrag in DESIGN §1 hat ein Bereich keinen Bereichston und keine Ersatzfarbe; ob das Profil vorher öffentlich geht, entscheidet der Betreiber (kein CHECK). | Einstellungen › Identität |
-| O-355 | Die Modulbuchung trägt die Super-Administration beim Vertragsschluss ein; bis dahin wird nicht gefiltert. Einen Eingabeweg gibt es noch nicht (V-298). | Einstellungen › Module |
-| O-358 | Den Basiszinssatz nach § 247 BGB trägt die Buchhaltung der CSE Operations zentral für die Gruppe ein, zum 1. Januar und 1. Juli nach Bekanntmachung der Bundesbank; der Wächter meldet am 15. Juni und 15. Dezember einen fehlenden Satz als gescheiterten Lauf und benachrichtigt niemanden eigens. Einen Eingabeweg gibt es noch nicht (V-299). | Einstellungen › Mahnwesen, `jobs/basiszinssatz.ts` |
+| O-355 | Die Modulbuchung trägt die Super-Administration beim Vertragsschluss ein; bis dahin wird nicht gefiltert. Eingetragen wird unter Einstellungen › Module (`app.mandant_module_buchen`, 0502, Super-Administration mit `system.module_zuweisen`, protokolliert); der Seed überschreibt eine eingetragene Buchung nicht — gebaut mit V-298 (D-809). | Einstellungen › Module |
+| O-358 | Den Basiszinssatz nach § 247 BGB trägt die Buchhaltung der CSE Operations zentral für die Gruppe ein, zum 1. Januar und 1. Juli nach Bekanntmachung der Bundesbank; der Wächter meldet am 15. Juni und 15. Dezember einen fehlenden Satz als gescheiterten Lauf und benachrichtigt niemanden eigens. Eingetragen wird je Kalenderhalbjahr unter Einstellungen › Mahnwesen von der Super-Administration (`system.referenzdaten_verwalten`, die Policies aus 0125) — für die Buchhaltung der CSE Operations heißt das: über ein Konto der Super-Administration; gebaut mit V-299 (D-809). | Einstellungen › Mahnwesen, `jobs/basiszinssatz.ts` |
 | O-128 | Übernahme aus den Altsystemen als CSV-Export (UTF-8, Semikolon): Aplano die Zeiten, Lexware die Belege, Excel die Listen; Zeitraum ab Beginn des laufenden Geschäftsjahres; Altdaten bleiben im Altsystem revisionssicher archiviert. Der Leser ist nicht gebaut (V-300). | Einstellungen › Import |
 | O-980 | Einen verlorenen oder abgelaufenen Einladungslink ersetzt die Super-Administration durch „Link neu ausstellen" an der offenen Einladung — der alte verfällt (wie der Kundenzugang, 0249). Gebaut ist der Weg noch nicht (V-302). | `verwaltungskonto.ts` (i18n) |
 | O-981 | Die Rolle einer Mitgliedschaft wechselt die Super-Administration am Benutzerblatt (admin ↔ leitung), protokolliert. Gebaut ist der Weg noch nicht (V-302). | `verwaltungskonto.ts` (i18n) |
@@ -25656,7 +25656,7 @@ Voreinstellung tragen — der Wortlaut folgt jetzt.
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-354 | Ein Alarm je endgültig gescheitertem Lauf (nach den Wiederholungen des Runners) und je Lauf mit fehlerhaften Mandanten; geweckt wird niemand, die Gruppe hat keinen Bereitschaftsdienst. Der Alarm steht in der Betriebsansicht, im Funktionsprotokoll (`JOB-ALARM`) und in `job_lauf` (wie gebaut); eine E-Mail an das Betriebspostfach braucht Versanddienst (O-116) und Adresse und fehlt (V-374). | `jobs/alarm.ts`, Einstellungen › Betrieb |
-| O-356 | Jede Gesellschaft bucht genau ihr Gewerk aus CLAUDE.md (wie im Seed); eine Überschneidung — Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security — bucht die Super-Administration als weiteres Modul (O-355), sobald der Eingabeweg steht (V-298). | `db/seed/index.ts`, Einstellungen › Module |
+| O-356 | Jede Gesellschaft bucht genau ihr Gewerk aus CLAUDE.md (wie im Seed); eine Überschneidung — Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security — bucht die Super-Administration als weiteres Modul (O-355) unter Einstellungen › Module (V-298, D-809). | `db/seed/index.ts`, Einstellungen › Module |
 | O-359 | Vollständige CSP mit Nonce je Anfrage aus der Middleware, ohne `'unsafe-inline'`, zuerst im Berichtsmodus, dann erzwungen; neben `'self'` nur der Supabase-Speicher der EU-Region (signierte Adressen), Rückrufe des SMS-Dienstes gehen Server an Server. Nicht gebaut (V-375); bis dahin `frame-ancestors 'none'` (wie gebaut). | `lib/sicherheitskoepfe.ts` |
 | O-360 | Keine Karte in der Gruppenansicht, bis ein Kartendienst in der EU mit Auftragsverarbeitungsvertrag eingetragen ist (O-132, Betreiberdaten); bis dahin die Anschriftenliste (D-475). Wie gebaut. | Gruppe › Objekte |
 | O-361 | Der Menüpunkt „Einstellungen" folgt dem Manifest (`system.mandant_lesen`): die Administration sieht ihn, die Karten darunter bleiben einzeln bewacht. Wie gebaut — das Register sagte noch, sie erreiche die Einstellungen nur über die Adresse. | `registry/navigation.ts`, `tests/kern/navigation-rechte.test.ts` |
@@ -25895,7 +25895,7 @@ es verbunden.
 | O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Die Sperre vor dem Livegang ist nicht verdrahtet (V-389). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
 | O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | Einstellungen › Unternehmensdaten (seit D-804, V-390); Bankkonten für den Kontoauszug unter Finanzen › Bankkonten |
 | O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
-| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | `plattform_einstellung` `sicherheit.kontakt` — ohne Oberfläche (V-392) |
+| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | Einstellungen › Betrieb › Sicherheitskontakt (Super-Administration, seit D-809, V-392) — Postfach, wer es liest, Antwortfrist |
 | O-82 | SMS-Gateway in der EU mit Ausgabendeckel: nicht verbunden; die Schichtleitung gibt Codes von Hand aus (D-790). | Gateway und Vertrag; Anbindung in `auth/sms.ts` |
 | O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Entwürfe lesen sie noch nicht (V-391), versendet wird ohne Postausgang nichts. | Einstellungen › Identität |
 | O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
@@ -26263,4 +26263,75 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789) und der Eingabeweg für das
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-326, V-381, V-353, V-328, V-323; O-740, O-211, O-852, O-853, O-30, O-895, O-158, O-151; `drizzle/0499_schichtende_toleranz.sql`, `drizzle/0500_abwesenheit_ruecknahme_melden.sql`, `src/server/services/mitarbeiter/schichten.ts`, `src/app/portal/mein/bausteine.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,leistungsnachweis,fotos,bautagebuch}/page.tsx`, `src/lib/i18n/texte.ts`, `src/server/jobs/nachtragWache.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/server/services/abwesenheit/benachrichtigung.ts`, `src/app/api/mein/abwesenheit/[id]/zurueckziehen/route.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `drizzle/0501_bautag_wetter_einfrieren.sql`, `src/server/services/bau/bautagebuch.ts`, `src/app/api/bau/bautagebuch/route.ts`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/behinderungen/[bid]/page.tsx`, `src/server/services/security/uebergabefenster.ts`, `src/app/api/security/uebergabefenster/route.ts`, `src/app/portal/[mandant]/security/wachbuch/page.tsx`, `src/lib/i18n/verwaltung/wachbuch.ts`, `src/server/auth/route-manifest.ts` |
+|---|---|
+
+### D-809 · Bauwelle 5: Eingabewege für Modulbuchung, Basiszinssatz und Sicherheitskontakt (V-298, V-299, V-392)
+
+**Der Anlass.** Drei Werte las die Plattform, und keiner hatte einen
+Eingabeweg: die gebuchten Gewerke einer Gesellschaft (`mandant.module`,
+`module_gepflegt`, O-355, D-784), der Basiszinssatz nach § 247 BGB
+(`basiszinssatz`, O-358, D-784) und das Postfach für Sicherheitsmeldungen
+(`plattform_einstellung` `sicherheit.kontakt`, O-35, D-803). Gesetzt wurden
+sie vom Seed oder per SQL.
+
+**Was gebaut ist.**
+- **Modulbuchung (V-298).** 0502: `app.mandant_module_buchen(text[])` trägt
+  die gebuchten Gewerke der aktiven Gesellschaft ein — `reinigung`,
+  `security`, `bau`, jedes einmal; keines heißt „kein Gewerk" (wie bei der
+  CSE Operations) — und setzt `module_gepflegt`. Das Tor ist das aus 0494
+  (eine aktive Gesellschaft, keine Gruppenansicht, keine lesende Sitzung,
+  zweiter Faktor), dazu `system.module_zuweisen` und eine
+  Super-Administration: das Recht ist an eine Administration bindbar, die
+  Buchung trägt aber die Super-Administration beim Vertragsschluss ein
+  (O-355). Geprüft wird erst das Recht, dann die Super-Administration — wer
+  das Recht nicht hält, erfährt nicht, wer einträgt (AUT-06). Wer eingetragen
+  hat und wann, steht an der Zeile (`module_eingetragen_am`, `_von`); der Seed
+  überschreibt eine eingetragene Buchung nicht mehr, und die Modulseite
+  unterscheidet den Seed-Stand von einer Eintragung. `trg_mandant_audit`
+  (0005) hält vorher und nachher fest. Formular unter Einstellungen › Module
+  (`POST /api/einstellungen/module`), Sätze in beiden Sprachen.
+- **Basiszinssatz (V-299).** Einstellungen › Mahnwesen zeigt, ob heute und
+  ab der kommenden Hälfte ein Satz gilt, die eingetragenen Sätze und — für
+  die Super-Administration mit `system.referenzdaten_verwalten`, wie die
+  Policies aus 0125 es verlangen — ein Formular je Kalenderhalbjahr
+  (`POST /api/finanzen/basiszinssatz`, `finanz/mahnung/basiszinssatz.ts`).
+  Je Halbjahr eine Zeile mit Ende: eine offene Zeile gälte still weiter, und
+  der Wächter fände nie eine Lücke; eine offene Zeile davor endet am Tag vor
+  dem neuen Halbjahr. Eingegeben wird in Prozent, wie die Bundesbank ihn
+  bekanntgibt („1,27"), gespeichert in Basispunkten — umgerechnet an den
+  Ziffern, nie über eine Gleitkommazahl (Invariante 1). Negative Sätze gehen;
+  die Prüfgrenze von −10 % bis +20 % ist eine Eingabeprüfung gegen eine
+  vertauschte Einheit, keine Rechtsregel. Ein schon eingetragenes Halbjahr
+  wird korrigiert; die Auditzeile nennt alten und neuen Wert. Das späteste
+  Halbjahr ist das des nächsten Jahres, das Jahr kommt aus
+  `app.berlin_heute()` (K-11).
+- **Sicherheitskontakt (V-392).** 0503: `app.sicherheitskontakt_setzen` setzt
+  `sicherheit.kontakt` und `sicherheit.richtlinie` der Plattform — eine
+  Plattformangabe, keine Gesellschaftsangabe. Tor: keine lesende Sitzung,
+  zweiter Faktor, `system.einstellung_verwalten`, Super-Administration. Die
+  Policy `d_sicherheitskontakt` lässt den Definer an genau diese zwei Zeilen
+  von `plattform_einstellung`; `cse_app` schreibt die Tabelle weiterhin nicht.
+  Geprüft wird nach RFC 9116 — `Contact` ist eine `mailto:`-, `https:`- oder
+  `tel:`-URI, `Policy` eine `https:`-URI — mit denselben Regeln wie die Datei
+  (`istKontaktWert`). Leer heißt kein Postfach: der Wert wird JSON-null, und
+  `/.well-known/security.txt` antwortet wieder 404. Formular unter
+  Einstellungen › Betrieb, protokolliert mit vorher und nachher. Postfach, wer
+  es liest und die Antwortfrist bleiben Betreiberdaten (O-35, D-803) — bis zum
+  Eintrag steht dort „nicht verbunden".
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-355 | Die Super-Administration trägt die gebuchten Gewerke beim Vertragsschluss ein — wie D-784, jetzt mit Eingabeweg; die Gesellschaft bucht nicht selbst. | `drizzle/0502`, `system/mandant-module.ts`, Einstellungen › Module |
+| O-358 | Zentral für die Gruppe, je Kalenderhalbjahr nach der Bekanntmachung der Bundesbank, eingetragen von der Super-Administration — wie D-784, jetzt mit Eingabeweg; der Wächter benachrichtigt weiterhin niemanden eigens. | `finanz/mahnung/basiszinssatz.ts`, Einstellungen › Mahnwesen |
+| O-35 | Betreiberdaten: das Postfach trägt der Betreiber ein — jetzt unter Einstellungen › Betrieb; ohne Eintrag bleibt die Datei ein 404. | `drizzle/0503`, `inhalt/sicherheitskontakt.ts` |
+
+**Prüfung.** `tests/isolation/mandant-module-buchen.test.ts`,
+`tests/isolation/basiszinssatz-eingabe.test.ts`, `tests/isolation/sicherheitskontakt.test.ts`
+(in der CI), `tests/kern/modulbuchung-route.test.ts`,
+`tests/kern/basiszinssatz-eingabe.test.ts`, `tests/kern/sicherheitskontakt-route.test.ts`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-298, V-299, V-392; O-355, O-356, O-358, O-35; `drizzle/0502_mandant_module_buchen.sql`, `drizzle/0503_sicherheitskontakt_pflegen.sql`, `src/server/services/system/mandant-module.ts`, `src/app/api/einstellungen/module/route.ts`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/modulbuchung.ts`, `src/server/db/seed/index.ts`, `src/server/services/finanz/mahnung/basiszinssatz.ts`, `src/app/api/finanzen/basiszinssatz/route.ts`, `src/app/portal/[mandant]/einstellungen/mahnwesen/page.tsx`, `src/server/jobs/basiszinssatz.ts`, `src/server/services/inhalt/sicherheitskontakt.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `src/app/api/einstellungen/sicherheitskontakt/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts` |
 |---|---|
