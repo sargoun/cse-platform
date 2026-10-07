@@ -379,7 +379,7 @@ export async function ladeWitterungsbelege(
         and b.arbeitsbehindernde_witterung
         and b.storniert_am is null
         and b.datum >= h.beginn_am
-        and (h.ende_am is null or b.datum <= h.ende_am)
+        and b.datum <= coalesce(h.ende_am, app.berlin_heute())
       order by b.datum`,
     [behinderungId],
   );

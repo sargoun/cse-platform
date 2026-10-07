@@ -400,6 +400,20 @@ describe('§4 die Rücknahme meldet sich (V-353)', () => {
     await expect(alsMensch(f.jonas, jonasKonto, (k) => k.schreibe(
       `select app.abwesenheit_ruecknahme_melden($1::uuid, 'T', '  ', '/portal/x')`, [eigen])))
       .rejects.toThrow(/nicht leer/u);
+
+    // Das Ziel ist das Blatt DIESER Abwesenheit — nie eine fremde Adresse, auf
+    // die `/api/benachrichtigungen/[id]/oeffnen` weiterleiten würde, und nie
+    // das Blatt einer anderen Abwesenheit.
+    const [slug] = await sql.unsafe<{ slug: string }[]>(
+      `select slug from mandant where id = $1`, [f.reinigung]);
+    for (const ziel of [
+      '//boese.example/x', 'https://boese.example/x', '/portal/x',
+      `/portal/${slug!.slug}/personal/abwesenheiten/${offen}`,
+    ]) {
+      await expect(alsMensch(f.jonas, jonasKonto, (k) => k.schreibe(
+        `select app.abwesenheit_ruecknahme_melden($1::uuid, 'T', 'X', $2)`, [eigen, ziel])))
+        .rejects.toThrow(/genau dieser Abwesenheit/u);
+    }
   });
 
   it('`cse_app` schreibt weiter nicht selbst in fremde Posteingänge', async () => {

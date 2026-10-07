@@ -25158,7 +25158,7 @@ nicht gebaut ist (V-323 bis V-328). Jede Zeile ist gegen den Dienst gelesen.
 | O-146 | Ein ausgefallener Turnus mindert die Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des Monats); so ist die Ausnahme vorbelegt (`abrechnungsrelevant`, O-700, D-783). Gerechnet wird die Minderung nirgends — die Monatspauschale rechnet aus der Pauschale allein (V-327). | `reinigung/turnus.ts`, `finanz/abrechnungsart/monatspauschale.ts` |
 | O-149 | Wie D-783 (O-342): für Kräfte ohne festen Posten (Veranstaltung, Springer, kurzfristige Vertretung) gilt die mandantenweite Grundanforderung § 34a-Unterrichtung, bei Veranstaltungen dazu die Sachkunde — auf Knopfdruck angelegt, unbestätigt, als Warnung; ohne Zeile meldet das Tor `anforderungenGefunden = 0`. | `nachweis/tor.ts`, `security/anforderung.ts` |
 | O-150 | Massgeblich ist der Berliner Kalendertag des Schichtbeginns (`stichtagVon`): ein Nachweis, der um Mitternacht abläuft, deckt die begonnene Nachtschicht; die nächste Schicht braucht einen gültigen. Wie gebaut. | `nachweis/gueltigkeit.ts` |
-| O-151 | Die Übergabe zeigt die Einträge der letzten zwölf Stunden vor Schichtbeginn am selben Objekt. Ausgeliefert ist das Fenster mit 0 (`wachbuch.uebergabe_fenster`, 0033), gesetzt wird es je Gesellschaft auf Security › Wachbuch (0 bis 24 Stunden, `system.einstellung_verwalten`, protokolliert — gebaut mit V-323, D-808); die Wachbuchseite der Kraft nennt die Voreinstellung in vier Sprachen. | `mitarbeiter/schichtbuch.ts`, `texte.ts`, Mein › Wachbuch |
+| O-151 | Die Übergabe zeigt die Einträge der letzten zwölf Stunden am selben Objekt — gerechnet ab jetzt, das Fenster gleitet (`app.uebergabe_sichtbar`, 0302); zu Schichtbeginn sind es die zwölf Stunden davor (berichtigt mit D-808). Ausgeliefert ist das Fenster mit 0 (`wachbuch.uebergabe_fenster`, 0033), gesetzt wird es je Gesellschaft auf Security › Wachbuch (0 bis 24 Stunden, `system.einstellung_verwalten`, protokolliert — gebaut mit V-323, D-808); die Wachbuchseite der Kraft nennt die Voreinstellung in vier Sprachen. | `mitarbeiter/schichtbuch.ts`, `texte.ts`, Mein › Wachbuch |
 | O-152 | Kein Pflichtnachweis je Rundgang; wo ein Vertrag einen verlangt, trägt der Kontrollpunkt seine Nachweisart (`nfc`, `qr`, `barcode`, `manuell`; `unbestimmt` als Vorgabe), und ein Präsenznachweis im Wachbuch nennt den Kontrollpunkt. Wie gebaut (0070). | `security/wachbuch.ts` |
 | O-153 | `neue_version_oeffnet_pflicht = true`: jede neue Fassung einer Dienstanweisung verlangt eine neue Bestätigung; wer die Anweisung veröffentlicht (`security.schreiben`), kann es je Anweisung abschalten. Eine Sperre folgt daraus nicht (O-241 bleibt). Wie gebaut. | `security/dienstanweisung.ts` |
 | O-155 | Sechs Positionsarten (unbestimmt, Normal-, Bedarfs-, Alternativ-, Zuschlags-, Grundposition); Normal-, Zuschlags- und Grundposition zählen in die Auftragssumme, Bedarfs- und Alternativposition nicht, eine unbestimmte zählt wie eine Normalposition (03-GEWERKE §3.3, `zaehltPositionsartInSumme`). Wie gebaut. | `bau/lv.ts`, `bau/lv-quelle.ts` |
@@ -25709,7 +25709,7 @@ ab). O-97 ist wortgleich mit O-41 und folgt dessen Voreinstellung (D-782).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet; bestätigen lässt sie sich noch nicht (V-384). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
-| O-30 | 14 Tage (SPEC §14), gemeldet an die verantwortliche Bauleitung des Projekts, einmal (`ueberfaellig_gemeldet_am`); fehlt die Bauleitung, an alle, die in der Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`) — gebaut mit V-381 (D-808). | `bau/nachtrag.ts`, `jobs/nachtragWache.ts` |
+| O-30 | 14 Tage (SPEC §14), gemeldet an die verantwortliche Bauleitung des Projekts, einmal (`ueberfaellig_gemeldet_am`); fehlt die Bauleitung, an alle, die in der Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`) und den Nachtrag lesen können (`bau.lesen`) — gebaut mit V-381 (D-808). | `bau/nachtrag.ts`, `jobs/nachtragWache.ts` |
 | O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle, ab 7 Tagen an die Leitung — nicht gebaut (V-380); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
 | O-97 | Wie O-41 (D-782): Zielformat GAEB DA XML (X83/X84); gelesen wird heute CSV mit Semikolon, der GAEB-Leser fehlt (V-291). | `bau/lv-quelle.ts` |
 | O-133 | Kein Pflichtfoto je Beweisart ausser dem Messfoto des Aufmaßes (BAU-03, `kern.aufmass_vorlage_pruefen`, wie gebaut); Leistungsnachweis, Wachbuch, Bautagebuch, Schicht und Referenz nehmen Fotos an und verlangen keine, und ein Beweis ohne Foto gilt nicht als unvollständig. | `api/mein/schichten/[zuordnungId]/fotos`, `bau/aufmass.ts` |
@@ -26202,15 +26202,18 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789) und der Eingabeweg für das
 - **Nachtragswache ohne Bauleitung (V-381).** Fehlt
   `projekt.verantwortlich_benutzer_id`, meldet die Wache an alle, die in der
   Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`, über
-  `kern.traeger_des_rechts`), und die Meldung sagt, warum sie bei der Leitung
-  ankommt. Hält niemand das Recht, bleibt der Nachtrag ungemeldet und kommt
+  `kern.traeger_des_rechts`) und den Nachtrag lesen können (`bau.lesen`, das
+  Recht hinter dem Ziel der Meldung), und die Meldung sagt, warum sie bei der
+  Leitung ankommt. Hält niemand das Recht, bleibt der Nachtrag ungemeldet und kommt
   beim nächsten Lauf wieder. Die Frist liest der Lauf aus
   `NACHTRAG_WACHFRIST_TAGE`, statt die 14 zu wiederholen.
 - **Rücknahme einer Abwesenheit meldet sich (V-353).** 0500:
   `app.abwesenheit_ruecknahme_melden` stellt genau die Art
   `personal.abwesenheit_zurueckgenommen` zu — nur für die eigene, gerade
   zurückgenommene Abwesenheit des Aufrufers, an alle, die in der Gesellschaft
-  Abwesenheiten entscheiden und lesen. `cse_app` behält kein INSERT auf
+  Abwesenheiten entscheiden und lesen; als Ziel nimmt sie nur das Blatt genau
+  dieser Abwesenheit an (`/api/benachrichtigungen/[id]/oeffnen` leitet dorthin
+  weiter). `cse_app` behält kein INSERT auf
   `benachrichtigung` (0266). Die Route meldet in derselben Transaktion wie die
   Rücknahme; die Meldung nennt Person und Zeitraum, nie die Art (Art. 9 DSGVO).
 - **Witterungskennzeichen im Bautagebuch (V-328).** Die Bautagseite setzt
@@ -26233,7 +26236,12 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789) und der Eingabeweg für das
   und neuen Wert. Ausgeliefert bleibt 0 — das Fenster zeigt Einträge anderer
   Menschen (O-06). Die Sätze der Kraft sagten „von der Sicherheitsleitung
   gesetzt"; das Recht hält nach der Rechtematrix die Super-Administration, sie
-  sagen jetzt „von der Verwaltung" (de/en/ar/tr).
+  sagen jetzt „von der Verwaltung" (de/en/ar/tr). Das Fenster gleitet: es
+  zählt ab jetzt zurück (`erfasst_am > now() - Fenster`, 0302), nicht ab dem
+  Schichtbeginn, und gilt für jede Wache mit einer laufenden oder kommenden
+  Schicht am Objekt. Die Registerzeile zu O-151 (D-789) sagte „vor
+  Schichtbeginn"; sie und die Sätze auf Security › Wachbuch sagen jetzt, was
+  das Prädikat tut.
 
 **Voreinstellungen** (Regel 1, D-778).
 
@@ -26241,10 +26249,10 @@ Witterungskennzeichen im Bautagebuch (O-158, D-789) und der Eingabeweg für das
 |---|---|---|
 | O-740 | Erfasst werden darf bis Schichtende plus `zeit.checkout_toleranz_minuten` (60) — wie D-789, jetzt gebaut. | `drizzle/0499`, `mitarbeiter/schichten.ts`, `texte.ts` |
 | O-211 | Die Wache sieht Kontrollpunkte, Dienstanweisung und Zutritt bis zum Ende der Ausstempeltoleranz nach ihrer letzten Schicht — eine Grenze mit der Erfassung (O-740). | `drizzle/0499` |
-| O-30 | Ohne Bauleitung an alle, die in der Gesellschaft Nachträge einreichen dürfen — wie D-800, jetzt gebaut. | `jobs/nachtragWache.ts` |
+| O-30 | Ohne Bauleitung an alle, die in der Gesellschaft Nachträge einreichen und lesen dürfen — wie D-800, jetzt gebaut. | `jobs/nachtragWache.ts` |
 | O-895 | Jede Selbstrücknahme meldet sich bei der Personalstelle — wie D-795, jetzt gebaut. | `drizzle/0500`, `abwesenheit/benachrichtigung.ts` |
 | O-158 | Keine Schwelle: die Bauleitung kennzeichnet die Witterung am Tag, die DWD-Werte stehen daneben — wie D-789, jetzt gebaut. | `bau/bautagebuch.ts`, `drizzle/0501` |
-| O-151 | Zwölf Stunden vor Schichtbeginn am selben Objekt, vorgeschlagen im Formular; ausgeliefert bleibt 0, gesetzt wird je Gesellschaft — wie D-789, jetzt mit Eingabeweg. | `security/uebergabefenster.ts`, Security › Wachbuch |
+| O-151 | Zwölf Stunden am selben Objekt, gerechnet ab jetzt (das Fenster gleitet, 0302), vorgeschlagen im Formular; ausgeliefert bleibt 0, gesetzt wird je Gesellschaft — wie D-789, jetzt mit Eingabeweg. | `security/uebergabefenster.ts`, Security › Wachbuch |
 
 **Prüfung.** `tests/isolation/mitarbeiterportal-schicht.test.ts`,
 `tests/isolation/mein-dokumente-objekte.test.ts`, `tests/isolation/bau-nachtrag.test.ts`,

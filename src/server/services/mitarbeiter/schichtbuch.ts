@@ -16,7 +16,8 @@
  * zeigen hiesse, die Lage zu verschweigen.
  *
  * TODO(client, O-151): Voreinstellung — die Uebergabe zeigt die Eintraege der
- * letzten zwoelf Stunden vor Schichtbeginn an DIESEM Objekt; ausgeliefert ist
+ * letzten zwoelf Stunden an DIESEM Objekt, gerechnet ab jetzt (das Fenster
+ * gleitet, `app.uebergabe_sichtbar`, 0302); ausgeliefert ist
  * das Fenster mit 0 (0033), gesetzt wird es je Gesellschaft ueber
  * `wachbuch.uebergabe_fenster` auf Security › Wachbuch
  * (`security/uebergabefenster.ts`, gebaut mit V-323, D-808). D-789.

@@ -25,7 +25,7 @@ import { NACHTRAG_WACHFRIST_TAGE } from '../services/bau/nachtrag.js';
  * anders als bei den Dienstplanwachen: ein Bauprojekt HAT eine Bauleitung.
  * Fehlt sie, geht die Meldung an die Leitung der Gesellschaft — an alle, die
  * dort Nachträge einreichen dürfen (`bau.nachtrag_einreichen`, O-30, D-800,
- * V-381).
+ * V-381) und den Nachtrag lesen können (`bau.lesen`).
  * Vorher wurde das nur gezählt, und ein Nachtrag ohne Bauleitung blieb genau
  * dort liegen, wo niemand nachsieht. Die Meldung sagt dann auch, warum sie
  * bei der Leitung ankommt.
@@ -63,9 +63,19 @@ export function registriereNachtragWache(db: Abfrage): JobDefinition {
  * gehen kann, schöbe sie nur weiter (NOT-03).
  *
  * TODO(client, O-30): Voreinstellung — ohne Bauleitung die Leitung der
- * Gesellschaft (`bau.nachtrag_einreichen`); gebaut mit V-381 (D-808).
+ * Gesellschaft (`bau.nachtrag_einreichen` und `bau.lesen`); gebaut mit V-381
+ * (D-808).
  */
 export const ERSATZ_RECHT_OHNE_BAULEITUNG = 'bau.nachtrag_einreichen';
+
+/**
+ * Und wer die Meldung bekommt, muss das Blatt öffnen können, auf das sie
+ * zeigt (NOT-03): der Nachtrag liest sich nur unter `bau.lesen`
+ * (`t_mandant` auf `nachtrag`, 0080). Nach der Rechtematrix halten Leitung
+ * und Administration beides; eine eigene Rolle, die einreichen, aber nicht
+ * lesen darf, bekäme sonst eine Meldung, deren Ziel ihr verschlossen bleibt.
+ */
+export const LESERECHT_DES_ZIELS = 'bau.lesen';
 
 /**
  * Der Lauf ohne Uhr — die Meldestunde prüft der Job davor.
@@ -119,8 +129,11 @@ export async function meldeUeberfaelligeNachtraege(
       let ids = leitung.get(mandantId);
       if (ids === undefined) {
         const [z] = (await db.unsafe(
-          `select kern.traeger_des_rechts($1::uuid, $2) as ids`,
-          [mandantId, ERSATZ_RECHT_OHNE_BAULEITUNG])) as readonly { ids: string[] | null }[];
+          `select array(select unnest(kern.traeger_des_rechts($1::uuid, $2))
+                        intersect
+                        select unnest(kern.traeger_des_rechts($1::uuid, $3))) as ids`,
+          [mandantId, ERSATZ_RECHT_OHNE_BAULEITUNG, LESERECHT_DES_ZIELS],
+        )) as readonly { ids: string[] | null }[];
         ids = z?.ids ?? [];
         leitung.set(mandantId, ids);
       }

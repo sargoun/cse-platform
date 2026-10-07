@@ -19,7 +19,12 @@
 --     ueber `anstellung.person_id`), steht auf `storniert` und wurde von
 --     DIESEM Konto storniert;
 --   * Titel, Text und Ziel kommen aus dem Register (`erzeuge`, NOT-03) und
---     duerfen nicht leer sein — formuliert wird hier nichts (wie 0266).
+--     duerfen nicht leer sein — formuliert wird hier nichts (wie 0266);
+--   * das Ziel ist genau das Blatt DIESER Abwesenheit in DIESER Gesellschaft
+--     (`/portal/<slug>/personal/abwesenheiten/<id>`), sonst nichts:
+--     `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel weiter, und
+--     ein frei gewaehltes Ziel schickte die Personalstelle auf eine beliebige
+--     Adresse.
 --
 -- Empfaenger sind die Konten, die in dieser Gesellschaft Abwesenheiten
 -- entscheiden UND lesen (`zeit.abwesenheit_genehmigen`,
@@ -47,6 +52,7 @@ declare
   v_mandant  uuid := app.aktiver_mandant();
   v_konto    uuid := app.aktueller_benutzer();
   v_person   uuid := app.aktuelle_person();
+  v_ziel     text;
   v_anzahl   integer;
 begin
   if v_mandant is null or v_konto is null or v_person is null then
@@ -72,6 +78,15 @@ begin
       using errcode = '42501';
   end if;
 
+  select '/portal/' || m.slug || '/personal/abwesenheiten/' || p_abwesenheit::text
+    into v_ziel
+    from public.mandant m
+   where m.id = v_mandant;
+  if p_ziel is distinct from v_ziel then
+    raise exception 'Das Ziel ist das Blatt genau dieser Abwesenheit in dieser Gesellschaft'
+      using errcode = '22023';
+  end if;
+
   insert into public.benachrichtigung
     (mandant_id, empfaenger_id, art, titel, text, ziel, objekt_typ, objekt_id, sammelbar)
   select v_mandant, e.id, 'personal.abwesenheit_zurueckgenommen',
@@ -87,7 +102,8 @@ end $$;
 comment on function app.abwesenheit_ruecknahme_melden(uuid, text, text, text) is
   'V-353, O-895: meldet die eigene Ruecknahme einer Abwesenheit den Konten, die in '
   'der Gesellschaft Abwesenheiten entscheiden und lesen. Genau eine Art, nur die '
-  'eigene, gerade stornierte Abwesenheit; Texte aus dem Register (NOT-03).';
+  'eigene, gerade stornierte Abwesenheit; Texte aus dem Register (NOT-03), das Ziel '
+  'nur das Blatt dieser Abwesenheit.';
 
 alter function app.abwesenheit_ruecknahme_melden(uuid, text, text, text) owner to cse_definer;
 revoke all on function app.abwesenheit_ruecknahme_melden(uuid, text, text, text) from public;

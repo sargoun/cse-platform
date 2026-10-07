@@ -265,11 +265,12 @@ export const UEBERGABEFENSTER_TEXTE: Readonly<Record<InternSprache, Uebergabefen
     nieEingestellt:
       'Nicht eingestellt — jede Wache sieht nur ihre eigenen Seiten, keine Übergabe.',
     aus: 'Eingestellt auf 0 Stunden — die Übergabe ist abgeschaltet.',
-    stunden: (n) => `Eine Wache sieht die Einträge der letzten ${String(n)} `
-      + `${n === 1 ? 'Stunde' : 'Stunden'} vor ihrem Schichtbeginn am selben Objekt.`,
+    stunden: (n) => `Eine Wache mit einer laufenden oder kommenden Schicht an einem Objekt `
+      + `sieht dort die Einträge anderer aus den letzten ${String(n)} `
+      + `${n === 1 ? 'Stunde' : 'Stunden'} — gerechnet ab jetzt, nicht ab ihrem Schichtbeginn.`,
     voreinstellung: (n) => `Voreinstellung: ${String(n)} Stunden. Das Fenster zeigt Einträge `
       + 'anderer Menschen; ob es offen ist, entscheidet die Gesellschaft (O-06).',
-    feld: 'Stunden vor Schichtbeginn (0 bis 24)',
+    feld: 'Fenster in Stunden, ab jetzt zurück (0 bis 24)',
     speichern: 'Übergabefenster speichern',
     gesetzt: 'Das Übergabefenster ist gespeichert.',
     ausserhalb: 'Das Übergabefenster liegt zwischen 0 und 24 ganzen Stunden.',
@@ -279,11 +280,12 @@ export const UEBERGABEFENSTER_TEXTE: Readonly<Record<InternSprache, Uebergabefen
     nieEingestellt:
       'Not set — every guard sees only their own pages, no handover.',
     aus: 'Set to 0 hours — the handover is switched off.',
-    stunden: (n) => `A guard sees the entries of the last ${String(n)} `
-      + `${n === 1 ? 'hour' : 'hours'} before their shift starts at the same site.`,
+    stunden: (n) => `A guard with a current or upcoming shift at a site sees other people's `
+      + `entries there from the last ${String(n)} `
+      + `${n === 1 ? 'hour' : 'hours'} — counted back from now, not from their shift start.`,
     voreinstellung: (n) => `Default: ${String(n)} hours. The window shows other people's `
       + 'entries; whether it is open is the company\'s decision (O-06).',
-    feld: 'Hours before shift start (0 to 24)',
+    feld: 'Window in hours, counted back from now (0 to 24)',
     speichern: 'Save handover window',
     gesetzt: 'The handover window has been saved.',
     ausserhalb: 'The handover window is between 0 and 24 whole hours.',

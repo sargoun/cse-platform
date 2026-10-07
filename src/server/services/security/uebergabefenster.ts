@@ -1,17 +1,20 @@
 /**
  * Das Übergabefenster des Wachbuchs einstellen (V-323, O-151, SEC-05, D-808).
  *
- * `wachbuch.uebergabe_fenster` entscheidet, wie weit vor ihrem Schichtbeginn
- * eine Wache die Einträge ihrer Vorgänger am selben Objekt sieht (0302,
- * `app.uebergabe_fenster`). Ausgeliefert ist es mit 0 (0033): bis jemand es
- * setzt, sieht jede Wache nur ihre eigenen Seiten. Gesetzt wurde der Wert bis
- * hierher nur per SQL — ein Eingabeweg fehlte.
+ * `wachbuch.uebergabe_fenster` entscheidet, wie weit eine Wache mit einer
+ * laufenden oder kommenden Schicht an einem Objekt dort in die Einträge
+ * anderer zurücksieht (0302, `app.uebergabe_sichtbar`). Das Fenster GLEITET:
+ * gerechnet wird ab jetzt (`erfasst_am > now() - Fenster`), nicht ab dem
+ * Schichtbeginn — zu Schichtbeginn sind es also genau die N Stunden davor.
+ * Ausgeliefert ist es mit 0 (0033): bis jemand es setzt, sieht jede Wache nur
+ * ihre eigenen Seiten. Gesetzt wurde der Wert bis hierher nur per SQL — ein
+ * Eingabeweg fehlte.
  *
- * TODO(client, O-151): Voreinstellung — zwölf Stunden vor Schichtbeginn am
- * selben Objekt; das Formular schlägt sie vor, gesetzt wird je Gesellschaft
- * (0 bis 24 Stunden). Ausgeliefert bleibt 0: das Fenster zeigt Einträge
- * anderer Menschen, und ob es offen ist, ist eine Entscheidung (O-06,
- * § 87 Abs. 1 Nr. 6 BetrVG), kein Vorgabewert. Gebaut mit V-323. D-789.
+ * TODO(client, O-151): Voreinstellung — die Einträge der letzten zwölf Stunden
+ * am selben Objekt, gerechnet ab jetzt; das Formular schlägt sie vor, gesetzt
+ * wird je Gesellschaft (0 bis 24 Stunden). Ausgeliefert bleibt 0: das Fenster
+ * zeigt Einträge anderer Menschen, und ob es offen ist, ist eine Entscheidung
+ * (O-06, § 87 Abs. 1 Nr. 6 BetrVG), kein Vorgabewert. Gebaut mit V-323. D-789.
  *
  * **Ganze Stunden, 0 bis 24.** Ein Fenster über einen Tag hinaus zeigte die
  * Übergabe der Vorvorschicht; ein Bruchteil einer Stunde ist eine Genauigkeit,
@@ -76,6 +79,15 @@ export async function setzeUebergabefenster(
   if (!Number.isInteger(stunden) || stunden < 0 || stunden > UEBERGABE_HOECHSTENS_STUNDEN) {
     throw new UebergabefensterFehler();
   }
+  /*
+   * Erst sperren, dann den alten Wert lesen. Zwei gleichzeitige Speichervorgänge
+   * läsen sonst denselben alten Wert, und die Auditzeile des zweiten nennte als
+   * „vorher" nicht den Wert, den der erste gerade gesetzt hat. Die Sperre gilt
+   * je Gesellschaft bis zum Ende der Transaktion; die Route schreibt unter
+   * READ COMMITTED, die Lesung danach sieht also den Wert des ersten.
+   */
+  await kontext.schreibe(
+    `select pg_advisory_xact_lock(hashtext('uebergabefenster:' || app.aktiver_mandant()::text))`);
   const vorher = await leseUebergabefenster(kontext);
   const [z] = await kontext.schreibe<{ id: string }>(
     `insert into mandant_einstellung

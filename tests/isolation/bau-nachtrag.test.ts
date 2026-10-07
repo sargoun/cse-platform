@@ -29,7 +29,9 @@ import {
 } from '../../src/server/services/bau/nachtrag.js';
 import { ladeAusserhalbLv, warnungsText }
   from '../../src/server/services/bau/ausserhalb-lv.js';
-import { meldeUeberfaelligeNachtraege } from '../../src/server/jobs/nachtragWache.js';
+import {
+  ERSATZ_RECHT_OHNE_BAULEITUNG, meldeUeberfaelligeNachtraege,
+} from '../../src/server/jobs/nachtragWache.js';
 import { registriereWaechterArten } from '../../src/server/services/waechter/benachrichtigung.js';
 
 let f: Fixtur;
@@ -709,6 +711,32 @@ describe('V-381 — der überfällige Nachtrag ohne Bauleitung erreicht die Leit
     expect(meldungen).toHaveLength(1);
     expect(meldungen[0]!.text).not.toMatch(/keine Bauleitung/u);
     expect(await posteingang(zweite)).toEqual([]);
+  });
+
+  it('wer einreichen, aber nicht lesen darf, bekommt nichts — das Ziel bliebe ihm zu', async () => {
+    const bau = await baueProjekt(f.bau);
+    await seitGestern(bau.benutzer);
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+       values ($1, $2, $2, 'mandant', 'intern') returning id`,
+      [f.bau, `nur_einreichen_${zufall()}`]);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b where b.schluessel = $3`,
+      [r!.id, f.bau, ERSATZ_RECHT_OHNE_BAULEITUNG]);
+    const ohneLesen = await konto(`einreichen-${zufall()}@cse.test`);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1,$2,$3, current_date - 1)`, [ohneLesen, f.bau, r!.id]);
+    await ueberfaellig(bau);
+    await sql.unsafe(
+      `update projekt set verantwortlich_benutzer_id = null where id = $1`, [bau.projekt]);
+
+    const bericht = await meldeUeberfaelligeNachtraege(db);
+    expect(bericht).toMatchObject({ ohne_bauleitung: 1, an_leitung: 1, zugestellt: 1 });
+    expect(await posteingang(ohneLesen)).toEqual([]);
+    expect((await posteingang(bau.benutzer)).map((m) => m.art))
+      .toEqual(['bau.nachtrag_ueberfaellig']);
   });
 
   it('hält niemand das Recht, bleibt der Nachtrag offen und kommt beim nächsten Lauf wieder',

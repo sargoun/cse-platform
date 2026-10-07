@@ -820,4 +820,21 @@ describe('V-328 — arbeitsbehindernde Witterung', () => {
     const leer = await alsBauleitung(bau, (k) => ladeWitterungsbelege(k, randomUUID()));
     expect(leer).toEqual([]);
   });
+
+  it('ohne Ende reicht der Zeitraum bis heute — ein vorausgefüllter Tag belegt nichts', async () => {
+    const bau = await baueBaustelle(f.bau);
+    const [h] = await sql.unsafe<{ id: string }[]>(
+      `insert into behinderung (mandant_id, projekt_id, nummer, grund_kategorie, ursache, beginn_am)
+       values ($1, $2, $3, 'hoehere_gewalt', 'Dauerregen', '2026-08-03')
+       returning id`, [bau.mandant, bau.projekt, `BH-${zufall()}`] as never[]);
+
+    const belege = await alsBauleitung(bau, async (k) => {
+      for (const datum of ['2026-08-04', '2099-01-05']) {
+        const id = await legeBautagAn(k, { projektId: bau.projekt, datum });
+        await setzeWitterung(k, { bautagebuchId: id, behindernd: true });
+      }
+      return ladeWitterungsbelege(k, h!.id);
+    });
+    expect(belege.map((b) => b.datum)).toEqual(['2026-08-04']);
+  });
 });
