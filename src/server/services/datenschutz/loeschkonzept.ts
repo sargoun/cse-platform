@@ -147,7 +147,8 @@ function fristen(
   });
   zeilen.push({
     klasse: 'Personalakte, Konten, Agentenläufe',
-    frist: 'noch nicht entschieden — O-514',
+    frist: 'Voreinstellung (O-514): drei Jahre nach Ende der Beschäftigung, Lohnunterlagen '
+      + 'zehn Jahre — noch nicht hinterlegt',
     grundlage: 'Personalaktenpraxis der Gesellschaft; § 147 AO deckt die Belege, nicht die Akte',
     ausloeser: 'Austritt bzw. Ende des Kontos',
     offen: true,
@@ -203,7 +204,8 @@ export async function erstelleLoeschkonzept(
     ...(zeilen.some((z) => z.offen && z.klasse.startsWith('Dokumente'))
       ? ['O-25 — Aufbewahrungsfristen je Dokumentklasse sind teilweise nicht gesetzt'] : []),
     ...(tageBewerbung === null ? ['O-373 — Aufbewahrungsfrist für Bewerberdaten'] : []),
-    'O-514 — Fristen für Personalakte, Konten und Agentenläufe',
+    'O-514 — Fristen für Personalakte, Konten und Agentenläufe: Voreinstellung, noch nicht '
+      + 'hinterlegt',
     'O-376 — Bewerbungen Eingestellter: Voreinstellung Übernahme in die Personalakte '
       + '(deren Frist, O-514); die Übernahme fehlt, der Nachtlauf hält sie zurück',
   ];

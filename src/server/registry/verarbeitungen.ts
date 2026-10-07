@@ -8,10 +8,14 @@
  *
  * **Die Trennlinie, die hier zählt.** Was die Plattform verarbeitet, weiss
  * dieses Projekt; auf WELCHER Rechtsgrundlage (Art. 6 Abs. 1) eine
- * Gesellschaft das tut, weiss ihre Geschäftsführung. Das eine steht hier als
- * Tatsache, das andere als offene Frage — eine erfundene Rechtsgrundlage
- * wäre die teuerste Zeile dieses Projekts, weil sie vor einer Aufsicht wie
- * eine Prüfung aussieht (`CLAUDE.md`, „Never invent a business rule").
+ * Gesellschaft das tut, bestätigt ihre Geschäftsführung. Das eine steht hier
+ * als Tatsache; das andere ist eine Voreinstellung (O-514, D-798), die in
+ * `docs/DECISIONS.md` steht und hier bewusst KEIN Feld bekommt — eine
+ * Rechtsgrundlage in diesem Register sähe vor einer Aufsicht wie eine Prüfung
+ * aus. Ausgewiesen wird sie, gekennzeichnet, in einem eigenen Abschnitt des
+ * Verzeichnisses (V-368).
+ *
+ * TODO(client, O-514): Voreinstellung — Rechtsgrundlage und Frist je Tätigkeit wie in DECISIONS D-798; nicht hinterlegt (V-368), nicht vollzogen (V-369).
  *
  * **Warum ein Code-Register und keine Tabelle.** Dieselbe Entscheidung wie
  * bei `rls.ts` (K-16) und `auftragsverarbeiter.ts`: die Liste ändert sich mit

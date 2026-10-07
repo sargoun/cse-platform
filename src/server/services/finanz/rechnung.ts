@@ -284,7 +284,7 @@ export async function pruefeAuftragZuordnung(
  * `pruefeObjektZuordnung` liest die Regel (Prüfstand PR #36): `gleich` wiese
  * ein Objekt ab, das einem anderen Kunden als dem der Rechnung zugeordnet ist.
  * Eine Einstellung je Gesellschaft gibt es noch nicht — die Regel ist heute
- * diese eine Zeile.
+ * diese eine Zeile (V-373).
  */
 export interface ObjektKundeRegel {
   readonly art: 'frei' | 'gleich';

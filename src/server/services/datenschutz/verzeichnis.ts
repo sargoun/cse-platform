@@ -14,10 +14,10 @@
  * **Was hier Tatsache ist und was Frage bleibt.** Die Plattform weiss, WAS
  * sie verarbeitet, über wen, an wen sie es gibt und wie lange sie es hält —
  * das steht im Verzeichnis. Auf welcher Rechtsgrundlage (Art. 6 Abs. 1) eine
- * Gesellschaft das tut, weiss ihre Geschäftsführung; das steht als offene
- * Frage daneben (O-514) und wird nicht erfunden. Ein Verzeichnis mit
- * ausgedachten Rechtsgrundlagen wäre schlimmer als keines: es sähe geprüft
- * aus.
+ * Gesellschaft das tut, bestätigt ihre Geschäftsführung; die Voreinstellung
+ * dazu (O-514, D-798) steht in `DECISIONS.md` und ist hier noch nicht
+ * hinterlegt (V-368). Ein Verzeichnis, das eine Voreinstellung als geprüfte
+ * Rechtsgrundlage ausgäbe, wäre schlimmer als keines: es sähe geprüft aus.
  *
  * **Der Hash über den Inhalt, die Uhr daneben.** Wie bei ACC-10: der
  * SHA-256 läuft über die Abschnitte OHNE Abrufzeit, damit zwei Abrufe
@@ -145,7 +145,7 @@ export function fristText(
           + 'noch nicht gebaut)';
     case 'offen':
     default:
-      return `Noch nicht entschieden — ${v.fristQuelle.frage}`;
+      return `Voreinstellung (${v.fristQuelle.frage}), noch nicht hinterlegt`;
   }
 }
 
@@ -370,10 +370,11 @@ export async function erstelleVerarbeitungsverzeichnis(
       titel: 'Was dieses Verzeichnis NICHT sagt',
       quelle: 'offen',
       absaetze: [
-        'Die Rechtsgrundlage je Tätigkeit (Art. 6 Abs. 1) steht hier bewusst nicht. '
-        + 'Sie ist eine Entscheidung der Geschäftsführung — Vertrag, rechtliche '
-        + 'Verpflichtung, berechtigtes Interesse oder Einwilligung —, und sie hängt '
-        + 'an Verträgen und Betriebsvereinbarungen, die diese Software nicht kennt. '
+        'Die Rechtsgrundlage je Tätigkeit (Art. 6 Abs. 1) steht hier noch nicht. '
+        + 'Eine Voreinstellung je Tätigkeit — Vertrag, rechtliche Verpflichtung oder '
+        + 'berechtigtes Interesse — ist beschlossen (O-514), aber nicht hinterlegt, und '
+        + 'sie ist keine bestätigte Angabe: sie hängt an Verträgen und '
+        + 'Betriebsvereinbarungen, die diese Software nicht kennt. '
         + 'Ebenso wenig steht hier eine Aussage über einen Betriebsrat: ob einer '
         + 'besteht, entscheidet über § 87 BetrVG und damit über die Zeiterfassung '
         + 'mit Standortpunkt.',
@@ -385,7 +386,8 @@ export async function erstelleVerarbeitungsverzeichnis(
   ];
 
   const offen = [
-    'O-514 — Rechtsgrundlage je Verarbeitungstätigkeit (Art. 6 Abs. 1)',
+    'O-514 — Rechtsgrundlage je Verarbeitungstätigkeit (Art. 6 Abs. 1): Voreinstellung, '
+      + 'noch nicht hinterlegt',
     ...(tageBewerbung === null ? ['O-373 — Aufbewahrungsfrist für Bewerberdaten'] : []),
     ...(regeln.some((r) => r.istPlatzhalter)
       ? ['O-25 — Aufbewahrungsklassen stehen teilweise als Platzhalter'] : []),

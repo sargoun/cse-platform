@@ -559,8 +559,9 @@ export default async function Vorgangsakte(
               er steht später allein da, wenn eine Aufsicht fragt, warum eine
               Ausweiskopie verlangt wurde. <strong>Die Monatsfrist läuft
               weiter:</strong> ob eine Rückfrage sie hemmt, sagt die Verordnung
-              nicht, und die Ansichten gehen auseinander (O-903). Die Anfrage
-              bleibt deshalb in der Fälligkeitsliste.
+              nicht, und die Ansichten gehen auseinander — die Voreinstellung (O-903)
+              ist die vorsichtige Lesart. Die Anfrage bleibt deshalb in der
+              Fälligkeitsliste.
             </p>
           </form>
         )}

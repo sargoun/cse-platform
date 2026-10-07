@@ -268,11 +268,13 @@ export const SEITEN: readonly SeitenInhalt[] = [
      * und dort steht der Hoster ohne Namen, hier stehen die beiden
      * Auftragsverarbeiter aus `registry/auftragsverarbeiter.ts`.
      *
-     * TODO(client, O-362): Welche Gesellschaft betreibt den Gruppenauftritt
-     * und die Portale (Verantwortliche nach Art. 4 Nr. 7 DSGVO) — die CSE
-     * Dienstleistungen GmbH wie beim bisherigen Auftritt? Gibt es einen
-     * Datenschutzbeauftragten, und welche Loeschfristen gelten fuer
-     * Anfragen (der Auftritt nennt eine Pruefung alle zwei Jahre)?
+     * TODO(client, O-362): Voreinstellung — Verantwortliche fuer den
+     * Gruppenauftritt und die Portale ist die CSE Dienstleistungen GmbH, wie
+     * beim bisherigen Auftritt; fuer die Daten ihrer Beschaeftigten, Bewerber
+     * und Kunden ist jede Gesellschaft selbst Verantwortliche. Ob ein
+     * Datenschutzbeauftragter benannt ist und wer, traegt der Betreiber ein.
+     * Anfragen bleiben als Geschaeftsbrief sechs Jahre (O-71), die
+     * Rechtsgrundlage eines Formulars ist die Anfrage selbst (O-63). D-798.
      */
     abschnitte: [
       { art: 'hero', ueberschrift: 'Datenschutz', text:
@@ -372,13 +374,13 @@ export const SEITEN: readonly SeitenInhalt[] = [
           + 'wir, was Sie eingetragen haben, dazu Datum und Uhrzeit des Eingangs '
           + 'sowie einen nicht rückrechenbaren Prüfwert Ihrer IP-Adresse zur '
           + 'Missbrauchsabwehr; die IP-Adresse selbst wird nicht gespeichert. '
-          + 'Rechtsgrundlage ist Art. 6 Abs. 1 lit. a DSGVO, wenn Sie das '
-          + 'Formular nutzen, Art. 6 Abs. 1 lit. b DSGVO im Rahmen vertraglicher '
-          + 'oder vorvertraglicher Beziehungen, sonst unser berechtigtes Interesse '
-          + 'an einer ordnungsgemäßen Beantwortung, Art. 6 Abs. 1 lit. f DSGVO. '
-          + 'Die Daten werden gelöscht, sobald sie nicht mehr erforderlich sind; '
-          + 'wir prüfen die Erforderlichkeit alle zwei Jahre. Eine erteilte '
-          + 'Einwilligung können Sie jederzeit widerrufen.',
+          + 'Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, weil Sie mit der '
+          + 'Anfrage ein Angebot oder einen Vertrag anbahnen, sonst unser '
+          + 'berechtigtes Interesse an einer ordnungsgemäßen Beantwortung, Art. 6 '
+          + 'Abs. 1 lit. f DSGVO; eine Einwilligung holen wir dafür nicht ein. '
+          + 'Anfragen und die Korrespondenz dazu bewahren wir als Geschäftsbriefe '
+          + 'sechs Jahre auf (§ 257 HGB, § 147 AO); danach werden sie gelöscht oder '
+          + 'anonymisiert.',
       },
       {
         art: 'text',

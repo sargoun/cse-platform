@@ -291,7 +291,8 @@ export async function entscheide(
  * zusammen, in derselben Form wie bei der Fristverlängerung.
  *
  * ═══════════════════════════════════════════════════════════════════════════
- * **Die FRIST läuft weiter** (O-903).
+ * **Die FRIST läuft weiter** (Voreinstellung O-903, D-798).
+ * // TODO(client, O-903): Voreinstellung — eine Rückfrage nach Art. 12 Abs. 6 hemmt die Monatsfrist nicht; die Anfrage bleibt in der Fälligkeitsliste. Wie gebaut. D-798.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Art. 12 Abs. 3 lässt den Monat mit dem EINGANG laufen; ob eine Rückfrage
@@ -745,8 +746,10 @@ export async function nimmAnfrageAuf(
    * Antwort, und die Spalte verlangt sie (0176). Wer nur eine Anschrift hat,
    * beantwortet die Anfrage postalisch — dann gehört die Anschrift in die
    * Nachricht, und die Zeile braucht trotzdem eine erreichbare Adresse.
-   * TODO(client, O-892): Soll eine rein postalische Anfrage ohne E-Mail-Adresse
-   * erfassbar sein, und wohin geht dann die Antwort?
+   * TODO(client, O-892): Voreinstellung — eine rein postalische Anfrage ist
+   * ohne E-Mail-Adresse erfassbar, mit Anschrift, und die Antwort geht auf dem
+   * Weg, auf dem die Anfrage kam. Nicht gebaut (V-370): bis dahin bleibt die
+   * Adresse Pflicht und die Anschrift steht in der Nachricht. D-798.
    */
   if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/iu.test(email)) {
     throw new AnfrageFehler(

@@ -101,7 +101,8 @@ export default async function Loeschkonzeptseite(
       {k.offen.length > 0 ? (
         <Hinweis art="warnung" cse="lk-offen" className="mb-s6 max-w-prose">
           <strong>{String(k.offen.length)} offene Punkte.</strong> Eine Frist, die
-          niemand entschieden hat, steht hier als offen — nicht als Zahl:
+          nicht entschieden oder noch nicht hinterlegt ist, steht hier als offen — nicht
+          als Zahl:
           <ul className="m-0 mt-s2 list-disc ps-s5">
             {k.offen.map((o) => <li key={o}>{o}</li>)}
           </ul>

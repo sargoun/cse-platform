@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   aoFrist, berlinTag, milogFrist,
 } from '../../src/server/services/datenschutz/loeschentscheidung.js';
-import { alsText, alsMarkdown, type Auskunft }
+import { alsText, alsMarkdown, istBeziffert, type Auskunft }
   from '../../src/server/services/datenschutz/auskunft.js';
 
 /**
@@ -139,6 +139,19 @@ describe('die offene Aufbewahrungsfrist steht ÜBER den Abschnitten', () => {
       }],
     }));
     expect(md).not.toContain('noch nicht entschieden (O-514)');
+  });
+});
+
+describe('eine Voreinstellung ohne Zahl ist keine bezifferte Frist (D-798)', () => {
+  it('„noch nicht hinterlegt" hält die Bestätigung vor dem Abruf', () => {
+    expect(istBeziffert('Voreinstellung (O-514), noch nicht hinterlegt')).toBe(false);
+    expect(istBeziffert('Noch nicht entschieden — O-514')).toBe(false);
+    expect(istBeziffert('plattformweit nicht gesetzt (O-373)')).toBe(false);
+  });
+
+  it('eine Zahl mit Fundstelle ist beziffert', () => {
+    expect(istBeziffert('§ 17 Abs. 2 MiLoG — zwei Jahre ab Aufzeichnung')).toBe(true);
+    expect(istBeziffert('180 Tage ab Eingang — plattformweite Voreinstellung')).toBe(true);
   });
 });
 

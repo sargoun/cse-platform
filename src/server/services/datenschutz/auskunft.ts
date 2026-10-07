@@ -1032,7 +1032,8 @@ export interface Auskunft {
    * Die Abschnitte, für die keine BEZIFFERTE Aufbewahrungsfrist vorliegt.
    *
    * Art. 15 Abs. 1 lit. d verlangt die geplante Speicherdauer oder wenigstens
-   * die Kriterien für ihre Festlegung. „Noch nicht entschieden — O-514" ist
+   * die Kriterien für ihre Festlegung. „Voreinstellung (O-514), noch nicht
+   * hinterlegt" ist
    * beides nicht. Die Frist stand in der ausgelieferten Datei und wurde dabei
    * als Angabe geführt; jetzt zählt sie hier, erscheint als Warnblock über
    * allen Abschnitten und der Abruf verlangt dafür eine ausdrückliche
@@ -1094,8 +1095,14 @@ function kanonisch(a: readonly AuskunftAbschnitt[]): string {
  * wird deshalb das Ergebnis: ein Satz mit dem Wort „nicht entschieden" oder
  * „nicht gesetzt" ist keine Speicherdauer im Sinne des Art. 15 Abs. 1 lit. d.
  */
-function istBeziffert(frist: string): boolean {
-  return !/nicht entschieden|nicht gesetzt/iu.test(frist);
+/**
+ * Ob eine Frist eine ZAHL nennt. „Voreinstellung (O-514), noch nicht
+ * hinterlegt" nennt keine: die Voreinstellung steht in `DECISIONS.md` D-798,
+ * das Verzeichnis führt sie noch nicht (V-368) — die Auskunft darf sie deshalb
+ * nicht als Angabe ausgeben, und die Bestätigung vor dem Abruf bleibt.
+ */
+export function istBeziffert(frist: string): boolean {
+  return !/nicht entschieden|nicht gesetzt|nicht hinterlegt/iu.test(frist);
 }
 
 function verarbeitungOder(nummer: string | null): Verarbeitung | undefined {
@@ -1175,7 +1182,7 @@ export async function erstelleAuskunft(
   for (const d of anwendbar) {
     const v = verarbeitungOder(d.verarbeitung);
     const frist = v === undefined
-      ? 'noch nicht entschieden (O-514)'
+      ? 'Voreinstellung (O-514), noch nicht hinterlegt'
       : fristText(v, regeln, tageBewerbung);
     if (!istBeziffert(frist)) ohneFrist.push(d.titel);
     const zweck = v === undefined ? 'nicht im Register geführt' : v.zweck;
@@ -1269,7 +1276,7 @@ export function alsMarkdown(a: Auskunft): string {
     z.push(
       `> **Für ${String(a.offeneFristen.length)} von `
       + `${String(a.abschnitte.length)} Abschnitten ist die Aufbewahrungsfrist `
-      + 'noch nicht entschieden (O-514).** Art. 15 Abs. 1 lit. d verlangt die '
+      + 'noch nicht hinterlegt (Voreinstellung O-514).** Art. 15 Abs. 1 lit. d verlangt die '
       + 'geplante Speicherdauer oder wenigstens die Kriterien für ihre '
       + 'Festlegung. Wir nennen sie für diese Abschnitte deshalb NICHT, statt '
       + 'eine Zahl zu behaupten: '
