@@ -129,6 +129,12 @@ export default async function Zeiteintragsblatt(
    */
   const frage = await searchParams;
   const korrigiert = frage['korrigiert'] === '1';
+  /* V-321: nur eine Zahl, nie ein Satz aus der Adresse (D-728). */
+  const spaetRoh = frage['spaet'];
+  const spaetTage = typeof spaetRoh === 'string' && /^\d{1,4}$/u.test(spaetRoh)
+    ? Number(spaetRoh) : null;
+  /* Ob die Leitung den Hinweis bekommen hat — die Zahl des Definers, nicht die Verspätung. */
+  const leitungErreicht = frage['leitung'] === '1';
 
   const befugnis = await darfKorrigieren(sitzung, e.personId);
   const korrigierbar = befugnis.recht && !befugnis.eigener
@@ -177,6 +183,19 @@ export default async function Zeiteintragsblatt(
           Die Korrektur ist geschrieben. Dies ist die neue Fassung; die alte bleibt
           lesbar und steht unten in der Korrekturspur — mit Grund, Zeitpunkt und
           Namen (TIM-11, Invariante 8).
+        </p>
+      )}
+      {korrigiert && spaetTage !== null && (
+        <p
+          data-cse="nacherfassung-spaet"
+          className="mb-s4 max-w-prose rounded-lg border border-warning bg-warning-soft p-s4 text-sm text-warning"
+        >
+          Diese Nacherfassung liegt {String(spaetTage)} Tage nach dem Arbeitstag — später als
+          die sieben Kalendertage des § 17 Abs. 1 MiLoG (Voreinstellung O-165). Sie gilt;
+          {leitungErreicht
+            ? ' die Leitung der Gesellschaft hat einen Hinweis bekommen.'
+            : ' einen Hinweis hat niemand bekommen — in dieser Gesellschaft gibt es keine'
+              + ' andere Leitung, die Zeiten lesen darf.'}
         </p>
       )}
 

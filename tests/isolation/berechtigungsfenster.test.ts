@@ -87,7 +87,7 @@ describe('§1 kein Gueltigkeitsfenster haengt mehr an der Sitzungszeitzone', () 
     expect(treffer.map((t) => t.name)).toEqual([]);
   });
 
-  it('…und die sieben, die es betraf, fragen wirklich app.berlin_heute()', async () => {
+  it('…und die, die ein Fenster pruefen, fragen wirklich app.berlin_heute()', async () => {
     /*
      * Der Gegen-Check zu §1: ein leerer Katalog — eine Datenbank ohne diese
      * Funktionen — machte den Fall oben gruen, ohne irgendetwas zu beweisen.
@@ -106,6 +106,8 @@ describe('§1 kein Gueltigkeitsfenster haengt mehr an der Sitzungszeitzone', () 
       'app.hat_recht_fuer',
       'app.kalender_feed_aufloesen',
       'app.kennwort_anmelden',
+      /* V-321 (0506): die Leitung, die eine spaete Nacherfassung erfaehrt. */
+      'app.nacherfassung_spaet_melden',
       'app.switcher_mandanten',
     ]);
   });

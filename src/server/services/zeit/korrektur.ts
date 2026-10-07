@@ -33,6 +33,9 @@ import { bucheKorrektur } from './stundenkonto.js';
 import { rechteImKontext } from '../../auth/kontext-rechte.js';
 import { korrekturNachricht } from '../../../lib/i18n/zeitkorrektur.js';
 import { eroeffneFaden } from '../kern/nachricht.js';
+import { erzeuge, findeArt } from '../../benachrichtigung/registry.js';
+import { tagDeutsch } from '../../../lib/datum/kalendertag.js';
+import { ART_NACHERFASSUNG_SPAET, registriereZeitArten } from './benachrichtigung.js';
 
 export class KeinNachrichtenRechtFehler extends Error {
   constructor() {
@@ -46,7 +49,8 @@ export class KeinNachrichtenRechtFehler extends Error {
 /**
  * TODO(client, O-165): Voreinstellung — Nacherfassung bis sieben Kalendertage
  * nach dem Arbeitstag (die Obergrenze des § 17 Abs. 1 MiLoG), danach Hinweis an
- * die Leitung; eine Frist prueft die Plattform heute nicht (V-321, D-788).
+ * die Leitung (Rolle `leitung`, mit `zeit.lesen`), kein Verbot. Gebaut mit V-321
+ * (`meldeSpaeteNacherfassung`, 0506). D-788, D-810.
  * TODO(client, O-173): Voreinstellung — die sechs Korrekturgruende aus 0036
  * (`korrektur_grund`): vergessen auszustempeln, Geraet defekt, falsches Objekt,
  * Einwand der Mitarbeiterin, Nachtrag offline, sonstiges. D-788.
@@ -181,7 +185,35 @@ export interface KorrekturErgebnis {
   readonly korrekturId: string;
   readonly neueFassungId: string;
   readonly version: number;
+  /**
+   * Bei einer Nacherfassung nach der Frist: wie viele Tage nach dem
+   * Arbeitstag (V-321) — sonst `null`.
+   */
+  readonly spaetTage: number | null;
+  /**
+   * Wie viele Konten der Leitung den Hinweis bekommen haben (die Zahl des
+   * Definers, 0506). `0`, wenn niemand erreichbar war — keine andere Leitung,
+   * die Zeiten lesen darf —, und immer `0` ohne `spaetTage`. Die Seite sagt
+   * nur dann, dass die Leitung informiert ist, wenn hier mehr als null steht.
+   */
+  readonly spaetGemeldet: number;
 }
+
+/**
+ * Wohin es nach der Korrektur geht: auf die neue Fassung, und bei einer
+ * späten Nacherfassung mit dem Abstand (`spaet`) und der Auskunft, ob die
+ * Leitung erreicht ist (`leitung=1|0`). Zwei Zahlen, nie ein Satz in der
+ * Adresse (D-728).
+ */
+export function korrekturRueckweg(mandant: string, e: KorrekturErgebnis): string {
+  const spaet = e.spaetTage === null
+    ? ''
+    : `&spaet=${String(e.spaetTage)}&leitung=${e.spaetGemeldet > 0 ? '1' : '0'}`;
+  return `/portal/${mandant}/zeiten/${e.neueFassungId}?korrigiert=1${spaet}`;
+}
+
+/** § 17 Abs. 1 MiLoG: aufgezeichnet bis zum Ablauf des siebten Tages (O-165). */
+export const NACHERFASSUNG_FRIST_TAGE = 7;
 
 export async function korrigiereZeiteintrag(
   kontext: SchreibKontext,
@@ -378,11 +410,72 @@ export async function korrigiereZeiteintrag(
     begruendung: eingabe.begruendung,
   });
 
+  const spaet = eingabe.art === 'nacherfassung' && neueFassungId !== null
+    ? await meldeSpaeteNacherfassung(kontext, {
+      korrekturId: korrektur.id, fassungId: neueFassungId, personId: alt.person_id,
+    })
+    : null;
+
   return {
     korrekturId: korrektur.id,
     neueFassungId: neueFassungId ?? alt.id,
     version: storno ? alt.version : alt.version + 1,
+    spaetTage: spaet?.tage ?? null,
+    spaetGemeldet: spaet?.gemeldet ?? 0,
   };
+}
+
+/**
+ * **Die Frist der Nacherfassung** (V-321, O-165, D-810).
+ *
+ * Der Abstand kommt aus der Datenbank: Berliner Tag heute gegen Berliner Tag
+ * des Arbeitsbeginns der neuen Fassung (Invariante 2, K-11). Liegt er über
+ * der Frist, meldet `app.nacherfassung_spaet_melden` (0506) es der Leitung —
+ * der Definer prüft Korrektur, Art, Urheber und Abstand noch einmal, nimmt als
+ * Ziel nur die neue Fassung an und meldet je Korrektur höchstens einmal. Kein
+ * Verbot: die Nacherfassung ist geschrieben, bevor diese Funktion läuft.
+ *
+ * Zurück kommen der Abstand und die Zahl der erreichten Konten — getrennt:
+ * spät ist die Nacherfassung auch dann, wenn niemand den Hinweis bekommt.
+ */
+async function meldeSpaeteNacherfassung(
+  kontext: SchreibKontext,
+  e: { readonly korrekturId: string; readonly fassungId: string; readonly personId: string },
+): Promise<{ readonly tage: number; readonly gemeldet: number } | null> {
+  const [z] = await kontext.abfrage<{
+    tage: number; arbeitstag: string; slug: string; person: string | null;
+  }>(
+    `select ((now() at time zone 'Europe/Berlin')::date
+             - (z.beginn_zeitpunkt at time zone 'Europe/Berlin')::date)::int as tage,
+            (z.beginn_zeitpunkt at time zone 'Europe/Berlin')::date::text as arbeitstag,
+            m.slug,
+            nullif(btrim(coalesce(p.vorname, '') || ' ' || coalesce(p.nachname, '')), '')
+              as person
+       from zeiteintrag z
+       join mandant m on m.id = z.mandant_id
+       left join person p on p.id = $2::uuid
+      where z.id = $1::uuid`,
+    [e.fassungId, e.personId]);
+  if (z === undefined || Number(z.tage) <= NACHERFASSUNG_FRIST_TAGE) return null;
+
+  if (findeArt(ART_NACHERFASSUNG_SPAET) === undefined) registriereZeitArten();
+  const meldung = erzeuge(ART_NACHERFASSUNG_SPAET, {
+    mandantId: kontext.aktiverMandantId,
+    mandantSlug: z.slug,
+    objektTyp: 'zeiteintrag_korrektur',
+    objektId: e.korrekturId,
+    daten: {
+      person: z.person ?? 'eine Beschäftigte',
+      arbeitstag: tagDeutsch(z.arbeitstag),
+      tage: Number(z.tage),
+      frist: NACHERFASSUNG_FRIST_TAGE,
+      fassung: e.fassungId,
+    },
+  });
+  const [gemeldet] = await kontext.schreibe<{ n: number }>(
+    `select app.nacherfassung_spaet_melden($1::uuid, $2::integer, $3, $4, $5) as n`,
+    [e.korrekturId, NACHERFASSUNG_FRIST_TAGE, meldung.titel, meldung.text, meldung.ziel]);
+  return { tage: Number(z.tage), gemeldet: Number(gemeldet?.n ?? 0) };
 }
 
 export interface KorrekturSpurZeile {

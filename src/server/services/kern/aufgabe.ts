@@ -300,7 +300,8 @@ function filterBausteine(
   if (filter.nurMeine === true) {
     wo.push(`(a.zugewiesen_an = app.aktueller_benutzer()
               or a.zugewiesen_team_id in (select tm.team_id from team_mitglied tm
-                                           where tm.person_id = app.aktuelle_person()))`);
+                                           where tm.person_id = app.aktuelle_person()
+                                             and tm.beendet_am is null))`);
   }
   if (filter.bezugTyp !== undefined) {
     // Der Cast liegt hinter der Whitelist, nicht davor.

@@ -150,7 +150,8 @@ export function vergissRegistrierung(): void {
  * jeden einzeln gegen die enge Rolle zu fahren; das ist eine eigene Runde mit
  * eigenen Tests, kein Nebenschritt. Siehe D-378.
  *
- * // TODO(client, O-357): Sollen die Waechter-Meldungen aus SPEC §14 in den
- * Posteingang, per Mail oder beides — und wer bekommt die Kettenmeldung,
- * deren Empfaenger nicht die Person, sondern die Buchhaltung ist?
+ * // TODO(client, O-357): Voreinstellung — die Wachen aus SPEC §14 melden in
+ * den Posteingang, und jede Art schlägt ihre Kanäle vor; E-Mail stellt erst
+ * der Versanddienst zu (V-367, O-202). Die Kettenmeldung geht an Buchhaltung
+ * und Geschäftsführung der Gesellschaft (`meldeKettenbruch`, 0507, D-811).
  */

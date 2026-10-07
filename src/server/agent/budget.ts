@@ -1,7 +1,9 @@
 import 'server-only';
 import { monatsName } from '../../lib/datum/kalendertag.js';
 import { erzeuge, findeArt } from '../benachrichtigung/registry.js';
-import { ART_BUDGET_ERSCHOEPFT, registriereAgentArten } from './benachrichtigung.js';
+import {
+  ART_BUDGET_ERSCHOEPFT, ART_BUDGET_WARNSCHWELLE, registriereAgentArten,
+} from './benachrichtigung.js';
 import { RESERVIERUNG_MINUTEN_PLATZHALTER } from './limits.platzhalter.js';
 
 /**
@@ -71,8 +73,8 @@ interface UrteilRoh {
  *
  * **Warum das hier steht und nicht in der Seite.** Die Bedingung war ein
  * Ausdruck im JSX, und ihr zweiter Zweig — der Satz verschwindet — lief nie:
- * der Seed setzt mit Absicht keine Schwelle (eine gesetzte Zahl wäre eine
- * still erfundene Finanzregel, O-195), also sah keine Seed-Zeile und kein
+ * der Seed setzte damals mit Absicht keine Schwelle (seit D-784 setzt er die
+ * Voreinstellung 80 %), also sah keine Seed-Zeile und kein
  * Test den Fall. Hier ist sie eine reine Funktion und in
  * `tests/kern/agent-budget-warnschwelle.test.ts` in beiden Zweigen geprüft.
  * Sie rechnet nichts und schlägt nichts vor: sie sagt nur, ob eine
@@ -319,5 +321,59 @@ export async function bucheKosten(
       buchung.betragOriginal.toString(), buchung.waehrungOriginal, buchung.wechselkurs]);
 
   if (zeile === undefined) throw new Error('Die Kostenzeile ließ sich nicht schreiben.');
+  /* Der Vergleich mit der Warnschwelle — beim Buchen, wie V-292 es verlangt. */
+  await vermerkeWarnung(db, mandantId, buchung.budgetId);
   return zeile.id;
+}
+
+/**
+ * **Die Warnschwelle meldet sich** (V-292, O-195, D-810).
+ *
+ * TODO(client, O-195): Voreinstellung — gewarnt wird bei 80 % des
+ * Monatsbudgets (vorbelegt, im Formular änderbar), einmal je Budgetzeile, an
+ * alle mit `agent.budget_verwalten`; der Hartstopp bei 100 % bleibt. D-784,
+ * D-810.
+ *
+ * Verglichen wird in der Datenbank (`app.agent_warnung_vermerken`, 0505),
+ * nach der Buchung, die den Verbrauch fortgeschrieben hat: Verbrauch gegen
+ * Grenze mal Schwelle, in Mikrocent — 10 000 je Cent, wie der Hartstopp und
+ * `mikrocentNachCent`. Ist die Schwelle nicht erreicht oder
+ * schon gemeldet, schreibt die Funktion nichts — dieser Aufruf kostet dann
+ * eine Abfrage und meldet `neu: false`.
+ */
+export async function vermerkeWarnung(
+  db: Abfrage, mandantId: string, budgetId: string,
+): Promise<{ readonly neu: boolean; readonly empfaenger: number }> {
+  if (findeArt(ART_BUDGET_WARNSCHWELLE) === undefined) registriereAgentArten();
+
+  const [zeile] = await db.abfrage<{
+    readonly jahr: number; readonly monat: number; readonly slug: string;
+    readonly prozent: number | null; readonly erreicht: boolean;
+  }>(
+    `select b.jahr, b.monat, m.slug, b.warnschwelle_prozent as prozent,
+            (b.gewarnt_am is null and b.warnschwelle_prozent is not null
+              and b.budget_cent is not null and b.budget_cent > 0
+              and b.verbrauch_mikrocent::numeric * 100
+                  >= b.budget_cent::numeric * 10000 * b.warnschwelle_prozent) as erreicht
+       from agent_budget b
+       join mandant m on m.id = b.mandant_id
+      where b.mandant_id = $1 and b.id = $2`,
+    [mandantId, budgetId]);
+  /* Die Vorabfrage spart nur den Text: entschieden wird in der Datenbank. */
+  if (zeile === undefined || !zeile.erreicht) return { neu: false, empfaenger: 0 };
+
+  const meldung = erzeuge(ART_BUDGET_WARNSCHWELLE, {
+    mandantId, mandantSlug: zeile.slug,
+    objektTyp: 'agent_budget', objektId: budgetId,
+    daten: {
+      prozent: zeile.prozent,
+      monat: monatsName(`${String(zeile.jahr).padStart(4, '0')}-`
+        + `${String(zeile.monat).padStart(2, '0')}-01`),
+    },
+  });
+
+  const [ergebnis] = await db.abfrage<{ readonly neu: boolean; readonly empfaenger: number }>(
+    'select neu, empfaenger from app.agent_warnung_vermerken($1, $2, $3, $4, $5)',
+    [mandantId, budgetId, meldung.titel, meldung.text, meldung.ziel]);
+  return ergebnis ?? { neu: false, empfaenger: 0 };
 }

@@ -1,8 +1,9 @@
 /**
  * Die Benachrichtigungsarten der Agenten (NOT-01, NOT-03, AGT-05).
  *
- * Bislang genau eine — und die wichtigste, die es hier geben kann: das
- * Monatsbudget ist erschoepft und die Agenten laufen nicht mehr. Ein
+ * Zwei: die wichtigste, die es hier geben kann — das Monatsbudget ist
+ * erschoepft und die Agenten laufen nicht mehr —, und ihre Vorwarnung bei der
+ * Warnschwelle (V-292). Ein
  * Hartstopp, den niemand erfaehrt, ist von einem Ausfall nicht zu
  * unterscheiden; wer morgens sieht, dass seit gestern 18 Uhr kein Angebot mehr
  * vorbereitet wurde, sucht den Fehler im Code und findet ihn nicht.
@@ -49,7 +50,32 @@ const BUDGET_ERSCHOEPFT = {
 
 export const ART_BUDGET_ERSCHOEPFT: string = BUDGET_ERSCHOEPFT.schluessel;
 
+/**
+ * **Die Warnschwelle ist erreicht** (V-292, O-195, D-810) — bevor der Stopp
+ * greift. Derselbe Schluessel steht in `app.agent_warnung_vermerken` (0505);
+ * eine Meldung je Budgetzeile, also je Monat, bis die Grenze geaendert wird.
+ * Nicht sammelbar: wer erst am naechsten Morgen liest, liest vielleicht schon
+ * den Stopp.
+ */
+const BUDGET_WARNSCHWELLE = {
+  schluessel: 'agent.budget_warnschwelle',
+  titel: (k) => `KI-Budget zu ${String(k.daten['prozent'] ?? '?')} % verbraucht`,
+  text: (k) => {
+    const monat = String(k.daten['monat'] ?? '');
+    return 'Das Monatsbudget für die KI-Agenten'
+      + (monat === '' ? '' : ` (${monat})`)
+      + ` ist zu ${String(k.daten['prozent'] ?? '?')} % verbraucht — die Warnschwelle ist `
+      + 'erreicht. Bei 100 % werden weitere Läufe abgelehnt; wer das nicht will, erhöht das '
+      + 'Budget vorher. Manuelle Arbeit ist nicht betroffen.';
+  },
+  ziel: (k) => (k.objektId === '' || !k.mandantSlug ? null : `/portal/${k.mandantSlug}/agenten/budget`),
+  kanaeleVorgabe: ['app', 'email'],
+  sammelbar: false,
+} as const satisfies ArtDefinition;
+
+export const ART_BUDGET_WARNSCHWELLE: string = BUDGET_WARNSCHWELLE.schluessel;
+
 /** Idempotent, wie die uebrigen Module (D-493) — siehe `benachrichtigung/bootstrap.ts`. */
 export function registriereAgentArten(): readonly ArtDefinition[] {
-  return sicherRegistriert([BUDGET_ERSCHOEPFT]);
+  return sicherRegistriert([BUDGET_ERSCHOEPFT, BUDGET_WARNSCHWELLE]);
 }

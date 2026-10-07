@@ -540,10 +540,14 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
       { kopf: 'Stelle', feld: 'stelle' },
       { kopf: 'Status', feld: 'status' },
       { kopf: 'Eingegangen', feld: 'eingegangen_am' },
+      // Der Rückzug ist eine Angabe über die Bewerberin (V-363, 0508).
+      { kopf: 'Zurückgezogen am', feld: 'zurueckgezogen_am' },
+      { kopf: 'Rückzugsvermerk', feld: 'zurueckgezogen_vermerk' },
       { kopf: 'Aufbewahrung bis', feld: 'aufbewahrung_bis' },
     ],
     sql: `select b.name, b.email, b.telefon, b.nachricht, s.titel as stelle,
-                 b.status::text as status, b.eingegangen_am, b.aufbewahrung_bis
+                 b.status::text as status, b.eingegangen_am, b.zurueckgezogen_am,
+                 b.zurueckgezogen_vermerk, b.aufbewahrung_bis
             from bewerbung b
             left join stelle s on s.mandant_id = b.mandant_id and s.id = b.stelle_id
            where b.id = $1::uuid and b.mandant_id = app.aktiver_mandant()

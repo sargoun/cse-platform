@@ -24502,7 +24502,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-189 | Ausschliesslich EUR — Fremdwährung wird abgewiesen, nicht umgerechnet. | `bank/camt.ts`, `eingang/erechnung.ts` |
 | O-300 | Grundstücksbezug einer Leistung führt die Plattform nicht; der Hinweis nach § 14 Abs. 4 Nr. 9 UStG gehört von Hand in den Fußtext. | `ustg14.ts` |
 | O-352 | Nummernkreis eröffnen und Jahreswechsel: die Administration mit `nummernkreis.verwalten`; der Knopf folgt (V-284). | `uebersicht.ts` |
-| O-357 | Empfänger der Kettenmeldung sind Buchhaltung und Geschäftsführung. Die Zustellung ist nicht gebaut (`ProtokollAlarm` schreibt nach stderr, `kettenpruefer` löst keine Empfänger auf) — V-286; bis dahin steht der Befund in der Hashketten-Ansicht und im Betriebsbericht. | `uebersicht.ts` |
+| O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder und nur mit `finanzen.lesen` (das Recht des Prüfberichts); die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
 | O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg (Hochladen, Gültigkeit, Widerruf) folgt (V-283). | `eingangsrechnungen.ts` |
@@ -24838,7 +24838,7 @@ weiter keine Adresse, also ordnet der Katalog ihnen keine Plattform zu.
 |---|---|---|
 | O-07 | Plattformkatalog: Vergabeplattform Berlin, Deutsches Vergabeportal (DTVP), Vergabe24, e-Vergabe des Bundes, subreport ELViS, Vergabemarktplatz Brandenburg, Bekanntmachungen auf bund.de, TED — je mit Betreiber, Adresse und Hostnamen; Registrierungspflicht ausser bund.de und TED; unbestätigt, bis die Super-Administration bestätigt, ändert oder archiviert; der Seed legt sie an. Unter welcher Kennung wer registriert ist, trägt jede Gesellschaft selbst ein (Betreiberdaten). | `radar/plattform.ts` (`PLATTFORM_VOREINSTELLUNG`, `uebernimmPlattformVoreinstellung`), `api/radar/plattform`, Radar › Vergabeplattformen, Mappe › Einreichung, `seed/radar.ts`, `tests/kern/radar-plattform.test.ts` (8), `tests/isolation/radar-plattform.test.ts` (5) |
 | O-194 | Prüfliste: Angebotsschreiben, bepreistes Leistungsverzeichnis, Eigenerklärung zur Eignung (Formblatt 124 bei Bauleistungen), Handels-/Gewerberegisterauszug, Bescheinigung in Steuersachen, Unbedenklichkeit von Berufsgenossenschaft und Krankenkasse, Betriebshaftpflicht, Referenzen der letzten drei Jahre, Gewerbezentralregisterauszug (§ 150a GewO), Tariftreue- und Mindestentgelterklärung (Berliner Ausschreibungs- und Vergabegesetz), Nachunternehmererklärung (freiwillig) — ein Anfang, den die Vergabeunterlagen korrigieren; jede Zeile startet `offen`. | `vergabe/mappe.ts` (`PRUEFLISTE_VOREINSTELLUNG`, `uebernimmPrueflisteVoreinstellung`), `api/vergabe/mappe`, Radar › Mappe, `tests/kern/vergabe-pruefliste-voreinstellung.test.ts`, `tests/isolation/vergabemappe.test.ts` (6) |
-| O-195 | Warnschwelle 80 % des Monatsbudgets, in der Maske vorbelegt und im Seed gesetzt; eine Zeile ohne Schwelle bleibt möglich und wird unter der Tabelle genannt. Budget und Preisliste rechnen in Euro (Mikrocent); der Anbieter rechnet in USD ab — umgerechnet wird beim Eintrag der Preisliste zum Kurs des Eintragstags, `waehrung_original` hält die Ursprungswährung fest, ein Kursdienst ist nicht angebunden. Die Schwelle löst heute nichts aus (V-292). | `agent/budget-pflege.ts` (`WARNSCHWELLE_VOREINSTELLUNG_PROZENT`), Agenten › KI-Budget, `seed/index.ts`, `agent-budget.ts` (i18n), `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
+| O-195 | Warnschwelle 80 % des Monatsbudgets, in der Maske vorbelegt und im Seed gesetzt; eine Zeile ohne Schwelle bleibt möglich und wird unter der Tabelle genannt. Budget und Preisliste rechnen in Euro (Mikrocent); der Anbieter rechnet in USD ab — umgerechnet wird beim Eintrag der Preisliste zum Kurs des Eintragstags, `waehrung_original` hält die Ursprungswährung fest, ein Kursdienst ist nicht angebunden. Erreicht der Verbrauch die Schwelle, meldet die Buchung es einmal je Budgetzeile an alle mit `agent.budget_verwalten` (`app.agent_warnung_vermerken`, 0505) — gebaut mit V-292 (D-810). | `agent/budget-pflege.ts` (`WARNSCHWELLE_VOREINSTELLUNG_PROZENT`), Agenten › KI-Budget, `seed/index.ts`, `agent-budget.ts` (i18n), `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
 | O-193 | Bewertet und beworben wird die Bekanntmachung als Ganzes; eine Bewertung je Los führt die Plattform nicht, die Loszahl steht am Blatt. | Radar › Bekanntmachung |
 | O-870 | Bewerten zwei Gesellschaften dieselbe Bekanntmachung hoch, bietet die mit der höheren Bewertung; bei Gleichstand entscheidet die Gruppenleitung, eine Bietergemeinschaft gibt es nur auf ihren Beschluss (§ 124 GWB im Blick). Die Gruppenseite zeigt den Sachverhalt und setzt die Regel nicht durch. | Gruppe › Radar |
 | O-721 | Bezugsfassung der Regionspräfixe ist NUTS 2024 (gilt seit 1. Januar 2024); geprüft wird die Form, nicht die Existenz (V-294) — ein Präfix ohne Gebiet engt die Suche still ein, die Seite sagt es. | Radar › Suchprofil |
@@ -25111,7 +25111,7 @@ gebaut ist, steht es dabei (V-319 bis V-322).
 | O-143 | Ein Stundenkonto ist offen oder gesperrt; `vorlaeufig` steht im Enum und setzt kein Weg — der Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`). Wie gebaut. | `zeit/stundenkonto.ts`, `zeit/einwand.ts` |
 | O-162 | Zeiteinträge werden nicht gelöscht (Invariante 8); die zwei Jahre des § 17 Abs. 1 MiLoG sind damit immer eingehalten. Käme je ein Löschlauf, zählt die Frist ab dem Ende des Kalenderjahres der Aufzeichnung (wie § 147 Abs. 4 AO). | `zeit/milog.ts` |
 | O-164 | Die Ausstempelmarke gilt bis Schichtende plus `zeit.checkout_toleranz_minuten` (ausgeliefert 60 Minuten, Einstellung je Gesellschaft, 0035); wer länger arbeitet, meldet es der Planung, die den Eintrag nacherfasst. Wie gebaut. | `zeit/checkin.ts`, `drizzle/0035` |
-| O-165 | Nacherfassung bis sieben Kalendertage nach dem Arbeitstag — die Obergrenze des § 17 Abs. 1 MiLoG —, danach Hinweis an die Leitung. Nicht gebaut: die Plattform prüft keine Frist (V-321). | `zeit/korrektur.ts` |
+| O-165 | Nacherfassung bis sieben Kalendertage nach dem Arbeitstag — die Obergrenze des § 17 Abs. 1 MiLoG —, danach Hinweis an die Leitung (Rolle `leitung`, ohne den Erfassenden), kein Verbot; die Seite der neuen Fassung sagt es dem Erfassenden. Gebaut mit V-321 (`app.nacherfassung_spaet_melden`, 0506, D-810). | `zeit/korrektur.ts` |
 | O-168 | Pausen werden als Summe je Schicht erfasst (`zeiteintrag.pause_minuten`), nicht gestempelt; im Plan heisst `pause_geplant_minuten` 0 „nicht hinterlegt" und ist keine Pause; eine fehlende Angabe ist ein Befund, keine Verletzung (§ 4 ArbZG). Wie gebaut. | `zeit/arbzg.ts`, `dienstplan/einteilung.ts` |
 | O-169 | Zeit ohne Auftrag (Schulung, Bereitschaft, Fahrt, interne Arbeit) ist erlaubt, zählt aufs Stundenkonto und wird nicht fakturiert („ohne Auftrag — nicht abrechenbar", FIN-18); eine Kostenstelle trägt sie nicht, bewertet wird sie im Lohnlauf (D-06). Wie gebaut. | `zeit/abrechnungsfreigabe.ts`, Zeiten |
 | O-171 | Sonntags- und Feiertagsarbeit weist die Plattform nicht nach — weder die Ausnahme (§ 10 ArbZG) noch den Ersatzruhetag (§ 11 Abs. 3 ArbZG); das Lohnsystem leitet die Stunden aus `zeiten.csv` ab, der Ersatzruhetag steht im Dienstplan. Das LIESMICH des Lohnexports sagt es (V-322). | `zeit/lohnexport.ts` |
@@ -25564,7 +25564,7 @@ O-28 und O-374 bleiben Betreiberdaten, O-375 ebenso (D-784).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-199 | Erhoben werden Name, E-Mail, Telefon (freiwillig) und eine Nachricht, bei der Initiativbewerbung der Bereich — kein Geburtsdatum, keine Staatsangehörigkeit, kein Foto, keine Anschrift (Art. 5 Abs. 1 lit. c DSGVO; jedes dieser Merkmale lädt zu einem Benachteiligungsvorwurf nach dem AGG ein). Führerschein, Sachkunde nach § 34a GewO oder Arbeitserlaubnis klärt das Gespräch, wenn die Stelle sie verlangt; nachgewiesen werden sie bei der Einstellung. Wie gebaut. | `app/(public)/karriere/Formular.tsx`, `api/karriere/bewerbung` |
-| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Schliessen einer Stelle und drei Bewerbungsstände haben keinen Schreibweg (V-363). | `recruiting/dienst.ts`, `drizzle/0166` |
+| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Gebaut mit V-363 (D-812): eine Stelle schliesst mit Grund und Protokoll (`recruiting.stelle_schreiben`); `in_pruefung` setzt die erste Bewertung eines Menschen, `gespraech` ein geplantes Gespräch (alle abgesagt: zurück auf `in_pruefung`), `zurueckgezogen` ein Vermerk mit Namen (`recruiting.bewerbung_bewerten`, Frist wie bei einer Absage) — danach keine Entscheidung mehr. | `recruiting/dienst.ts`, `drizzle/0166`, `drizzle/0508` |
 | O-201 | Je Kriterium (aus den Anforderungen der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der gewichtete Mittelwert in Zehnteln, die Gewichte müssen nicht 100 ergeben, ohne Gewicht ist eine Bewerbung unbewertet. Die Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. | `recruiting/rangfolge.ts`, Recruiting › Bewertung |
 | O-202 | E-Mail zusätzlich für die Arten mit Frist oder Risiko — Agentenbudget, Radar, Nachweisablauf, Wiedervorlage, neuer Lead, Lead-Frist, unbesetzte Schicht, Nachtrag; nur im Portal Schicht ohne Zeiteintrag, Einwandentscheidung und Planveröffentlichung — so, wie die Arten es eintragen (`kanaeleVorgabe`); jede Person ändert es unter Konto › Benachrichtigungen. Zugestellt wird per E-Mail noch nichts (V-367). | `benachrichtigung/registry.ts` |
 | O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter steht in der Adresse (`?bereich=`, gebaut mit V-364, D-806). | `app/(public)/karriere/page.tsx` |
@@ -25666,7 +25666,7 @@ Voreinstellung tragen — der Wortlaut folgt jetzt.
 | O-510 | Die Bestätigung nach dem Widerruf eines Kalenderzugangs sagt in vier Sprachen, dass eine noch sichtbare Zeile veraltet ist und ein Neuladen den Stand zeigt; der Feed antwortet sofort 404. Die Ursache der veralteten Anzeige wird nicht weiter verfolgt, solange der Zugang nachweislich geschlossen ist. Wie gebaut. | `lib/i18n/konto.ts`, `api/kalender-feed/widerrufen`, `tests/e2e/kalender.spec.ts` |
 | O-511 | Bevor der erste Kanal echt verbunden wird (O-10), bekommt der Versand einen Ausgangskorb mit Idempotenzschlüssel, Zustellung ausserhalb der Geschäftstransaktion und Abgleich danach. Heute ohne Wirkung (alle Kanäle `nicht_verbunden`); nicht gebaut (V-377). | `social/dienst.ts` (`sendeKanaele`) |
 | O-513 | Wie O-369: das Vorlegen trägt das fachliche Recht des Vorgangs — `social.schreiben`, das Recht der Stellenpflege, das Erfassen der Eingangsrechnung, beim Agenten sein Dienstkonto —, das Entscheiden `freigabe.entscheiden`. Nicht gebaut (V-376). | `drizzle/0136`, die vier vorlegenden Dienste |
-| O-650 | Rollen im Team: Leitung, Stellvertretung, Mitglied, Springer, als Vorschlagsliste; `team_mitglied.rolle` bleibt Text (0230). Teams und Mitglieder haben ausser im Seed keinen Schreibweg (V-378). | `db/seed/kern.ts`, `drizzle/0230` |
+| O-650 | Rollen im Team: Leitung, Stellvertretung, Mitglied, Springer, als Vorschlagsliste; `team_mitglied.rolle` bleibt Text (0230). Gebaut mit V-378 (D-813): Kalender › Teams legt Teams an, ordnet Beschäftigungen zu und beendet Mitgliedschaften (`kalender.schreiben`); eine beendete Mitgliedschaft bleibt mit Ende und Namen stehen (0509). | `kern/team.ts`, `db/seed/kern.ts`, `drizzle/0230`, `drizzle/0509` |
 | O-651 | Die Gruppenleitung liest keine Nachrichtenfäden der Gesellschaften (TEN-05: Zahlen statt Inhalt, wie O-910). Die Policy `t_nachricht_gruppe` (0011) bleibt bis zur Migration, die sie deckelt (V-379); eine Seite dafür gibt es nicht. | `registry/navigation.ts`, `drizzle/0011` |
 | O-871 | Ein Termin gehört einer Person, nicht einem Team; der Teamfilter des Gruppenkalenders greift auf Schichten, die Seite sagt „nur Schichten (Voreinstellung O-871)". Wie gebaut. | Gruppe › Kalender |
 | O-888 | Die Tausenderstelle der Objektnummer kodiert die Gesellschaft nicht: die Nummer ist je Gesellschaft eindeutig (`objekt_nummer_uk`), die Gesellschaft steht am Objekt. Die Plattform zählt im Bestand weiter, die erste Nummer einer leeren Gesellschaft ist `OBJ-1001`, das Feld ist überschreibbar. Wie gebaut. | `objekt/anlegen.ts` |
@@ -25710,12 +25710,12 @@ ab). O-97 ist wortgleich mit O-41 und folgt dessen Voreinstellung (D-782).
 |---|---|---|
 | O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet; bestätigen lässt sie sich noch nicht (V-384). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
 | O-30 | 14 Tage (SPEC §14), gemeldet an die verantwortliche Bauleitung des Projekts, einmal (`ueberfaellig_gemeldet_am`); fehlt die Bauleitung, an alle, die in der Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`) und den Nachtrag lesen können (`bau.lesen`) — gebaut mit V-381 (D-808). | `bau/nachtrag.ts`, `jobs/nachtragWache.ts` |
-| O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle, ab 7 Tagen an die Leitung — nicht gebaut (V-380); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
+| O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle (`personal.nachweis_lesen` in der erfassenden Gesellschaft), ab 7 Tagen an die Leitung (Rolle `leitung`) — je Konto eine Meldung je Stufe, gebaut mit V-380 (`kern.nachweis_ablauf_empfaenger`, 0504, D-810); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
 | O-97 | Wie O-41 (D-782): Zielformat GAEB DA XML (X83/X84); gelesen wird heute CSV mit Semikolon, der GAEB-Leser fehlt (V-291). | `bau/lv-quelle.ts` |
 | O-133 | Kein Pflichtfoto je Beweisart ausser dem Messfoto des Aufmaßes (BAU-03, `kern.aufmass_vorlage_pruefen`, wie gebaut); Leistungsnachweis, Wachbuch, Bautagebuch, Schicht und Referenz nehmen Fotos an und verlangen keine, und ein Beweis ohne Foto gilt nicht als unvollständig. | `api/mein/schichten/[zuordnungId]/fotos`, `bau/aufmass.ts` |
 | O-211 | Die Wache sieht Kontrollpunkte und Dienstanweisung ihres laufenden und jedes kommenden Objekts ab der Einteilung und verliert den Zugriff, wenn nach der letzten Schicht auch die Ausstempeltoleranz vorbei ist (`app.eigene_einsatz_objekte()`, 0499, V-326, D-808 — eine Grenze mit der Erfassung, O-740; dieselbe in `app.eigene_einsatz_projekte()`). Die Kenntnisnahmepflicht öffnet weiter nur für Schichten, die noch nicht zu Ende sind (0078). | `drizzle/0069`, `drizzle/0071`, `drizzle/0078` |
 | O-240 | Quittiert wird im Büro über den internen Weg (D-235), von jedem mit `schluessel.schreiben` — Leitung, Administration und die Rolle `mitarbeiter` (0008); eine Bindung an die Objektleitung gibt es nicht. Die Wache vermerkt eine Übergabe vor Ort im Wachbuch (Eintragsart `schluessel`, V-180). Wie gebaut. | `security/schluessel.ts` |
-| O-241 | Keine Sperre der Einteilung (keine erfundene Rechtsfolge, K-17). Versäumt ist die Kenntnisnahme ab Beginn der ersten Schicht auf dem Objekt nach Veröffentlichung der Fassung; dann sieht die Leitung eine Warnung — nicht gebaut (V-382). | `security/dienstanweisung.ts` |
+| O-241 | Keine Sperre der Einteilung (keine erfundene Rechtsfolge, K-17). Versäumt ist die Kenntnisnahme ab Beginn der ersten Schicht auf dem Objekt nach Veröffentlichung der geltenden Fassung (bei späterer Zuweisung: danach); dann sieht die Leitung eine Warnung — auf der Kenntnisnahme-Seite („versäumt seit …“, davor „vor der Schicht am … zu bestätigen“) und an der Schicht. Gebaut mit V-382 (`kenntnisfrist`, D-811). | `security/dienstanweisung.ts` |
 | O-260 | Vier-Augen-Prinzip: wer die Behinderungsanzeige oder den Nachtrag verfasst, gibt ihn nicht selbst frei. Entschieden wird seit 0136 mit `freigabe.entscheiden` (auch `leitung`); dass Verfasser und Entscheider verschieden sind, prüft heute niemand (V-383). Das Register nannte noch `versand.freigeben`. | `api/bau/behinderungen/[id]/versenden`, `api/bau/nachtraege/[id]/einreichen` |
 | O-346 | HEIC wird nicht angenommen: die Ortsdatenbereinigung weist es ab, und die Meldung bittet um JPEG (iPhone: „Maximale Kompatibilität"). Wie gebaut; der veraltete TODO in der Fotoroute ist berichtigt. | `storage/exif.ts`, `api/mein/schichten/[zuordnungId]/fotos` |
 | O-347 | Führungs- und Verwaltungskräfte stehen im Festgehalt ausserhalb der Plattform; ihr `stundensatz_intern` bleibt leer, die Kalkulation rechnet mit den Sätzen der gewerblichen Beschäftigten. Wer einen Satz braucht, trägt ihn unter Personal › Entgelt ein. Wie gebaut. | `db/seed/index.ts` |
@@ -26358,4 +26358,280 @@ D-786) und die Bestätigung einer CPV-Zeile (`ist_platzhalter`, O-98, D-786).
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-298, V-299, V-392, V-309, V-312; O-355, O-356, O-358, O-35, O-15, O-98; `src/server/services/radar/profil.ts`, `src/app/api/radar/profil/route.ts`, `src/app/portal/[mandant]/radar/profile/[id]/page.tsx`, `drizzle/0502_mandant_module_buchen.sql`, `drizzle/0503_sicherheitskontakt_pflegen.sql`, `src/server/services/system/mandant-module.ts`, `src/app/api/einstellungen/module/route.ts`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/modulbuchung.ts`, `src/server/db/seed/index.ts`, `src/server/services/finanz/mahnung/basiszinssatz.ts`, `src/app/api/finanzen/basiszinssatz/route.ts`, `src/app/portal/[mandant]/einstellungen/mahnwesen/page.tsx`, `src/server/jobs/basiszinssatz.ts`, `src/server/services/inhalt/sicherheitskontakt.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `src/app/api/einstellungen/sicherheitskontakt/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-810 · Bauwelle 6: Meldungen — Nachweisablauf an Personalstelle und Leitung, Warnschwelle des KI-Budgets, späte Nacherfassung (V-380, V-292, V-321)
+
+**Der Anlass.** Drei Voreinstellungen sagten, wer wann erfährt — und keine
+Meldung ging hinaus: der Nachweisablauf erreichte nur die Beschäftigte selbst
+(O-31, D-800), die Warnschwelle des KI-Budgets stand an der Zeile und löste
+nichts aus (O-195, D-784), und eine Nacherfassung prüfte keinen Abstand zum
+Arbeitstag (O-165, D-788).
+
+**Was gebaut ist.**
+- **Nachweisablauf (V-380).** Ab der 30-Tage-Stufe erfährt es zusätzlich die
+  Personalstelle — wer in der erfassenden Gesellschaft
+  `personal.nachweis_lesen` hält —, ab der 7-Tage-Stufe die Leitung (Rolle
+  `leitung`, ebenfalls mit `personal.nachweis_lesen`: die Meldung nennt Mensch
+  und Nachweis und zeigt auf das Register, das dieses Recht verlangt). Zwei
+  neue Arten (`nachweis.ablauf_personalstelle`,
+  `nachweis.ablauf_leitung`, deutsch, Ziel: das Nachweisregister); jedes
+  Konto bekommt je Stufe genau eine Meldung, nie das der Person selbst. Die
+  Auswahl macht `kern.nachweis_ablauf_empfaenger` (0504) als Definer: der
+  Wächter läuft unter `cse_job`, und keine Sitzung sieht fremde
+  Mitgliedschaften. Dieselbe Quittung wie die Meldung an die Person
+  (`nachweis_warnung`) — je Stufe einmal, auch wenn für die Person keine Art
+  registriert ist. Nachtlauf und Seed stellen zu.
+- **Warnschwelle des KI-Budgets (V-292).** `bucheKosten` vergleicht nach jeder
+  Buchung Verbrauch und Grenze mal Schwelle (`app.agent_warnung_vermerken`,
+  0505 — Mikrocent, numeric gerechnet) und meldet beim Erreichen einmal je
+  Budgetzeile an alle mit `agent.budget_verwalten`: Status `gewarnt`,
+  `gewarnt_am`, Art `agent.budget_warnschwelle` mit der Budgetseite als Ziel —
+  der Definer nimmt kein anderes an.
+  Ändert jemand die Grenze, setzt die Budgetpflege die Warnung zurück, und
+  die neue Grenze darf wieder warnen. Der Hartstopp bei 100 % bleibt.
+- **Späte Nacherfassung (V-321).** Liegt eine Nacherfassung mehr als sieben
+  Kalendertage nach dem Arbeitstag (Berliner Tage, aus der Datenbank), meldet
+  `app.nacherfassung_spaet_melden` (0506) es einmal an die Leitung der
+  Gesellschaft, die Zeiten lesen darf (`zeit.lesen`, das Recht hinter dem
+  Ziel), ohne den Erfassenden. Der Definer prüft Korrektur, Art, Urheber,
+  Abstand und Ziel — nur die neue Fassung — selbst. Kein Verbot — die Nacherfassung ist schon
+  geschrieben; die Seite der neuen Fassung sagt dem Erfassenden, ob die
+  Leitung einen Hinweis bekommen hat.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-31 | Ab 30 Tagen die Personalstelle (`personal.nachweis_lesen`), ab 7 Tagen die Leitung (Rolle `leitung`, mit `personal.nachweis_lesen`) — wie D-800, jetzt gebaut. | `drizzle/0504`, `nachweis/ablauf.ts`, `nachweis/benachrichtigung.ts` |
+| O-195 | Warnung bei 80 %, einmal je Budgetzeile, an alle mit `agent.budget_verwalten` — wie D-784, jetzt mit Auslöser. | `drizzle/0505`, `agent/budget.ts` |
+| O-165 | Sieben Kalendertage nach dem Arbeitstag, danach Hinweis an die Leitung (mit `zeit.lesen`), kein Verbot — wie D-788, jetzt gebaut. | `drizzle/0506`, `zeit/korrektur.ts` |
+
+**Beim Prüfen berichtigt.** Die volle Isolationssuite fand, dass 0504 und 0506
+das Fenster der Mitgliedschaft gegen `current_date` prüften — den Tag der
+Sitzungszeitzone (`berechtigungsfenster.test.ts`, 0169). Beide fragen jetzt
+`app.berlin_heute()`, wie `app.hat_recht_fuer`.
+
+**Nach der Durchsicht von PR #40 nachgezogen.** Dieselben zwei Befunde wie
+dort: ein Definer, der sein Ziel vom Aufrufer nimmt, und Empfänger, die das
+Ziel nicht öffnen können. 0505 und 0506 nehmen als Ziel nur das Blatt an,
+auf das ihre Art zeigt (Budgetseite der Gesellschaft, neue Fassung des
+Zeiteintrags) — `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel
+weiter. Die Leitung bekommt den Nachweisablauf nur mit
+`personal.nachweis_lesen`, die späte Nacherfassung nur mit `zeit.lesen`;
+nach der Rechtematrix hält sie beides, nimmt eine Gesellschaft es ihr,
+bekommt sie die Meldung nicht.
+
+**Nach der Durchsicht von PR #42 nachgezogen.**
+- **Die Warnschwelle rechnete hundertfach zu hoch.** Ein Cent sind 10 000
+  Mikrocent (`mikrocentNachCent`, der Hartstopp in 0128), nicht 1 000 000; die
+  Warnung kam damit erst weit hinter dem Stopp. 0505 und `vermerkeWarnung`
+  rechnen jetzt mit 10 000, die Prüfung bucht echte Beträge und zeigt, dass bei
+  80 % das Budget noch trägt.
+- **Beide Schreiber sind an die buchende Sitzung gebunden.** Warnung und Stopp
+  (0128, in 0505 ersetzt) gehen durch `kern.agent_budget_vermerk_tor`: der
+  Mandant ist der aktive, die Sitzung intern und schreibend, mit
+  `agent.aufgabe_starten` — dieselbe Bedingung wie das Buchen der Kosten. Eine
+  Sitzung stoppt oder warnt damit kein Budget einer anderen Gesellschaft, die
+  Gruppenansicht nichts; die Jobrolle ruft beide nicht mehr auf.
+- **Empfänger aus dem Rechteauflöser.** `app.benutzer_mit_recht` sah bei der
+  Mitgliedschaft nur Zeilen genau dieser Gesellschaft und verpasste jede
+  Plattformvorgabe — ein Verwalter mit dem Recht aus der Vorgabe bekam weder
+  Warnung noch Stopp. Beide fragen jetzt `kern.traeger_des_rechts` (0149), wie
+  `app.hat_recht`, ohne Dienstkonten.
+- **Die späte Nacherfassung bestätigt nur eine Zustellung, die stattfand.**
+  `korrigiereZeiteintrag` gibt Verspätung und Zahl der erreichten Konten
+  getrennt zurück; der Rückweg trägt `leitung=1|0`, und die Seite sagt „die
+  Leitung hat einen Hinweis bekommen" nur mit `1` — sonst, dass niemand ihn
+  bekommen hat.
+
+**Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (6:
+Schwelle, neue Grenze, Ziel, Bindung an die Sitzung, Plattformvorgabe und Dienstkonto),
+`tests/isolation/nacherfassung-frist.test.ts` (mit Zustellzahl), `tests/kern/nacherfassung-hinweis.test.ts`,
+`tests/isolation/berechtigungsfenster.test.ts`,
+die volle Isolationssuite (256 Dateien), `tests/kern/nachweis.test.ts`, `tests/kern` komplett,
+`pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-380, V-292, V-321; O-31, O-195, O-165; `drizzle/0504_nachweis_ablauf_empfaenger.sql`, `drizzle/0505_agent_budget_warnschwelle.sql`, `drizzle/0506_nacherfassung_frist.sql`, `src/server/services/nachweis/ablauf.ts`, `src/server/services/nachweis/benachrichtigung.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/agent/budget.ts`, `src/server/agent/benachrichtigung.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/zeit/korrektur.ts`, `src/server/services/zeit/benachrichtigung.ts`, `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/lib/i18n/konto.ts`, `tests/isolation/berechtigungsfenster.test.ts` |
+|---|---|
+
+### D-811 · Bauwelle 7: der Bruch der Hashkette erreicht Menschen, eine versäumte Kenntnisnahme wird sichtbar (V-286, V-382)
+
+**Der Anlass.** Zwei Voreinstellungen sagten, wer etwas erfährt, und niemand
+erfuhr es: der nächtliche Kettenprüfer warf bei einem Bruch, und der Befund
+stand nur im Lauf und auf stderr (O-357, D-779); eine nicht bestätigte
+Dienstanweisung zeigte „N von M bestätigt“, aber weder Frist noch Warnung
+(O-241, D-800).
+
+**Was gebaut ist.**
+- **Kettenmeldung (V-286).** Vor dem Wurf stellt der Kettenprüfer den ersten
+  Bruch zu (`meldeKettenbruch`): an Buchhaltung und Geschäftsführung der
+  Gesellschaft — Mitglieder mit `buchhaltung.lesen` oder der Rolle `leitung`,
+  jedes Konto einmal (`kern.kette_meldung_empfaenger`, 0507, Definer, das
+  Fenster der Mitgliedschaft am Berliner Tag). `finanzen.lesen` wäre als
+  Auswahl zu weit — das Recht hält auch die Rolle `kunde` —, verlangt wird es
+  zusätzlich: die Meldung zeigt auf den Prüfbericht, und der öffnet mit genau
+  diesem Recht (NOT-03). Die globale Super-Administration ohne
+  Mitgliedschaft bekommt nichts — sie hat dort keinen Posteingang, und
+  `waechter_meldung` nimmt sie nicht an. Neue Art
+  `finanzen.kette_gebrochen`: nie sammelbar (SPEC §14 „alert immediately“),
+  Ziel die Hashketten-Ansicht, der Grund im Satz der Ansicht. Einmal je Bruch,
+  nicht jede Nacht: das Gedächtnis ist `waechter_meldung` mit der Rechnung als
+  Gegenstand und dem Grund als Lage — erst die Quittung, dann die Zustellung,
+  die Quittung zurück, wenn nichts ankam. Der Wurf bleibt (`job_lauf_mandant`,
+  Alarm) und nennt, wie viele erreicht wurden.
+- **Versäumte Kenntnisnahme (V-382).** `kenntnisfrist` stellt fest, was eine
+  offene Zeile ist: fällig vor der ersten Schicht auf dem Objekt nach der
+  Veröffentlichung der geltenden Fassung (und nach der Zuweisung), versäumt
+  ab deren Beginn, ohne solche Schicht offen ohne Zeitpunkt. Die erste
+  Schicht liest `leseErsteSchichten` — abgesagte Einteilungen und stornierte
+  Schichten zählen nicht, Schichten auf anderen Objekten auch nicht. Die
+  Kenntnisnahme-Seite zeigt „versäumt seit …“ (rote Zeile, Pille
+  „Überfällig“, Zahl im Kopf) und davor „vor der Schicht am … zu
+  bestätigen“; ohne `dienstplan.lesen` sagt sie, dass sie den Schichtbezug
+  nicht zeigen kann. Das Schichtblatt nennt die Eingeteilten, die die
+  geltende Fassung einer Anweisung des Objekts nicht bestätigt haben — vor
+  Beginn als fällig, ab Beginn als versäumt, mit Verweis auf die
+  Kenntnisnahmen (de/en, nur mit `dienstanweisung.lesen`). Keine Sperre: die
+  Einteilung bleibt (K-17).
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-357 | Die Kettenmeldung geht an Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, beide mit `finanzen.lesen`, in den Posteingang, einmal je Bruch — wie D-779, jetzt gebaut. | `drizzle/0507`, `jobs/kettenpruefer.ts`, `waechter/benachrichtigung.ts` |
+| O-241 | Versäumt ab Beginn der ersten Schicht auf dem Objekt nach der Veröffentlichung, Warnung an die Leitung auf der Kenntnisnahme-Seite und an der Schicht, keine Sperre — wie D-800, jetzt gebaut. | `security/dienstanweisung.ts`, Kenntnisnahmen, Schichtblatt |
+
+**Nach der Durchsicht von PR #42 nachgezogen.** Die Schicht fragte ihre
+offenen Kenntnisnahmen ohne Stichtag: eine neue Fassung machte die
+abgeschlossene Schicht von gestern zu einer versäumten Kenntnisnahme, die
+damals nicht fällig war. `leseOffeneKenntnisnahmenDerSchicht` zählt jetzt nur
+Schichten nach Veröffentlichung der geltenden Fassung und nach Zuweisung der
+Pflicht — derselbe Stichtag wie `leseErsteSchichten`.
+
+**Prüfung.** `tests/isolation/kette-job.test.ts` (Empfänger, einmal je Bruch nach
+drei Läufen), `tests/isolation/dienstanweisung-versaeumt.test.ts` (erste Schicht,
+fremdes Objekt, vor der Veröffentlichung, vor der Zuweisung, Bestätigung), `tests/kern/kettenmeldung.test.ts`,
+`tests/kern/kenntnisfrist.test.ts` (Grenze am Schichtbeginn, Rücknacht), `tests/kern`
+komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-286, V-382; O-357, O-241; `drizzle/0507_kette_meldung_empfaenger.sql`, `src/server/jobs/kettenpruefer.ts`, `src/server/jobs/bootstrap.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/lib/i18n/konto.ts`, `src/server/services/security/dienstanweisung.ts`, `src/app/portal/[mandant]/security/dienstanweisungen/[id]/kenntnisnahmen/page.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts` |
+|---|---|
+
+### D-812 · Bauwelle 8: eine Stelle schliesst, eine Bewerbung bewegt sich ohne Entscheidung (V-363)
+
+**Der Anlass.** `stelle.geschlossen_am` und der Stand `geschlossen` hatten keinen
+Schreibweg; `bewerbung.status` änderte seit 0168 nur die Einstellungsentscheidung.
+`in_pruefung` setzte nur der Seed, `gespraech` und `zurueckgezogen` gar kein Weg.
+Voreinstellung zu O-200 (D-797): die Stände wie 0166.
+
+**Was gebaut ist.**
+- **Stelle schliessen.** `POST /api/recruiting/stellen/[id]/schliessen`
+  (`recruiting.stelle_schreiben`) mit Grund; `schliesseStelle` setzt Stand,
+  Zeitpunkt und Grund und protokolliert (`recruiting.stelle_geschlossen`, alter und
+  neuer Stand). Danach steht die Stelle nicht mehr auf der Karriereseite
+  (`t_stelle_oeffentlich`); die offenen Bewerbungen bleiben und werden weiter
+  entschieden. Wieder öffnen lässt sie sich nicht — eine neue Anzeige ist eine neue
+  Stelle. Das Stellenblatt zeigt Schliessung und Grund (de/en).
+- **Die Stände ohne Entscheidung** (0508, Definer wie der Nachzug aus 0168, `cse_app`
+  ändert `bewerbung` weiterhin nicht): `in_pruefung` bei der ersten Bewertung eines
+  MENSCHEN — eine Bewertung des Agenten bewegt nichts (Art. 22 DSGVO); `gespraech`
+  beim geplanten Gespräch; sind alle Gespräche abgesagt, zurück auf `in_pruefung`.
+  Nur nach vorn, nie für eine entschiedene oder zurückgezogene Bewerbung.
+- **Rückzug als Vermerk.** `app.bewerbung_zurueckziehen` (0508) vermerkt den Rückzug
+  einer offenen Bewerbung mit Zeitpunkt, Namen und Vermerk („per E-Mail am
+  3. Oktober“); vermerken darf, wer `recruiting.bewerbung_bewerten` hält. Die Aufbewahrungsfrist
+  läuft danach wie bei einer Absage (0498: Berliner Tag plus
+  `recruiting.aufbewahrung_tage`, nie kürzer). Eine zurückgezogene Bewerbung wird
+  nicht mehr entschieden — der Dienst sagt es als Satz, ein Auslöser auf
+  `einstellungsentscheidung` hält es fest. Der Löschlauf leert den Vermerk mit den
+  übrigen Angaben der Bewerberin. Das Bewerbungsblatt zeigt Rückzug, Vermerk und
+  Namen und trägt das Formular (de/en).
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-200 | Stände wie 0166; `in_pruefung` bei der ersten Bewertung eines Menschen, `gespraech` beim geplanten Gespräch, `zurueckgezogen` als Vermerk mit Namen; schliessen darf, wer Stellen schreibt — jetzt gebaut. | `drizzle/0508`, `recruiting/dienst.ts` |
+
+**Nach der Durchsicht von PR #42 nachgezogen.**
+- **Gleichzeitige Absagen.** Zwei Absagen der letzten beiden Gespräche sahen je
+  das andere noch als geplant, und keine setzte den Stand zurück. Der Auslöser
+  aus 0508 sperrt jetzt zuerst die Bewerbung; die zweite wartet und zählt danach
+  neu — ebenso ein Gespräch, das neben der letzten Absage geplant wird.
+- **Stelle schliessen sperrt, bevor es liest** — wie das Veröffentlichen. Der
+  Vorher-Stand im Protokoll ist damit der, den das Schliessen wirklich ablöst.
+- **Der Rückzug steht in der Auskunft** (Art. 15): Zeitpunkt und Vermerk im
+  Abschnitt „Bewerbung".
+- **Die Abweisung des Rückzugs bleibt sichtbar**, auch wenn die Bewerbung
+  inzwischen entschieden oder zurückgezogen ist — nur das Formular hängt an
+  „offen".
+
+**Prüfung.** `tests/isolation/recruiting-stand.test.ts` (13: Bewertung von Mensch und
+Agent, Gespräche und Absage, zwei gleichzeitige Absagen, Planung neben der letzten
+Absage, entschiedene Bewerbung, `cse_app` ohne Update, Rückzug mit
+Frist, keine Entscheidung danach in Dienst und Datenbank, Rechte, Löschlauf, Stelle
+schliessen mit Protokoll und Karriereseite, Schliessen neben einer Veröffentlichung),
+`tests/isolation/datenschutz-dienste.test.ts` (Rückzug in der Auskunft),
+`tests/kern/recruiting-stand.test.ts`,
+`tests/kern/formular-rueckwege.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-363; O-200; `drizzle/0508_bewerbung_stand_und_rueckzug.sql`, `src/server/services/recruiting/dienst.ts`, `src/server/jobs/bewerberLoeschung.ts`, `src/app/api/recruiting/stellen/[id]/schliessen/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/rueckzug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `src/lib/i18n/verwaltung/recruiting-rueckzug.ts`, `src/lib/i18n/verwaltung/recruiting-rueckmeldung.ts`, `src/server/services/datenschutz/auskunft.ts` |
+|---|---|
+
+### D-813 · Bauwelle 9: Teams haben einen Schreibweg (V-378)
+
+**Der Anlass.** `team` und `team_mitglied` (0230) füllte nur der Seed; Kalender
+(CAL-02) und Aufgaben lesen sie. Eine Gesellschaft konnte kein Team anlegen und
+niemanden zuordnen. Voreinstellung zu O-650 (D-799): Rollen Leitung,
+Stellvertretung, Mitglied, Springer als Vorschlagsliste, die Spalte bleibt Text.
+
+**Was gebaut ist.**
+- **Kalender › Teams** (`/portal/[mandant]/kalender/teams`, Seitenkarte §5.17):
+  die Teams der Gesellschaft mit Leitung, Bereich, laufenden und beendeten
+  Mitgliedschaften; mit `kalender.schreiben` ein Team anlegen (Name, Bereich),
+  eine aktive Beschäftigung zuordnen (Rolle mit Vorschlagsliste, jede andere
+  Bezeichnung geht) und eine Mitgliedschaft beenden. Ohne das Recht steht ein
+  Satz statt der Formulare. Der Kalender verweist auf die Teams. Sätze in de/en.
+- **`POST /api/kalender/teams`** (`kalender.schreiben`, wie die Policies aus 0230):
+  `anlegen`, `zuordnen`, `beenden`; zurück gehen nur Schlüssel. Die Leitung eines
+  Teams muss Mitglied der Gesellschaft sein (`app.ist_mitglied` am Berliner Tag).
+- **0509: eine Mitgliedschaft endet, statt zu verschwinden.** `beendet_am` und
+  `beendet_von` halten fest, wer bis wann im Team war; eindeutig ist nur die
+  laufende Mitgliedschaft je Team und Beschäftigung (`tm_laufend_uk`), danach darf
+  dieselbe Beschäftigung wieder hinein. `t_aufgabe_eigene` und `p_zustaendig`
+  (0230) fragen nur noch laufende Mitgliedschaften: wer ausgetreten ist, sieht die
+  Aufgaben des Teams nicht mehr. Dasselbe in `kern/aufgabe.ts` („nur meine") und
+  im Teamfilter des Gruppenkalenders. Der Seed nimmt den neuen Index als Ziel.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-650 | Rollen Leitung, Stellvertretung, Mitglied, Springer als Vorschlagsliste, die Spalte bleibt Text — wie D-799, jetzt mit Schreibweg. | `kern/team.ts`, Kalender › Teams |
+
+**Nach der Durchsicht von PR #42 nachgezogen.**
+- **Die Leitung hat einen Weg.** Das Anlegeformular wählt sie, und jedes Team
+  trägt „Leitung setzen" (Vorgang `leitung`, auch ohne Leitung). Zur Wahl
+  stehen aktive Menschenkonten mit laufender Mitgliedschaft in der Gesellschaft,
+  keine Dienstkonten — gelesen unter RLS: das eigene Konto immer, die übrigen
+  mit `system.benutzer_lesen`. Die Rolle „Leitung" einer Mitgliedschaft bleibt
+  Text und setzt diese Angabe nicht.
+- **Ein Name, den es schon gibt** (`team_name_uk`, ohne Rücksicht auf Gross- und
+  Kleinschreibung), ist der Grund `name_vergeben` mit Satz statt eines
+  Serverfehlers.
+- **Der Seed nimmt eine beendete Mitgliedschaft nicht zurück.** Er ordnet nur
+  Beschäftigungen zu, die noch nie im Team waren (`seedeMitglieder`); der
+  Index kennt nur laufende, und ein zweiter Lauf hätte die Entscheidung der
+  Gesellschaft samt Zugang zu den Teamaufgaben rückgängig gemacht.
+
+**Prüfung.** `tests/isolation/team-pflege.test.ts` (anlegen, zuordnen, doppelt,
+beenden, wieder zuordnen; Aufgabe nach dem Ende unsichtbar; Leitung aus der
+Gesellschaft, beim Anlegen und danach; wählbare Leitungen ohne Dienstkonten; doppelter
+Name; Seed nach dem Ende; ohne Recht nichts), `tests/isolation/aufgabe.test.ts`,
+`tests/isolation/seed.test.ts`, `tests/kern/team-pflege.test.ts`, `tests/kern`
+komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-378; O-650; `drizzle/0509_team_pflege.sql`, `src/server/services/kern/team.ts`, `src/app/api/kalender/teams/route.ts`, `src/app/portal/[mandant]/kalender/teams/page.tsx`, `src/app/portal/[mandant]/kalender/teams/felder.ts`, `src/app/portal/[mandant]/kalender/page.tsx`, `src/lib/i18n/verwaltung/kalender-teams.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/gruppe/kalender.ts`, `src/server/db/seed/kern.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts` |
 |---|---|

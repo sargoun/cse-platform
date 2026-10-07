@@ -116,9 +116,16 @@ export async function seedBenachrichtigungen(
     objektTyp: 'nachweis',
     objektId: m.nachweisId,
   })));
+  /* Personalstelle und Leitung (V-380) — derselbe Weg wie im Nachtlauf. */
+  const team = await stelleZuAnKonto(db, bericht.team.map((t) => ({
+    benachrichtigung: t.benachrichtigung,
+    benutzerId: t.benutzerId,
+    objektTyp: 'nachweis',
+    objektId: t.nachweisId,
+  })));
 
   return {
-    angelegt: angelegt + zustellung.zugestellt,
+    angelegt: angelegt + zustellung.zugestellt + team.zugestellt,
     vorhanden,
     ohneKonto,
     ohneEmpfaenger: zustellung.ohneEmpfaenger.length,

@@ -17,6 +17,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { KALENDER_TERMIN_TEXTE } from '@/lib/i18n/verwaltung/kalender-termin';
+import { KALENDER_TEAMS_TEXTE } from '@/lib/i18n/verwaltung/kalender-teams';
 import { AnmeldungNoetig } from '../../Anmeldung';
 import { MandantAntwort, mandantTor } from '../../unterseite';
 import { QuellenPill, quellenWort } from './QuellenPill';
@@ -151,6 +152,7 @@ export default async function Kalender({ params, searchParams }: {
   const darfSchreiben = (await haeltRechte(zugang.sitzung, 'kalender.schreiben'))[
     'kalender.schreiben'] === true;
   const tt = nachSprache(KALENDER_TERMIN_TEXTE, internSprache(zugang.sprache));
+  const teamsTitel = nachSprache(KALENDER_TEAMS_TEXTE, internSprache(zugang.sprache)).titel;
   const wurzel = `/portal/${mandant}/kalender`;
   const adresse = (aenderung: {
     tag?: string; ansicht?: Ansicht; quellen?: string | null; eigene?: boolean;
@@ -192,6 +194,11 @@ export default async function Kalender({ params, searchParams }: {
               {tt.neuerTermin}
             </Link>
           )}
+          {/* V-378: die Teams, nach denen dieser Kalender filtert — dasselbe Leserecht. */}
+          <Link href={alsRoute(`/portal/${mandant}/kalender/teams`)} data-cse="zu-den-teams"
+                className="text-sm text-text underline underline-offset-2">
+            {teamsTitel}
+          </Link>
           <Link href={alsRoute('/portal/konto/kalender-feed')} data-cse="zum-feed"
                 className="text-sm text-text underline underline-offset-2">
             Als Kalender abonnieren

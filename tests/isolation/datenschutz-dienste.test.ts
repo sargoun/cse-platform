@@ -286,6 +286,38 @@ describe('Art. 15: die Auskunft läuft in allen drei Zweigen wirklich', () => {
     expect(zeile![g!.kopf.indexOf('Abgesagt am')]).not.toBe('');
   });
 
+  /*
+   * Copilot-Befund auf PR #42: der Rückzug (V-363, 0508) trägt einen Vermerk
+   * über die Bewerberin und einen Zeitpunkt — gespeichert und angezeigt, aber
+   * nicht in der Auskunft.
+   */
+  it('die Bewerbung: ein vermerkter Rückzug steht mit Zeitpunkt und Vermerk in der Auskunft', async () => {
+    const [st] = await alsRolle('', (tx) => tx.unsafe(
+      `select stelle_id as id from bewerbung where id = $1`, [bewerbung]),
+    ) as unknown as { id: string }[];
+    const [bw] = await alsRolle('', (tx) => tx.unsafe(
+      `insert into bewerbung (mandant_id, stelle_id, name, email, quelle, status,
+                              aufbewahrung_bis, zurueckgezogen_am, zurueckgezogen_von,
+                              zurueckgezogen_vermerk)
+       values ($1, $2, 'Amira Said', 'amira.rueckzug@dienste.test', 'karriereseite',
+               'zurueckgezogen', now() + interval '180 days', now(), $3,
+               'Per E-Mail am 3. Oktober zurückgezogen')
+       returning id`, [f.reinigung, st!.id, dsb])) as unknown as { id: string }[];
+    const anfrageRueckzug = await legeAnfrageAn('auskunft', 'bewerbung_id', bw!.id);
+
+    const a = await imKontext(dsb, async (k) => {
+      const z = await ladeZuordnung(k as LeseKontext, null, anfrageRueckzug);
+      return erstelleAuskunft(k as LeseKontext, anfrageRueckzug, z, new Date());
+    });
+    const b = a.abschnitte.find((s) => s.schluessel === 'bewerbung');
+    expect(b?.kopf).toEqual(expect.arrayContaining(['Zurückgezogen am', 'Rückzugsvermerk']));
+    expect(b!.zeilen).toHaveLength(1);
+    const zeile = b!.zeilen[0]!;
+    expect(zeile[b!.kopf.indexOf('Rückzugsvermerk')]).toBe('Per E-Mail am 3. Oktober zurückgezogen');
+    expect(zeile[b!.kopf.indexOf('Zurückgezogen am')]).not.toBe('');
+    expect(zeile[b!.kopf.indexOf('Status')]).toBe('zurueckgezogen');
+  });
+
   it('der Kontaktzweig führt die sieben Tabellen mit `ansprechpartner_id`', async () => {
     /*
      * Der Befund des Prüfers: hier standen DREI Abschnitte. Diese Zusage

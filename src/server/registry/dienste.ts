@@ -1886,6 +1886,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'nachricht', pfad: 'kern/nachricht',
     schreibend: true, schreibRecht: 'nachricht.versenden',
   },
+  /**
+   * V-378 (D-813): Teams und ihre Mitgliedschaften — unter `kalender.schreiben`,
+   * weil Teams dem Kalendermodul gehören (§7.5, Policies aus 0230).
+   */
+  {
+    modul: 'kalender', pfad: 'kern/team',
+    schreibend: true, schreibRecht: 'kalender.schreiben',
+  },
   /*
    * `inhalt/sicherheit-txt` ist reine Formatierung: eine Kontaktadresse
    * hinein, RFC-9116-Text heraus, oder `null`. Kein Schreibpfad, keine

@@ -23,7 +23,10 @@
  * Hartsperre in `tor.ts`.
  */
 import { erzeuge, type ErzeugteBenachrichtigung } from '../../benachrichtigung/registry.js';
-import { artSchluessel } from './benachrichtigung.js';
+import {
+  ART_ABLAUF_LEITUNG, ART_ABLAUF_PERSONALSTELLE, LEITUNG_AB_TAGE, PERSONALSTELLE_AB_TAGE,
+  artSchluessel,
+} from './benachrichtigung.js';
 import { tageZwischen } from './gueltigkeit.js';
 
 export interface Abfrage {
@@ -54,9 +57,23 @@ export interface Ablaufmeldung {
   readonly benachrichtigung: ErzeugteBenachrichtigung;
 }
 
+/**
+ * Eine Meldung an Personalstelle oder Leitung (V-380, O-31) — an ein KONTO,
+ * nicht an eine Person: die Empfänger sind Verwaltungskonten der erfassenden
+ * Gesellschaft.
+ */
+export interface Teammeldung {
+  readonly nachweisId: string;
+  readonly stufeTage: number;
+  readonly benutzerId: string;
+  readonly benachrichtigung: ErzeugteBenachrichtigung;
+}
+
 export interface Ablaufbericht {
   readonly geprueft: number;
   readonly gemeldet: readonly Ablaufmeldung[];
+  /** Personalstelle ab 30, Leitung ab 7 Tagen — je Konto genau eine Meldung je Stufe. */
+  readonly team: readonly Teammeldung[];
   /** Stufen ohne registrierte Benachrichtigungsart — gemeldet, nie verschluckt. */
   readonly unzustellbar: readonly { nachweisId: string; stufeTage: number; grund: string }[];
 }
@@ -72,6 +89,8 @@ interface Kandidat {
   mandant_slug: string | null;
   /** `person.sprache` — die Sprache, in der die Warnung entsteht (V-102). */
   sprache: string | null;
+  /** Vor- und Nachname — die Personalstelle muss wissen, wessen Nachweis es ist. */
+  person_name: string | null;
 }
 
 const alsTag = (wert: string | Date): string =>
@@ -107,7 +126,9 @@ export async function meldeAblaufwarnungen(
      */
     `select n.id, n.person_id, n.gueltig_bis, q.warnung_tage, q.bezeichnung,
             q.blockiert_einsatz, n.erfasst_von_mandant_id, m.slug as mandant_slug,
-            p.sprache
+            p.sprache,
+            nullif(btrim(coalesce(p.vorname, '') || ' ' || coalesce(p.nachname, '')), '')
+              as person_name
        from nachweis n
        join qualifikation q on q.id = n.qualifikation_id
        left join mandant m on m.id = n.erfasst_von_mandant_id
@@ -123,7 +144,9 @@ export async function meldeAblaufwarnungen(
   )) as readonly Kandidat[];
 
   const gemeldet: Ablaufmeldung[] = [];
+  const team: Teammeldung[] = [];
   const unzustellbar: { nachweisId: string; stufeTage: number; grund: string }[] = [];
+  const empfaenger = teamEmpfaenger(db);
 
   for (const k of kandidaten) {
     const gueltigBis = alsTag(k.gueltig_bis);
@@ -190,8 +213,72 @@ export async function meldeAblaufwarnungen(
           grund: fehler instanceof Error ? fehler.message : String(fehler),
         });
       }
+
+      /*
+       * Personalstelle und Leitung (V-380, O-31) — an dieselbe Quittung
+       * gebunden wie die Meldung an die Person: eine Stufe meldet sich bei
+       * ihnen genau einmal, auch wenn für die Person keine Art registriert ist.
+       */
+      if (stufe <= PERSONALSTELLE_AB_TAGE) {
+        const daten = {
+          person: k.person_name ?? 'Eine Beschäftigte',
+          bezeichnung: k.bezeichnung,
+          gueltigBis,
+          stufeTage: stufe,
+          blockiertEinsatz: k.blockiert_einsatz,
+        };
+        for (const e of await empfaenger(k.erfasst_von_mandant_id, k.person_id, stufe)) {
+          try {
+            team.push({
+              nachweisId: k.id,
+              stufeTage: stufe,
+              benutzerId: e.benutzerId,
+              benachrichtigung: erzeuge(e.art, {
+                mandantId: k.erfasst_von_mandant_id,
+                mandantSlug: k.mandant_slug,
+                objektTyp: 'nachweis',
+                objektId: k.id,
+                daten,
+              }),
+            });
+          } catch (fehler: unknown) {
+            /* Ohne Ziel (keine Gesellschaft mit Slug) keine Meldung (NOT-03) — gesagt, nicht verschluckt. */
+            unzustellbar.push({
+              nachweisId: k.id,
+              stufeTage: stufe,
+              grund: fehler instanceof Error ? fehler.message : String(fehler),
+            });
+          }
+        }
+      }
     }
   }
 
-  return { geprueft: kandidaten.length, gemeldet, unzustellbar };
+  return { geprueft: kandidaten.length, gemeldet, team, unzustellbar };
+}
+
+/**
+ * Wer in der erfassenden Gesellschaft erfährt es (V-380, O-31)?
+ *
+ * **Personalstelle** — wer dort `personal.nachweis_lesen` hält.
+ * **Leitung** — wer dort die Rolle `leitung` hat, ab der 7-Tage-Stufe. Jedes
+ * Konto bekommt je Stufe genau EINE Meldung, nie das der Person selbst. Die
+ * Auswahl macht `kern.nachweis_ablauf_empfaenger` (0504) als Definer: der
+ * Wächter läuft unter `cse_job`, und keine Sitzung sieht die Mitgliedschaften
+ * fremder Konten — eine Empfängerliste, die davon abhinge, wer fragt, wäre
+ * still unvollständig.
+ */
+function teamEmpfaenger(db: Abfrage): (
+  mandantId: string, personId: string, stufe: number,
+) => Promise<readonly { readonly art: string; readonly benutzerId: string }[]> {
+  return async (mandantId, personId, stufe) => {
+    const zeilen = (await db.unsafe(
+      `select benutzer_id, als from kern.nachweis_ablauf_empfaenger($1::uuid, $2::uuid, $3)`,
+      [mandantId, personId, stufe <= LEITUNG_AB_TAGE],
+    )) as readonly { benutzer_id: string; als: string }[];
+    return zeilen.map((z) => ({
+      art: z.als === 'leitung' ? ART_ABLAUF_LEITUNG : ART_ABLAUF_PERSONALSTELLE,
+      benutzerId: z.benutzer_id,
+    }));
+  };
 }

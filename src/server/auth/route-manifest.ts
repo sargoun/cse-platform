@@ -3102,6 +3102,8 @@ export const ROUTEN: readonly RouteEintrag[] = [
    */
   { pfad: 'api/kalender/eintraege', recht: 'kalender.schreiben' },
   { pfad: 'api/kalender/eintraege/[id]', recht: 'kalender.schreiben' },
+  /* V-378 (D-813): Teams anlegen, zuordnen, beenden. */
+  { pfad: 'api/kalender/teams', recht: 'kalender.schreiben' },
   /*
    * Ein Gespräch absagen, verschieben oder als geführt vermerken (REC-06,
    * V-220, D-714) — dieselbe Schranke wie beim Anlegen; `kalender.schreiben`
@@ -3115,6 +3117,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
   {
     pfad: 'api/recruiting/bewerbungen/[id]/entscheidung',
     recht: 'recruiting.entscheiden',
+  },
+  /*
+   * V-363 (D-812): eine Stelle schliessen und den Rückzug einer Bewerbung
+   * vermerken — keines von beiden ist eine Entscheidung über einen Menschen.
+   */
+  {
+    pfad: 'api/recruiting/stellen/[id]/schliessen',
+    recht: 'recruiting.stelle_schreiben',
+  },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/rueckzug',
+    recht: 'recruiting.bewerbung_bewerten',
   },
 ] as const;
 

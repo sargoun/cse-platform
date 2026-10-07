@@ -14,7 +14,7 @@
  */
 import { registriere, type JobDefinition } from './registry.js';
 import { meldeAblaufwarnungen } from '../services/nachweis/ablauf.js';
-import { stelleZu, type Abfrage } from '../benachrichtigung/ablage.js';
+import { stelleZu, stelleZuAnKonto, type Abfrage } from '../benachrichtigung/ablage.js';
 
 export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
   return registriere({
@@ -45,6 +45,13 @@ export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
         objektTyp: 'nachweis',
         objektId: m.nachweisId,
       })));
+      /* Personalstelle ab 30, Leitung ab 7 Tagen (V-380, O-31). */
+      const team = await stelleZuAnKonto(db, bericht.team.map((t) => ({
+        benachrichtigung: t.benachrichtigung,
+        benutzerId: t.benutzerId,
+        objektTyp: 'nachweis',
+        objektId: t.nachweisId,
+      })));
 
       /**
        * Beides steht im Kennzahlensatz, und zwar einzeln.
@@ -59,6 +66,7 @@ export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
         gemeldet: bericht.gemeldet.length,
         zugestellt: zustellung.zugestellt,
         ohne_empfaenger: zustellung.ohneEmpfaenger,
+        an_personalstelle_und_leitung: team.zugestellt,
         unzustellbar: bericht.unzustellbar,
       };
     },

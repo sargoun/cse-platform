@@ -188,6 +188,9 @@ export function registriereBewerberLoeschung(db: JobVerbindung): JobDefinition {
                       email = 'geloescht@example.invalid',
                       telefon = null,
                       nachricht = null,
+                      -- Der Vermerk zum Rückzug (V-363) kann Angaben der
+                      -- Bewerberin tragen; Zeitpunkt und Vermerkende bleiben.
+                      zurueckgezogen_vermerk = null,
                       geaendert_am = now()
                 where id = any($1::uuid[])
                   and status <> 'eingestellt'`,

@@ -11,7 +11,7 @@ import { withTenant } from '@/server/kontext/index';
 import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import { herkunft } from '@/app/auth/mitarbeiter/anmeldung';
 import {
-  KeinAktuellerEintragFehler, KeinKontorechtFehler, korrigiereZeiteintrag,
+  KeinAktuellerEintragFehler, KeinKontorechtFehler, korrekturRueckweg, korrigiereZeiteintrag,
   LaufenderEintragFehler,
   type KorrekturArt, type KorrekturErgebnis, type KorrekturGrund,
 } from '@/server/services/zeit/korrektur';
@@ -177,9 +177,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * `neueFassungId` derselbe Eintrag — dort gibt es keine neue Fassung, nur
    * einen stornierten Datensatz, und genau der soll zu sehen sein.
    */
+  /*
+   * V-321: eine späte Nacherfassung sagt es auch dem, der sie schreibt — und
+   * ob die Leitung den Hinweis wirklich bekommen hat (D-810).
+   */
   return NextResponse.redirect(
-    internesZiel(null, `/portal/${mandant}/zeiten/${ergebnis.neueFassungId}?korrigiert=1`,
-      anfrage),
+    internesZiel(null, korrekturRueckweg(mandant, ergebnis), anfrage),
     303,
   );
 }

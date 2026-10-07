@@ -5,7 +5,9 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import { FormField } from '@/components/ui/FormField';
-import { ladeBewerbung, leseBewertung } from '@/server/services/recruiting/dienst';
+import { OFFENE_STAENDE, ladeBewerbung, leseBewertung } from '@/server/services/recruiting/dienst';
+import { RECRUITING_RUECKZUG_TEXTE } from '@/lib/i18n/verwaltung/recruiting-rueckzug';
+import { setzeEin } from '@/lib/i18n/vorlage';
 import { punktzahlZehntel, punkteText } from '@/server/services/recruiting/rangfolge';
 import { ladeKandidat } from '@/server/services/recruiting/kandidat';
 import { modellStand } from '@/server/agent/modell/auswahl';
@@ -75,6 +77,8 @@ export default async function Bewerbungsblatt(
    * planen".
    */
   const kandidatVorgang = suche['vorgang'] === 'kandidat';
+  /* V-363: der Rückzug schickt seine Abweisung mit `vorgang=rueckzug` zurück. */
+  const rueckzugVorgang = suche['vorgang'] === 'rueckzug';
   const kandidatErledigt = suche['kandidat'] === 'erfasst' || suche['kandidat'] === 'bestaetigt'
     || suche['kandidat'] === 'vorgeschlagen' ? suche['kandidat'] : null;
   return (
@@ -97,6 +101,8 @@ export default async function Bewerbungsblatt(
         const b = d.b;
         const sprache = internSprache(zugang.sprache);
         const kt = nachSprache(RECRUITING_KANDIDAT_TEXTE, sprache);
+        const rt = nachSprache(RECRUITING_RUECKZUG_TEXTE, sprache);
+        const offen = (OFFENE_STAENDE as readonly string[]).includes(b.status);
         const k = d.kandidat;
         const kZurueck = `/portal/${mandant}/recruiting/bewerbungen/${id}?vorgang=kandidat`;
         /* Einmal je gezeichnetem Formular: ein zweiter Klick trägt denselben Schlüssel. */
@@ -207,7 +213,26 @@ export default async function Bewerbungsblatt(
               <dd className="m-0 min-w-0 tabular-nums text-text">{b.aufbewahrungBis}</dd>
               <dt className="text-text-muted">Stand</dt>
               <dd className="m-0 min-w-0 text-text">{BEWERBUNG_TEXT[b.status]}</dd>
+              {/* V-363: der Rückzug steht da, mit Vermerk und Namen. */}
+              {b.zurueckgezogenLokal !== null && (
+                <>
+                  <dt className="text-text-muted">{rt.zurueckgezogen}</dt>
+                  <dd className="m-0 min-w-0 tabular-nums text-text" data-cse="rueckzug-am">
+                    {setzeEin(rt.amVon, { wann: b.zurueckgezogenLokal, wer: b.zurueckgezogenVon ?? '—' })}
+                  </dd>
+                  <dt className="text-text-muted">{rt.vermerkt}</dt>
+                  <dd className="m-0 min-w-0 break-words text-text" data-cse="rueckzug-vermerk">
+                    {b.zurueckgezogenVermerk ?? '—'}
+                  </dd>
+                </>
+              )}
             </dl>
+            {suche['zurueckgezogen'] === '1' && (
+              <Hinweis art="erfolg" rolle="status" cse="rueckzug-erledigt"
+                       className="mb-s5 max-w-prose">
+                {rt.erledigt}
+              </Hinweis>
+            )}
 
             <h2 className="mb-s3 text-h3 text-text">Nachricht</h2>
             <p className="mb-s6 max-w-prose whitespace-pre-line rounded-lg border border-line bg-surface p-s5 text-sm text-text">
@@ -475,7 +500,7 @@ export default async function Bewerbungsblatt(
                     Gesprächsliste und im Kalender dieser Gesellschaft.
                   </Hinweis>
                 )}
-                {abgewiesen !== null && !kandidatVorgang && (
+                {abgewiesen !== null && !kandidatVorgang && !rueckzugVorgang && (
                   <Hinweis art="warnung" rolle="alert" cse="termin-fehler"
                            className="mb-s5 max-w-prose">
                     {eigenerEintrag(FEHLER, abgewiesen) ?? 'Der Termin wurde abgewiesen.'}
@@ -519,6 +544,49 @@ export default async function Bewerbungsblatt(
                   </Button>
                 </form>
               </>
+            )}
+
+            {/*
+              * ------------------------------ Rückzug vermerken (V-363, D-812)
+              *
+              * Die Abweisung steht AUSSERHALB der Bedingung „offen": `nicht_offen`
+              * kommt genau dann zurück, wenn die Bewerbung inzwischen entschieden
+              * oder zurückgezogen ist — und dann gäbe es den Abschnitt sonst
+              * nicht, und der Satz verschwände mit ihm. Nur das Formular hängt
+              * an „offen" und am Recht.
+              */}
+            {((offen && darf['recruiting.bewerbung_bewerten'] === true)
+              || (rueckzugVorgang && abgewiesen !== null)) && (
+              <section aria-labelledby="rueckzug-titel" className="mt-s7 max-w-prose"
+                       data-cse="rueckzug">
+                <h2 id="rueckzug-titel" className="mb-s3 text-h3 text-text">{rt.titel}</h2>
+                {rueckzugVorgang && abgewiesen !== null && (
+                  <Hinweis art="warnung" rolle="alert" cse="rueckzug-fehler" className="mb-s4">
+                    {eigenerEintrag(rt.fehler, abgewiesen) ?? rt.fehlerSonst}
+                  </Hinweis>
+                )}
+                {offen && darf['recruiting.bewerbung_bewerten'] === true && (
+                  <>
+                    <p className="mb-s4 text-sm text-text-muted">{rt.erklaerung}</p>
+                    <form method="post" action={`/api/recruiting/bewerbungen/${id}/rueckzug`}
+                          className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                      <input type="hidden" name="zurueck"
+                             value={`/portal/${mandant}/recruiting/bewerbungen/${id}?vorgang=rueckzug`} />
+                      <div className="flex flex-col gap-s2">
+                        <label htmlFor="r-vermerk" className="text-xs text-text-muted">{rt.vermerk}</label>
+                        <input id="r-vermerk" name="vermerk" required minLength={3} maxLength={300}
+                               className={FELD} data-cse="rueckzug-vermerk-feld" />
+                        <p className="text-xs text-text-subtle">{rt.vermerkHinweis}</p>
+                      </div>
+                      <div>
+                        <Button type="submit" variante="secondary" data-cse="rueckzug-knopf">
+                          {rt.knopf}
+                        </Button>
+                      </div>
+                    </form>
+                  </>
+                )}
+              </section>
             )}
           </>
         );

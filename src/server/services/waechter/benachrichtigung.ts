@@ -1,8 +1,10 @@
 import 'server-only';
 import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/registry.js';
+import { UEBERSICHT_TEXTE } from '../../../lib/i18n/verwaltung/finanzen/uebersicht.js';
 
 /**
- * Die drei Meldungen der fehlenden SPEC-§14-Wachen (NOT-01, NOT-02, NOT-03).
+ * Die Meldungen der SPEC-§14-Wachen (NOT-01, NOT-02, NOT-03): drei aus dem
+ * Dienstplan und dem Bau, seit V-286 dazu der Bruch der Rechnungs-Hashkette.
  *
  * **Drei Arten und nicht eine „Dienstplanwarnung".** NOT-02 hängt je Art:
  * eine Einsatzleitung, die die abendliche Besetzungswarnung unbedingt per
@@ -15,10 +17,12 @@ import { sicherRegistriert, type ArtDefinition } from '../../benachrichtigung/re
 
 const DIENSTPLAN = 'dienstplan';
 const BAU = 'bau';
+const FINANZEN = 'finanzen';
 
 export const ART_SCHICHT_OHNE_ZEIT = `${DIENSTPLAN}.schicht_ohne_zeiteintrag`;
 export const ART_MORGEN_UNBESETZT = `${DIENSTPLAN}.morgen_unbesetzt`;
 export const ART_NACHTRAG_OFFEN = `${BAU}.nachtrag_ueberfaellig`;
+export const ART_KETTE_GEBROCHEN = `${FINANZEN}.kette_gebrochen`;
 
 function ziel(slug: unknown, pfad: string): string | null {
   return typeof slug === 'string' && slug !== '' ? `/portal/${slug}${pfad}` : null;
@@ -118,6 +122,36 @@ function nachtragOffen(): ArtDefinition {
 }
 
 /**
+ * „Hashkette gebrochen" (SPEC §14: „alert immediately", FIN-06, V-286).
+ *
+ * Die Meldung geht an Buchhaltung und Geschäftsführung der Gesellschaft
+ * (`kern.kette_meldung_empfaenger`, 0507), nicht an die Person, die eine
+ * Rechnung geschrieben hat: ein Bruch ist ein Befund über den Bestand, keiner
+ * über eine Handlung. Der Grund steht im Satz der Hashketten-Ansicht, damit
+ * Meldung und Ansicht dasselbe sagen.
+ */
+function ketteGebrochen(): ArtDefinition {
+  const gruende = UEBERSICHT_TEXTE.de.bruchGrund as Readonly<Record<string, string>>;
+  return ({
+    schluessel: ART_KETTE_GEBROCHEN,
+    titel: (k) => `Hashkette gebrochen bei Rechnung ${String(k.daten['nummer'] ?? '?')}`,
+    text: (k) => {
+      const grund = String(k.daten['grund'] ?? '');
+      return 'Die nächtliche Prüfung der Rechnungs-Hashkette hat einen Bruch gefunden: '
+        + `Rechnung ${String(k.daten['nummer'] ?? '?')}, Kreis `
+        + `${String(k.daten['kreis'] ?? '?')}, Position ${String(k.daten['position'] ?? '?')}. `
+        + `${gruende[grund] ?? grund} `
+        + 'Festgeschriebene Rechnungen lassen sich nicht ändern; der Befund heißt, dass '
+        + 'gespeicherte Daten nicht mehr zu ihrem Hash passen. Bitte die Hashketten-Ansicht '
+        + 'prüfen und die Steuerberatung einbeziehen.';
+    },
+    ziel: (k) => ziel(k.mandantSlug, '/finanzen/hashkette'),
+    kanaeleVorgabe: ['app', 'email'],
+    sammelbar: false,
+  });
+}
+
+/**
  * Idempotent, wie bei den Radararten (D-493): der Bootstrap läuft im Test
  * mehrfach — und `sicherRegistriert` prüft je Schlüssel. Die frühere
  * Fassung fragte nur die erste Art; fehlte danach eine der beiden anderen,
@@ -125,5 +159,7 @@ function nachtragOffen(): ArtDefinition {
  * Lücke, die niemand je zu sehen bekam.
  */
 export function registriereWaechterArten(): readonly ArtDefinition[] {
-  return sicherRegistriert([schichtOhneZeit(), morgenUnbesetzt(), nachtragOffen()]);
+  return sicherRegistriert([
+    schichtOhneZeit(), morgenUnbesetzt(), nachtragOffen(), ketteGebrochen(),
+  ]);
 }

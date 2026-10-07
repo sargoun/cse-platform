@@ -198,6 +198,12 @@ export default async function Stellenblatt(
                 {t.bearbeitet}
               </Hinweis>
             )}
+            {suche['geschlossen'] === '1' && (
+              <Hinweis art="erfolg" rolle="status" cse="stelle-geschlossen"
+                       className="mb-s5 max-w-prose">
+                {t.geschlossen}
+              </Hinweis>
+            )}
 
             {s.entwurfVonArt === 'agent' && (
               <Hinweis art="warnung" cse="stelle-agentenentwurf" className="mb-s5 max-w-prose">
@@ -222,6 +228,19 @@ export default async function Stellenblatt(
               <dd className="m-0 min-w-0 tabular-nums text-text">
                 {s.veroeffentlichtAm === null ? '—' : berlinZeit(s.veroeffentlichtAm)}
               </dd>
+              {/* V-363: die Schließung steht da, mit ihrem Grund. */}
+              {s.geschlossenAm !== null && (
+                <>
+                  <dt className="text-text-muted">{t.geschlossenAm}</dt>
+                  <dd className="m-0 min-w-0 tabular-nums text-text" data-cse="stelle-geschlossen-am">
+                    {berlinZeit(s.geschlossenAm)}
+                  </dd>
+                  <dt className="text-text-muted">{t.geschlossenGrund}</dt>
+                  <dd className="m-0 min-w-0 break-words text-text" data-cse="stelle-geschlossen-grund">
+                    {s.geschlossenGrund ?? '—'}
+                  </dd>
+                </>
+              )}
             </dl>
 
             <h2 className="mb-s3 text-h3 text-text">Beschreibung</h2>
@@ -376,6 +395,34 @@ export default async function Stellenblatt(
                   },
                 ]}
               />
+            )}
+
+            {/* ------------------------------ Stelle schließen (V-363, D-812) */}
+            {s.status !== 'geschlossen' && darf['recruiting.stelle_schreiben'] === true && (
+              <section aria-labelledby="stelle-schliessen" className="mt-s7 max-w-prose"
+                       data-cse="stelle-schliessen">
+                <h2 id="stelle-schliessen" className="mb-s3 text-h3 text-text">
+                  {t.schliessenTitel}
+                </h2>
+                <p className="mb-s4 text-sm text-text-muted">{t.schliessenErklaerung}</p>
+                <form method="post" action={`/api/recruiting/stellen/${id}/schliessen`}
+                      className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                  <input type="hidden" name="zurueck"
+                         value={`/portal/${mandant}/recruiting/stellen/${id}`} />
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="s-grund" className="text-xs text-text-muted">
+                      {t.schliessenGrund}
+                    </label>
+                    <input id="s-grund" name="grund" required minLength={3} maxLength={300}
+                           className={FELD} data-cse="stelle-schliessen-grund" />
+                  </div>
+                  <div>
+                    <Button type="submit" variante="danger" data-cse="stelle-schliessen-knopf">
+                      {t.schliessenKnopf}
+                    </Button>
+                  </div>
+                </form>
+              </section>
             )}
           </>
         );

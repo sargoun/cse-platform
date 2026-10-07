@@ -32,12 +32,28 @@ import { setze, texteFuer } from '../../../lib/i18n/benachrichtigung.js';
 /**
  * TODO(client, O-31): Voreinstellung — Stufen 60, 30 und 7 Tage vor Ablauf
  * (je Qualifikation aenderbar, `warnung_tage`); die Meldung geht an die
- * Beschaeftigte selbst, ab 30 Tagen zusaetzlich an die Personalstelle, ab 7
- * Tagen an die Leitung der Gesellschaft. Gebaut ist die Meldung an die
- * Beschaeftigte; Personalstelle und Leitung sehen den Ablauf heute im
- * Nachweisregister und auf der Security-Uebersicht (V-380). D-800.
+ * Beschaeftigte selbst, ab 30 Tagen zusaetzlich an die Personalstelle
+ * (`personal.nachweis_lesen` in der erfassenden Gesellschaft), ab 7 Tagen an
+ * die Leitung der Gesellschaft (Rolle `leitung`, mit `personal.nachweis_lesen`).
+ * Gebaut mit V-380. D-800, D-810.
  */
 export const WARNSTUFEN = [60, 30, 7] as const;
+
+/** Ab dieser Stufe (Tage vor Ablauf) erfährt es die Personalstelle (O-31). */
+export const PERSONALSTELLE_AB_TAGE = 30;
+/** Ab dieser Stufe erfährt es die Leitung der Gesellschaft (O-31). */
+export const LEITUNG_AB_TAGE = 7;
+/*
+ * Wer Personalstelle und wer Leitung ist, entscheidet
+ * `kern.nachweis_ablauf_empfaenger` (0504): `personal.nachweis_lesen` in der
+ * erfassenden Gesellschaft bzw. die Systemrolle `leitung` (03-AUTH §12) — auch
+ * sie nur mit `personal.nachweis_lesen`, dem Recht hinter dem Ziel (NOT-03).
+ */
+
+const NACHWEIS = 'nachweis';
+/** Zusammengesetzt, aus demselben Grund wie `artSchluessel` (Katalogscanner). */
+export const ART_ABLAUF_PERSONALSTELLE = `${NACHWEIS}.ablauf_personalstelle`;
+export const ART_ABLAUF_LEITUNG = `${NACHWEIS}.ablauf_leitung`;
 
 export type Warnstufe = (typeof WARNSTUFEN)[number];
 
@@ -107,6 +123,47 @@ function stufenArt(stufe: Warnstufe): ArtDefinition {
  * die Neuanmeldung ueber der ersten vorhandenen, und aus einer fehlenden
  * Warnstufe wurde ein Fehler bei jedem Seitenaufruf.
  */
+/**
+ * **Personalstelle und Leitung** (V-380, O-31, D-810).
+ *
+ * Deutsch: die Empfänger arbeiten im internen Portal (ArtDefinition, V-102).
+ * Die Meldung nennt den Menschen — die Personalstelle muss wissen, WESSEN
+ * Nachweis abläuft —, nie mehr als Name, Nachweis, Ablauftag und ob danach
+ * die Einteilung gesperrt ist. Das Ziel ist das Nachweisregister der
+ * erfassenden Gesellschaft.
+ */
+function teamArt(schluessel: string, fuer: 'personalstelle' | 'leitung'): ArtDefinition {
+  return ({
+    schluessel,
+    titel: (k) => {
+      const tage = String(k.daten['stufeTage'] ?? '?');
+      const wer = `${String(k.daten['person'] ?? 'unbekannt')} — `
+        + String(k.daten['bezeichnung'] ?? 'unbenannt');
+      return fuer === 'leitung'
+        ? `In ${tage} Tagen läuft ein Nachweis ab: ${wer}`
+        : `Nachweis läuft in ${tage} Tagen ab: ${wer}`;
+    },
+    text: (k) => {
+      const sperrt = k.daten['blockiertEinsatz'] === true;
+      return `${String(k.daten['person'] ?? 'Eine Beschäftigte')}: „`
+        + `${String(k.daten['bezeichnung'] ?? 'unbenannt')}" gilt bis `
+        + `${String(k.daten['gueltigBis'] ?? 'unbekannt')}. `
+        + (sperrt
+          ? 'Danach ist keine Einteilung mehr möglich (SEC-04) — die Verlängerung muss vorher '
+            + 'eingetragen sein.'
+          : 'Bitte die Verlängerung veranlassen und im Nachweisregister eintragen.');
+    },
+    ziel: (k) => (typeof k.mandantSlug === 'string' && k.mandantSlug !== ''
+      ? `/portal/${k.mandantSlug}/personal/nachweise` : null),
+    kanaeleVorgabe: ['app', 'email'],
+    sammelbar: false,
+  });
+}
+
 export function registriereNachweisArten(): readonly ArtDefinition[] {
-  return sicherRegistriert(WARNSTUFEN.map(stufenArt));
+  return sicherRegistriert([
+    ...WARNSTUFEN.map(stufenArt),
+    teamArt(ART_ABLAUF_PERSONALSTELLE, 'personalstelle'),
+    teamArt(ART_ABLAUF_LEITUNG, 'leitung'),
+  ]);
 }

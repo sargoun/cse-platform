@@ -102,7 +102,34 @@ function einwandEntschieden(): ArtDefinition {
   });
 }
 
+export const ART_NACHERFASSUNG_SPAET = `${ZEIT}.nacherfassung_spaet`;
+
+/**
+ * **Eine späte Nacherfassung** (V-321, O-165, D-810) — an die Leitung, deutsch
+ * (internes Portal). Sie sagt, wessen Zeit für welchen Tag wie spät erfasst
+ * wurde, und dass das keine Sperre ist. Sammelbar: ein Hinweis, keine Frist,
+ * die heute noch läuft — die Tageszusammenfassung reicht.
+ */
+function nacherfassungSpaet(): ArtDefinition {
+  return ({
+    schluessel: ART_NACHERFASSUNG_SPAET,
+    titel: (k) => `Nacherfassung ${String(k.daten['tage'] ?? '?')} Tage nach dem Arbeitstag: `
+      + String(k.daten['person'] ?? 'unbekannt'),
+    text: (k) => `Die Zeit von ${String(k.daten['person'] ?? 'unbekannt')} für den `
+      + `${String(k.daten['arbeitstag'] ?? '?')} wurde ${String(k.daten['tage'] ?? '?')} Tage `
+      + 'später nacherfasst. § 17 Abs. 1 MiLoG verlangt die Aufzeichnung spätestens am '
+      + `${String(k.daten['frist'] ?? '7')}. Kalendertag danach. Die Aufzeichnung gilt — `
+      + 'dieser Hinweis ist keine Sperre, sondern der Anlass, nach dem Grund zu fragen.',
+    ziel: (k) => (typeof k.mandantSlug === 'string' && k.mandantSlug !== ''
+      && typeof k.objektId === 'string' && k.objektId !== ''
+      && typeof k.daten['fassung'] === 'string'
+      ? `/portal/${k.mandantSlug}/zeiten/${String(k.daten['fassung'])}` : null),
+    kanaeleVorgabe: ['app'],
+    sammelbar: true,
+  });
+}
+
 /** Idempotent (D-493) — der Bootstrap läuft im Test mehrfach. */
 export function registriereZeitArten(): readonly ArtDefinition[] {
-  return sicherRegistriert([einwandEntschieden()]);
+  return sicherRegistriert([einwandEntschieden(), nacherfassungSpaet()]);
 }
