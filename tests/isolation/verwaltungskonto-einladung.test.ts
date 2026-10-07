@@ -281,6 +281,14 @@ describe('(4) V-302 — einen neuen Link ausstellen', () => {
     const neu = await als(chef, (tx) => stelleLinkNeuAus(kontextAus(tx, chef), leitung));
     expect(neu).toMatchObject({ ok: true, zweck: 'zuruecksetzen' });
     expect(await offeneTokens(leitung)).toEqual([{ zweck: 'zuruecksetzen', n: 1 }]);
+    /* Gültig wie ein Zurücksetzungslink (auth.zuruecksetzung_stunden), nicht wie eine Einladung. */
+    const [frist] = await sql.unsafe<{ passt: boolean }[]>(
+      `select abs(extract(epoch from (t.gueltig_bis - now()))
+                  - 3600 * coalesce((app.plattform_einstellung('auth.zuruecksetzung_stunden'))::int, 2))
+              < 120 as passt
+         from kern.kennwort_token t
+        where t.benutzer_id = $1 and t.eingeloest_am is null`, [leitung]);
+    expect(frist!.passt).toBe(true);
     const [alt] = await sql.unsafe<{ eingeloest: boolean }[]>(
       `select eingeloest_am is not null as eingeloest from kern.kennwort_token
         where token_hash = repeat('c', 64)`);

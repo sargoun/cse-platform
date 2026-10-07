@@ -65,7 +65,8 @@ Readonly<Record<InternSprache, VerwaltungskontoPflegeTexte>> = {
       + 'ersetzt den bisherigen; der alte verfällt sofort.',
     linkAktiv:
       'Das Konto ist aktiv. Der neue Link führt zum Setzen eines neuen Kennworts — für '
-      + 'den Fall, dass es vergessen ist; es ist kein Mailversand verbunden. Jeder offene '
+      + 'den Fall, dass es vergessen ist; es ist kein Mailversand verbunden. Er gilt so lange '
+      + 'wie jeder Zurücksetzungslink (Voreinstellung zwei Stunden, O-500), und jeder offene '
       + 'Link des Kontos verfällt dabei.',
     linkKnopf: 'Link ausstellen',
 
@@ -126,8 +127,8 @@ Readonly<Record<InternSprache, VerwaltungskontoPflegeTexte>> = {
       + 'link replaces the previous one; the old one expires at once.',
     linkAktiv:
       'The account is active. The new link leads to setting a new password — for when it '
-      + 'has been forgotten; no e-mail sending is connected. Every open link of the account '
-      + 'expires.',
+      + 'has been forgotten; no e-mail sending is connected. It is valid as long as any reset '
+      + 'link (default two hours, O-500), and every open link of the account expires.',
     linkKnopf: 'Issue link',
 
     rolleTitel: 'Change role',

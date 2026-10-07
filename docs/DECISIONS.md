@@ -26994,9 +26994,11 @@ Datenbank genau das riet. Voreinstellung zu O-980 und O-981 (D-784).
   aktiven Gesellschaft (lebende, vergebene Mitgliedschaft mit der
   Plattformrolle `admin` oder `leitung`) einen neuen Link. Wartet das Konto,
   ist er eine Einladung; ist es aktiv, ein Link zum Setzen eines neuen
-  Kennworts — derselbe Annahmeweg (`/auth/einladung/[token]`, 0155). Jeder
-  offene Link des Kontos verfällt; ein gesperrtes oder deaktiviertes Konto
-  bekommt keinen. Protokolliert (`system.verwaltungskonto_link_neu`, mit Zweck).
+  Kennworts — derselbe Annahmeweg (`/auth/einladung/[token]`, 0155), gültig so
+  lange wie ein Link seines Zwecks (`auth.einladung_stunden` bzw.
+  `auth.zuruecksetzung_stunden`, O-500). Jeder offene Link des Kontos verfällt;
+  ein gesperrtes oder deaktiviertes Konto bekommt keinen. Protokolliert
+  (`system.verwaltungskonto_link_neu`, mit Zweck).
 - **`app.verwaltungskonto_rolle_wechseln` (0517)**: zwischen `admin` und
   `leitung`, nie zur Super-Administration (D-617), nie am eigenen Konto, nie an
   einem Mitarbeiter- oder Kundenkonto. Eine Modulzuweisung bleibt stehen — an

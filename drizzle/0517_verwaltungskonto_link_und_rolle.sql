@@ -14,7 +14,9 @@
 --     Verwaltungskonto dieser Gesellschaft (lebende Mitgliedschaft mit der
 --     Plattformrolle admin oder leitung, nicht aus einer Anstellung). Wartet
 --     das Konto noch, ist der neue Link eine Einladung; ist es aktiv, ein Link
---     zum Setzen eines neuen Kennworts — derselbe Annahmeweg (0155). Jeder
+--     zum Setzen eines neuen Kennworts — derselbe Annahmeweg (0155). Gueltig
+--     ist er so lange, wie die Plattform es fuer seinen Zweck einstellt
+--     (auth.einladung_stunden bzw. auth.zuruecksetzung_stunden, 0155). Jeder
 --     offene Link des Kontos verfaellt dabei. Ein gesperrtes oder
 --     deaktiviertes Konto bekommt keinen: erst entsperren bzw. wiedergeben.
 -- (2) app.verwaltungskonto_rolle_wechseln(p_benutzer, p_rolle): admin oder
@@ -84,7 +86,7 @@ declare
   v_status  benutzer_status;
   v_aus     timestamptz;
   v_zweck   text;
-  v_stunden int := coalesce((app.plattform_einstellung('auth.einladung_stunden'))::int, 168);
+  v_stunden int;
 begin
   if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$' then
     raise exception 'Der Link wird ausserhalb der Datenbank gebildet und nur als SHA-256 '
@@ -110,6 +112,10 @@ begin
     return;
   end if;
   v_zweck := case when v_status = 'eingeladen' then 'einladung' else 'zuruecksetzen' end;
+  v_stunden := case v_zweck
+    when 'einladung'
+      then coalesce((app.plattform_einstellung('auth.einladung_stunden'))::int, 168)
+    else coalesce((app.plattform_einstellung('auth.zuruecksetzung_stunden'))::int, 2) end;
 
   -- Der alte Link verfaellt — jeder offene, gleich welcher Zweck (wie 0249).
   update kern.kennwort_token t set eingeloest_am = now()
