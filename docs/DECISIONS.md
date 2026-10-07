@@ -25564,7 +25564,7 @@ O-28 und O-374 bleiben Betreiberdaten, O-375 ebenso (D-784).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-199 | Erhoben werden Name, E-Mail, Telefon (freiwillig) und eine Nachricht, bei der Initiativbewerbung der Bereich — kein Geburtsdatum, keine Staatsangehörigkeit, kein Foto, keine Anschrift (Art. 5 Abs. 1 lit. c DSGVO; jedes dieser Merkmale lädt zu einem Benachteiligungsvorwurf nach dem AGG ein). Führerschein, Sachkunde nach § 34a GewO oder Arbeitserlaubnis klärt das Gespräch, wenn die Stelle sie verlangt; nachgewiesen werden sie bei der Einstellung. Wie gebaut. | `app/(public)/karriere/Formular.tsx`, `api/karriere/bewerbung` |
-| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Schliessen einer Stelle und drei Bewerbungsstände haben keinen Schreibweg (V-363). | `recruiting/dienst.ts`, `drizzle/0166` |
+| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Gebaut mit V-363 (D-812): eine Stelle schliesst mit Grund und Protokoll (`recruiting.stelle_schreiben`); `in_pruefung` setzt die erste Bewertung eines Menschen, `gespraech` ein geplantes Gespräch (alle abgesagt: zurück auf `in_pruefung`), `zurueckgezogen` ein Vermerk mit Namen (`recruiting.bewerbung_bewerten`, Frist wie bei einer Absage) — danach keine Entscheidung mehr. | `recruiting/dienst.ts`, `drizzle/0166`, `drizzle/0508` |
 | O-201 | Je Kriterium (aus den Anforderungen der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der gewichtete Mittelwert in Zehnteln, die Gewichte müssen nicht 100 ergeben, ohne Gewicht ist eine Bewerbung unbewertet. Die Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. | `recruiting/rangfolge.ts`, Recruiting › Bewertung |
 | O-202 | E-Mail zusätzlich für die Arten mit Frist oder Risiko — Agentenbudget, Radar, Nachweisablauf, Wiedervorlage, neuer Lead, Lead-Frist, unbesetzte Schicht, Nachtrag; nur im Portal Schicht ohne Zeiteintrag, Einwandentscheidung und Planveröffentlichung — so, wie die Arten es eintragen (`kanaeleVorgabe`); jede Person ändert es unter Konto › Benachrichtigungen. Zugestellt wird per E-Mail noch nichts (V-367). | `benachrichtigung/registry.ts` |
 | O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter steht in der Adresse (`?bereich=`, gebaut mit V-364, D-806). | `app/(public)/karriere/page.tsx` |
@@ -26484,4 +26484,50 @@ fremdes Objekt, vor der Veröffentlichung, Bestätigung), `tests/kern/kettenmeld
 komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-286, V-382; O-357, O-241; `drizzle/0507_kette_meldung_empfaenger.sql`, `src/server/jobs/kettenpruefer.ts`, `src/server/jobs/bootstrap.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/lib/i18n/konto.ts`, `src/server/services/security/dienstanweisung.ts`, `src/app/portal/[mandant]/security/dienstanweisungen/[id]/kenntnisnahmen/page.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts` |
+|---|---|
+
+### D-812 · Bauwelle 8: eine Stelle schliesst, eine Bewerbung bewegt sich ohne Entscheidung (V-363)
+
+**Der Anlass.** `stelle.geschlossen_am` und der Stand `geschlossen` hatten keinen
+Schreibweg; `bewerbung.status` änderte seit 0168 nur die Einstellungsentscheidung.
+`in_pruefung` setzte nur der Seed, `gespraech` und `zurueckgezogen` gar kein Weg.
+Voreinstellung zu O-200 (D-797): die Stände wie 0166.
+
+**Was gebaut ist.**
+- **Stelle schliessen.** `POST /api/recruiting/stellen/[id]/schliessen`
+  (`recruiting.stelle_schreiben`) mit Grund; `schliesseStelle` setzt Stand,
+  Zeitpunkt und Grund und protokolliert (`recruiting.stelle_geschlossen`, alter und
+  neuer Stand). Danach steht die Stelle nicht mehr auf der Karriereseite
+  (`t_stelle_oeffentlich`); die offenen Bewerbungen bleiben und werden weiter
+  entschieden. Wieder öffnen lässt sie sich nicht — eine neue Anzeige ist eine neue
+  Stelle. Das Stellenblatt zeigt Schliessung und Grund (de/en).
+- **Die Stände ohne Entscheidung** (0508, Definer wie der Nachzug aus 0168, `cse_app`
+  ändert `bewerbung` weiterhin nicht): `in_pruefung` bei der ersten Bewertung eines
+  MENSCHEN — eine Bewertung des Agenten bewegt nichts (Art. 22 DSGVO); `gespraech`
+  beim geplanten Gespräch; sind alle Gespräche abgesagt, zurück auf `in_pruefung`.
+  Nur nach vorn, nie für eine entschiedene oder zurückgezogene Bewerbung.
+- **Rückzug als Vermerk.** `app.bewerbung_zurueckziehen` (0508) vermerkt den Rückzug
+  einer offenen Bewerbung mit Zeitpunkt, Namen und Vermerk („per E-Mail am
+  3. Oktober“); vermerken darf, wer `recruiting.bewerbung_bewerten` hält. Die Aufbewahrungsfrist
+  läuft danach wie bei einer Absage (0498: Berliner Tag plus
+  `recruiting.aufbewahrung_tage`, nie kürzer). Eine zurückgezogene Bewerbung wird
+  nicht mehr entschieden — der Dienst sagt es als Satz, ein Auslöser auf
+  `einstellungsentscheidung` hält es fest. Der Löschlauf leert den Vermerk mit den
+  übrigen Angaben der Bewerberin. Das Bewerbungsblatt zeigt Rückzug, Vermerk und
+  Namen und trägt das Formular (de/en).
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-200 | Stände wie 0166; `in_pruefung` bei der ersten Bewertung eines Menschen, `gespraech` beim geplanten Gespräch, `zurueckgezogen` als Vermerk mit Namen; schliessen darf, wer Stellen schreibt — jetzt gebaut. | `drizzle/0508`, `recruiting/dienst.ts` |
+
+**Prüfung.** `tests/isolation/recruiting-stand.test.ts` (10: Bewertung von Mensch und
+Agent, Gespräche und Absage, entschiedene Bewerbung, `cse_app` ohne Update, Rückzug mit
+Frist, keine Entscheidung danach in Dienst und Datenbank, Rechte, Löschlauf, Stelle
+schliessen mit Protokoll und Karriereseite), `tests/kern/recruiting-stand.test.ts`,
+`tests/kern/formular-rueckwege.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-363; O-200; `drizzle/0508_bewerbung_stand_und_rueckzug.sql`, `src/server/services/recruiting/dienst.ts`, `src/server/jobs/bewerberLoeschung.ts`, `src/app/api/recruiting/stellen/[id]/schliessen/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/rueckzug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `src/lib/i18n/verwaltung/recruiting-rueckzug.ts`, `src/lib/i18n/verwaltung/recruiting-rueckmeldung.ts` |
 |---|---|

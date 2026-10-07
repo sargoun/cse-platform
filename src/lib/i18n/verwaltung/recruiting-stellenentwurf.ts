@@ -43,6 +43,15 @@ export interface RecruitingStellenentwurfTexte {
   readonly beschreibung: string;
   readonly beschreibungHinweis: string;
   readonly speichern: string;
+  /* ── Stelle schließen (V-363, D-812) ─────────────────────────────────── */
+  readonly schliessenTitel: string;
+  readonly schliessenErklaerung: string;
+  readonly schliessenGrund: string;
+  readonly schliessenKnopf: string;
+  /** Die Bestätigung nach dem Schließen. */
+  readonly geschlossen: string;
+  readonly geschlossenAm: string;
+  readonly geschlossenGrund: string;
   readonly fehler: Readonly<Record<string, string>>;
   readonly fehlerSonst: string;
 }
@@ -95,7 +104,20 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
     beschreibung: 'Beschreibung',
     beschreibungHinweis: 'Auf der Karriereseite steht genau dieser Text.',
     speichern: 'Änderungen speichern',
+    schliessenTitel: 'Stelle schließen',
+    schliessenErklaerung:
+      'Eine geschlossene Stelle steht nicht mehr auf der Karriereseite. Die Bewerbungen bleiben '
+      + 'und werden weiter entschieden; wieder öffnen lässt sie sich nicht — eine neue Anzeige '
+      + 'ist eine neue Stelle.',
+    schliessenGrund: 'Grund',
+    schliessenKnopf: 'Stelle schließen',
+    geschlossen: 'Die Stelle ist geschlossen. Sie steht nicht mehr auf der Karriereseite.',
+    geschlossenAm: 'Geschlossen',
+    geschlossenGrund: 'Grund der Schließung',
     fehler: {
+      ohne_grund: 'Der Grund sagt, warum die Stelle geschlossen wird — mindestens drei Zeichen.',
+      schon_geschlossen: 'Diese Stelle ist bereits geschlossen.',
+      nicht_geschlossen: 'Die Stelle wurde nicht geschlossen.',
       falscher_status:
         'Bearbeitet und vorgelegt wird ein Entwurf. Was schon freigegeben oder veröffentlicht '
         + 'ist, trägt eine Freigabe für genau diesen Text.',
@@ -158,7 +180,19 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
     beschreibung: 'Description',
     beschreibungHinweis: 'The careers page shows exactly this text.',
     speichern: 'Save changes',
+    schliessenTitel: 'Close position',
+    schliessenErklaerung:
+      'A closed position no longer appears on the careers page. The applications remain and are '
+      + 'still decided; it cannot be reopened — a new advertisement is a new position.',
+    schliessenGrund: 'Reason',
+    schliessenKnopf: 'Close position',
+    geschlossen: 'The position is closed. It no longer appears on the careers page.',
+    geschlossenAm: 'Closed',
+    geschlossenGrund: 'Reason for closing',
     fehler: {
+      ohne_grund: 'The reason says why the position is closed — at least three characters.',
+      schon_geschlossen: 'This position is already closed.',
+      nicht_geschlossen: 'The position was not closed.',
       falscher_status:
         'Only a draft is edited and submitted. What is already approved or published carries '
         + 'an approval for exactly this text.',

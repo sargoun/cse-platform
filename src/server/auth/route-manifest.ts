@@ -3116,6 +3116,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
     pfad: 'api/recruiting/bewerbungen/[id]/entscheidung',
     recht: 'recruiting.entscheiden',
   },
+  /*
+   * V-363 (D-812): eine Stelle schliessen und den Rückzug einer Bewerbung
+   * vermerken — keines von beiden ist eine Entscheidung über einen Menschen.
+   */
+  {
+    pfad: 'api/recruiting/stellen/[id]/schliessen',
+    recht: 'recruiting.stelle_schreiben',
+  },
+  {
+    pfad: 'api/recruiting/bewerbungen/[id]/rueckzug',
+    recht: 'recruiting.bewerbung_bewerten',
+  },
 ] as const;
 
 /** Die Routen, die ein Recht verlangen. */

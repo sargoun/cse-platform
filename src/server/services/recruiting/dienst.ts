@@ -79,6 +79,8 @@ export interface StelleZeile {
   readonly bewerbungsfrist: string | null;
   readonly veroeffentlichtAm: Date | null;
   readonly geschlossenAm: Date | null;
+  /** Warum die Stelle geschlossen wurde (V-363) — `null`, solange sie offen ist. */
+  readonly geschlossenGrund: string | null;
   readonly bewerbungen: number;
 }
 
@@ -91,6 +93,7 @@ const STELLE_FELDER = `
   s.bewerbungsfrist::text                 as bewerbungsfrist,
   s.veroeffentlicht_am                    as "veroeffentlichtAm",
   s.geschlossen_am                        as "geschlossenAm",
+  s.geschlossen_grund                     as "geschlossenGrund",
   (select count(*)::int from bewerbung b
     where b.stelle_id = s.id and b.geloescht_am is null) as bewerbungen`;
 
@@ -451,6 +454,10 @@ export interface BewerbungZeile {
   readonly eingegangenAm: Date;
   readonly aufbewahrungBis: string;
   readonly entschiedenAm: Date | null;
+  /** Der Rückzug (V-363): Berliner Ortszeit, Vermerk, wer vermerkt hat — sonst `null`. */
+  readonly zurueckgezogenLokal: string | null;
+  readonly zurueckgezogenVermerk: string | null;
+  readonly zurueckgezogenVon: string | null;
 }
 
 const BEWERBUNG_FELDER = `
@@ -460,7 +467,11 @@ const BEWERBUNG_FELDER = `
   b.eingegangen_am as "eingegangenAm",
   b.aufbewahrung_bis::text as "aufbewahrungBis",
   (select e.entschieden_am from einstellungsentscheidung e
-    where e.bewerbung_id = b.id) as "entschiedenAm"`;
+    where e.bewerbung_id = b.id) as "entschiedenAm",
+  to_char(b.zurueckgezogen_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                                          as "zurueckgezogenLokal",
+  b.zurueckgezogen_vermerk                as "zurueckgezogenVermerk",
+  (select u.name from benutzer u where u.id = b.zurueckgezogen_von) as "zurueckgezogenVon"`;
 
 export async function listeBewerbungen(
   kontext: LeseKontext,
@@ -546,6 +557,20 @@ export async function entscheide(
     throw new RecruitingFehler(
       'Eine Entscheidung ohne Begründung ist im AGG-Streit nichts wert.',
       'unvollstaendig', 400);
+  }
+  /*
+   * **Eine zurückgezogene Bewerbung wird nicht mehr entschieden** (V-363).
+   * Die Wand steht in der Datenbank (`entscheidung_nicht_nach_rueckzug`,
+   * 0508); hier steht der Satz dazu.
+   */
+  const [stand] = await kontext.abfrage<{ status: BewerbungStatus }>(
+    `select status::text as status from bewerbung
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+    [bewerbungId]);
+  if (stand?.status === 'zurueckgezogen') {
+    throw new RecruitingFehler(
+      'Diese Bewerbung ist zurückgezogen — sie wird nicht mehr entschieden.',
+      'zurueckgezogen', 409);
   }
   /*
    * **Ein zweiter Klick ist ein Konflikt, kein Absturz.**
@@ -942,4 +967,97 @@ export async function bedarf(
       group by o.id, o.bezeichnung
       order by sum(offen.fehlt) desc, o.bezeichnung`,
     [wochen]);
+}
+
+// ---------------------------------------------------------------------------
+// Stelle schliessen und Rückzug einer Bewerbung (V-363, O-200, D-812)
+// ---------------------------------------------------------------------------
+
+const RECRUITING = 'recruiting';
+
+/** Die Auditaktion — zusammengesetzt, sonst hielte die Katalogwache sie für ein Recht. */
+export const AKTION_STELLE_GESCHLOSSEN = `${RECRUITING}.stelle_geschlossen`;
+
+/** Die Stände, aus denen ein Rückzug vermerkt werden kann — keiner davon ist entschieden. */
+export const OFFENE_STAENDE: readonly BewerbungStatus[] = ['eingegangen', 'in_pruefung', 'gespraech'];
+
+/**
+ * Eine Stelle schliessen — mit Grund, protokolliert (V-363).
+ *
+ * Danach steht sie nicht mehr auf der Karriereseite (`t_stelle_oeffentlich`
+ * verlangt `geschlossen_am is null`), und die offenen Bewerbungen bleiben,
+ * wie sie sind: sie werden weiter bearbeitet und entschieden. Wieder öffnen
+ * lässt sie sich nicht; eine neue Anzeige ist eine neue Stelle.
+ */
+export async function schliesseStelle(
+  kontext: SchreibKontext, stelleId: string, grund: string,
+): Promise<void> {
+  const g = grund.trim();
+  if (g.length < 3) {
+    throw new RecruitingFehler(
+      'Der Grund sagt, warum die Stelle geschlossen wird.', 'ohne_grund', 400);
+  }
+  const [s] = await kontext.abfrage<{ status: StelleStatus }>(
+    `select status::text as status from stelle
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+    [stelleId]);
+  if (s === undefined) {
+    throw new RecruitingFehler('Diese Stelle gibt es nicht.', 'unbekannt', 404);
+  }
+  if (s.status === 'geschlossen') {
+    throw new RecruitingFehler('Diese Stelle ist bereits geschlossen.', 'schon_geschlossen', 409);
+  }
+  const [z] = await kontext.schreibe<{ id: string }>(
+    `update stelle
+        set status = 'geschlossen', geschlossen_am = now(), geschlossen_grund = $2
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()
+        and status <> 'geschlossen'
+      returning id`,
+    [stelleId, g]);
+  if (z === undefined) {
+    throw new RecruitingFehler('Die Stelle wurde nicht geschlossen.', 'nicht_geschlossen', 403);
+  }
+  await kontext.schreibe(
+    `select app.protokolliere($1, 'stelle', $2, $3::text::jsonb, $4::text::jsonb,
+                              app.aktiver_mandant())`,
+    [AKTION_STELLE_GESCHLOSSEN, stelleId, JSON.stringify({ status: s.status }),
+      JSON.stringify({ status: 'geschlossen', grund: g })]);
+}
+
+/**
+ * Den Rückzug einer offenen Bewerbung vermerken — auf die Erklärung der
+ * Bewerberin, von einem benannten Menschen (V-363).
+ *
+ * Der Vermerk sagt, wie sie zurückgezogen hat („per E-Mail am 3. Oktober").
+ * Geschrieben wird über `app.bewerbung_zurueckziehen` (0508): `cse_app`
+ * ändert `bewerbung` nicht (0168). Die Aufbewahrungsfrist läuft danach wie
+ * bei einer Absage.
+ */
+export async function zieheBewerbungZurueck(
+  kontext: SchreibKontext, bewerbungId: string, vermerk: string,
+): Promise<void> {
+  const v = vermerk.trim();
+  if (v.length < 3) {
+    throw new RecruitingFehler(
+      'Der Vermerk sagt, wie die Bewerberin zurückgezogen hat.', 'ohne_vermerk', 400);
+  }
+  const [b] = await kontext.abfrage<{ status: BewerbungStatus }>(
+    `select status::text as status from bewerbung
+      where id = $1::uuid and mandant_id = app.aktiver_mandant() and geloescht_am is null`,
+    [bewerbungId]);
+  if (b === undefined) {
+    throw new RecruitingFehler('Diese Bewerbung gibt es nicht.', 'unbekannt', 404);
+  }
+  if (!OFFENE_STAENDE.includes(b.status)) {
+    throw new RecruitingFehler(
+      'Diese Bewerbung ist nicht mehr offen — entschieden oder schon zurückgezogen.',
+      'nicht_offen', 409);
+  }
+  const [z] = await kontext.schreibe<{ ok: boolean }>(
+    `select app.bewerbung_zurueckziehen($1::uuid, $2) as ok`, [bewerbungId, v]);
+  if (z?.ok !== true) {
+    throw new RecruitingFehler(
+      'Diese Bewerbung ist nicht mehr offen — entschieden oder schon zurückgezogen.',
+      'nicht_offen', 409);
+  }
 }

@@ -58,6 +58,8 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
         'Diese Bewerbung ist bereits entschieden. Eine Entscheidung gibt es je Bewerbung genau '
         + 'einmal.',
       abgewiesen: 'Die Entscheidung wurde nicht geschrieben.',
+      zurueckgezogen:
+        'Diese Bewerbung ist zurückgezogen — sie wird nicht mehr entschieden (V-363).',
     },
     stelleNeu: {
       unvollstaendig:
@@ -133,6 +135,8 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
         'This application has already been decided. There is exactly one decision per '
         + 'application.',
       abgewiesen: 'The decision was not recorded.',
+      zurueckgezogen:
+        'This application has been withdrawn — it is no longer decided (V-363).',
     },
     stelleNeu: {
       unvollstaendig:
