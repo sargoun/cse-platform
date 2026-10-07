@@ -1,4 +1,5 @@
 import type { Sprache } from '@/lib/sprache';
+import type { Beschaeftigungsart } from '@/server/services/recruiting/beschaeftigungsart';
 
 /**
  * Die Sätze des Karrierebereichs — deutsch und englisch (D-82, V-393).
@@ -28,6 +29,8 @@ export interface KarriereTexte {
   readonly keineStellenBei: (gesellschaft: string) => string;
   readonly nachAbsprache: string;
   readonly stundenProWoche: (stunden: string) => string;
+  /** V-362 — die Beschäftigungsart der Stelle, in der Sprache der Seite. */
+  readonly beschaeftigungsart: Readonly<Record<Beschaeftigungsart, string>>;
   readonly bewerbungBis: (datum: string) => string;
   readonly nichtsPassend: string;
   readonly initiativText: string;
@@ -97,6 +100,9 @@ export const KARRIERE_TEXTE: Readonly<Record<Sprache, KarriereTexte>> = {
       + 'Initiativbewerbung nehmen wir jederzeit entgegen.',
     nachAbsprache: 'Ort und Umfang nach Absprache',
     stundenProWoche: (h) => `${h.replace('.', ',')} h/Woche`,
+    beschaeftigungsart: {
+      vollzeit: 'Vollzeit', teilzeit: 'Teilzeit', minijob: 'Minijob', aushilfe: 'Aushilfe',
+    },
     bewerbungBis: (d) => `Bewerbung bis ${d}`,
     nichtsPassend: 'Nichts Passendes dabei?',
     initiativText:
@@ -185,6 +191,9 @@ export const KARRIERE_TEXTE: Readonly<Record<Sprache, KarriereTexte>> = {
       + 'under “All companies”, and we accept unsolicited applications at any time.',
     nachAbsprache: 'Location and hours by arrangement',
     stundenProWoche: (h) => `${h} h/week`,
+    beschaeftigungsart: {
+      vollzeit: 'Full-time', teilzeit: 'Part-time', minijob: 'Mini-job', aushilfe: 'Temporary help',
+    },
     bewerbungBis: (d) => `Apply by ${d}`,
     nichtsPassend: 'Nothing suitable?',
     initiativText:

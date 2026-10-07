@@ -57,6 +57,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         objektId: objekt === '' ? null : objekt,
         anforderungen: felder.anforderungen,
         wochenstunden: felder.wochenstunden,
+        beschaeftigungsart: felder.beschaeftigungsart,
         bewerbungsfrist: felder.bewerbungsfrist,
       }, { schluessel, codeVersion: codeVersion() });
       if ('gestoert' in ergebnis) {

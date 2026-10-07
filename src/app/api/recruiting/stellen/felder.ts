@@ -1,4 +1,7 @@
 import { RecruitingFehler } from '@/server/services/recruiting/dienst';
+import {
+  istBeschaeftigungsart, type Beschaeftigungsart,
+} from '@/server/services/recruiting/beschaeftigungsart';
 import { istKalendertag } from '@/server/services/zeit/dauer';
 
 /**
@@ -42,6 +45,8 @@ export interface Stellenfelder {
   readonly anforderungen: readonly string[];
   readonly einsatzort: string | null;
   readonly wochenstunden: number | null;
+  /** V-362 — leer heisst „nicht festgelegt". */
+  readonly beschaeftigungsart: Beschaeftigungsart | null;
   readonly bewerbungsfrist: string | null;
 }
 
@@ -65,6 +70,12 @@ export function leseStellenfelder(felder: Readonly<Record<string, string>>): Ste
       'Wochenstunden zwischen 1 und 60, in halben Stunden.',
       'unbrauchbare_stunden', 400);
   }
+  const artRoh = (felder['beschaeftigungsart'] ?? '').trim();
+  if (artRoh !== '' && !istBeschaeftigungsart(artRoh)) {
+    throw new RecruitingFehler(
+      'Die Beschäftigungsart ist Vollzeit, Teilzeit, Minijob oder Aushilfe.',
+      'unbrauchbare_beschaeftigungsart', 400);
+  }
   const fristRoh = (felder['bewerbungsfrist'] ?? '').trim();
   if (fristRoh !== '' && !istTag(fristRoh)) {
     throw new RecruitingFehler(
@@ -78,6 +89,7 @@ export function leseStellenfelder(felder: Readonly<Record<string, string>>): Ste
     anforderungen,
     einsatzort: einsatzort === '' ? null : einsatzort,
     wochenstunden: stunden,
+    beschaeftigungsart: artRoh === '' ? null : artRoh as Beschaeftigungsart,
     bewerbungsfrist: fristRoh === '' ? null : fristRoh,
   };
 }

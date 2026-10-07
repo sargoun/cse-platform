@@ -8,6 +8,9 @@ import {
   ladeStelle, rangliste, leseVeroeffentlichungen, type StelleStatus,
 } from '@/server/services/recruiting/dienst';
 import { punkteText } from '@/server/services/recruiting/rangfolge';
+import {
+  BESCHAEFTIGUNGSARTEN, vorschlagAusWochenstunden,
+} from '@/server/services/recruiting/beschaeftigungsart';
 import { internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECRUITING_STELLENENTWURF_TEXTE } from '@/lib/i18n/verwaltung/recruiting-stellenentwurf';
@@ -220,6 +223,11 @@ export default async function Stellenblatt(
               <dd className="m-0 min-w-0 text-text">
                 {s.wochenstunden === null ? '—' : `${s.wochenstunden.replace('.', ',')} h`}
               </dd>
+              <dt className="text-text-muted">{t.beschaeftigungsart}</dt>
+              <dd className="m-0 min-w-0 text-text" data-cse="stelle-art-anzeige">
+                {s.beschaeftigungsart === null
+                  ? t.beschaeftigungsartOffen : t.beschaeftigungsarten[s.beschaeftigungsart]}
+              </dd>
               <dt className="text-text-muted">Bewerbungsfrist</dt>
               <dd className="m-0 min-w-0 tabular-nums text-text">
                 {s.bewerbungsfrist ?? 'offen'}
@@ -309,6 +317,20 @@ export default async function Stellenblatt(
                     </label>
                     <input id="b-stunden" name="wochenstunden" type="number" min="1" max="60"
                            step="0.5" defaultValue={s.wochenstunden ?? ''} className={FELD} />
+                  </div>
+                  <div className="flex flex-col gap-s2">
+                    <label htmlFor="b-art" className="text-xs text-text-muted">
+                      {t.beschaeftigungsart}
+                    </label>
+                    <select id="b-art" name="beschaeftigungsart" defaultValue={s.beschaeftigungsart ?? vorschlagAusWochenstunden(
+                              s.wochenstunden === null ? null : Number(s.wochenstunden)) ?? ''}
+                            className={FELD} data-cse="stelle-bearbeiten-art">
+                      <option value="">{t.beschaeftigungsartOffen}</option>
+                      {BESCHAEFTIGUNGSARTEN.map((a) => (
+                        <option key={a} value={a}>{t.beschaeftigungsarten[a]}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-text-subtle">{t.beschaeftigungsartHinweis}</p>
                   </div>
                   <div className="flex flex-col gap-s2">
                     <label htmlFor="b-frist" className="text-xs text-text-muted">{t.frist}</label>

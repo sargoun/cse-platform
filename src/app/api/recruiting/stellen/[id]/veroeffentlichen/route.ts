@@ -107,6 +107,8 @@ export async function POST(
           titel: stelle.titel,
           beschreibung: stelle.beschreibung,
           einsatzort: stelle.einsatzort,
+          beschaeftigungsart: stelle.beschaeftigungsart,
+          wochenstunden: stelle.wochenstunden,
         });
         await vermerkeVeroeffentlichung(
           kontext, id, boerse, 'veroeffentlicht', port.hinweis, externeRef);

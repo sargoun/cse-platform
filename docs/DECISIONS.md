@@ -25564,7 +25564,7 @@ O-28 und O-374 bleiben Betreiberdaten, O-375 ebenso (D-784).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-199 | Erhoben werden Name, E-Mail, Telefon (freiwillig) und eine Nachricht, bei der Initiativbewerbung der Bereich — kein Geburtsdatum, keine Staatsangehörigkeit, kein Foto, keine Anschrift (Art. 5 Abs. 1 lit. c DSGVO; jedes dieser Merkmale lädt zu einem Benachteiligungsvorwurf nach dem AGG ein). Führerschein, Sachkunde nach § 34a GewO oder Arbeitserlaubnis klärt das Gespräch, wenn die Stelle sie verlangt; nachgewiesen werden sie bei der Einstellung. Wie gebaut. | `app/(public)/karriere/Formular.tsx`, `api/karriere/bewerbung` |
-| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Gebaut mit V-363 (D-812): eine Stelle schliesst mit Grund und Protokoll (`recruiting.stelle_schreiben`); `in_pruefung` setzt die erste Bewertung eines Menschen, `gespraech` ein geplantes Gespräch (alle abgesagt: zurück auf `in_pruefung`), `zurueckgezogen` ein Vermerk mit Namen (`recruiting.bewerbung_bewerten`, Frist wie bei einer Absage) — danach keine Entscheidung mehr. | `recruiting/dienst.ts`, `drizzle/0166`, `drizzle/0508` |
+| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle gebaut mit V-362 (D-816, `stelle.beschaeftigungsart`, Vorschlag aus den Wochenstunden: ab 35 Vollzeit, darunter Teilzeit). Gebaut mit V-363 (D-812): eine Stelle schliesst mit Grund und Protokoll (`recruiting.stelle_schreiben`); `in_pruefung` setzt die erste Bewertung eines Menschen, `gespraech` ein geplantes Gespräch (alle abgesagt: zurück auf `in_pruefung`), `zurueckgezogen` ein Vermerk mit Namen (`recruiting.bewerbung_bewerten`, Frist wie bei einer Absage) — danach keine Entscheidung mehr. | `recruiting/dienst.ts`, `drizzle/0166`, `drizzle/0508` |
 | O-201 | Je Kriterium (aus den Anforderungen der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der gewichtete Mittelwert in Zehnteln, die Gewichte müssen nicht 100 ergeben, ohne Gewicht ist eine Bewerbung unbewertet. Die Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. | `recruiting/rangfolge.ts`, Recruiting › Bewertung |
 | O-202 | E-Mail zusätzlich für die Arten mit Frist oder Risiko — Agentenbudget, Radar, Nachweisablauf, Wiedervorlage, neuer Lead, Lead-Frist, unbesetzte Schicht, Nachtrag; nur im Portal Schicht ohne Zeiteintrag, Einwandentscheidung und Planveröffentlichung — so, wie die Arten es eintragen (`kanaeleVorgabe`); jede Person ändert es unter Konto › Benachrichtigungen. Zugestellt wird per E-Mail noch nichts (V-367). | `benachrichtigung/registry.ts` |
 | O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter steht in der Adresse (`?bereich=`, gebaut mit V-364, D-806). | `app/(public)/karriere/page.tsx` |
@@ -26722,4 +26722,47 @@ Recht, einmal je Datum, neues Datum meldet wieder, ohne Anstellung niemand),
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-320; O-140, O-707, O-40; `drizzle/0511_bewacher_pruefung_wiedervorlage.sql`, `src/server/services/security/bewacherregister.ts`, `src/server/services/security/zuverlaessigkeit.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/db/seed/security.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/[mandant]/security/bewacherregister/page.tsx` |
+|---|---|
+
+### D-816 · Bauwelle 13: Eine Stelle führt ihre Beschäftigungsart (V-362)
+
+**Der Anlass.** `stelle` (0166) kannte `wochenstunden`, aber weder Vollzeit
+noch Teilzeit, Minijob oder Aushilfe; der Anzeigentext musste es sagen, und
+die Stellenbörsen fragen danach (O-374). Voreinstellung zu O-200 (D-797): das
+Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe.
+
+**Was gebaut ist.**
+- **0512:** Typ `beschaeftigungsart` und die nullbare Spalte
+  `stelle.beschaeftigungsart` — `NULL` heisst „nicht festgelegt", wie bei den
+  Wochenstunden. Gespeichert wird die Wahl eines Menschen.
+- **Der Vorschlag aus den Wochenstunden** (`recruiting/beschaeftigungsart.ts`,
+  rein): ab 35 Stunden Vollzeit, darunter Teilzeit. Minijob und Aushilfe
+  schlägt er nie vor — ein Minijob bestimmt sich nach dem Verdienst (§ 8
+  SGB IV), eine Aushilfe nach der Dauer. Das Bearbeiten eines Entwurfs wählt
+  ihn vor, wenn noch nichts gewählt ist; der Seed setzt ihn an den
+  Demostellen, der Agentenentwurf bleibt offen, bis ein Mensch ihn bearbeitet.
+- **Formulare** (von Hand, durch den Agenten, Bearbeiten): eine Auswahl mit
+  „Nicht festgelegt", zweisprachig; ein fremder Wert ist ein Satz
+  (`unbrauchbare_beschaeftigungsart`), kein 500. Das Stellenblatt nennt die
+  Art.
+- **Karriereseite** de/en: die Eckdaten nennen die Art in der Sprache der
+  Seite (Vollzeit/Full-time …).
+- **Freigabe und Börse:** die Art steht in der Nutzlast der Freigabe — was
+  freigegeben wird, ist die ganze Anzeige — und im Auftrag an eine
+  Stellenbörse (`StellenAuftrag`), samt Wochenstunden; verbunden ist keine
+  Börse (O-374).
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-200 | Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe an der Stelle; vorgeschlagen wird ab 35 Wochenstunden Vollzeit, darunter Teilzeit — wie D-797, jetzt gebaut. | `drizzle/0512`, `recruiting/beschaeftigungsart.ts` |
+
+**Prüfung.** `tests/kern/beschaeftigungsart.test.ts` (Vokabular, Vorschlag,
+Formular, Namen in jeder Sprache), `tests/kern/stellenentwurf.test.ts`,
+`tests/isolation/recruiting-stellenentwurf.test.ts` (4) (anlegen, lesen, in
+der Freigabe; fremdes Wort abgewiesen), `tests/isolation/recruiting.test.ts`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-362; O-200, O-374; `drizzle/0512_stelle_beschaeftigungsart.sql`, `src/server/services/recruiting/beschaeftigungsart.ts`, `src/server/services/recruiting/dienst.ts`, `src/server/services/recruiting/stellenentwurf.ts`, `src/app/api/recruiting/stellen/felder.ts`, `src/app/api/recruiting/stellen/[id]/route.ts`, `src/app/api/recruiting/stellen/entwurf/route.ts`, `src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts`, `src/server/versand/stellenboerse.ts`, `src/app/portal/[mandant]/recruiting/stellen/{neu,[id]}/page.tsx`, `src/app/(public)/karriere/{daten,texte}.ts`, `src/app/(public)/karriere/Seiten.tsx`, `src/lib/i18n/verwaltung/recruiting-{stellenentwurf,rueckmeldung}.ts`, `src/server/db/seed/{recruiting,stellenentwurf}.ts`, `src/server/registry/dienste.ts` |
 |---|---|

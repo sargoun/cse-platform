@@ -17,6 +17,9 @@
 import type postgres from 'postgres';
 import { aendereStelle } from '../../services/recruiting/stellenentwurf.js';
 import { alsPortalSitzung } from './sitzung.js';
+import {
+  vorschlagAusWochenstunden, type Beschaeftigungsart,
+} from '../../services/recruiting/beschaeftigungsart.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -31,9 +34,11 @@ export async function seedStellenentwurf(
   const [stelle] = await sql<{
     id: string; titel: string; beschreibung: string; anforderungen: string[];
     einsatzort: string | null; wochenstunden: string | null; frist: string | null;
+    art: Beschaeftigungsart | null;
   }[]>`
     select s.id, s.titel, s.beschreibung, s.anforderungen, s.einsatzort,
-           s.wochenstunden::text as wochenstunden, s.bewerbungsfrist::text as frist
+           s.wochenstunden::text as wochenstunden, s.bewerbungsfrist::text as frist,
+           s.beschaeftigungsart::text as art
       from stelle s
      where s.mandant_id = ${reinigung} and s.entwurf_von_art = 'agent'
        and s.status = 'entwurf' and s.freigabe_id is null
@@ -60,6 +65,9 @@ export async function seedStellenentwurf(
       ? stelle.anforderungen : [...stelle.anforderungen, STELLE_ERGAENZUNG],
     einsatzort: stelle.einsatzort,
     wochenstunden: stelle.wochenstunden === null ? null : Number(stelle.wochenstunden),
+    /* V-362 — der Mensch legt beim Bearbeiten fest, was der Vorschlag sagt. */
+    beschaeftigungsart: stelle.art
+      ?? vorschlagAusWochenstunden(stelle.wochenstunden === null ? null : Number(stelle.wochenstunden)),
     bewerbungsfrist: stelle.frist,
   }));
   return { bearbeitet: 1 };

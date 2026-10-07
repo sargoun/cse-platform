@@ -1,4 +1,5 @@
 import type postgres from 'postgres';
+import { vorschlagAusWochenstunden } from '../../services/recruiting/beschaeftigungsart.js';
 
 /**
  * Recruiting für die Vorführung (REC-01…REC-09).
@@ -218,11 +219,14 @@ export async function seedRecruiting(
         const [angelegt] = await tx<{ id: string }[]>`
         insert into stelle
           (mandant_id, titel, beschreibung, anforderungen, einsatzort, wochenstunden,
-           status, bewerbungsfrist, entwurf_von_art)
+           status, bewerbungsfrist, entwurf_von_art, beschaeftigungsart)
         values (${mandantId}, ${v.titel}, ${v.beschreibung}, ${[...v.anforderungen]},
                 ${v.einsatzort}, ${v.wochenstunden}, 'entwurf'::stelle_status,
                 ${veroeffentlicht ? tx`(app.berlin_heute() + 30)` : null},
-                ${i === 1 ? 'agent' : 'mensch'}::akteur_art)
+                ${i === 1 ? 'agent' : 'mensch'}::akteur_art,
+                -- V-362: der Agentenentwurf bleibt offen, bis ein Mensch ihn bearbeitet
+                -- (seed/stellenentwurf.ts); die uebrigen tragen den Vorschlag.
+                ${i === 1 ? null : vorschlagAusWochenstunden(v.wochenstunden)}::beschaeftigungsart)
         returning id`;
         if (angelegt === undefined || !veroeffentlicht) return [angelegt];
 

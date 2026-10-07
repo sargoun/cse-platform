@@ -1802,6 +1802,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * (Invariante 10) — auch wenn es dort heute keine Recruiting-Seite gibt.
    */
   { modul: 'recruiting', pfad: 'recruiting/rangfolge', schreibend: false },
+  /** V-362 — das Vokabular der Beschäftigungsart und der Vorschlag aus den Stunden; rein. */
+  { modul: 'recruiting', pfad: 'recruiting/beschaeftigungsart', schreibend: false },
   {
     modul: 'recruiting', pfad: 'recruiting/dienst', schreibend: true,
     schreibRecht: 'recruiting.stelle_schreiben',
