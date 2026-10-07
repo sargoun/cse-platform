@@ -249,8 +249,16 @@ export async function setzeAngaben(kontext: SchreibKontext, angaben: MandantAnga
     elektronische_adresse_schema: angaben.elektronischeAdresseSchema,
   };
   try {
+    /*
+     * `$1::text::jsonb`, nicht `$1::jsonb`: postgres.js serialisiert einen
+     * Wert fuer einen `jsonb`-Platzhalter selbst, und ein schon serialisiertes
+     * `JSON.stringify(...)` landete als JSON-ZEICHENKETTE beim Definer — der
+     * antwortete auf jede Eingabe mit „Angaben fehlen." (gefunden vom
+     * Isolationstest; dasselbe Muster wie `security/arten.ts`).
+     */
     const [z] = await kontext.schreibe<{ geaendert: boolean }>(
-      `select app.mandant_angaben_setzen($1::jsonb) as geaendert`, [JSON.stringify(nutzlast)]);
+      `select app.mandant_angaben_setzen($1::text::jsonb) as geaendert`,
+      [JSON.stringify(nutzlast)]);
     return z?.geaendert === true;
   } catch (fehler) {
     return uebersetze(fehler);

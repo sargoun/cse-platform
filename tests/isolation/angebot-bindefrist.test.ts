@@ -99,10 +99,15 @@ async function gespeichert(angebotId: string): Promise<string | null> {
   return z!.bis;
 }
 
+/**
+ * `wert` ist JSON-TEXT (`'14'` eine Zahl, `'"21"'` eine Zeichenkette) — deshalb
+ * `$2::text::jsonb`: ein blosses `$2::jsonb` serialisierte den Text ein
+ * zweites Mal, und aus `"21"` wuerde eine Zeichenkette MIT Anfuehrungszeichen.
+ */
 async function einstellung(mandant: string, wert: string): Promise<void> {
   await sql.unsafe(
     `insert into mandant_einstellung (mandant_id, schluessel, wert, beschreibung)
-     values ($1, 'angebot.bindefrist_tage_standard', $2::jsonb, 'Bindefrist (Test)')
+     values ($1, 'angebot.bindefrist_tage_standard', $2::text::jsonb, 'Bindefrist (Test)')
      on conflict (mandant_id, schluessel) do update set wert = excluded.wert`,
     [mandant, wert]);
 }

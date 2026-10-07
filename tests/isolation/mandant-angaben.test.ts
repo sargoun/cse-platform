@@ -190,7 +190,7 @@ describe('(3) was nicht geht', () => {
 
   it('ein Feld, das nicht pflegbar ist, weist die Funktion ab', async () => {
     await expect(als(chef, (k) => k.schreibe(
-      `select app.mandant_angaben_setzen($1::jsonb)`,
+      `select app.mandant_angaben_setzen($1::text::jsonb)`,
       [JSON.stringify({ firma: 'Angabentest GmbH', slug: 'umbenannt' })])))
       .rejects.toThrow(/Unbekanntes Feld: slug/u);
   });
