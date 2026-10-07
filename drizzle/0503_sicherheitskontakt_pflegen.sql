@@ -70,6 +70,13 @@ begin
       using errcode = '22023', detail = 'richtlinie_ohne_kontakt';
   end if;
 
+  -- Erst sperren, dann den Vorher-Stand lesen: zwei gleichzeitige Saetze
+  -- laesen sonst denselben Stand, und das Protokoll des zweiten naennte nicht
+  -- den Kontakt, den er wirklich ersetzt hat. Eine Zeilensperre truege den
+  -- ersten Eintrag nicht — dann gibt es noch keine Zeile. Die Sperre gilt bis
+  -- zum Ende der Transaktion, ueber beide Upserts und das Protokoll.
+  perform pg_advisory_xact_lock(hashtext('plattform.sicherheitskontakt'));
+
   select coalesce(jsonb_object_agg(e.schluessel, e.wert), '{}'::jsonb) into v_vorher
     from public.plattform_einstellung e
    where e.schluessel in ('sicherheit.kontakt', 'sicherheit.richtlinie');

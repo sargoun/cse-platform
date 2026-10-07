@@ -147,6 +147,48 @@ describe('V-392 — der Sicherheitskontakt', () => {
     expect(await protokoll()).toBe(vorher);
   });
 
+  /*
+   * Copilot-Befund auf PR #41: zwei gleichzeitige Sätze lasen denselben
+   * Vorher-Stand, und das Protokoll des zweiten nannte nicht den Kontakt, den
+   * er ersetzt hat. Die Sperre im Definer lässt den zweiten warten.
+   */
+  it('zwei gleichzeitige Sätze: der zweite nennt im Protokoll den, den er ersetzt', async () => {
+    const sperren = async (gewaehrt: boolean): Promise<number> => {
+      const [z] = await sql.unsafe<{ n: number }[]>(
+        `select count(*)::int as n from pg_locks
+          where locktype = 'advisory' and granted = $1
+            and database = (select oid from pg_database where datname = current_database())`,
+        [gewaehrt]);
+      return z!.n;
+    };
+    const bis = async (bedingung: () => Promise<boolean>): Promise<void> => {
+      for (let i = 0; i < 250; i += 1) {
+        if (await bedingung()) return;
+        await new Promise((r) => { setTimeout(r, 20); });
+      }
+      throw new Error('Die Sperre stellte sich nicht ein.');
+    };
+    let freigeben!: () => void;
+    const halt = new Promise<void>((r) => { freigeben = r; });
+    const erster = als(chef, async (x) => {
+      const r = await setzeSicherheitskontakt(x, { kontakt: 'mailto:a@cse.test', richtlinie: '' });
+      await halt;
+      return r;
+    });
+    await bis(async () => (await sperren(true)) >= 1);
+    const zweiter = als(chef, (x) => setzeSicherheitskontakt(x, {
+      kontakt: 'mailto:b@cse.test', richtlinie: '',
+    }));
+    await bis(async () => (await sperren(false)) >= 1);
+    freigeben();
+    expect(await erster).toEqual({ geaendert: true });
+    expect(await zweiter).toEqual({ geaendert: true });
+    const [z] = await sql.unsafe<{ vorher: Record<string, unknown> }[]>(
+      `select vorher from audit_log where aktion = 'plattform.sicherheitskontakt_gesetzt'
+        order by erstellt_am desc, id desc limit 1`);
+    expect(z!.vorher['sicherheit.kontakt']).toBe('mailto:a@cse.test');
+  });
+
   it('leer heißt kein Postfach — die Datei verschwindet wieder', async () => {
     await als(chef, (x) => setzeSicherheitskontakt(x, {
       kontakt: 'tel:+49 30 1234567', richtlinie: '',

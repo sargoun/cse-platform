@@ -875,6 +875,49 @@ describe('(11) V-309 — die eigene Schwelle eines Empfängers (O-15)', () => {
     expect(await schwelle()).toBeNull();
   });
 
+  /*
+   * Copilot-Befund auf PR #41: zwei gleichzeitige Speichervorgänge lasen
+   * denselben Vorwert — beide schrieben, beide zählten die Fassung hoch, und
+   * das Protokoll des zweiten nannte einen Wert, der nicht mehr galt. Mit
+   * `for update` wartet der zweite und liest danach den neuen Wert.
+   */
+  it('zwei gleichzeitige gleiche Schwellen: der zweite wartet und ändert nichts', async () => {
+    await alsWer(benutzer, (k) => setzeEmpfaenger(k, profil, benutzer, 75));
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `select id from radar_profil_empfaenger where radar_profil_id = $1`, [profil]);
+    const vorher = await version();
+    let gehalten!: () => void;
+    const haelt = new Promise<void>((r) => { gehalten = r; });
+    let freigeben!: () => void;
+    const halt = new Promise<void>((r) => { freigeben = r; });
+    const erster = alsWer(benutzer, async (k) => {
+      const r = await setzeEmpfaengerSchwelle(k, profil, e!.id, 40);
+      gehalten();
+      await halt;
+      return r;
+    });
+    await haelt;
+    const zweiter = alsWer(benutzer, (k) => setzeEmpfaengerSchwelle(k, profil, e!.id, 40));
+    for (let i = 0; ; i += 1) {
+      const [w] = await sql.unsafe<{ n: number }[]>(
+        `select count(*)::int as n from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'`);
+      if (w!.n >= 1) break;
+      if (i >= 250) throw new Error('Der zweite wartete nicht auf die Zeile.');
+      await new Promise((r) => { setTimeout(r, 20); });
+    }
+    freigeben();
+    expect(await erster).toEqual({ geaendert: true });
+    expect(await zweiter).toEqual({ geaendert: false });
+    expect(await schwelle()).toBe(40);
+    expect(await version()).toBe(vorher + 1);
+    const zeilen = await sql.unsafe(
+      `select id from audit_log
+        where aktion = 'radar.profil_empfaenger_schwelle' and mandant_id = $1`,
+      [f.reinigung] as never[]);
+    expect(zeilen).toHaveLength(1);
+  });
+
   it('0, Bruchzahlen und mehr als die Skala weist der Dienst ab', async () => {
     for (const falsch of [0, 2.5, 101, Number.NaN]) {
       await expect(alsWer(benutzer, (k) => setzeEmpfaenger(k, profil, benutzer, falsch)), String(falsch))

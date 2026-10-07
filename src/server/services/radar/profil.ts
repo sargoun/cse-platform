@@ -919,18 +919,29 @@ export async function setzeEmpfaengerSchwelle(
   kontext: SchreibKontext, profilId: string, empfaengerId: string, abPunkte: number | null,
 ): Promise<{ readonly geaendert: boolean }> {
   const schwelle = pruefeEmpfaengerSchwelle(abPunkte, await skalaDesProfils(kontext, profilId));
-  const [vorher] = await kontext.abfrage<{ ab_punkte: number | null; benutzer_id: string }>(
+  /*
+   * `for update`: die Zeile bleibt bis zum Ende gesperrt — ein gleichzeitiges
+   * Speichern wartet und liest danach den neuen Wert (dann ist es unverändert
+   * und schreibt nichts), ein gleichzeitiges Entfernen wartet ebenso.
+   */
+  const [vorher] = await kontext.schreibe<{ ab_punkte: number | null; benutzer_id: string }>(
     `select ab_punkte, benutzer_id from radar_profil_empfaenger
-      where id = $1::uuid and radar_profil_id = $2::uuid and mandant_id = $3::uuid`,
+      where id = $1::uuid and radar_profil_id = $2::uuid and mandant_id = $3::uuid
+      for update`,
     [empfaengerId, profilId, kontext.aktiverMandantId]);
   if (vorher === undefined) {
     throw new ProfilFehler('empfaenger', 'Dieser Eintrag gehört nicht zu diesem Profil.');
   }
   const alt = vorher.ab_punkte === null ? null : Number(vorher.ab_punkte);
   if (alt === schwelle) return { geaendert: false };
-  await kontext.schreibe(
-    `update radar_profil_empfaenger set ab_punkte = $2::integer where id = $1::uuid`,
-    [empfaengerId, schwelle]);
+  const geschrieben = await kontext.schreibe<{ id: string }>(
+    `update radar_profil_empfaenger set ab_punkte = $2::integer
+      where id = $1::uuid and radar_profil_id = $3::uuid and mandant_id = $4::uuid
+      returning id`,
+    [empfaengerId, schwelle, profilId, kontext.aktiverMandantId]);
+  if (geschrieben.length === 0) {
+    throw new ProfilFehler('empfaenger', 'Dieser Eintrag gehört nicht zu diesem Profil.');
+  }
   await kontext.schreibe(
     `select app.protokolliere('radar.profil_empfaenger_schwelle', 'radar_profil', $1,
                               $2::jsonb, $3::jsonb, app.aktiver_mandant())`,

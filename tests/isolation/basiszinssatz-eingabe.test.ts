@@ -133,7 +133,7 @@ describe('V-299 — der Basiszinssatz', () => {
     }))).toBe('korrigiert');
     expect((await zeilen()).map((z) => z.satz_bp)).toEqual([-88]);
     const p = await protokoll();
-    expect(p.at(-1)!.vorher).toEqual({ satz_bp: 127, quelle: 'Bundesbank' });
+    expect(p.at(-1)!.vorher).toEqual({ gueltig_bis: '2026-06-30', satz_bp: 127, quelle: 'Bundesbank' });
     const anzahl = p.length;
     expect(await als(chef, (k) => setzeBasiszinssatz(k, {
       halbjahr, satzBp: -88, quelle: 'Bundesbank',
@@ -148,6 +148,61 @@ describe('V-299 — der Basiszinssatz', () => {
     }));
     expect((await zeilen()).map((z) => [z.von, z.bis])).toEqual([
       ['2025-07-01', '2025-12-31'], ['2026-01-01', '2026-06-30']]);
+  });
+
+  /*
+   * Copilot-Befund auf PR #41: eine offene Zeile mit demselben Beginn, Satz und
+   * derselben Quelle hiess „unverändert" — und deckte weiter jedes folgende
+   * Halbjahr. Jetzt zählt das Ende mit.
+   */
+  it('eine offene Zeile mit gleichem Beginn, Satz und Quelle bekommt ihr Ende', async () => {
+    await sql.unsafe(
+      `insert into basiszinssatz (gueltig_von, satz_bp, quelle) values ('2026-01-01', 127, 'Bundesbank')`);
+    expect(await als(chef, (k) => setzeBasiszinssatz(k, {
+      halbjahr: pruefeHalbjahr('2026', '1', 2027), satzBp: 127, quelle: 'Bundesbank',
+    }))).toBe('korrigiert');
+    expect((await zeilen()).map((z) => [z.von, z.bis])).toEqual([['2026-01-01', '2026-06-30']]);
+  });
+
+  /*
+   * Copilot-Befund auf PR #41: zwei gleichzeitige Einträge lasen denselben
+   * Stand — beide „eingetragen", der zweite mit falschem Vorwert. Die Sperre
+   * lässt den zweiten warten; er liest dann den ersten und korrigiert ihn.
+   */
+  it('zwei gleichzeitige Einträge: der zweite wartet und korrigiert — mit dem richtigen Vorwert', async () => {
+    const halbjahr = pruefeHalbjahr('2026', '2', 2027);
+    const sperren = async (gewaehrt: boolean): Promise<number> => {
+      const [z] = await sql.unsafe<{ n: number }[]>(
+        `select count(*)::int as n from pg_locks
+          where locktype = 'advisory' and granted = $1
+            and database = (select oid from pg_database where datname = current_database())`,
+        [gewaehrt]);
+      return z!.n;
+    };
+    const bis = async (bedingung: () => Promise<boolean>): Promise<void> => {
+      for (let i = 0; i < 250; i += 1) {
+        if (await bedingung()) return;
+        await new Promise((r) => { setTimeout(r, 20); });
+      }
+      throw new Error('Die Sperre stellte sich nicht ein.');
+    };
+    let freigeben!: () => void;
+    const halt = new Promise<void>((r) => { freigeben = r; });
+    const erster = als(chef, async (k) => {
+      const r = await setzeBasiszinssatz(k, { halbjahr, satzBp: 100, quelle: 'Bundesbank' });
+      await halt;
+      return r;
+    });
+    await bis(async () => (await sperren(true)) >= 1);
+    const zweiter = als(chef, (k) => setzeBasiszinssatz(k, {
+      halbjahr, satzBp: 200, quelle: 'Bundesbank',
+    }));
+    await bis(async () => (await sperren(false)) >= 1);
+    freigeben();
+    expect(await erster).toBe('eingetragen');
+    expect(await zweiter).toBe('korrigiert');
+    expect((await zeilen()).map((z) => z.satz_bp)).toEqual([200]);
+    expect((await protokoll()).at(-1)!.vorher).toMatchObject({ satz_bp: 100 });
   });
 
   it('eine Zeile, die mitten im Halbjahr beginnt, überlappt — und nichts wird geschrieben', async () => {

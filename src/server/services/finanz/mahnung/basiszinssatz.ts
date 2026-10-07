@@ -198,10 +198,30 @@ export async function setzeBasiszinssatz(
       'Den Basiszinssatz trägt die Super-Administration ein — er gehört keiner Gesellschaft.');
   }
 
-  const [alt] = await kontext.abfrage<{ id: string; satz_bp: number; quelle: string }>(
-    `select id, satz_bp, quelle from basiszinssatz where gueltig_von = $1::date`,
+  /*
+   * Erst sperren, dann den alten Stand lesen — für die ganze Tabelle, weil
+   * ein Eintrag auch die offene Zeile davor schliesst. Zwei gleichzeitige
+   * Speichervorgänge läsen sonst denselben Stand: der zweite überschriebe den
+   * ersten mit einem veralteten Vorwert im Protokoll, und beim ersten Eintrag
+   * meldeten beide „eingetragen". Eine Zeilensperre trüge den ersten Eintrag
+   * nicht — dann gibt es noch keine Zeile.
+   */
+  await kontext.schreibe(`select pg_advisory_xact_lock(hashtext('basiszinssatz'))`);
+
+  const [alt] = await kontext.abfrage<{
+    id: string; satz_bp: number; quelle: string; bis: string | null;
+  }>(
+    `select id, satz_bp, quelle, gueltig_bis::text as bis
+       from basiszinssatz where gueltig_von = $1::date`,
     [e.halbjahr.von]);
-  if (alt !== undefined && Number(alt.satz_bp) === e.satzBp && alt.quelle === e.quelle) {
+  /*
+   * Unverändert nur, wenn auch das ENDE stimmt: eine offene Zeile mit
+   * demselben Beginn, Satz und derselben Quelle (0125 lässt sie zu) deckte
+   * sonst weiter die folgenden Halbjahre, und der Wächter hielte einen
+   * fehlenden Satz für vorhanden.
+   */
+  if (alt !== undefined && Number(alt.satz_bp) === e.satzBp && alt.quelle === e.quelle
+      && alt.bis === e.halbjahr.bis) {
     return 'unveraendert';
   }
 
@@ -233,7 +253,8 @@ export async function setzeBasiszinssatz(
     `select app.protokolliere('basiszinssatz.gesetzt', 'basiszinssatz', $1, $2::jsonb,
                               $3::jsonb, app.aktiver_mandant())`,
     [id,
-      alt === undefined ? null : { satz_bp: Number(alt.satz_bp), quelle: alt.quelle },
+      alt === undefined ? null
+        : { gueltig_bis: alt.bis, satz_bp: Number(alt.satz_bp), quelle: alt.quelle },
       { gueltig_von: e.halbjahr.von, gueltig_bis: e.halbjahr.bis, satz_bp: e.satzBp,
         quelle: e.quelle }]);
   return alt === undefined ? 'eingetragen' : 'korrigiert';
