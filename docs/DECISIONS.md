@@ -26403,9 +26403,15 @@ Arbeitstag (O-165, D-788).
 | O-195 | Warnung bei 80 %, einmal je Budgetzeile, an alle mit `agent.budget_verwalten` — wie D-784, jetzt mit Auslöser. | `drizzle/0505`, `agent/budget.ts` |
 | O-165 | Sieben Kalendertage nach dem Arbeitstag, danach Hinweis an die Leitung, kein Verbot — wie D-788, jetzt gebaut. | `drizzle/0506`, `zeit/korrektur.ts` |
 
-**Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (4),
-`tests/isolation/nacherfassung-frist.test.ts` (in der CI), `tests/kern/nachweis.test.ts`,
-`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+**Beim Prüfen berichtigt.** Die volle Isolationssuite fand, dass 0504 und 0506
+das Fenster der Mitgliedschaft gegen `current_date` prüften — den Tag der
+Sitzungszeitzone (`berechtigungsfenster.test.ts`, 0169). Beide fragen jetzt
+`app.berlin_heute()`, wie `app.hat_recht_fuer`.
 
-| Betrifft | V-380, V-292, V-321; O-31, O-195, O-165; `drizzle/0504_nachweis_ablauf_empfaenger.sql`, `drizzle/0505_agent_budget_warnschwelle.sql`, `drizzle/0506_nacherfassung_frist.sql`, `src/server/services/nachweis/ablauf.ts`, `src/server/services/nachweis/benachrichtigung.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/agent/budget.ts`, `src/server/agent/benachrichtigung.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/zeit/korrektur.ts`, `src/server/services/zeit/benachrichtigung.ts`, `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/lib/i18n/konto.ts` |
+**Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (4),
+`tests/isolation/nacherfassung-frist.test.ts`, `tests/isolation/berechtigungsfenster.test.ts`,
+die volle Isolationssuite (256 Dateien), `tests/kern/nachweis.test.ts`, `tests/kern` komplett,
+`pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-380, V-292, V-321; O-31, O-195, O-165; `drizzle/0504_nachweis_ablauf_empfaenger.sql`, `drizzle/0505_agent_budget_warnschwelle.sql`, `drizzle/0506_nacherfassung_frist.sql`, `src/server/services/nachweis/ablauf.ts`, `src/server/services/nachweis/benachrichtigung.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/agent/budget.ts`, `src/server/agent/benachrichtigung.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/zeit/korrektur.ts`, `src/server/services/zeit/benachrichtigung.ts`, `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/lib/i18n/konto.ts`, `tests/isolation/berechtigungsfenster.test.ts` |
 |---|---|
