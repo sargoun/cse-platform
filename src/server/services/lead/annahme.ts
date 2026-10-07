@@ -113,11 +113,12 @@ export interface AnnahmeErgebnis {
  * Feld) verschwindet spurlos, und der Absender bekommt dieselbe Dankseite wie
  * bei Erfolg — OHNE Vorgangsnummer, denn es gibt keinen Vorgang (D-651). Ein
  * Programm, das Antworten vergleicht, erkennt den Treffer daran weiterhin;
- * eine erfundene Nummer waere der teurere Preis. Ob das so bleibt, ist eine
- * Abwaegung zwischen einer verlorenen Anfrage und einer Angriffsflaeche — sie
- * steht als O-905 beim Auftraggeber und wird hier nicht nebenbei entschieden.
+ * eine erfundene Nummer waere der teurere Preis. Voreinstellung (O-905,
+ * D-798): so bleibt es — die Angriffsflaeche wiegt schwerer als der seltene
+ * Fehlalarm, und den vermeidet das Feld selbst (`tabIndex={-1}`,
+ * `autoComplete="off"`, fuer Menschen unsichtbar).
  */
-// TODO(client, O-905): Soll eine als automatisiert abgewiesene Einsendung aufbewahrt werden — oder nur gezaehlt, oder gar nicht?
+// TODO(client, O-905): Voreinstellung — ein Honigtopftreffer wird weder aufbewahrt noch gezaehlt (kein Verstaerker); Fehlalarme vermeidet das Feld. Wie gebaut. D-798.
 export function istBot(honigtopf: string | undefined): boolean {
   return honigtopf !== undefined && honigtopf.trim() !== '';
 }

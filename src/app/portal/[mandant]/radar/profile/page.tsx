@@ -175,7 +175,8 @@ export default async function Profile(
           <strong>Kein Profil angelegt.</strong> Ohne Profil bewertet der Lauf nichts, und die
           Radarliste bleibt leer. Das Formular darüber legt eines an; die CPV-Codes dieses
           Gewerks kommen danach auf dem Profilblatt dazu — und sie sind gegen die amtliche
-          CPV-Liste zu bestätigen (offene Frage O-98), bevor sie hier als bestätigt gelten.
+          CPV-Liste zu bestätigen, bevor sie hier als bestätigt gelten — bis dahin sind sie
+          Voreinstellung (O-98).
         </Hinweis>
       ) : (
         <ul data-cse="radar-profile-liste" className="flex flex-col gap-s4">

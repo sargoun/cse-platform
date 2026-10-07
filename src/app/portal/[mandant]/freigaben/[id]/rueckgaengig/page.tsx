@@ -43,7 +43,7 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * nur `ausfuehrung_status` umsetzt und die Rechnung stehen lässt, wäre ein
  * vorgetäuschter Erfolg: jemand drückt ihn und glaubt, es sei zurückgeholt.
  * Wer eine Rückholung baut, trägt ihre Vorgangsart in
- * `app.freigabe_umkehrbar` ein und schreibt den Test dazu. Offene Frage:
+ * `app.freigabe_umkehrbar` ein und schreibt den Test dazu. Voreinstellung:
  * {@link RUECKNAHME_OFFENE_FRAGE}.
  *
  * **Zurückgenommen wird die HANDLUNG, nicht die Entscheidung.** Die Freigabe
@@ -175,8 +175,8 @@ export default async function Rueckgaengig(
           <p className="mb-s3 text-sm text-text-muted">
             Ausgeführt — bis <strong>{ZEIT.format(lage.bis)}</strong>{' '}
             ({restInWorten(lage.restSekunden)}) lässt sich das zurücknehmen. Die
-            Fensterlänge von {String(RUECKNAHME_MINUTEN)} Minuten ist ein{' '}
-            <strong>Platzhalter</strong> (offene Frage {FENSTER_OFFENE_FRAGE}).
+            Fensterlänge von {String(RUECKNAHME_MINUTEN)} Minuten ist eine{' '}
+            <strong>Voreinstellung</strong> ({FENSTER_OFFENE_FRAGE}).
             Zurückgenommen wird die
             Ausführung, nicht die Entscheidung: der Schnappschuss bleibt, was er war
             (APR-07).
@@ -234,7 +234,7 @@ export default async function Rueckgaengig(
           gelöscht (Invariante 8) — korrigiert wird per Storno, und eine Stornofunktion
           für Eingangsrechnungen existiert nicht. Ein Knopf, der nur den Stand umsetzt und
           die Rechnung stehen lässt, wäre ein vorgetäuschter Erfolg. Eine Korrektur ist
-          deshalb eine NEUE Freigabe (§4.5). Offene Frage: {RUECKNAHME_OFFENE_FRAGE}.
+          deshalb eine NEUE Freigabe (§4.5) — Voreinstellung {RUECKNAHME_OFFENE_FRAGE}.
         </Hinweis>
       )}
 

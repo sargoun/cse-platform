@@ -29,9 +29,11 @@ import { NachtragFehler, reicheEin } from '@/server/services/bau/nachtrag';
  * noch nichts an den Auftraggeber geschickt. Die Freigabe wird hier GEPRUEFT
  * und nicht erteilt (D-250).
  *
- * // TODO(client, O-260): Wer gibt die Einreichung eines Nachtrags nach § 2
- * VOB/B frei — die Bauleitung selbst oder ein Zweiter? `versand.freigeben` ist
- * heute an `super_admin`/`admin` gebunden und fuer `leitung` nur bindbar.
+ * // TODO(client, O-260): Voreinstellung — ein Zweiter gibt frei (Vier-Augen-
+ * Prinzip): wer den Nachtrag nach § 2 VOB/B einreicht, gibt ihn nicht selbst
+ * frei. Entschieden wird seit 0136 mit `freigabe.entscheiden` (auch
+ * `leitung`); dass Urheber und Entscheider verschieden sind, prueft heute
+ * niemand (V-383). D-800.
  *
  * `POST` statt `PATCH`: der Aufrufer ist ein HTML-Formular.
  */

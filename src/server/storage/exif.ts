@@ -282,11 +282,11 @@ export function entferneMetadaten(daten: Uint8Array, mime: string): ExifErgebnis
      * still ist: es sieht bereinigt aus. Solange keine geprüfte Bibliothek
      * dafür eingerichtet ist, ist die ehrliche Antwort die Ablehnung.
      *
-     * // TODO(client, O-346): Soll die Plattform HEIC annehmen? Das hiesse
-     * eine Bildbibliothek mit HEIF-Unterstützung in die Auslieferung zu
-     * nehmen. Bis dahin: iPhones können „Maximale Kompatibilität" senden
-     * (JPEG), und der Browser wandelt beim Hochladen aus der Mediathek
-     * ohnehin meist um.
+     * // TODO(client, O-346): Voreinstellung — HEIC wird abgelehnt; eine
+     * Bildbibliothek mit HEIF-Unterstützung käme mit eigener Angriffsfläche
+     * auf jeden Upload. iPhones senden mit „Maximale Kompatibilität" JPEG,
+     * und der Browser wandelt beim Hochladen aus der Mediathek meist um. Wie
+     * gebaut. D-800.
      */
     throw new ExifFehler(
       'HEIC-Bilder werden derzeit nicht angenommen: ihre Ortsdaten liegen als '

@@ -132,6 +132,12 @@ export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
          and a.status = 'aktiv'
        order by p.nachname, p.vorname
        limit 3`;
+    /*
+     * TODO(client, O-650): Voreinstellung — Rollen im Team: Leitung,
+     * Stellvertretung, Mitglied, Springer, als Vorschlagsliste; die Spalte
+     * `rolle` bleibt Text (0230). Der Seed setzt keine, und Teams und
+     * Mitglieder haben ausser hier keinen Schreibweg (V-378). D-799.
+     */
     for (const a of beschaeftigungen) {
       const eingefuegt = await sql`
         insert into team_mitglied (mandant_id, team_id, anstellung_id, person_id,

@@ -134,9 +134,9 @@ export function PositionsFelder(
                  className="mt-s1 min-h-5 min-w-5" />
           <span>
             Diese Werte sind für <strong>diese Fassung</strong> bestätigt.
-            Ohne Häkchen ist die Position als Platzhalter gekennzeichnet und
-            erscheint überall als unbestätigt. Das Häkchen beantwortet{' '}
-            <strong>nicht</strong> O-17 oder O-731 — es sagt „für diese
+            Ohne Häkchen bleibt die Position eine gekennzeichnete Voreinstellung
+            und erscheint überall als unbestätigt. Das Häkchen bestätigt{' '}
+            <strong>nur</strong> diese Fassung (O-17, O-731) — es sagt „für diese
             Fassung rechnen wir so".
           </span>
         </label>

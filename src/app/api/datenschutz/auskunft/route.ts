@@ -164,7 +164,7 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
         offeneFristen: a.offeneFristen,
         meldung: `Für ${String(a.offeneFristen.length)} von `
           + `${String(a.abschnitte.length)} Abschnitten ist die `
-          + 'Aufbewahrungsfrist noch nicht entschieden (O-514). Art. 15 Abs. 1 '
+          + 'Aufbewahrungsfrist noch nicht hinterlegt (Voreinstellung O-514). Art. 15 Abs. 1 '
           + 'lit. d verlangt die geplante Speicherdauer oder wenigstens die '
           + 'Kriterien. Die Auskunft nennt das jetzt sichtbar über allen '
           + 'Abschnitten; bestätigen Sie den Abruf mit '

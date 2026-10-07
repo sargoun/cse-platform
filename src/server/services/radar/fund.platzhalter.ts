@@ -54,7 +54,7 @@ export interface FundDefinition {
 
 /** Die Lesart, bis O-941 beantwortet ist — beschriftet als Platzhalter. */
 export const FUND_PLATZHALTER: FundDefinition = {
-  name: 'leistungstreffer (Platzhalter, O-941)',
+  name: 'leistungstreffer (Voreinstellung, O-941)',
   regeln: ['cpv', 'stichwort'],
 };
 

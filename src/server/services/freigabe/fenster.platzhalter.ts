@@ -1,10 +1,11 @@
 import 'server-only';
 
 /**
- * Die beiden Fenster aus APR-05 und APR-06 — **als Platzhalter**.
+ * Die beiden Fenster aus APR-05 und APR-06 — **als Voreinstellung** (O-108,
+ * D-780).
  *
- * // TODO(client) [O-108]: Wie lange soll das Einspruchsfenster (APR-05) und
- * // wie lange das Rücknahmefenster (APR-06) laufen, je Vorgangsart?
+ * // TODO(client, O-108): Voreinstellung — Einspruchsfenster 30 Minuten,
+ * // Rücknahmefenster 60 Minuten, für alle Vorgangsarten gleich (D-780).
  *
  * **Warum eine eigene Datei mit `platzhalter` im Namen.** Diese beiden Zahlen
  * sind Betriebsentscheidungen, keine technischen Konstanten: fünfzehn Minuten
@@ -25,7 +26,7 @@ export const EINSPRUCH_MINUTEN = 30;
 /** Rücknahmefenster nach der Ausführung (APR-06), in Minuten. */
 export const RUECKNAHME_MINUTEN = 60;
 
-/** Die offene Frage, die beide Zahlen trägt — sie steht in der Oberfläche. */
+/** Die Frage hinter der Voreinstellung beider Zahlen — sie steht in der Oberfläche. */
 export const FENSTER_OFFENE_FRAGE = 'O-108';
 
 /**
@@ -37,8 +38,10 @@ export const FENSTER_OFFENE_FRAGE = 'O-108';
  * merkte nichts davon. Seit `0153` entscheidet `app.freigabe_umkehrbar` —
  * eine Liste, zwei Eingänge wären zwei Listen.
  *
- * Und sie gibt heute für jede Vorgangsart `false` zurück: für die einzige
- * Handlung, die ausgeführt wird, ist kein Rückweg gebaut (O-368). Der Weg
- * steht, er ist für nichts armiert, und das sagt die Prüfseite auch.
+ * Und sie gibt für jede Vorgangsart `false` zurück — Voreinstellung (O-368,
+ * D-799): keine Handlung ist umkehrbar, eine Korrektur ist eine neue Freigabe
+ * oder ein Storno. Der Weg steht, er ist für nichts armiert, und das sagt die
+ * Prüfseite auch. Wer eine Rückholung baut, trägt ihre Vorgangsart in
+ * `app.freigabe_umkehrbar` ein.
  */
 export const RUECKNAHME_OFFENE_FRAGE = 'O-368';

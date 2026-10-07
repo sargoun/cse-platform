@@ -20,10 +20,15 @@
  *    deshalb steht der Ausfall in der Datenbank und nicht nur in einem
  *    Protokoll, das rotiert.
  *
- * Sobald eine Bereitschaftsadresse feststeht, bekommt sie hier einen zweiten
- * Empfaenger; der Rest bleibt.
- * // TODO(client, O-354): An welche Adresse (Mail, Dienst, Nummer) geht ein
- * gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?
+ * Ein Weg nach draussen kommt hier als zweiter Empfaenger hinzu; der Rest
+ * bleibt.
+ * // TODO(client, O-354): Voreinstellung — ein Alarm je endgueltig
+ * gescheitertem Lauf (nach den Wiederholungen des Runners) und je Lauf mit
+ * fehlerhaften Mandanten; geweckt wird niemand, die Gruppe hat keinen
+ * Bereitschaftsdienst. Der Alarm steht in der Betriebsansicht
+ * (`/einstellungen/betrieb`), im Funktionsprotokoll und in `job_lauf`; eine
+ * E-Mail an das Betriebspostfach der Gruppe braucht den Versanddienst (O-116)
+ * und die Adresse (Betreiberdaten) und ist nicht gebaut (V-374). D-799.
  */
 import type { Alarm } from './runner.js';
 

@@ -39,9 +39,11 @@
  *
  * Er wendet **keine** Übermessungs- oder Abzugsregel an. Was der Mensch
  * geschrieben hat, wird gerechnet — nicht mehr.
- * // TODO(client, O-23): Sollen VOB/C-Abzugs- und Uebermessungsregeln (ATV je
- * Gewerk, DIN 18299 ff.) automatisch angewandt werden, oder bleibt der
- * Rechenansatz vollstaendig manuell?
+ * // TODO(client, O-23): Voreinstellung — Abzuege und Uebermessung nach VOB/C
+ * (ATV je Gewerk, DIN 18299 ff.) traegt die Bauleitung in den Rechenansatz
+ * ein; die Plattform wendet keine Regel automatisch an. Die § 2-Grundlagen
+ * sind die vollstaendige Liste aus dem Gesetzestext, als unbestaetigt
+ * gekennzeichnet; bestaetigen laesst sie sich noch nicht (V-384). D-800.
  */
 
 /**

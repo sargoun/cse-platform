@@ -97,8 +97,8 @@ function Zelle({ zelle }: { readonly zelle: RadarZelle }) {
         </span>
       ) : null}
       {zelle.istPlatzhalterProfil ? (
-        <span className="text-xs text-text-subtle" title="Suchprofil mit unbestätigten Gewichten (O-98)">
-          Platzhalterprofil
+        <span className="text-xs text-text-subtle" title="Suchprofil mit unbestätigten Gewichten (Voreinstellung O-98)">
+          Profil unbestätigt
         </span>
       ) : null}
     </span>
@@ -294,7 +294,7 @@ export default async function GruppenRadar({ searchParams }: { searchParams: Suc
                         : `${String(b.profilePlatzhalter)} davon mit unbestätigten Gewichten (O-98)`}>
                   {b.profileAktiv}
                   {b.profilePlatzhalter !== null && b.profilePlatzhalter > 0
-                    ? <span className="text-text-subtle"> ({b.profilePlatzhalter} Platzhalter)</span>
+                    ? <span className="text-text-subtle"> ({b.profilePlatzhalter} unbestätigt)</span>
                     : null}
                 </span>
               )) },

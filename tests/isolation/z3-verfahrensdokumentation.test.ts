@@ -377,9 +377,9 @@ describe('(2) die Verfahrensdokumentation', () => {
     expect(utf8.decode(a.kanonisch)).not.toContain('Kettenglieder:');
     expect(utf8.decode(a.kanonisch)).not.toContain('Protokoll dieser Gesellschaft');
     expect(abschnitt('3.2').bestand?.[0]).toMatch(/^Protokoll dieser Gesellschaft: [1-9]\d* Einträge/u);
-    /* 2.3 Kontenrahmen als Platzhalter, Zuordnungen gezaehlt. */
+    /* 2.3 Kontenrahmen als Voreinstellung (O-05, D-779), Zuordnungen gezaehlt. */
     expect(abschnitt('2.3').absaetze.join(' ')).toContain('SKR03');
-    expect(abschnitt('2.3').absaetze.join(' ')).toContain('Platzhalter (O-05)');
+    expect(abschnitt('2.3').absaetze.join(' ')).toContain('Voreinstellung (O-05)');
     expect(abschnitt('2.3').absaetze.join(' ')).toContain('erloes_leistung 1');
     /* 2.5 neun Aufbewahrungsregeln, keine unter zehn Jahren fuer Rechnungen. */
     expect(abschnitt('2.5').tabelle?.zeilen).toHaveLength(9);

@@ -67,13 +67,15 @@ import {
  */
 
 /**
- * PLATZHALTER — der Kalkulationsstand eines Angebots von Hand (V-238).
+ * VOREINSTELLUNG (O-920, D-800) — der Kalkulationsstand eines Angebots von
+ * Hand (V-238).
  *
- * `vorhanden: false` ist der heutige Zustand, nicht die Antwort. Die Maske
- * und das Kalkulationsblatt lesen die offene Frage von hier, damit die
- * Antwort EINE Stelle ändert.
+ * `vorhanden: false` ist die Voreinstellung: ein Angebot von Hand trägt den
+ * Preis, den ein Mensch einträgt, und wer freigibt, verantwortet ihn (O-58).
+ * Maske und Kalkulationsblatt lesen die Frage von hier, damit eine andere
+ * Entscheidung EINE Stelle ändert.
  *
- * TODO(client, O-920): Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn (Sicherheit: Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen; Bau: Einheitspreise je LV-Position) und welche Zuschläge gelten je Bereich (O-16)? Oder bleibt der Einzelpreis je Position eine von Hand eingetragene Zahl, deren Herleitung ausserhalb der Plattform liegt?
+ * TODO(client, O-920): Voreinstellung — Angebote von Hand (Sicherheit, Bau) bekommen keine Kalkulation in der Plattform: der Einzelpreis je Position ist eine eingetragene Zahl, deren Herleitung ausserhalb liegt; Lohn- und Zuschlagsgrundlagen stehen unter O-16. Wie gebaut. D-800.
  */
 export const HAND_ANGEBOT_KALKULATION = {
   vorhanden: false,

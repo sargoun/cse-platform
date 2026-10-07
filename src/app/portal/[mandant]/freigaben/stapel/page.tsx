@@ -380,7 +380,7 @@ export default async function Stapelmappe({
                   <p className="m-0 max-w-prose text-xs text-text-subtle">
                     Risikoarme Vorgänge ohne eigene Ausführung bekommen danach ein
                     Einspruchsfenster von {String(EINSPRUCH_MINUTEN)} Minuten (APR-05,
-                    Platzhalter {FENSTER_OFFENE_FRAGE}); bis es abläuft, ist nichts
+                    Voreinstellung {FENSTER_OFFENE_FRAGE}); bis es abläuft, ist nichts
                     ausgelöst. Alles andere wird sofort wirksam.
                   </p>
                 </div>

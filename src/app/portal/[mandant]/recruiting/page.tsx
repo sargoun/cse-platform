@@ -11,8 +11,8 @@ import { RecruitingSeite, leseImMandanten } from './rahmen';
  * **Vier Zahlen und ein Satz, der eine Frist nennt.** Die Zahlen sind Bestand,
  * kein Urteil: „12 offene Bewerbungen" sagt, wie viel Arbeit liegt, und nicht,
  * wie gut jemand ist. Die Frist steht hier, weil sie die einzige Zahl auf
- * dieser Seite ist, die etwas LÖSCHT (REC-07) — und weil sie ein Platzhalter
- * ist (O-373), steht das daneben.
+ * dieser Seite ist, die etwas LÖSCHT (REC-07) — und weil sie eine
+ * Voreinstellung ist (O-373), steht das daneben.
  */
 export const dynamic = 'force-dynamic';
 
@@ -102,8 +102,9 @@ export default async function Uebersicht(
             <Hinweis art="hinweis" cse="rec-frist" className="mt-s6 max-w-prose">
               <strong>Aufbewahrung: {String(d.tage)} Tage ab Eingang.</strong>{' '}
               Danach löscht der Nachtlauf die Bewerbung endgültig (REC-07).
-              Die Zahl ist ein <strong>Platzhalter</strong> und steht als O-373
-              offen — sie ist über eine Zeile änderbar, ohne Code.
+              Die Zahl ist eine <strong>Voreinstellung</strong> (O-373) und über
+              eine Zeile änderbar, ohne Code. Nach der Voreinstellung zählt sie ab
+              der Absage; gebaut ist bisher nur der Eingang.
               {/*
                 * **Der Verweis nur mit `recruiting.daten_loeschen`** (AUT-06).
                 *

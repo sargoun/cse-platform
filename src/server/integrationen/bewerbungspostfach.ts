@@ -3,9 +3,10 @@
  * Adapter heute (REC-03, V-224, D-718).
  *
  * **Der Anschluss als Vertrag, nicht als Zusage** (CLAUDE.md, „No fake
- * integrations"). Welches Postfach, welcher Anbieter, in welcher Region und
- * unter welchem Vertrag, ist nicht entschieden (O-938); wer triagiert und ob
- * die Plattform nach der Übernahme im Postfach löschen darf, ist O-117. Der
+ * integrations"). Postfach, Anbieter, Region und Vertrag trägt der Betreiber
+ * ein (O-938, O-28). Voreinstellung (O-938, O-117, D-797): wer überträgt,
+ * wählt die Gesellschaft, und nach der Übernahme wird die Nachricht im
+ * Postfach gelöscht — heute von Hand, weil kein Postfach verbunden ist. Der
  * Adapter liefert keine Nachricht und behauptet keine.
  *
  * Hier und nicht im Recruiting-Dienst, damit das Register der Anbindungen
@@ -44,9 +45,9 @@ export class PostfachNichtVerbundenFehler extends Error {
  */
 export class NichtVerbundenesPostfach implements BewerbungsPostfach {
   readonly verbunden = false;
-  readonly hinweis = 'Kein Postfach angeschlossen: welches Postfach, welcher Anbieter, in welcher '
-    + 'Region und unter welchem Vertrag, ist nicht entschieden. Bewerbungen, die per E-Mail '
-    + 'kommen, überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen.';
+  readonly hinweis = 'Nicht verbunden — Postfach, Anbieter, Region und Vertrag trägt der '
+    + 'Betreiber ein. Bewerbungen, die per E-Mail kommen, überträgt ein Mensch unter Recruiting › '
+    + 'Bewerbungen › Aus dem Postfach erfassen und löscht die Nachricht danach im Postfach.';
   readonly offen = 'O-938';
   holeNeue(): Promise<readonly PostfachNachricht[]> {
     return Promise.reject(new PostfachNichtVerbundenFehler());
@@ -54,8 +55,8 @@ export class NichtVerbundenesPostfach implements BewerbungsPostfach {
 }
 
 /** Welcher Anschluss gilt — an EINER Stelle entschieden, wie beim Speicher. */
-// TODO(client, O-938): Welches Postfach (Adresse, Anbieter, Region, Auftragsverarbeitungsvertrag)
-// nimmt Bewerbungen an, und darf die Plattform eine übernommene Nachricht dort löschen?
+// TODO(client, O-938): Postfach, Anbieter, Region und Auftragsverarbeitungsvertrag trägt der
+// Betreiber ein; Voreinstellung (D-797): nach der Übernahme wird die Nachricht dort gelöscht.
 export function bewerbungsPostfach(): BewerbungsPostfach {
   return new NichtVerbundenesPostfach();
 }

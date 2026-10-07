@@ -188,7 +188,7 @@ export default async function AgentBudget(
         <p className="rounded-lg border border-warning bg-warning-soft p-s5 text-sm text-text">
           <strong>Für diesen Monat ist kein Budget hinterlegt.</strong>{' '}
           Ohne Budgetzeile läuft kein Agent — das ist die sichere Richtung: kein
-          Budget heisst „nicht entschieden" und nicht „unbegrenzt". Die Voreinstellung ist{' '}
+          Budget heisst „kein Lauf" und nicht „unbegrenzt". Die Voreinstellung ist{' '}
           {formatiereGeld(cent(BUDGET_VOREINSTELLUNG_CENT))} je Gesellschaft und Monat (O-26,
           D-786); die Maske zum Eintragen belegt sie vor.
         </p>

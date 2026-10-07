@@ -257,7 +257,8 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Qualifikationsnachweise',
     fuer: ['person'],
     recht: 'personal.nachweis_lesen',
-    sperre: { art: 'offen', frage: 'O-46' },
+    /* Personalunterlage: Voreinstellung O-514 (D-798), wie die Stammdaten. */
+    sperre: { art: 'offen', frage: 'O-514' },
     sql: `select count(*)::int as zeilen, max(erstellt_am) as anker
             from nachweis where person_id = $1::uuid`,
   },
@@ -492,12 +493,12 @@ const ORTE: readonly OrtDefinition[] = [
     fuer: ['bewerbung'],
     recht: 'recruiting.bewerbung_lesen',
     /*
-     * `{art:'offen', frage:'O-46'}` und nicht „geschuldet": die Entscheidung
-     * mit ihrer Begründung ist das, was im Streitfall nach § 15 Abs. 4 AGG
-     * die Beweislage trägt — und ob diese Zweimonatsfrist die Löschung
-     * überlagert, ist eine Rechtsfrage und keine Voreinstellung.
+     * Nicht „geschuldet": die Entscheidung mit ihrer Begründung ist das, was
+     * im Streitfall nach § 15 Abs. 4 AGG die Beweislage trägt. Voreinstellung
+     * (O-373, D-797/D-798): sie bleibt mit der Bewerbung bis sechs Monate nach
+     * der Absage (Art. 17 Abs. 3 lit. e DSGVO).
      */
-    sperre: { art: 'offen', frage: 'O-46' },
+    sperre: { art: 'offen', frage: 'O-373' },
     sql: `select count(*)::int as zeilen, min(entschieden_am) as anker
             from einstellungsentscheidung
            where bewerbung_id = $1::uuid and mandant_id = app.aktiver_mandant()`,
@@ -662,12 +663,27 @@ export const VOLLZUG_VOREINSTELLUNG =
 
 /** Der Satz der Seite zu den Zeilen, die „offen (O-71)" tragen (D-792). */
 export const O71_VOREINSTELLUNG =
-  'Voreinstellung (O-71, D-792) für die Zeilen mit „offen (O-71)": abgeleitete Befunde, '
+  'Voreinstellung (O-71, D-792) für die Zeilen mit „Voreinstellung (O-71)": abgeleitete Befunde, '
   + 'Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz; Abwesenheiten mit der '
   + 'Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als '
   + 'Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3 AO) und werden dann anonymisiert, der '
   + 'Werbewiderspruch bleibt als Nachweis. Die Matrix kennt diesen Sperrgrund noch nicht '
   + '(V-340); bis dahin entscheidet hier ein Mensch je Vorgang.';
+
+/**
+ * Die Fragen der Matrix, die eine Voreinstellung tragen (D-778): die Matrix
+ * kennt den Sperrgrund „Voreinstellung" noch nicht (V-340) und führt die
+ * Zeilen auf `offen` — sagen soll sie trotzdem, dass entschieden ist.
+ */
+const MIT_VOREINSTELLUNG: ReadonlySet<string> = new Set(['O-71', 'O-373', 'O-514']);
+
+export const MATRIX_VOREINSTELLUNGEN =
+  'Voreinstellung (O-373, D-797) für die Zeilen der Bewerbung: sechs Monate ab der Absage, '
+  + 'ohne Entscheidung ab Eingang — bis dahin überlagert die Verteidigung gegen Ansprüche '
+  + 'nach § 15 Abs. 4 AGG eine Löschung (Art. 17 Abs. 3 lit. e DSGVO). Voreinstellung '
+  + '(O-514, D-798) für Stammdaten, Anstellungen und Nachweise: drei Jahre nach Ende der '
+  + 'Beschäftigung, was in den Lohnexport ging zehn Jahre (§ 147 Abs. 1 AO). Beide stehen '
+  + 'in der Matrix noch nicht als Sperrgrund (V-340).';
 
 export const VOLLZUG = {
   vorhanden: ['bewerber_loeschung — anonymisiert abgelaufene Bewerbungen (REC-07)'],
@@ -687,7 +703,9 @@ function sperreText(s: Sperrgrund): string {
   switch (s.art) {
     case 'gesetz': return s.fundstelle;
     case 'unveraenderlich': return s.fundstelle;
-    case 'offen': return `noch nicht entschieden (${s.frage})`;
+    case 'offen': return MIT_VOREINSTELLUNG.has(s.frage)
+      ? `Voreinstellung (${s.frage}), in der Matrix noch nicht hinterlegt`
+      : `noch nicht entschieden (${s.frage})`;
     case 'keine': return 'keine Aufbewahrungspflicht bekannt';
   }
 }

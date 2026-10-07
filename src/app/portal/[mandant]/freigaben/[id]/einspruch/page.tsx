@@ -44,8 +44,8 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
  * zusätzlich das `erforderliches_recht` des Vorgangs (Vorgabe
  * `freigabe.entscheiden`). Wer nur die eine Befugnis hält, sähe sonst einen
  * Knopf, dessen Absage danach als „Fenster abgelaufen" zurückkäme — eine
- * Falschaussage über eine Frist, auf die jemand dann wartet. Offene Frage
- * dazu: O-367.
+ * Falschaussage über eine Frist, auf die jemand dann wartet. Voreinstellung
+ * dazu: O-367 (D-780).
  *
  * **Warum die Seite heute meist leer ist.** Das Fenster armiert allein
  * `app.freigabe_verzoegern`, und das verlangt `status = 'genehmigt'`,
@@ -195,9 +195,8 @@ export default async function Einspruch(
             Genehmigt, aber noch nicht ausgelöst — bis{' '}
             <strong>{ZEIT.format(lage.bis)}</strong> ({restInWorten(lage.restSekunden)}) kann
             jemand widersprechen. Danach läuft die Ausführung an. Die Fensterlänge von{' '}
-            {String(EINSPRUCH_MINUTEN)} Minuten ist ein <strong>Platzhalter</strong>: wie lange
-            das Fenster je Vorgangsart laufen soll, hat niemand entschieden (offene Frage{' '}
-            {FENSTER_OFFENE_FRAGE}).
+            {String(EINSPRUCH_MINUTEN)} Minuten ist eine <strong>Voreinstellung</strong>, für
+            jede Vorgangsart gleich ({FENSTER_OFFENE_FRAGE}).
           </p>
           <form method="post" action="/api/freigaben/fenster" data-cse="einspruch-formular"
                 className="flex flex-col gap-s3">
@@ -254,7 +253,7 @@ export default async function Einspruch(
               stapelfähige Vorgänge (APR-05): bei allem darüber löst ein Mensch aus, nicht
               eine Uhr. Diese Genehmigung ist damit sofort gültig — das ist kein Fehler,
               sondern der Zustand, den jede Genehmigung vor APR-05 hatte. Die Fensterlänge
-              selbst ist noch offen ({FENSTER_OFFENE_FRAGE}).
+              selbst ist eine Voreinstellung ({FENSTER_OFFENE_FRAGE}).
             </>
           )}
         </Hinweis>

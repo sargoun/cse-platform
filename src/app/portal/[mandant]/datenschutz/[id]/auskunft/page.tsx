@@ -193,11 +193,11 @@ export default async function Auskunftsseite(
       {a.offeneFristen.length > 0 ? (
         <Hinweis art="warnung" cse="auskunft-frist-offen" className="mb-s6 max-w-prose">
           <strong className="block">
-            {`Für ${String(a.offeneFristen.length)} von ${String(a.abschnitte.length)} Abschnitten ist die Aufbewahrungsfrist noch nicht entschieden (O-514).`}
+            {`Für ${String(a.offeneFristen.length)} von ${String(a.abschnitte.length)} Abschnitten ist die Aufbewahrungsfrist noch nicht hinterlegt (Voreinstellung O-514).`}
           </strong>
           Art. 15 Abs. 1 lit. d verlangt die geplante Speicherdauer oder
-          wenigstens die Kriterien für ihre Festlegung. „Noch nicht entschieden"
-          ist beides nicht. Der Satz steht jetzt AUCH in der ausgelieferten
+          wenigstens die Kriterien für ihre Festlegung. Eine Voreinstellung, die
+          das Verzeichnis noch nicht führt, ist beides nicht. Der Satz steht jetzt AUCH in der ausgelieferten
           Datei, über allen Abschnitten — und der Abruf verlangt eine
           ausdrückliche Bestätigung, damit niemand sie versehentlich so
           hinausschickt.

@@ -183,14 +183,14 @@ export function fehlendeKaeuferangaben(lage: KaeuferLage): readonly FehlendeAnga
       bt: '—', regel: '07-INTEGRATIONEN §12.1', feld: 'Übertragungsweg',
       text: 'Es ist kein Zustellweg verabredet. Er wird NICHT geraten: eine '
         + 'XRechnung auf dem falschen Kanal gilt als nicht zugestellt, während die '
-        + 'Zahlungsfrist läuft (offen, O-22).',
+        + 'Zahlungsfrist läuft (O-22).',
     });
   }
   if (lage.rechnungsformat === null) {
     fehlt.push({
       bt: '—', regel: '05-FINANZEN §906', feld: 'Rechnungsformat',
       text: 'Es ist kein Format verabredet. „Nicht verabredet" heisst nicht „PDF" '
-        + '(offen, O-22).',
+        + '(O-22).',
     });
   }
   return fehlt;

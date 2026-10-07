@@ -129,8 +129,11 @@ interface Bereich {
    * „Security" nicht mehr in seiner Sidebar und bekommt auf
    * `/portal/bau/reinigung/reviere` einen 404 statt einer leeren Seite.
    *
-   * // TODO(client, O-356): Bucht eine Gesellschaft je ein Gewerk, oder gibt
-   * es Ueberschneidungen — etwa Bauendreinigung bei der REALTIME Service?
+   * // TODO(client, O-356): Voreinstellung — jede Gesellschaft bucht genau ihr
+   * Gewerk aus CLAUDE.md; eine Ueberschneidung (Bauendreinigung bei der
+   * REALTIME Service, Veranstaltungsreinigung bei der SSE Security) bucht die
+   * Super-Administration als weiteres Modul (O-355), sobald der Eingabeweg
+   * steht (V-298). D-799.
    */
   readonly module: readonly string[];
 }
@@ -748,10 +751,11 @@ async function main(): Promise<void> {
    * Er ist bei den sechs gewerblichen Beschaeftigungen ein DEMOWERT und bei
    * den SECHS Fuehrungs- und Verwaltungsstellen `null` — nicht aus
    * Bequemlichkeit:
-   * // TODO(client, O-347): In welcher Beschäftigungsform stehen die
-   * Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre
-   * Vergütung als Stundensatz geführt oder als Festgehalt, das die Plattform
-   * gar nicht trägt?
+   * // TODO(client, O-347): Voreinstellung — Führungs- und Verwaltungskräfte
+   * stehen im Festgehalt ausserhalb der Plattform; ihr `stundensatz_intern`
+   * bleibt leer, und die Kalkulation rechnet nur mit den Sätzen der
+   * gewerblichen Beschäftigten. Wer einen Satz braucht, trägt ihn unter
+   * Personal › Entgelt ein. D-800.
    * Eine erfundene Zahl waere genau der Fall, den `docs/DECISIONS.md`
    * verbietet: sie saehe bestaetigt aus, ginge in jede Kalkulation ein und
    * fiele niemandem mehr auf. `arbeitszeitmodell` bleibt bei allen auf dem
@@ -839,7 +843,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${menschen.length} Menschen, ${anstellungen.length} Beschäftigungen, `
     + `${anstellungen.length} datierte Konditionen, 1 Dublette `
-    + '(Vergütung der Leitungen offen: O-347)\n');
+    + '(Leitungen ohne Stundensatz: Voreinstellung O-347)\n');
 
   // --------------------------------------------------------- Nummernkreise
   /**
@@ -1297,7 +1301,7 @@ async function main(): Promise<void> {
       (mandant_id, gewerk, bezeichnung, fundstelle,
        pause_ab_6h_minuten, pause_ab_9h_minuten, ist_platzhalter, gilt_ab)
     values (${ids.get('reinigung')!}, 'reinigung',
-            'Rahmentarifvertrag Gebäudereinigung (Platzhalter, O-50)',
+            'Rahmentarifvertrag Gebäudereinigung (Voreinstellung, O-50)',
             '§ 5 RTV — Wortlaut nicht geprüft', 45, 60, true, '2025-01-01')
     on conflict do nothing`;
   process.stdout.write(
@@ -1928,7 +1932,7 @@ async function main(): Promise<void> {
     `  ${String(sonder.abrufe)} Einzelabrufe in vier Zustaenden `
     + `(„abgerechnet" fehlt absichtlich — den Stempel setzt die Rechnungsuebernahme), `
     + `${String(sonder.pruefungen)} Qualitaetspruefungen `
-    + `(ohne Urteil: das Verfahren ist ein Platzhalter ohne Skala, O-29)\n`,
+    + `(ohne Urteil: das Verfahren der Voreinstellung trägt keine Skala, O-29)\n`,
   );
 
   /**

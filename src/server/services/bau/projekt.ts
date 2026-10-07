@@ -26,10 +26,9 @@ import type { SchreibKontext } from '../../kontext/index.js';
  *    bestätigten Nummernkreis `auftrag` (FIN-03) und nicht aus einem
  *    erfundenen Format.
  *
- * // TODO(client, O-351): Nach welchem Schlüssel werden Bauprojekte
- * nummeriert — ein eigener Kreis je Gesellschaft, die Auftragsnummer oder
- * eine Bauvorhabenskennung des Auftraggebers? Solange das offen ist, nimmt
- * diese Funktion die Auftragsnummer: sie erfindet am wenigsten. Ein
+ * // TODO(client, O-351): Voreinstellung — die Projektnummer ist die
+ * Auftragsnummer: das Projekt ist der Auftrag (§7.1), die Nummer kommt aus
+ * dem bestätigten Kreis `auftrag`, und sie erfindet am wenigsten. D-800. Ein
  * ausgedachtes „BV-2026-001" sähe aus wie ein bestätigter Nummernkreis und
  * wäre keiner. Dieselbe Entscheidung steht im Seed (`db/seed/bau.ts`).
  *

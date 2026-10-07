@@ -376,13 +376,13 @@ export default async function GruppenKalender({ searchParams }: {
         */}
       <div className="mb-s5 flex flex-wrap items-start gap-s5" data-cse="kalender-zuschnitt">
         {/*
-          * TODO(client, O-871): Soll ein TERMIN einem Team gehören können? Heute greift der Teamfilter nur auf Schichten — `kalender_eintrag` trägt keine `team_id` (das Datenmodell sieht eine vor, gebaut ist sie nicht), und eine Spalte anzulegen, die niemand füllt, wäre ein Filter, der immer leer antwortet.
+          * TODO(client, O-871): Voreinstellung — ein Termin gehört einer Person, nicht einem Team; der Teamfilter greift auf Schichten (`einsatz_zuordnung` → `team_mitglied`). Eine Spalte `kalender_eintrag.team_id`, die niemand füllt, wäre ein Filter, der immer leer antwortet. Wie gebaut. D-799.
           */}
         {teams.length > 0 ? (
           <section aria-labelledby="teamfilter" className="min-w-0">
             <h2 id="teamfilter" className="mb-s2 text-micro uppercase tracking-[0.08em] text-text-subtle">
               Team <span className="normal-case tracking-normal text-text-subtle">
-                · nur Schichten (O-871)
+                · nur Schichten (Voreinstellung O-871)
               </span>
             </h2>
             <div className="flex flex-wrap gap-s2">

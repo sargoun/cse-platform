@@ -145,11 +145,32 @@ function fristen(
     ausloeser: 'Beginn des Zeiteintrags',
     offen: false,
   });
+  /*
+   * Drei Klassen, drei Fristen (D-798, O-514) — eine gemeinsame Zeile liess
+   * die Frist der Personalakte auch für Konten und Agentenläufe gelten.
+   */
   zeilen.push({
-    klasse: 'Personalakte, Konten, Agentenläufe',
-    frist: 'noch nicht entschieden — O-514',
-    grundlage: 'Personalaktenpraxis der Gesellschaft; § 147 AO deckt die Belege, nicht die Akte',
-    ausloeser: 'Austritt bzw. Ende des Kontos',
+    klasse: 'Personalakte',
+    frist: 'Voreinstellung (O-514): drei Jahre nach Ende der letzten Beschäftigung, was '
+      + 'in den Lohnexport ging zehn Jahre — noch nicht hinterlegt',
+    grundlage: 'Personalaktenpraxis der Gesellschaft, § 195 BGB; § 147 AO deckt die Belege, '
+      + 'nicht die Akte',
+    ausloeser: 'Ende der letzten Beschäftigung',
+    offen: true,
+  });
+  zeilen.push({
+    klasse: 'Konten',
+    frist: 'Voreinstellung (O-514): sechs Monate nach der letzten Rolle — noch nicht '
+      + 'hinterlegt',
+    grundlage: 'Art. 6 Abs. 1 lit. b, c und f DSGVO (Art. 32)',
+    ausloeser: 'Entzug der letzten Rolle',
+    offen: true,
+  });
+  zeilen.push({
+    klasse: 'Agentenläufe',
+    frist: 'Voreinstellung (O-514): ein Jahr — noch nicht hinterlegt',
+    grundlage: 'Art. 6 Abs. 1 lit. f DSGVO; keine Entscheidung nach Art. 22',
+    ausloeser: 'Ende des Laufs',
     offen: true,
   });
   return zeilen;
@@ -203,8 +224,10 @@ export async function erstelleLoeschkonzept(
     ...(zeilen.some((z) => z.offen && z.klasse.startsWith('Dokumente'))
       ? ['O-25 — Aufbewahrungsfristen je Dokumentklasse sind teilweise nicht gesetzt'] : []),
     ...(tageBewerbung === null ? ['O-373 — Aufbewahrungsfrist für Bewerberdaten'] : []),
-    'O-514 — Fristen für Personalakte, Konten und Agentenläufe',
-    'O-376 — Wie lange bleiben die Unterlagen eines EINGESTELLTEN Bewerbers?',
+    'O-514 — Fristen für Personalakte, Konten und Agentenläufe: Voreinstellung, noch nicht '
+      + 'hinterlegt',
+    'O-376 — Bewerbungen Eingestellter: Voreinstellung Übernahme in die Personalakte '
+      + '(deren Frist, O-514); die Übernahme fehlt, der Nachtlauf hält sie zurück',
   ];
 
   const roh = { fristen: zeilen, laeufe, sperren, offen };

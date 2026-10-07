@@ -38,7 +38,7 @@ export interface AufbewahrungZeile {
  * UNTERGRENZE (und `kern.aufbewahrung_untergrenze`, 0141): kürzer lässt sich
  * keine dieser Klassen stellen, auch wo der Steuerberater acht Jahre zuliesse.
  * Voreinstellung und Untergrenze je Klasse zu trennen ist eine Migration
- * (Prüfstand PR #36). D-796.
+ * (Prüfstand PR #36, V-372). D-796.
  */
 export const UNTERGRENZE: Readonly<Record<Kategorie, number | null>> = {
   rechnung: 10, buchhaltung: 10, beleg: 10,

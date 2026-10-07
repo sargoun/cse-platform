@@ -19,6 +19,12 @@ import { bewerbungsPostfach } from '../integrationen/bewerbungspostfach.js';
  * `dateiexport` ist ein eigener Zustand: DATEV braucht keine Verbindung, der
  * Steuerberater bekommt eine Datei (D-06). Das ist kein Mangel, sondern die
  * Entscheidung.
+ *
+ * TODO(client, O-126): Voreinstellung — Aufrufprotokolle der Anschlüsse
+ * (`integration_aufruf`) 90 Tage, ohne Nutzlast (Zeitpunkt, Ziel, Ergebnis,
+ * Dauer, Fehlertext), dann gelöscht. Die Tabelle entsteht mit dem ersten
+ * verbundenen Anschluss (V-371); Nachtläufe protokolliert `job_lauf`
+ * (O-92). D-798.
  */
 export type Anbindungsstand =
   | 'verbunden'
@@ -126,7 +132,9 @@ export function anbindungen(): readonly Anbindung[] {
       schluessel: 'ocr', name: 'Belegerkennung (OCR)',
       zweck: 'Eingangsrechnungen auslesen (ACC-05)',
       stand: 'nicht_verbunden',
-      hinweis: 'Welcher Verarbeiter, in welcher Region, unter welchem Vertrag — nicht entschieden.',
+      hinweis: 'Nicht verbunden — Verarbeiter, Region und Vertrag trägt der Betreiber ein '
+        + '(Voreinstellung: EU-Anbieter mit Auftragsverarbeitungsvertrag); bis dahin werden '
+        + 'Eingangsrechnungen von Hand erfasst.',
       offen: 'O-135',
     },
     {

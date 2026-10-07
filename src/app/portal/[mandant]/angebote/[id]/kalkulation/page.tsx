@@ -240,10 +240,9 @@ export default async function KalkulationSeite(
         <p data-cse="keine-kalkulation" className="max-w-[72ch] text-base text-text-muted">
           Zu diesem Angebot gibt es keine Kalkulation. Angebote, die aus einem
           Raumbuch entstehen, bringen eine mit; ein von Hand angelegtes Angebot
-          trägt seinen Preis dagegen selbst. Ob und wie Angebote von Hand eine
-          Kalkulation mit Lohn, Material, Gerät, Gemeinkosten sowie Wagnis und
-          Gewinn bekommen, ist noch nicht entschieden
-          ({HAND_ANGEBOT_KALKULATION.offeneFrage}).
+          trägt seinen Preis dagegen selbst, ohne Kalkulation mit Lohn, Material,
+          Gerät, Gemeinkosten sowie Wagnis und Gewinn (Voreinstellung{' '}
+          {HAND_ANGEBOT_KALKULATION.offeneFrage}).
         </p>
       ) : (
         <>

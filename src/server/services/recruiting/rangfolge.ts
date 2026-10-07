@@ -50,6 +50,11 @@ export class BewertungFehler extends Error {
  * `0` Gesamtgewicht ergibt `0` und keinen Fehler: eine Bewerbung ohne
  * gewichtetes Kriterium ist unbewertet, nicht schlecht bewertet. Der
  * Unterschied steht auf dem Bildschirm.
+ *
+ * TODO(client, O-201): Voreinstellung — je Kriterium (aus den Anforderungen
+ * der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der
+ * gewichtete Mittelwert, die Gewichte müssen nicht 100 ergeben. Die
+ * Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. D-797.
  */
 export function punktzahlZehntel(kriterien: readonly Kriterium[]): number {
   let summeGewicht = 0;

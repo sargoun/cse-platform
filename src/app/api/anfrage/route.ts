@@ -174,8 +174,8 @@ export async function POST(anfrage: Request): Promise<NextResponse> {
    * Die Dankseite bekommt KEINE Vorgangsnummer: es gibt keinen Vorgang, und
    * eine erfundene Nummer wäre eine, auf die sich ein Mensch am Telefon
    * beruft und die niemand findet. Die Seite kennt diesen Fall schon — sie
-   * zeigt den Nummernblock nur, wenn eine Nummer da ist. Ob ein solcher
-   * Treffer aufbewahrt werden soll, bleibt O-905.
+   * zeigt den Nummernblock nur, wenn eine Nummer da ist. Aufbewahrt wird ein
+   * solcher Treffer nicht (Voreinstellung O-905, D-798).
    *
    * **Was damit NICHT erreicht ist, ausdrücklich** (V-160, D-651): dieselbe
    * Form heisst nicht dieselbe Antwort. Ein Erfolg führt auf `…/danke?nr=L-…`

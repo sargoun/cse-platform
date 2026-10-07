@@ -66,7 +66,8 @@ Readonly<Record<InternSprache, RecruitingGespraechTexte>> = {
     grund: 'Grund (intern)',
     grundBeispiel: 'z. B. Die Bewerberin hat telefonisch abgesagt',
     grundHinweis:
-      'Der Grund bleibt im Haus: im Gespräch und im Prüfprotokoll. Das Gespräch bleibt '
+      'Der Grund bleibt im Haus: er steht im Gespräch, das Prüfprotokoll vermerkt nur, dass '
+      + 'einer erfasst ist. Das Gespräch bleibt '
       + 'stehen — im Kalender und im abonnierten Kalender als abgesagt, nicht gelöscht.',
     absagenKnopf: 'Gespräch absagen',
     vermerkenTitel: 'Als geführt vermerken',
@@ -127,7 +128,8 @@ Readonly<Record<InternSprache, RecruitingGespraechTexte>> = {
     grund: 'Reason (internal)',
     grundBeispiel: 'e.g. The applicant cancelled by phone',
     grundHinweis:
-      'The reason stays in-house: on the interview and in the audit log. The interview '
+      'The reason stays in-house: it is kept on the interview, and the audit log only records '
+      + 'that one was given. The interview '
       + 'remains — shown as cancelled in the calendar and the subscribed calendar, not deleted.',
     absagenKnopf: 'Cancel the interview',
     vermerkenTitel: 'Record as held',

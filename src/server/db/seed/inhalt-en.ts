@@ -297,10 +297,11 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
           + 'a form we store what you entered, the date and time of receipt and a '
           + 'non-reversible check value derived from your IP address to prevent '
           + 'abuse; the IP address itself is not stored. The legal basis is Art. '
-          + '6(1)(a) GDPR for a form, Art. 6(1)(b) within a contractual '
-          + 'relationship, otherwise our legitimate interest in answering you '
-          + 'properly (Art. 6(1)(f)). Data is deleted when it is no longer needed; '
-          + 'we review this every two years. You may withdraw consent at any time.',
+          + '6(1)(b) GDPR, because your request prepares an offer or a contract, '
+          + 'otherwise our legitimate interest in answering you properly (Art. '
+          + '6(1)(f)); we do not ask for consent for this. Requests and the '
+          + 'correspondence about them are kept as business letters for six years '
+          + '(§ 257 HGB, § 147 AO) and are then deleted or anonymised.',
       },
       {
         art: 'text',

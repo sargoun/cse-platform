@@ -221,8 +221,9 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * **Nicht in `GRUPPEN_NAVIGATION`.** `gruppe.nachricht.lesen` steht im
    * Katalog und `t_nachricht_gruppe` (0011) gibt es frei — aber
    * `06-RADAR-KI-INHALT.md` §1.4 verlangt fuer `nachricht` das Gegenteil, und
-   * die Seitenkarte fuehrt keine `/portal/gruppe/nachrichten`. Der Widerspruch
-   * ist gemeldet und nicht entschieden: O-651.
+   * die Seitenkarte fuehrt keine `/portal/gruppe/nachrichten`. Voreinstellung
+   * (O-651, D-799): die Gruppenleitung liest keine Nachrichtenfaeden der
+   * Gesellschaften; die Policy aus 0011 deckelt eine Migration (V-379).
    */
   { schluessel: 'nachrichten', label: 'Nachrichten', pfad: 'nachrichten', recht: 'nachricht.lesen', icon: 'mail', gruppe: 'heute' },
   /**
@@ -271,9 +272,9 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * Gruppenziele stehen jetzt ausdruecklich in `GRUPPEN_NAVIGATION`, und
    * social ist nicht darunter, solange die Seite fehlt.
    *
-   * // TODO(client, O-372): Soll die Gruppenansicht eine lesende
-   * Social-Uebersicht ueber alle vier Gesellschaften bekommen? Die Daten
-   * lassen es zu; die Seitenkarte fuehrt sie in §6 nicht.
+   * // TODO(client, O-372): Voreinstellung — keine lesende Social-Uebersicht
+   * in der Gruppenansicht: die Seitenkarte fuehrt sie in §6 nicht, und jede
+   * Gesellschaft pflegt ihre Kanaele selbst. Wie gebaut. D-799.
    */
   { schluessel: 'social', label: 'Social Media', pfad: 'social', recht: 'social.lesen', icon: 'social', gruppe: 'aussen' },
   /**
@@ -549,8 +550,8 @@ export const GRUPPEN_NAVIGATION: readonly NaviEintrag[] = [
    * ausdruecklicher Suchweg und erscheint nur mit `gruppe.personal.lesen`;
    * ob er ein eigenes Recht braucht, ist offen (O-872).
    *
-   * Der Teamfilter greift heute nur auf Schichten, weil `kalender_eintrag`
-   * kein `team_id` traegt — die Seite sagt das (O-871).
+   * Der Teamfilter greift nur auf Schichten: ein Termin gehoert einer Person,
+   * nicht einem Team (Voreinstellung O-871, D-799) — die Seite sagt das.
    */
   { schluessel: 'kalender', label: 'Kalender', pfad: 'kalender', recht: 'gruppe.kalender.lesen', icon: 'kalender' },
   { schluessel: 'freigaben', label: 'Freigaben', pfad: 'freigaben', recht: 'gruppe.freigabe.lesen', icon: 'freigabe' },

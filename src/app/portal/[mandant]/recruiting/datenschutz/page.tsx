@@ -14,7 +14,7 @@ import { berlinZeit } from '../marken';
  * Absichtserklärung, und ein Löschprotokoll ohne Vorschau überrascht die
  * Personalstelle mit einer Bewerbung, die sie noch gebraucht hätte.
  *
- * **Die Frist ist ein Platzhalter (O-373).** Die übliche Praxis leitet sich
+ * **Die Frist ist eine Voreinstellung (O-373, D-797).** Die übliche Praxis leitet sich
  * aus § 15 Abs. 4 AGG und der dreimonatigen Klagefrist ab und landet in der
  * Literatur meist bei sechs Monaten — das ist eine PRAXIS und keine
  * Vorschrift. Diese Seite schreibt die Zahl deshalb hin und nennt sie
@@ -59,10 +59,11 @@ export default async function Datenschutz(
               <strong>
                 Aufbewahrung: {String(d.tage)} Tage ab Eingang der Bewerbung.
               </strong>{' '}
-              Die Zahl ist <strong>vorläufig</strong> (O-373) und über eine
-              Zeile in den Plattformeinstellungen änderbar, ohne Code. Offen ist
-              ausserdem, ob die Frist ab Eingang oder ab Absage läuft — heute ab
-              Eingang, weil eine Bewerbung ohne Entscheidung sonst nie abliefe.
+              Die Zahl ist <strong>vorläufig</strong> — eine Voreinstellung
+              (O-373) — und über eine Zeile in den Plattformeinstellungen
+              änderbar, ohne Code. Nach der Voreinstellung läuft die Frist ab der
+              Absage, weil § 15 Abs. 4 AGG und die Klagefrist von dort zählen, und
+              ohne Entscheidung ab Eingang; gebaut ist bisher nur der Eingang.
               {d.stand.naechste !== null && (
                 <>
                   {' '}Die nächste Löschung steht am{' '}
@@ -127,10 +128,10 @@ export default async function Datenschutz(
               Das Bewerbungsformular sagt zu: gelöscht nach der Frist,{' '}
               <strong className="text-text">sofern kein Arbeitsverhältnis
               zustande kommt</strong>. Diese Bewerbungen führten zu einem —
-              der Nachtlauf nimmt sie deshalb nicht mit. Wie lange die
-              Unterlagen eines Eingestellten bleiben und ob sie in die
-              Personalakte wandern, ist eine Frage an den Mandanten und keine,
-              die diese Plattform beantwortet (offene Frage O-376).
+              der Nachtlauf nimmt sie deshalb nicht mit. Voreinstellung (O-376):
+              die Bewerbung eines Eingestellten wandert in die Personalakte und
+              bleibt so lange wie diese. Die Übernahme ist noch nicht gebaut — bis
+              dahin bleiben diese Bewerbungen hier stehen.
             </p>
             {zurueck.length === 0 ? (
               <p className="rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

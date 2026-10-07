@@ -92,10 +92,11 @@ async function schreibe(
  * unveränderlich; der Löschlauf (REC-07, `bewerberLoeschung.ts`) löscht die
  * Gesprächszeile — der Satz stünde danach allein im Protokoll weiter, unter
  * der Kennung eines Gesprächs, das es nicht mehr gibt, und erschiene in keiner
- * Löschentscheidung der Bewerbung. Ob er dort stehen DARF, ist eine
- * Rechtsfrage; bis zur Antwort steht er in der Zeile und geht mit ihr.
+ * Löschentscheidung der Bewerbung. Voreinstellung (O-954, D-797): er steht
+ * NICHT dort — er steht in der Zeile, geht mit ihr und steht in der
+ * Art.-15-Auskunft der Bewerbung.
  *
- * // TODO(client, O-954): Darf der Absagegrund eines Bewerbungsgesprächs wörtlich im unveränderlichen Prüfprotokoll stehen — und was gilt für ihn nach der Löschung der Bewerbung (REC-07)? Heute steht nur, DASS ein Grund erfasst ist.
+ * // TODO(client, O-954): Voreinstellung — im Prüfprotokoll steht nur, DASS ein Grund erfasst ist; der Wortlaut steht in der Gesprächszeile, geht mit ihr (REC-07) und steht in der Art.-15-Auskunft. Wie gebaut. D-797.
  */
 export async function sageGespraechAb(
   kontext: SchreibKontext, id: string, grund: string,

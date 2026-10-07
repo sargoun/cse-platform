@@ -244,14 +244,14 @@ function landPruefen(wert: string | undefined): string {
  * sie zählt weiter.
  *
  * Nur der allererste Fall — eine Gesellschaft ohne ein einziges Objekt — hat
- * keinen Bestand, aus dem sich etwas ableiten liesse. Dort steht `1000`, und
- * das ist ein **Platzhalter**, kein beschlossener Nummernkreis.
- * // TODO(client, O-888): Kodiert die Tausenderstelle der Objektnummer die
- * Gesellschaft (1xxx Reinigung, 2xxx Security, 3xxx Bau), wie der Bestand
- * nahelegt — oder ist das ein Zufall der Demo-Daten? Bis zur Antwort zählt die
- * Plattform nur weiter und schreibt der ersten Nummer einer leeren
- * Gesellschaft `OBJ-1001` zu. Das Feld ist von Hand überschreibbar, damit
- * niemand an dieser Vorgabe hängenbleibt.
+ * keinen Bestand, aus dem sich etwas ableiten liesse. Dort steht `1000` — die
+ * Voreinstellung (O-888), kein Nummernkreis.
+ * // TODO(client, O-888): Voreinstellung — die Tausenderstelle kodiert die
+ * Gesellschaft NICHT: die Nummer ist je Gesellschaft eindeutig
+ * (`objekt_nummer_uk`), und welche Gesellschaft ein Objekt führt, steht am
+ * Objekt selbst. Die Plattform zählt im Bestand der Gesellschaft weiter, die
+ * erste Nummer einer leeren Gesellschaft ist `OBJ-1001`, und das Feld ist von
+ * Hand überschreibbar. Wie gebaut. D-799.
  */
 export async function legeObjektAn(
   kontext: SchreibKontext, eingabe: NeuesObjekt,

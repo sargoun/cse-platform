@@ -299,9 +299,8 @@ export default async function Antragsblatt({
         )}
         <p className="mb-0 mt-s4 text-xs text-text-subtle">
           Gezählt werden Arbeitstage ohne Wochenenden und Berliner Feiertage
-          (§ 3 Abs. 2 BUrlG). Welche Wochentage je Arbeitszeitmodell als
-          Arbeitstage gelten, ist noch nicht entschieden — ausgeliefert ist
-          Montag bis Freitag (offen, O-18).
+          (§ 3 Abs. 2 BUrlG). Arbeitstage sind nach der Voreinstellung Montag
+          bis Freitag (O-18).
         </p>
       </section>
 

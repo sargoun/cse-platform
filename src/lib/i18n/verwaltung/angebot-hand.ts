@@ -86,8 +86,8 @@ const DE: AngebotHandTexte = {
   ohneKalkulation: (frage) =>
     'Ohne Kalkulation: der Einzelpreis jeder Position ist der, den Sie eintragen. Lohn, '
     + 'Material, Gerät, Gemeinkosten sowie Wagnis und Gewinn (OPS-07) werden hier weder '
-    + 'getrennt erfasst noch nachgerechnet. Ob und wie ein Angebot von Hand eine Kalkulation '
-    + `bekommt, ist noch nicht entschieden (${frage}).`,
+    + 'getrennt erfasst noch nachgerechnet; den Preis verantwortet, wer das Angebot '
+    + `freigibt (Voreinstellung ${frage}).`,
   zurListe: 'Zu den Angeboten',
 
   kunde: 'Kunde',
@@ -204,8 +204,8 @@ const EN: AngebotHandTexte = {
   ohneKalkulation: (frage) =>
     'Without a Kalkulation (costing): the unit price of each line is the one you enter. '
     + 'Labour, material, equipment, overhead and risk/profit (OPS-07) are neither recorded '
-    + 'separately nor recalculated here. Whether and how a hand-written offer gets a costing '
-    + `has not been decided yet (${frage}).`,
+    + 'separately nor recalculated here; whoever approves the offer answers for the price '
+    + `(default ${frage}).`,
   zurListe: 'To the offers',
 
   kunde: 'Customer',

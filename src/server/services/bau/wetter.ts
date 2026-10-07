@@ -604,9 +604,9 @@ export interface WetterZuordnung {
   /**
    * Tage im Fenster, die schon abgeschlossen waren, bevor der Lauf kam. An
    * sie heftet er nichts an: ab dem Abschluss bewegt sich am Tag nichts mehr
-   * (0082), und ob das Wetter davon ausgenommen ist, fragt O-922.
+   * (0082) — auch nicht das Wetter (Voreinstellung O-922).
    *
-   * // TODO(client, O-922): Darf der Nachtlauf das DWD-Wetter an einen Bautag heften, der schon abgeschlossen ist — oder soll das Wetter vor dem Abschluss angeheftet werden, und der Abschluss ohne Wetter bleibt ohne?
+   * // TODO(client, O-922): Voreinstellung — der Nachtlauf heftet das DWD-Wetter nur an offene Bautage; wer den Tag vorher abschliesst, trägt es mit dem Knopf vor dem Abschluss nach, und ein ohne Wetter abgeschlossener Tag bleibt ohne (gezählt als `abgeschlossen_ohne_wetter`). Wie gebaut. D-800.
    */
   readonly abgeschlossenOhneWetter: number;
 }
