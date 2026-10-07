@@ -4,6 +4,7 @@ import { erzeuge } from '../../benachrichtigung/registry.js';
 import { ART_NEUER_LEAD } from '../../services/lead/benachrichtigung.js';
 import { stelleZu, stelleZuAnKonto } from '../../benachrichtigung/ablage.js';
 import { meldeAblaufwarnungen } from '../../services/nachweis/ablauf.js';
+import { meldeFaelligeUeberpruefungen } from '../../services/security/zuverlaessigkeit.js';
 
 /**
  * Ein paar echte Zeilen im Posteingang, damit NOT-01 vorführbar ist.
@@ -123,9 +124,14 @@ export async function seedBenachrichtigungen(
     objektTyp: 'nachweis',
     objektId: t.nachweisId,
   })));
+  /*
+   * Die Wiedervorlage der Zuverlässigkeitsüberprüfung (V-320) — derselbe
+   * Dienst wie im Nachtlauf; `waechter_meldung` macht ihn idempotent.
+   */
+  const ueberpruefung = await meldeFaelligeUeberpruefungen(db, tag!.tag);
 
   return {
-    angelegt: angelegt + zustellung.zugestellt + team.zugestellt,
+    angelegt: angelegt + zustellung.zugestellt + team.zugestellt + ueberpruefung.zugestellt,
     vorhanden,
     ohneKonto,
     ohneEmpfaenger: zustellung.ohneEmpfaenger.length,

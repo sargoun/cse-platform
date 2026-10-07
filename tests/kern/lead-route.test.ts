@@ -38,6 +38,11 @@ vi.mock('@/server/auth/anfrage-sitzung', () => ({
 vi.mock('@/server/db/pool', () => ({
   db: () => ({ begin: <T,>(fn: (tx: unknown) => Promise<T>) => fn({}) }),
 }));
+/* Der Slug der Umleitung kommt aus der Sitzung, nicht aus `?mandant=` (V-278). */
+vi.mock('@/server/auth/aktiver-slug', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  slugDesAktivenMandanten: () => Promise.resolve('reinigung'),
+}));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) =>
     fn({
@@ -63,10 +68,11 @@ const ROUTE = 'src/app/api/lead/route.ts';
 
 function anfrage(
   felder: Record<string, string>, kopf: Record<string, string> = {}, origin = HIER,
+  adresse = '/api/lead?mandant=reinigung',
 ): NextRequest {
   const daten = new FormData();
   for (const [k, v] of Object.entries(felder)) daten.append(k, v);
-  return new NextRequest(new URL('/api/lead?mandant=reinigung', HIER), {
+  return new NextRequest(new URL(adresse, HIER), {
     method: 'POST', body: daten,
     headers: new Headers({ host: 'localhost:3001', origin, referer: `${HIER}${BLATT}`, ...kopf }),
   });
@@ -178,6 +184,14 @@ describe('POST /api/lead — der Fachfehler als Grund, der Erfolg und JSON wie b
     expect(r.status).toBe(303);
     expect(r.headers.get('location')).toBe(`${HIER}${BLATT}`);
     expect(zustand.halte).toHaveBeenCalledOnce();
+  });
+
+  it('das Ziel kommt aus der Sitzung — eine andere Gesellschaft in der Adresse ändert nichts (V-278)', async () => {
+    for (const adresse of ['/api/lead?mandant=security', '/api/lead']) {
+      const r = await POST(anfrage(NOTIZ, FORMULAR, HIER, adresse));
+      expect(r.status).toBe(303);
+      expect(r.headers.get('location')).toBe(`${HIER}${BLATT}`);
+    }
   });
 
   it('JSON wie bisher: fremder Ursprung, fehlender Lead, unbekannte Art', async () => {

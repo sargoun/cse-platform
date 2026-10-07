@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SchreibKontext } from '../../kontext/index.js';
 import { risikoPunkte, stufeRisikoEin } from '../../services/freigabe/posteingang.js';
+import { legeFreigabeVor } from '../../services/freigabe/vorlegen.js';
 import {
   AKTION_WERKZEUG_ERGEBNIS, ergebnisAbdruck, gateWerkzeugErgebnis,
 } from '../policy.js';
@@ -75,26 +76,37 @@ export async function halteErgebnisZurueck(
   });
   const vorschau = vorschauAus(v, urteil.gruende);
 
-  const [f] = await kontext.schreibe<{ id: string }>(
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-        risiko_punkte, diff, vorschau_payload, payload_hash, agent_id, agent_aufgabe_id,
-        externe_ref)
-     values ($1::uuid, $2, 'offen', 'interner_hinweis'::agent_vorgang_typ, $3, $4,
-             $5::risiko_stufe, $6::integer, '[]'::jsonb, $7::jsonb, $8, $9::uuid, $10::uuid,
-             $11)
-     returning id`,
-    [kontext.aktiverMandantId, AKTION_WERKZEUG_ERGEBNIS, v.titel, v.zusammenfassung,
-      urteil.risiko, risikoPunkte(urteil.risiko), vorschau, ergebnisAbdruck(vorschau),
-      v.agentId, v.aufgabeId, `agent:${v.aufgabeId}`]);
-  if (f === undefined) throw new Error('Die Freigabe des Werkzeugergebnisses entstand nicht.');
-  return f.id;
+  /*
+   * Vorgelegt über `app.freigabe_vorlegen` (V-376, D-819) — als Bitte eines
+   * Agentenlaufs: Agent und Aufgabe nimmt der Definer aus der laufenden
+   * Aufgabe, nicht aus `v.agentId`.
+   */
+  return legeFreigabeVor(kontext, {
+    aktion: AKTION_WERKZEUG_ERGEBNIS,
+    vorgangTyp: 'interner_hinweis',
+    titel: v.titel,
+    zusammenfassung: v.zusammenfassung,
+    risiko: urteil.risiko,
+    risikoPunkte: risikoPunkte(urteil.risiko),
+    vorschauPayload: vorschau,
+    payloadHash: ergebnisAbdruck(vorschau),
+    agentAufgabeId: v.aufgabeId,
+    externeRef: `agent:${v.aufgabeId}`,
+  });
 }
 
-/** Darf diese Sitzung überhaupt etwas vorlegen? Sonst legt sie nichts an. */
+/**
+ * Darf diese Sitzung überhaupt etwas vorlegen? Sonst legt sie nichts an.
+ *
+ * Dieselbe Regel wie `app.freigabe_vorlegen` für die Bitte eines
+ * Agentenlaufs (V-376, D-819): wer Agentenaufgaben starten darf, legt das
+ * Ergebnis vor — entscheiden muss er es nicht dürfen. Bis dahin fragte die
+ * Stelle `freigabe.entscheiden`, und ein Fragender ohne Entscheidungsrecht
+ * bekam nie eine Antwort, auch keine freigegebene.
+ */
 export async function darfVorlegen(db: Leser): Promise<boolean> {
   const [z] = await db.abfrage<{ ja: boolean }>(
-    `select app.hat_recht('freigabe.entscheiden', app.aktiver_mandant()) as ja`);
+    `select app.hat_recht('agent.aufgabe_starten', app.aktiver_mandant()) as ja`);
   return z?.ja === true;
 }
 

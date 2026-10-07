@@ -116,7 +116,8 @@ describe('(4) die Felder eines Stellenformulars', () => {
     });
     expect(f).toEqual({
       titel: 'Objektleitung', beschreibung: 'Text', anforderungen: ['A', 'B'],
-      einsatzort: null, wochenstunden: 38.5, bewerbungsfrist: '2026-11-30',
+      einsatzort: null, wochenstunden: 38.5, beschaeftigungsart: null,
+      bewerbungsfrist: '2026-11-30',
     });
   });
 

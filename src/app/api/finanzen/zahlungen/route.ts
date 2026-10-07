@@ -16,6 +16,7 @@ import { maskeMitEingaben } from '@/lib/formular/maske';
 import { istUuid } from '@/lib/uuid';
 import { istGueltigerKalendertag } from '@/lib/datum/kalendertag';
 import { IbanFehler } from '@/server/services/finanz/zahlung/iban';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/finanzen/zahlungen` — einen Zahlungseingang erfassen (FIN-14,
@@ -62,12 +63,11 @@ const AUSGANG_FELDER = ['betrag', 'zahlungsdatum', 'zahlungsmittel', 'bankkontoI
  * sonst nur ein Satz trug und den keine Seite mehr lesen soll.
  */
 function zurEingangsrechnung(
-  anfrage: NextRequest, eingangsrechnungId: string,
+  anfrage: NextRequest, slug: string, eingangsrechnungId: string,
   ergebnis: { readonly erfolg: 'ausgang_erfasst' | 'ausgang_guthaben' }
     | { readonly fehler: string; readonly daten: FormData },
 ): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const pfad = `/portal/${slug}/finanzen/eingangsrechnungen/${eingangsrechnungId}`;
+  const pfad = portalPfad(slug, `/finanzen/eingangsrechnungen/${eingangsrechnungId}`);
   if ('erfolg' in ergebnis) {
     const url = new URL(pfad, erwarteterUrsprung(anfrage));
     url.searchParams.set('erfolg', ergebnis.erfolg);
@@ -83,10 +83,9 @@ function zurEingangsrechnung(
 }
 
 function zurueck(
-  anfrage: NextRequest, hinweis?: string, seite = 'zahlungen',
+  anfrage: NextRequest, slug: string, hinweis?: string, seite = 'zahlungen',
 ): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(`/portal/${slug}/finanzen/${seite}`, erwarteterUrsprung(anfrage));
+  const url = new URL(portalPfad(slug, `/finanzen/${seite}`), erwarteterUrsprung(anfrage));
   if (hinweis !== undefined) url.searchParams.set('hinweis', hinweis);
   return NextResponse.redirect(url, 303);
 }
@@ -99,6 +98,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -123,18 +123,20 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const datum = text('zahlungsdatum');
     if (text('betrag') === null || datum === null || mittel === null
         || !MITTEL_AUSGANG.has(mittel)) {
-      return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
+      return zurEingangsrechnung(
+        anfrage, slug, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
     }
     /*
      * Ein Tag, den es gibt — das Muster allein liess den 31.02. durch, und
      * die Datenbank antwortete mit `22008`, also einem 500 (V-217).
      */
     if (!istGueltigerKalendertag(datum)) {
-      return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'datum', daten });
+      return zurEingangsrechnung(anfrage, slug, eingangsrechnungId, { fehler: 'datum', daten });
     }
     const konto = text('bankkontoId');
     if (konto !== null && !istUuid(konto)) {
-      return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
+      return zurEingangsrechnung(
+        anfrage, slug, eingangsrechnungId, { fehler: 'unvollstaendig', daten });
     }
   }
 
@@ -166,7 +168,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             bic: text('bic'),
             istStandard: daten.get('ist_standard') === 'ja',
           });
-          return zurueck(anfrage, 'bankkonto', 'bankkonten');
+          return zurueck(anfrage, slug, 'bankkonto', 'bankkonten');
         }
 
         if (aktion === 'bauabzug') {
@@ -181,7 +183,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
           }
           await bucheBauabzug(kontext, rechnungId);
-          return zurueck(anfrage, 'bauabzug');
+          return zurueck(anfrage, slug, 'bauabzug');
         }
 
         if (aktion === 'ausgleichen') {
@@ -206,7 +208,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             betragCent: parseGeld(betragRoh),
             grund,
           });
-          return zurueck(anfrage, 'ausgeglichen');
+          return zurueck(anfrage, slug, 'ausgeglichen');
         }
 
         if (aktion === 'ausgang' && eingangsrechnungId !== null) {
@@ -219,7 +221,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             referenz: text('referenz'),
           });
           /* Die Überzahlung wird BENANNT: ein Guthaben beim Lieferanten. */
-          return zurEingangsrechnung(anfrage, eingangsrechnungId, {
+          return zurEingangsrechnung(anfrage, slug, eingangsrechnungId, {
             erfolg: ergebnis.ueberzahlungCent > 0n ? 'ausgang_guthaben' : 'ausgang_erfasst',
           });
         }
@@ -231,7 +233,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
           }
           await storniereZahlung(kontext, zahlungId, grund);
-          return zurueck(anfrage, 'storniert');
+          return zurueck(anfrage, slug, 'storniert');
         }
 
         const rechnungId = text('rechnungId');
@@ -272,7 +274,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          * danach den Guthabenposten, und der Hinweis sagt, dass einer
          * entstanden ist.
          */
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           ergebnis.ueberzahlungCent > 0n ? 'guthaben' : 'erfasst');
       }))) as NextResponse;
   } catch (fehler) {
@@ -282,10 +284,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      */
     if (aktion === 'ausgang' && eingangsrechnungId !== null) {
       if (fehler instanceof GeldFehler) {
-        return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: 'betrag', daten });
+        return zurEingangsrechnung(anfrage, slug, eingangsrechnungId, { fehler: 'betrag', daten });
       }
       if (fehler instanceof ZahlungFehler) {
-        return zurEingangsrechnung(anfrage, eingangsrechnungId, { fehler: fehler.grund, daten });
+        return zurEingangsrechnung(
+          anfrage, slug, eingangsrechnungId, { fehler: fehler.grund, daten });
       }
     }
     const auth = autorisierungsAntwort(fehler, anfrage);

@@ -92,6 +92,11 @@ export interface ObjekteTexte {
   /** `einsaetze_offen` — mit der Zahl aus `?anzahl=`, wenn sie eine ist (V-240). */
   readonly einsaetzeOffen: (anzahl: number | null) => string;
   readonly fehlerSonst: string;
+  /* ── Dieselbe Anschrift (V-361, D-817) ──────────────────────────────── */
+  /** `anschrift_vorhanden` — mit der Zahl der vorhandenen Objekte. */
+  readonly anschriftVorhanden: (anzahl: number | null) => string;
+  readonly dublettenNeuEintragen: string;
+  readonly trotzDublette: string;
 
   /* ── Sätze, die eine Entscheidung begründen ────────────────────────── */
   readonly anschriftPflicht: string;
@@ -223,6 +228,15 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
       + 'Zukunft. Stornieren Sie diese zuerst — sonst fährt morgen jemand an einen Ort, den '
       + 'es in der Plattform nicht mehr gibt.',
     fehlerSonst: 'Die Eingabe wurde abgewiesen. Bitte prüfen Sie die Angaben.',
+    anschriftVorhanden: (n) =>
+      `Unter dieser Anschrift führt die Gesellschaft schon ${n === null || n === 1 ? 'ein Objekt' : `${String(n)} Objekte`}. `
+      + 'Ein Gebäude ist ein Objekt (Voreinstellung) — zwei Objekte hiessen zwei Raumbücher und '
+      + 'zwei Schlüsselsätze für dieselbe Tür. Ist es ein weiteres Haus, etwa einer '
+      + 'Wohnanlage, bestätigen Sie unten und legen erneut an.',
+    dublettenNeuEintragen:
+      'Zutrittshinweis und Bemerkung reisen nicht über die Adresse — tragen Sie sie bitte erneut ein.',
+    trotzDublette:
+      'Ich habe die vorhandenen Objekte gesehen und lege trotzdem ein weiteres an.',
 
     anschriftPflicht:
       'Die Anschrift ist Pflicht. Eine Schicht, die auf ein Objekt ohne '
@@ -361,6 +375,15 @@ export const OBJEKTE_TEXTE: Readonly<Record<InternSprache, ObjekteTexte>> = {
       + `${n === 1 ? 'it' : 'them'} first — otherwise someone drives tomorrow to a place that `
       + 'no longer exists in the platform.',
     fehlerSonst: 'The entry was rejected. Please check the values.',
+    anschriftVorhanden: (n) =>
+      `This company already has ${n === null || n === 1 ? 'an Objekt' : `${String(n)} Objekte`} at this address. `
+      + 'One building is one Objekt (default) — two would mean two room books and two key sets '
+      + 'for the same door. If it is another building, for instance of a housing estate, confirm '
+      + 'below and create it again.',
+    dublettenNeuEintragen:
+      'The access note and the remark do not travel through the address — please enter them again.',
+    trotzDublette:
+      'I have seen the existing Objekte and create another one anyway.',
 
     anschriftPflicht:
       'The address is required. A shift scheduled on an Objekt without an '

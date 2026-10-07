@@ -7,6 +7,7 @@ import { internSprache } from '@/lib/i18n/intern';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECRUITING_STELLENENTWURF_TEXTE } from '@/lib/i18n/verwaltung/recruiting-stellenentwurf';
 import { bedarf } from '@/server/services/recruiting/dienst';
+import { BESCHAEFTIGUNGSARTEN } from '@/server/services/recruiting/beschaeftigungsart';
 import { modellStand } from '@/server/agent/modell/auswahl';
 import { haeltRechte } from '../../../../rechte';
 import { RecruitingSeite, leseImMandanten } from '../../rahmen';
@@ -187,6 +188,19 @@ export default async function NeueStelle(
                            max="60" step="0.5" className={FELD} />
                   </div>
                   <div className="flex flex-col gap-s2">
+                    <label htmlFor="agent-art" className="text-xs text-text-muted">
+                      {t.beschaeftigungsart}
+                    </label>
+                    <select id="agent-art" name="beschaeftigungsart" defaultValue=""
+                            className={FELD} data-cse="stelle-agent-art">
+                      <option value="">{t.beschaeftigungsartOffen}</option>
+                      {BESCHAEFTIGUNGSARTEN.map((a) => (
+                        <option key={a} value={a}>{t.beschaeftigungsarten[a]}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-text-subtle">{t.beschaeftigungsartHinweis}</p>
+                  </div>
+                  <div className="flex flex-col gap-s2">
                     <label htmlFor="agent-frist" className="text-xs text-text-muted">
                       {t.frist}
                     </label>
@@ -255,6 +269,20 @@ export default async function NeueStelle(
                 </label>
                 <input id="wochenstunden" name="wochenstunden" type="number" min="1" max="60"
                        step="0.5" className={FELD} data-cse="stelle-stunden" />
+              </div>
+
+              <div className="flex flex-col gap-s2">
+                <label htmlFor="beschaeftigungsart" className="text-xs text-text-muted">
+                  {t.beschaeftigungsart}
+                </label>
+                <select id="beschaeftigungsart" name="beschaeftigungsart" defaultValue=""
+                        className={FELD} data-cse="stelle-art">
+                  <option value="">{t.beschaeftigungsartOffen}</option>
+                  {BESCHAEFTIGUNGSARTEN.map((a) => (
+                    <option key={a} value={a}>{t.beschaeftigungsarten[a]}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-text-subtle">{t.beschaeftigungsartHinweis}</p>
               </div>
 
               <div className="flex flex-col gap-s2">

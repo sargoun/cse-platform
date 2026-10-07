@@ -7,8 +7,9 @@
  * physical trust fails the moment anyone looks closely.
  *
  * `pnpm guards` does not fail on these — they are legitimate during
- * development. The production build does not check them yet either:
- * `assertKeinePlatzhalter()` below has no caller (V-389).
+ * development and in the demonstration deployment. The LAUNCH build fails on
+ * them: `next.config.ts` calls `assertKeinePlatzhalter()` with
+ * `istLivegang()`, which only `CSE_LIVEGANG=1` turns on (V-389, D-818).
  */
 export interface Platzhalter {
   readonly pfad: string;
@@ -58,21 +59,34 @@ export const PLATZHALTER: readonly Platzhalter[] = [
 ];
 
 /**
- * Meant for the launch build: a placeholder in production is a launch
- * blocker, and DESIGN §4 says so about the photography in particular.
- * Nothing calls it yet (V-389) — wiring it into every production build would
- * also stop the demonstration deployment, so it needs its own launch switch.
+ * Is this the LAUNCH build? Only `CSE_LIVEGANG=1` says so (V-389, D-818).
+ *
+ * Not `NODE_ENV === 'production'`: the demonstration deployment is a
+ * production build too, and it legitimately shows the marked placeholders.
+ * Launch is a decision, so it gets its own switch.
+ *
+ * TODO(client, O-12): Voreinstellung — the switch is off until the operator
+ * sets it for the launch build; then every placeholder in `PLATZHALTER` stops
+ * the build. O-13 likewise for the photography.
  */
-export function assertKeinePlatzhalter(umgebung: string): void {
-  if (umgebung !== 'production') return;
-  if (PLATZHALTER.length > 0) {
-    throw new Error(
-      `Produktionsbuild mit ${PLATZHALTER.length} Platzhaltern:\n` +
-        PLATZHALTER.map((p) => `  ${p.pfad} — ${p.grund}${p.frage === null ? '' : ` (${p.frage})`}`).join(
-          '\n',
-        ),
-    );
-  }
+export function istLivegang(umgebung: Readonly<Record<string, string | undefined>>): boolean {
+  return umgebung['CSE_LIVEGANG'] === '1';
+}
+
+/**
+ * The launch gate: a placeholder in the launch build is a launch blocker,
+ * and DESIGN §4 says so about the photography in particular. Called from
+ * `next.config.ts`, so `next build` stops before anything is deployed.
+ */
+export function assertKeinePlatzhalter(
+  livegang: boolean, register: readonly Platzhalter[] = PLATZHALTER,
+): void {
+  if (!livegang || register.length === 0) return;
+  throw new Error(
+    `Livegang-Build mit ${String(register.length)} Platzhaltern (CSE_LIVEGANG=1):\n`
+      + register.map((p) => `  ${p.pfad} — ${p.grund}${p.frage === null ? '' : ` (${p.frage})`}`)
+        .join('\n'),
+  );
 }
 
 /**

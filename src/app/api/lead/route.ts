@@ -12,6 +12,7 @@ import { withTenant } from '@/server/kontext/index';
 import { berlinTagesZeitpunkt } from '@/server/services/zeit/dauer';
 import { CrmFehler } from '@/server/services/crm/anlegen';
 import { AKTIVITAET_TYPEN, halteLeadAktivitaetFest } from '@/server/services/crm/lead-kontakt';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/lead` — eine Notiz festhalten und die naechste Aktion setzen
@@ -46,6 +47,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -122,18 +124,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
     if (!getroffen) return nichtGefundenAntwort();
 
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
     return NextResponse.redirect(
-      new URL(`/portal/${slug}/crm/leads/${leadId}`, erwarteterUrsprung(anfrage)), 303);
+      new URL(portalPfad(slug, `/crm/leads/${leadId}`), erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     /* Anmeldung und Recht zuerst — ein fehlendes Recht ist die byte-gleiche 404. */
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;
     /* Ein Fehler, der als Grund auf dem Leadblatt ankommt, nicht als 500. */
     if (fehler instanceof CrmFehler) {
-      const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
       return NextResponse.redirect(new URL(
-        `/portal/${slug}/crm/leads/${leadId}?fehler=${encodeURIComponent(fehler.grund)}`,
+        portalPfad(slug, `/crm/leads/${leadId}?fehler=${encodeURIComponent(fehler.grund)}`),
         erwarteterUrsprung(anfrage)), 303);
     }
     throw fehler;

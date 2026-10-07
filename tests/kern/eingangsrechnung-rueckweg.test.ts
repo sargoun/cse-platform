@@ -43,6 +43,11 @@ vi.mock('@/server/auth/anfrage-sitzung', () => ({
 vi.mock('@/server/db/pool', () => ({
   db: () => ({ begin: <T,>(fn: (tx: unknown) => Promise<T>) => fn({}) }),
 }));
+/* Der Slug der Umleitung kommt aus der Sitzung, nicht aus `?mandant=` (V-278). */
+vi.mock('@/server/auth/aktiver-slug', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  slugDesAktivenMandanten: () => Promise.resolve('reinigung'),
+}));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) => fn({
     aktiverMandantId: '00000000-0000-4000-8000-000000000002',
@@ -208,7 +213,7 @@ describe('POST /api/finanzen/eingangsrechnungen — `/neu` bekommt einen Grund',
   it('jeder Grund, den die Route bilden kann, steht in der Liste der Gründe', () => {
     /* Der Typ von `zurueck()` hält das schon beim Übersetzen fest; hier dasselbe zur Laufzeit. */
     const quelle = readFileSync(join(WURZEL, 'src/app/api/finanzen/eingangsrechnungen/route.ts'), 'utf8');
-    const fest = [...quelle.matchAll(/zurueck\(anfrage, '\/neu', \{ fehler: '([a-z_]+)' \}\)/gu)]
+    const fest = [...quelle.matchAll(/zurueck\(anfrage, slug, '\/neu', \{ fehler: '([a-z_]+)' \}\)/gu)]
       .map((m) => m[1] ?? '');
     expect(fest.length, 'liest der Test die Route noch?').toBeGreaterThanOrEqual(7);
     const alle = [

@@ -11,6 +11,7 @@ import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { IdentitaetFehler, setzeIdentitaet }
   from '@/server/services/mandant/identitaet';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/identitaet` — das Erscheinungsbild einer
@@ -28,10 +29,9 @@ import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/einstellungen/identitaet`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/einstellungen/identitaet`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -43,6 +43,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -76,13 +77,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           emailSignatur: text('emailSignatur'),
           oeffentlichSichtbar: text('oeffentlichSichtbar') === 'ja',
         });
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           'Die Identität ist gespeichert. Auf bereits festgeschriebene Rechnungen '
           + 'wirkt eine geänderte Fusszeile nie (K-12).');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /* Der Aufrufer ist ein Formular, also bekommt er eine SEITE mit dem Satz. */
-    if (fehler instanceof IdentitaetFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof IdentitaetFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

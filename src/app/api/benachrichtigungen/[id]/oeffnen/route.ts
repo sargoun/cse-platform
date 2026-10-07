@@ -6,6 +6,8 @@ import { istGleicherUrsprung, erwarteterUrsprung } from '@/server/auth/ursprung'
 import { bindePersoenlich } from '@/server/kontext/index';
 import { db } from '@/server/db/pool';
 import { oeffne } from '@/server/benachrichtigung/posteingang';
+import { istInternesZiel } from '@/server/benachrichtigung/registry';
+import { PORTAL_START } from '@/server/auth/zugang';
 
 /**
  * `POST /api/benachrichtigungen/[id]/oeffnen` — stempeln und weiterleiten
@@ -18,6 +20,14 @@ import { oeffne } from '@/server/benachrichtigung/posteingang';
  * **Das Ziel kommt aus der ZEILE, nicht aus der Anfrage.** Ein `ziel` im Rumpf
  * waere ein Feld, in das sich eine fremde Adresse schreiben liesse — eine
  * offene Weiterleitung mit einer echten Anmeldung davor (D-504).
+ *
+ * **Und die Zeile allein genuegt nicht** (V-394, D-814). Bis 0510 pruefte
+ * `benachrichtigung.ziel` nur `length(ziel) > 1`; jeder Schreibweg, der ein
+ * Ziel durchreicht, haette `//boese.example` speichern koennen. Jetzt prueft
+ * es die Datenbank (`benachrichtigung_ziel_intern`), und diese Route prueft
+ * es noch einmal: erst die Form (`istInternesZiel`), dann, ob die aufgeloeste
+ * Adresse auf DIESEM Ursprung liegt. Ein Ziel, das beides nicht besteht, fuehrt
+ * auf den Start des eigenen Portals — gelesen ist die Meldung trotzdem.
  *
  * **POST und kein GET**, weil es Zustand aendert: ein Vorauslader, ein
  * Suchroboter oder ein weitergeleiteter Link markierte sonst fremde Meldungen
@@ -53,7 +63,10 @@ export async function POST(
 
   if (ziel === null) return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
 
-  // Relativ und aus der Zeile: `new URL(ziel, origin)` kann damit nie auf
-  // einen fremden Wirt zeigen, weil `ziel` per CHECK mit `/` beginnt.
-  return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
+  const ursprung = erwarteterUrsprung(anfrage);
+  const start = PORTAL_START[sitzung.portal] ?? '/auth/bereich';
+  const adresse = istInternesZiel(ziel) ? new URL(ziel, ursprung) : null;
+  const weiter = adresse !== null && adresse.origin === new URL(ursprung).origin
+    ? adresse : new URL(start, ursprung);
+  return NextResponse.redirect(weiter, 303);
 }

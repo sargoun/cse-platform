@@ -72,7 +72,7 @@ const ANGABEN = {
   titel: 'Reinigungskraft (m/w/d)', einsatzort: 'Berlin-Charlottenburg', beginn: 'ab sofort',
   aufgaben: ['Unterhaltsreinigung von Büroflächen', 'Glasreinigung'],
   objektId: null, anforderungen: ['Zuverlässigkeit', 'Deutschkenntnisse'],
-  wochenstunden: 20, bewerbungsfrist: null,
+  wochenstunden: 20, beschaeftigungsart: null, bewerbungsfrist: null,
 };
 
 beforeEach(async () => {
@@ -145,13 +145,14 @@ describe('(2) ein Mensch bearbeitet den Entwurf — solange keine Freigabe daran
     await als((k) => aendereStelle(k, id, {
       titel: 'Objektleitung (m/w/d)', beschreibung: 'Überarbeitet von einem Menschen.',
       anforderungen: ['Führerschein', ' ', 'Erfahrung in der Objektbetreuung'],
-      einsatzort: 'Berlin', wochenstunden: 38.5, bewerbungsfrist: '2026-12-31',
+      einsatzort: 'Berlin', wochenstunden: 38.5, beschaeftigungsart: 'vollzeit',
+      bewerbungsfrist: '2026-12-31',
     }));
     const s = await als((k) => ladeStelle(k, id));
     expect(s).toMatchObject({
       titel: 'Objektleitung (m/w/d)', entwurfVonArt: 'agent',
       anforderungen: ['Führerschein', 'Erfahrung in der Objektbetreuung'],
-      wochenstunden: '38.50', bewerbungsfrist: '2026-12-31',
+      wochenstunden: '38.50', beschaeftigungsart: 'vollzeit', bewerbungsfrist: '2026-12-31',
     });
     const [p] = await sql.unsafe<{ vorher: Record<string, unknown> }[]>(
       `select vorher from audit_log where objekt_typ = 'stelle' and objekt_id = $1
@@ -161,7 +162,7 @@ describe('(2) ein Mensch bearbeitet den Entwurf — solange keine Freigabe daran
     await als((k) => legeStelleVor(k, id));
     await expect(als((k) => aendereStelle(k, id, {
       titel: 'Anders', beschreibung: 'Anders.', anforderungen: [], einsatzort: null,
-      wochenstunden: null, bewerbungsfrist: null,
+      wochenstunden: null, beschaeftigungsart: null, bewerbungsfrist: null,
     }))).rejects.toMatchObject({ grund: 'schon_vorgelegt' });
   });
 
@@ -170,11 +171,11 @@ describe('(2) ein Mensch bearbeitet den Entwurf — solange keine Freigabe daran
       titel: 'Hausmeister', beschreibung: 'Entwurf.', anforderungen: [],
     }));
     await expect(als((k) => aendereStelle(k, id, {
-      titel: ' ', beschreibung: 'x', anforderungen: [], einsatzort: null, wochenstunden: null,
+      titel: ' ', beschreibung: 'x', anforderungen: [], einsatzort: null, wochenstunden: null, beschaeftigungsart: null,
       bewerbungsfrist: null,
     }))).rejects.toMatchObject({ grund: 'unvollstaendig' });
     await expect(als((k) => aendereStelle(k, '00000000-0000-4000-8000-000000000002', {
-      titel: 'x', beschreibung: 'x', anforderungen: [], einsatzort: null, wochenstunden: null,
+      titel: 'x', beschreibung: 'x', anforderungen: [], einsatzort: null, wochenstunden: null, beschaeftigungsart: null,
       bewerbungsfrist: null,
     }))).rejects.toMatchObject({ grund: 'unbekannt' });
   });
@@ -194,7 +195,7 @@ describe('(2) ein Mensch bearbeitet den Entwurf — solange keine Freigabe daran
     }));
     await expect(als((k) => aendereStelle(k, fremd, {
       titel: 'Übernommen', beschreibung: 'Aus der Reinigung.', anforderungen: [],
-      einsatzort: null, wochenstunden: null, bewerbungsfrist: null,
+      einsatzort: null, wochenstunden: null, beschaeftigungsart: null, bewerbungsfrist: null,
     }))).rejects.toMatchObject({ grund: 'unbekannt' });
     const [z] = await sql.unsafe<{ titel: string; mandant: string }[]>(
       `select titel, mandant_id::text as mandant from stelle where id = $1`, [fremd]);
@@ -214,5 +215,35 @@ describe('(3) der Seed bearbeitet den Agentenentwurf über den Dienst', () => {
     const s = await als((k) => ladeStelle(k, id));
     expect(s!.anforderungen).toContain(STELLE_ERGAENZUNG);
     expect(await seedStellenentwurf(sql, ids, true)).toEqual({ bearbeitet: 0 });
+  });
+});
+
+/**
+ * V-362, D-816 — die Beschäftigungsart der Stelle: angelegt, gelesen, in der
+ * Freigabe mitgeführt; ein fremdes Wort nimmt die Datenbank nicht an.
+ */
+describe('(4) die Beschäftigungsart (V-362)', () => {
+  it('angelegt und gelesen — und Teil dessen, was freigegeben wird', async () => {
+    const id = await als((k) => legeStelleAn(k, {
+      titel: 'Aushilfe Glasreinigung', beschreibung: 'Saisonal.', anforderungen: [],
+      wochenstunden: 10, beschaeftigungsart: 'minijob',
+    }));
+    expect((await als((k) => ladeStelle(k, id)))!.beschaeftigungsart).toBe('minijob');
+
+    await als((k) => legeStelleVor(k, id));
+    const [f] = await sql.unsafe<{ art: string | null }[]>(
+      `select vorschau_payload ->> 'beschaeftigungsart' as art from freigabe
+        where bezug_typ = 'stelle' and bezug_id = $1`, [id]);
+    expect(f!.art).toBe('minijob');
+  });
+
+  it('ohne Angabe nicht festgelegt — und ein fremdes Wort weist die Datenbank ab', async () => {
+    const id = await als((k) => legeStelleAn(k, {
+      titel: 'Objektleitung', beschreibung: 'Text.', anforderungen: [],
+    }));
+    expect((await als((k) => ladeStelle(k, id)))!.beschaeftigungsart).toBeNull();
+    await expect(sql.unsafe(
+      `update stelle set beschaeftigungsart = 'festanstellung' where id = $1`, [id]))
+      .rejects.toThrow(/beschaeftigungsart/u);
   });
 });

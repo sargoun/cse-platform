@@ -9,11 +9,14 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
-  EINLADUNG_COOKIE, EinladungFehler, istEinladbareRolle, ladeVerwaltungskontoEin,
-  type EinladungErgebnis,
+  EINLADUNG_COOKIE, EinladungFehler, LINK_NEU_COOKIE, istEinladbareRolle,
+  ladeVerwaltungskontoEin, stelleLinkNeuAus, wechsleVerwaltungsrolle,
+  type EinladungErgebnis, type LinkNeuErgebnis, type RollenwechselErgebnis,
 } from '@/server/services/system/verwaltungskonto';
 import type { VerwaltungskontoFehlerGrund }
   from '@/lib/i18n/verwaltung/einstellungen/verwaltungskonto';
+import type { VerwaltungskontoPflegeStand }
+  from '@/lib/i18n/verwaltung/einstellungen/verwaltungskonto-pflege';
 
 /**
  * `POST /api/system/verwaltungskonto` — ein Verwaltungskonto einladen
@@ -44,8 +47,16 @@ import type { VerwaltungskontoFehlerGrund }
  * `?meldung=Nicht gefunden` statt der byte-gleichen 404 (AUT-06), und ein
  * Verbindungsabbruch eine erfundene Abweisung. Jetzt kommen Anmeldung und
  * Recht zuerst, und ein unbekannter Fehler bleibt ein Fehler.
+ *
+ * **Zwei weitere Aktionen am Benutzerblatt** (V-302, O-980, O-981, D-821):
+ * `aktion=link_neu` stellt einen neuen Link aus (der alte verfällt),
+ * `aktion=rolle` wechselt zwischen `admin` und `leitung`. Dasselbe Recht,
+ * dieselbe doppelte Prüfung (0517); zurück aufs Blatt mit `?verwaltung=<stand>`,
+ * der neue Link wie beim Einladen in einem Keks unter dem Pfad des Blatts.
  */
 export const dynamic = 'force-dynamic';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -60,6 +71,57 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const mandantSlug = (daten.get('zurueck') as string | null)?.split('/')[2] ?? '';
   const seite = `/portal/${mandantSlug}/einstellungen/benutzer/einladen`;
   const keks = await cookies();
+
+  const aktion = String(daten.get('aktion') ?? 'einladen');
+  if (aktion === 'link_neu' || aktion === 'rolle') {
+    const benutzerId = String(daten.get('benutzer') ?? '');
+    if (!UUID.test(benutzerId)) {
+      return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
+    }
+    const blatt = `/portal/${mandantSlug}/einstellungen/benutzer/${benutzerId}`;
+    /* Wie oben: genau ein Schlüssel zurück, und eine Abweisung nimmt einen alten Link mit weg. */
+    const zumBlatt = (stand: VerwaltungskontoPflegeStand): NextResponse => {
+      if (stand !== 'link_einladung' && stand !== 'link_kennwort') {
+        keks.delete({ name: LINK_NEU_COOKIE, path: blatt });
+      }
+      const ziel = internesZiel(blatt, '/portal', anfrage);
+      ziel.searchParams.set('verwaltung', stand);
+      return NextResponse.redirect(ziel, 303);
+    };
+    const neueRolle = String(daten.get('rolle') ?? '');
+    if (aktion === 'rolle' && !istEinladbareRolle(neueRolle)) {
+      return zumBlatt('rolle_unzulaessig');
+    }
+
+    let pflege: LinkNeuErgebnis | RollenwechselErgebnis;
+    try {
+      pflege = await (db().begin(async (tx: postgres.TransactionSql) =>
+        withTenant(tx, sitzung, async (kontext) => {
+          await authorize(
+            sitzung, { recht: 'system.verwaltungskonto_erstellen', schreibend: true },
+            rechtepruefer(kontext.abfrage.bind(kontext)),
+          );
+          return istEinladbareRolle(neueRolle) && aktion === 'rolle'
+            ? wechsleVerwaltungsrolle(kontext, benutzerId, neueRolle)
+            : stelleLinkNeuAus(kontext, benutzerId);
+        })) as Promise<LinkNeuErgebnis | RollenwechselErgebnis>);
+    } catch (fehler) {
+      const autorisierung = autorisierungsAntwort(fehler, anfrage, { felder: daten });
+      if (autorisierung !== null) return autorisierung;
+      if (fehler instanceof EinladungFehler) return zumBlatt(fehler.grund);
+      throw fehler;
+    }
+
+    if (!pflege.ok) return zumBlatt(pflege.grund);
+    if ('token' in pflege) {
+      keks.set(LINK_NEU_COOKIE, pflege.token, {
+        httpOnly: true, sameSite: 'lax', path: blatt, maxAge: 300,
+        secure: process.env.NODE_ENV === 'production',
+      });
+      return zumBlatt(pflege.zweck === 'einladung' ? 'link_einladung' : 'link_kennwort');
+    }
+    return zumBlatt(pflege.grund);
+  }
 
   /**
    * Zurück auf die Seite — mit genau einem Schlüssel. Eine Abweisung nimmt

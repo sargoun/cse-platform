@@ -59,7 +59,15 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
        * zweiten wörtlich in eine Policy. Gesetzt hat sie nie jemand.
        */
       'angebot_ablauf',
+      /*
+       * `audit_kette_nachtlauf` kam mit V-336 dazu: die Kette über das
+       * Prüfprotokoll (0204) wuchs nur beim Bilden eines Bündels, und
+       * nachgerechnet hat sie niemand regelmässig.
+       */
+      'audit_kette_nachtlauf',
       'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
+      /* `betriebsprotokolle_aufraeumen` kam mit V-330 dazu (O-92, D-822). */
+      'betriebsprotokolle_aufraeumen',
       'bewerber_loeschung', 'dokument_aufbewahrung',
       /*
        * `einsatz_abschluss` kam mit V-082 dazu und ist der einzige Lauf der

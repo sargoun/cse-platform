@@ -33,6 +33,7 @@ export async function POST(
         anforderungen: f.anforderungen,
         einsatzort: f.einsatzort,
         wochenstunden: f.wochenstunden,
+        beschaeftigungsart: f.beschaeftigungsart,
         bewerbungsfrist: f.bewerbungsfrist,
       });
       return id;

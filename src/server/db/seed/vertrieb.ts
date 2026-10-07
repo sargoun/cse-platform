@@ -87,12 +87,17 @@ export interface VertriebErgebnis {
   readonly anfrage: string | null;
   /** Material- und Gerätezeilen im Entwurf (V-174, OPS-07). */
   readonly kostenzeilen: number;
+  /**
+   * Leistungszeilen, die die Annahme aus dem versendeten Angebot übernommen
+   * hat (V-360, D-825) — gezählt, nicht vorausgesetzt.
+   */
+  readonly leistungszeilen: number;
 }
 
 const LEER: VertriebErgebnis = {
   angebote: 0, positionen: 0, angebotsnummer: null, auftragsnummer: null,
   entwuerfe: 0, offeneFragen: [], zurFreigabe: 0, kundendokument: null, anfrage: null,
-  kostenzeilen: 0,
+  kostenzeilen: 0, leistungszeilen: 0,
 };
 
 /**
@@ -432,6 +437,10 @@ export async function seedVertrieb(
       verantwortlichBenutzerId: freigeber.id,
       startDatum: monatsanfang,
     });
+    const [uebernommen] = await db.abfrage<{ n: number }>(
+      `select count(*)::int as n from auftrag_leistung where auftrag_id = $1`,
+      [auftrag.auftragId],
+    );
 
     /* ------------------------------------------------------------------ */
     /* 2 — das Angebot, das Entwurf bleibt                                 */
@@ -592,6 +601,7 @@ export async function seedVertrieb(
       kundendokument: freigabeErfasst ? KUNDENSCHREIBEN.titel : null,
       anfrage: anfrage.leadnummer,
       kostenzeilen: ENTWURF_KOSTEN.length,
+      leistungszeilen: uebernommen?.n ?? 0,
     };
   });
 

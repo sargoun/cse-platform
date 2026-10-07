@@ -13,6 +13,7 @@ import { Fin18Fehler } from '@/server/services/finanz/positionsquelle';
 import {
   berichtAlsJson, PflichtfeldFehler,
 } from '@/server/services/finanz/ustg14';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/rechnungen/festschreiben` — das einseitige Tor (FIN-02, FIN-03).
@@ -60,6 +61,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const rechnungId = daten.get('rechnungId');
@@ -88,9 +90,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return finalisiere(kontext, rechnungId, { fin18Begruendung });
       })));
 
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
     return NextResponse.redirect(
-      new URL(`/portal/${slug}/finanzen/rechnungen/${rechnungId}`, erwarteterUrsprung(anfrage)), 303);
+      new URL(portalPfad(slug, `/finanzen/rechnungen/${rechnungId}`), erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     const anmeldung = anmeldungsAntwort(fehler, anfrage);
     if (anmeldung !== null) return anmeldung;

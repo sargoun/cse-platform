@@ -45,6 +45,8 @@ export interface ObjektWerte {
   /** Wie gespeichert (`52.520008`), oder `null` — beide oder keiner (V-170). */
   readonly geoLat: string | null;
   readonly geoLon: string | null;
+  /** Nur beim Anlegen: die von Hand vergebene Nummer, die nach einer Rückfrage zurückreist (V-361). */
+  readonly objektnummer?: string | null | undefined;
 }
 
 export interface ObjektFormularProps {
@@ -55,12 +57,17 @@ export interface ObjektFormularProps {
   readonly werte?: ObjektWerte | undefined;
   readonly kunden: readonly KundeAuswahl[];
   readonly t: ObjekteTexte;
+  /**
+   * V-361 — unter dieser Anschrift gibt es schon ein Objekt: angelegt wird
+   * nur mit dem Häkchen, das sagt, dass der Mensch es gesehen hat.
+   */
+  readonly bestaetigeDublette?: boolean | undefined;
 }
 
 const FELD = 'w-full rounded-md border border-line bg-surface px-s3 py-s2 text-sm text-text';
 
 export function ObjektFormular(
-  { zurueck, objektId, werte, kunden, t }: ObjektFormularProps,
+  { zurueck, objektId, werte, kunden, t, bestaetigeDublette }: ObjektFormularProps,
 ) {
   const aendern = objektId !== undefined;
   return (
@@ -84,6 +91,7 @@ export function ObjektFormular(
             <label className="flex flex-col gap-s2 text-sm text-text">
               {t.objektnummer} <span className="text-text-subtle">{t.freiwillig}</span>
               <input name="objektnummer" className={FELD}
+                     defaultValue={werte?.objektnummer ?? ''}
                      placeholder={t.objektnummerBeispiel}
                      data-cse="objekt-nummer" />
               <span className="text-xs text-text-muted">{t.objektnummerHinweis}</span>
@@ -224,6 +232,14 @@ export function ObjektFormular(
           </label>
         </div>
       </Card>
+
+      {bestaetigeDublette === true && (
+        <label className="flex items-start gap-s2 text-sm text-text">
+          <input type="checkbox" name="trotzDublette" value="ja" required
+                 className="mt-s1" data-cse="objekt-trotz-dublette" />
+          <span>{t.trotzDublette}</span>
+        </label>
+      )}
 
       <Button type="submit" variante="primary" className="self-start"
               data-cse="objekt-speichern">

@@ -22,9 +22,11 @@
  * leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am
  * Auftrag (`auftrag.objekt_id`). Zwei Objekte für ein Haus hiessen zwei
  * Raumbücher, zwei Schlüsselsätze und zwei Objektnummern für dieselbe Tür.
- * Eine Konvention, keine Sperre: `legeObjektAn` legt an, eine Dublettenprüfung
- * je Anschrift gibt es nicht — zwei Erfasser können dasselbe Haus zweimal
- * anlegen (Prüfstand PR #35); die Prüfung steht als V-361. D-792.
+ * Eine Konvention, keine Sperre — aber eine Rückfrage: findet `legeObjektAn`
+ * unter derselben Anschrift schon ein Objekt der Gesellschaft
+ * (`anschriftSchluessel`), legt es erst nach einer bewussten Bestätigung an
+ * (`trotzDublette`; eine Wohnanlage mit einer Hausnummer bleibt möglich).
+ * Gebaut mit V-361 (D-817). D-792.
  *
  * **Die Anschrift ist Pflicht, weil die Datenbank sie verlangt** (`strasse`,
  * `plz`, `ort` sind `NOT NULL`, `drizzle/0021_objekt_raumbuch.sql:118`). Das
@@ -38,7 +40,8 @@
  * Zahl, und die zweite fiele auf `objekt_nummer_uk` mit einem Fehler, den der
  * Mensch davor nicht versteht.
  */
-import type { SchreibKontext } from '../../kontext/index.js';
+import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
+import { anschriftSchluessel, type Anschrift } from './anschrift.js';
 
 export class ObjektFehler extends Error {
   constructor(
@@ -77,6 +80,47 @@ export interface NeuesObjekt {
    */
   readonly geoLat?: string | undefined;
   readonly geoLon?: string | undefined;
+  /**
+   * V-361 — der Mensch hat gesehen, dass es unter dieser Anschrift schon ein
+   * Objekt gibt, und legt trotzdem an (ein weiteres Haus einer Wohnanlage).
+   */
+  readonly trotzDublette?: boolean | undefined;
+}
+
+/** Ein Objekt derselben Gesellschaft unter derselben Anschrift (V-361). */
+export interface AnschriftDublette {
+  readonly id: string;
+  readonly objektnummer: string;
+  readonly bezeichnung: string;
+  readonly strasse: string;
+  readonly hausnummer: string | null;
+  readonly plz: string;
+  readonly ort: string;
+}
+
+/**
+ * Die lebenden Objekte der aktiven Gesellschaft unter derselben Anschrift
+ * (V-361, D-817).
+ *
+ * Gesucht wird je Postleitzahl in der Datenbank und verglichen im Dienst
+ * (`anschriftSchluessel`): die Normalisierung — Umlaute, „Str.", Leerzeichen
+ * — ist eine Regel, die einen Kern-Test braucht, und eine zweite Fassung in
+ * SQL liefe ihr irgendwann davon. Archivierte Objekte zählen nicht: ein
+ * Gebäude, das die Gesellschaft abgegeben hat, darf sie wieder übernehmen.
+ */
+export async function findeAnschriftDubletten(
+  kontext: LeseKontext, anschrift: Anschrift,
+): Promise<readonly AnschriftDublette[]> {
+  const plz = anschrift.plz.trim();
+  if (plz === '' || anschrift.strasse.trim() === '') return [];
+  const schluessel = anschriftSchluessel(anschrift);
+  const kandidaten = await kontext.abfrage<AnschriftDublette>(
+    `select id, objektnummer, bezeichnung, strasse, hausnummer, plz, ort
+       from objekt
+      where mandant_id = app.aktiver_mandant() and archiviert_am is null
+        and plz = $1
+      order by objektnummer`, [plz]);
+  return kandidaten.filter((o) => anschriftSchluessel(o) === schluessel);
 }
 
 export interface AngelegtesObjekt {
@@ -263,6 +307,34 @@ export async function legeObjektAn(
   const plz = plzPruefen(pflicht(eingabe.plz, 'Die Postleitzahl', 'plz_fehlt'), land);
   const nummer = leer(eingabe.objektnummer);
   const geo = koordinatenAus(eingabe.geoLat, eingabe.geoLon);
+
+  /*
+   * V-361: dasselbe Haus nicht zweimal — es sei denn, der Mensch hat die
+   * vorhandenen Objekte gesehen und bestätigt. Die Zahl reist mit (V-240),
+   * die Seite nennt die Objekte selbst.
+   *
+   * **Erst die Sperre auf Gesellschaft und Anschrift, dann die Suche** — bis
+   * zum Ende der Transaktion, auch mit Bestätigung. Zwei gleichzeitige
+   * Anlagen derselben Anschrift sahen sonst beide nichts und legten zwei
+   * Objekte ohne Rückfrage an (verschiedene Objektnummern trägt
+   * `objekt_nummer_uk` beide); jetzt wartet die zweite und findet die erste.
+   */
+  await kontext.schreibe(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [`objekt_anschrift:${kontext.aktiverMandantId}:${anschriftSchluessel({
+      strasse, hausnummer: leer(eingabe.hausnummer), plz,
+    })}`]);
+  if (eingabe.trotzDublette !== true) {
+    const dubletten = await findeAnschriftDubletten(kontext, {
+      strasse, hausnummer: leer(eingabe.hausnummer), plz,
+    });
+    if (dubletten.length > 0) {
+      throw new ObjektFehler(
+        `Unter dieser Anschrift führt die Gesellschaft schon ${String(dubletten.length)} `
+        + 'Objekt(e). Ein Gebäude ist ein Objekt — angelegt wird erst nach einer Bestätigung.',
+        'anschrift_vorhanden', 409, dubletten.length);
+    }
+  }
 
   const zeilen = await kontext.schreibe<AngelegtesObjekt>(
     `insert into objekt

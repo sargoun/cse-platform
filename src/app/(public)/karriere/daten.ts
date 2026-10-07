@@ -1,6 +1,7 @@
 import 'server-only';
 import { oeffentlichLesen } from '@/server/inhalt/lesen';
 import { aufbewahrungTage } from '@/server/services/recruiting/dienst';
+import type { Beschaeftigungsart } from '@/server/services/recruiting/beschaeftigungsart';
 
 /**
  * Was die Karriereseite liest — ohne Sitzung, wie jede öffentliche Seite.
@@ -18,6 +19,8 @@ export interface OffeneStelle {
   readonly anforderungen: readonly string[];
   readonly einsatzort: string | null;
   readonly wochenstunden: string | null;
+  /** Vollzeit, Teilzeit, Minijob, Aushilfe — `null` heisst nicht festgelegt (V-362). */
+  readonly beschaeftigungsart: Beschaeftigungsart | null;
   readonly bewerbungsfrist: string | null;
   readonly mandantSlug: string;
   readonly mandantName: string;
@@ -26,6 +29,7 @@ export interface OffeneStelle {
 const FELDER = `
   s.id, s.titel, s.beschreibung, s.anforderungen, s.einsatzort,
   s.wochenstunden::text     as wochenstunden,
+  s.beschaeftigungsart::text as beschaeftigungsart,
   s.bewerbungsfrist::text   as bewerbungsfrist,
   m.slug                    as "mandantSlug",
   m.name                    as "mandantName"`;

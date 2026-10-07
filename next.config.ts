@@ -1,6 +1,14 @@
 import type { NextConfig } from 'next';
 import { weiterleitungenMitSprachen } from './src/lib/weiterleitungen';
 import { MARKENBILD_KOEPFE, SICHERHEITSKOEPFE } from './src/lib/sicherheitskoepfe';
+import { assertKeinePlatzhalter, istLivegang } from './src/lib/placeholder-assets';
+
+/*
+ * V-389: der Livegang-Build hält an, solange Platzhalter im Register stehen —
+ * nur mit CSE_LIVEGANG=1; die Vorführung bleibt ein Produktionsbuild mit
+ * gekennzeichneten Platzhaltern (DESIGN §4, O-12, O-13).
+ */
+assertKeinePlatzhalter(istLivegang(process.env));
 
 const config: NextConfig = {
   reactStrictMode: true,

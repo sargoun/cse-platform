@@ -11,6 +11,7 @@ import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { VorlagenFehler, setzeBehinderungsvorlage }
   from '@/server/services/einstellung/vorlagen';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/vorlagen` — eine Behinderungsvorlage bestaetigen
@@ -30,10 +31,9 @@ import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/einstellungen/vorlagen`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/einstellungen/vorlagen`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -45,6 +45,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string => {
@@ -72,14 +73,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           betreff: text('betreff'),
           rumpf: text('rumpf'),
         });
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           `Die Vorlage „${schluessel}" ist bestätigt. Die bisherige Fassung ist `
           + 'archiviert und bleibt lesbar — eine versendete Anzeige behält ihren '
           + 'damaligen Wortlaut.');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /* Der Aufrufer ist ein Formular, also bekommt er eine SEITE mit dem Satz. */
-    if (fehler instanceof VorlagenFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof VorlagenFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

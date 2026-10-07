@@ -14,6 +14,7 @@ import {
   StufenFehler, bestaetigeStufe, type Folgeaktion, type Zinsberechnung,
 } from '@/server/services/finanz/mahnung/stufen';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/mahnwesen` — eine Mahnstufe bestätigen (FIN-15,
@@ -32,9 +33,8 @@ export const dynamic = 'force-dynamic';
 const ZINSARTEN: ReadonlySet<string> = new Set(
   ['keine', 'gesetzlich_b2b', 'gesetzlich_b2c', 'vertraglich']);
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(`/portal/${slug}/einstellungen/mahnwesen`, erwarteterUrsprung(anfrage));
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
+  const url = new URL(portalPfad(slug, `/einstellungen/mahnwesen`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -52,15 +52,14 @@ const MASKE_FELDER = [
  * der Satz dazu wie bisher als `hinweis`.
  */
 function zurueckMitEingaben(
-  anfrage: NextRequest, grund: string, hinweis: string, daten: FormData,
+  anfrage: NextRequest, slug: string, grund: string, hinweis: string, daten: FormData,
 ): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const werte: Record<string, string | null> = {};
   for (const name of MASKE_FELDER) {
     const w = daten.get(name);
     werte[name] = typeof w === 'string' ? w : null;
   }
-  const pfad = maskeMitEingaben(`/portal/${slug}/einstellungen/mahnwesen`, grund, werte);
+  const pfad = maskeMitEingaben(portalPfad(slug, `/einstellungen/mahnwesen`), grund, werte);
   const ziel = new URL(pfad, erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(ziel, 303), ziel, hinweis);
 }
@@ -73,6 +72,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -93,7 +93,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       || !Number.isInteger(tage) || tage < 0
       || !ZINSARTEN.has(zinsart)) {
     /* Ein Formular bekommt eine Seite, keine geschweifte Klammer (D-599). */
-    return zurueckMitEingaben(anfrage, 'unvollstaendig',
+    return zurueckMitEingaben(anfrage, slug, 'unvollstaendig',
       'Stufe, Frist, Bezeichnung, Gebühr, Zinsart und „Gültig ab“ sind Pflicht.', daten);
   }
   /*
@@ -101,7 +101,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * Datenbank und damit als 500 (V-217) — jetzt als Satz am Formular.
    */
   if (!istGueltigerKalendertag(gueltigAb)) {
-    return zurueckMitEingaben(anfrage, 'unvollstaendig',
+    return zurueckMitEingaben(anfrage, slug, 'unvollstaendig',
       '„Gültig ab“ ist kein Kalendertag.', daten);
   }
 
@@ -132,7 +132,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           gueltigAb,
           ...(textbaustein === undefined ? {} : { textbaustein }),
         });
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           `Stufe ${String(stufe)} ist ab ${tagDeutsch(gueltigAb)} bestätigt. Der Mahnlauf `
           + 'schlägt sie ab jetzt vor — versendet wird weiterhin nichts ohne Freigabe.');
       }))) as NextResponse;
@@ -146,10 +146,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * er ihn liest.
      */
     if (fehler instanceof GeldFehler) {
-      return zurueckMitEingaben(anfrage, 'geld', fehler.message, daten);
+      return zurueckMitEingaben(anfrage, slug, 'geld', fehler.message, daten);
     }
     if (fehler instanceof StufenFehler) {
-      return zurueckMitEingaben(anfrage, fehler.grund, fehler.message, daten);
+      return zurueckMitEingaben(anfrage, slug, fehler.grund, fehler.message, daten);
     }
     /*
      * Auth-Würfe an EINER Stelle (V-217): von Hand übersetzt fehlten

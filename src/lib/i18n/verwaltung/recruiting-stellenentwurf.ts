@@ -10,6 +10,7 @@
  * auf den allgemeinen Satz zurück (`eigenerEintrag`, D-728).
  */
 import type { InternSprache } from '../intern.js';
+import type { Beschaeftigungsart } from '../../../server/services/recruiting/beschaeftigungsart.js';
 
 export interface RecruitingStellenentwurfTexte {
   readonly agentTitel: string;
@@ -32,6 +33,11 @@ export interface RecruitingStellenentwurfTexte {
   /** `{objekt}`, `{zusagen}`, `{schichten}` werden eingesetzt. */
   readonly objektZeile: string;
   readonly wochenstunden: string;
+  /* ── Beschäftigungsart (V-362, D-816) ───────────────────────────────── */
+  readonly beschaeftigungsart: string;
+  readonly beschaeftigungsartOffen: string;
+  readonly beschaeftigungsartHinweis: string;
+  readonly beschaeftigungsarten: Readonly<Record<Beschaeftigungsart, string>>;
   readonly frist: string;
   readonly fristHinweis: string;
   readonly agentKnopf: string;
@@ -89,6 +95,15 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
       + 'gezählt vom Dienstplan, nicht vom Modell.',
     objektZeile: '{objekt}: {zusagen} offene Zusagen in {schichten} Schichten',
     wochenstunden: 'Wochenstunden',
+    beschaeftigungsart: 'Beschäftigungsart',
+    beschaeftigungsartOffen: 'Nicht festgelegt',
+    beschaeftigungsartHinweis:
+      'Ist nichts gewählt, schlägt das Bearbeiten aus den Wochenstunden vor: ab 35 Vollzeit, '
+      + 'darunter Teilzeit (Voreinstellung). Minijob und Aushilfe stehen nicht in den Stunden — '
+      + 'die wählen Sie.',
+    beschaeftigungsarten: {
+      vollzeit: 'Vollzeit', teilzeit: 'Teilzeit', minijob: 'Minijob', aushilfe: 'Aushilfe',
+    },
     frist: 'Bewerbungsfrist',
     fristHinweis: 'Leer heisst: offen, bis die Stelle geschlossen wird.',
     agentKnopf: 'Entwurf erstellen lassen',
@@ -132,6 +147,8 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
       unvollstaendig: 'Titel und Beschreibung sind Pflicht.',
       unbrauchbare_stunden: 'Wochenstunden zwischen 1 und 60, in halben Stunden.',
       unbrauchbare_frist: 'Die Bewerbungsfrist ist kein Tag, den der Kalender kennt.',
+      unbrauchbare_beschaeftigungsart:
+        'Die Beschäftigungsart ist Vollzeit, Teilzeit, Minijob oder Aushilfe.',
     },
     fehlerSonst: 'Der Vorgang wurde abgewiesen.',
   },
@@ -165,6 +182,15 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
       + 'counted by the roster, not by the model.',
     objektZeile: '{objekt}: {zusagen} open confirmations in {schichten} shifts',
     wochenstunden: 'Weekly hours',
+    beschaeftigungsart: 'Type of employment',
+    beschaeftigungsartOffen: 'Not specified',
+    beschaeftigungsartHinweis:
+      'If nothing is chosen, editing suggests one from the weekly hours: 35 or more full-time, '
+      + 'fewer part-time (default). Mini-job and temporary help do not follow from the hours — '
+      + 'you choose those.',
+    beschaeftigungsarten: {
+      vollzeit: 'Full-time', teilzeit: 'Part-time', minijob: 'Mini-job', aushilfe: 'Temporary help',
+    },
     frist: 'Application deadline',
     fristHinweis: 'Empty means: open until the position is closed.',
     agentKnopf: 'Create draft',
@@ -207,6 +233,8 @@ Readonly<Record<InternSprache, RecruitingStellenentwurfTexte>> = {
       unvollstaendig: 'Title and description are required.',
       unbrauchbare_stunden: 'Weekly hours between 1 and 60, in half hours.',
       unbrauchbare_frist: 'The application deadline is not a calendar day.',
+      unbrauchbare_beschaeftigungsart:
+        'The type of employment is full-time, part-time, mini-job or temporary help.',
     },
     fehlerSonst: 'The request was refused.',
   },

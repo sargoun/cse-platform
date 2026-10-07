@@ -46,11 +46,12 @@ function erfasst(sprache: Sprache): 'de' | undefined {
   return sprache === 'de' ? undefined : 'de';
 }
 
-/** Ort, Wochenstunden und Frist einer Stelle als eine Zeile. */
+/** Ort, Beschäftigungsart, Wochenstunden und Frist einer Stelle als eine Zeile. */
 function eckdaten(s: OffeneStelle, sprache: Sprache, mitFrist: boolean): string {
   const t = KARRIERE_TEXTE[sprache];
   return [
     s.einsatzort,
+    s.beschaeftigungsart === null ? null : t.beschaeftigungsart[s.beschaeftigungsart],
     s.wochenstunden === null ? null : t.stundenProWoche(s.wochenstunden),
     !mitFrist || s.bewerbungsfrist === null ? null : t.bewerbungBis(s.bewerbungsfrist),
   ].filter((x) => x !== null).join(' · ') || t.nachAbsprache;

@@ -19,6 +19,7 @@ import {
   type Versandart,
 } from '@/server/services/finanz/mahnung/index';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/finanzen/mahnungen` — die vier Schritte des Mahnwesens
@@ -39,9 +40,8 @@ import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, ziel: string, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(`/portal/${slug}/finanzen/mahnungen${ziel}`, erwarteterUrsprung(anfrage));
+function zurueck(anfrage: NextRequest, slug: string, ziel: string, hinweis?: string): NextResponse {
+  const url = new URL(portalPfad(slug, `/finanzen/mahnungen${ziel}`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -70,6 +70,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -95,7 +96,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             await legeMahnentwurfAn(kontext, vorschlag);
             angelegt += 1;
           }
-          return zurueck(anfrage, '',
+          return zurueck(anfrage, slug, '',
             angelegt === 0
               ? 'Kein Vorschlag — es wurde nichts angelegt.'
               : `${String(angelegt)} Entwurf/Entwürfe angelegt. Sie tragen keine Nummer, `
@@ -113,7 +114,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
           }
           await verwirf(kontext, mahnungId, grund);
-          return zurueck(anfrage, `/${mahnungId}`, 'Der Entwurf ist verworfen.');
+          return zurueck(anfrage, slug, `/${mahnungId}`, 'Der Entwurf ist verworfen.');
         }
 
         /*
@@ -128,7 +129,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          */
         if (aktion === 'erledigen') {
           await erledige(kontext, mahnungId);
-          return zurueck(anfrage, `/${mahnungId}`,
+          return zurueck(anfrage, slug, `/${mahnungId}`,
             'Erledigt. Die Mahnung bleibt vollständig stehen — nur ihr Zustand sagt '
             + 'jetzt, dass die Sache beigelegt ist.');
         }
@@ -146,7 +147,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
           }
           const { nummer } = await gibFrei(kontext, mahnungId, begruendung);
-          return zurueck(anfrage, `/${mahnungId}`,
+          return zurueck(anfrage, slug, `/${mahnungId}`,
             `Freigegeben — die Mahnung trägt jetzt die Nummer ${nummer}.`);
         }
 
@@ -169,7 +170,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
            * Satz sagt, was die Plattform tut: der Posten trägt den
            * VERSANDtag als Beginn, nicht das Mahndatum (0125).
            */
-          return zurueck(anfrage, `/${mahnungId}`,
+          return zurueck(anfrage, slug, `/${mahnungId}`,
             `Versand dokumentiert am ${ergebnis.versendetAm} Uhr. Ab dem Versandtag `
             + 'läuft der Verzug; das Schreiben ist abgelegt.');
         }

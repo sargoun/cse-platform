@@ -32,10 +32,13 @@ import {
   STELLENANZEIGE_AUFTRAG, fuelleStellenTatsachen, type StellenAngaben,
 } from '../../agent/auftraege.js';
 import { bedarf, legeStelleAn, RecruitingFehler } from './dienst.js';
+import type { Beschaeftigungsart } from './beschaeftigungsart.js';
 
 export interface StellenEntwurfEingabe extends StellenAngaben {
   readonly anforderungen: readonly string[];
   readonly wochenstunden: number | null;
+  /** V-362 — die Wahl im Formular; der Agent setzt sie nicht. */
+  readonly beschaeftigungsart: Beschaeftigungsart | null;
   readonly bewerbungsfrist: string | null;
 }
 
@@ -125,6 +128,7 @@ export async function entwirfStellenanzeige(
     anforderungen: eingabe.anforderungen,
     einsatzort: eingabe.einsatzort.trim(),
     wochenstunden: eingabe.wochenstunden,
+    beschaeftigungsart: eingabe.beschaeftigungsart,
     bewerbungsfrist: eingabe.bewerbungsfrist,
     entwurfVonArt: 'agent',
   });
@@ -143,6 +147,7 @@ export interface StellenAenderung {
   readonly anforderungen: readonly string[];
   readonly einsatzort: string | null;
   readonly wochenstunden: number | null;
+  readonly beschaeftigungsart: Beschaeftigungsart | null;
   readonly bewerbungsfrist: string | null;
 }
 
@@ -184,13 +189,15 @@ export async function aendereStelle(
     `update stelle
         set titel = $2, beschreibung = $3, anforderungen = $4::text[], einsatzort = $5,
             wochenstunden = $6::numeric, bewerbungsfrist = $7::date,
-            geaendert_von = $8::uuid, geaendert_am = now()
+            geaendert_von = $8::uuid, geaendert_am = now(),
+            beschaeftigungsart = $9::beschaeftigungsart
       where id = $1::uuid and mandant_id = app.aktiver_mandant()
         and status = 'entwurf' and freigabe_id is null
       returning id`,
     [id, a.titel.trim(), a.beschreibung.trim(),
       a.anforderungen.map((x) => x.trim()).filter((x) => x !== ''),
-      a.einsatzort, a.wochenstunden, a.bewerbungsfrist, kontext.benutzerId]);
+      a.einsatzort, a.wochenstunden, a.bewerbungsfrist, kontext.benutzerId,
+      a.beschaeftigungsart]);
   if (zeilen.length === 0) {
     throw new RecruitingFehler(
       'Die Stelle hat sich inzwischen geändert — oder diese Sitzung darf sie nicht '

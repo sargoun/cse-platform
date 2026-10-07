@@ -32,7 +32,9 @@ import { alleJobs } from '@/server/jobs/bootstrap';
 import { finde } from '@/server/jobs/registry';
 import { fuehreAus } from '@/server/jobs/runner';
 import { PostgresProtokoll } from '@/server/jobs/postgres-protokoll';
-import { ProtokollAlarm } from '@/server/jobs/alarm';
+import { alarmFuerLauf, betriebspostfach } from '@/server/jobs/alarm';
+import { emailDienst } from '@/server/versand/email';
+import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { aktiveMandanten } from '@/server/jobs/mandanten';
 import { idempotenzSchluessel } from '@/server/jobs/zeitplan';
 
@@ -137,7 +139,12 @@ export async function POST(
    */
   const mandanten = job.bereich === 'je_mandant' ? await aktiveMandanten(sql) : [];
 
-  const ergebnis = await fuehreAus(job, new PostgresProtokoll(sql), new ProtokollAlarm(), {
+  /*
+   * Der Alarm: Funktionsprotokoll immer, Betriebspostfach nur über einen
+   * verbundenen Postausgang mit eingetragener Adresse (V-374, D-823).
+   */
+  const alarm = alarmFuerLauf(emailDienst(devFlaechenAn()), betriebspostfach());
+  const ergebnis = await fuehreAus(job, new PostgresProtokoll(sql), alarm, {
     idempotenzSchluessel: idempotenzSchluessel(
       job.schluessel, job.zeitplan, new Date(zeit!.jetzt), zeit!.versatz),
     mandanten,

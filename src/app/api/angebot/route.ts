@@ -15,6 +15,7 @@ import {
 } from '@/server/services/angebot/index';
 import { legeAngebotAusRaumbuchAn } from '@/server/services/angebot/aus-raumbuch';
 import { NummernkreisFehler } from '@/server/services/finanz/nummernkreis';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/angebot` — die drei Uebergaenge des Angebots.
@@ -135,6 +136,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const koerper = await koerperAus(anfrage);
   const aktion = koerper.aktion as Aktion | undefined;
@@ -235,10 +237,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
     if (jsonAngefragt(anfrage)) return NextResponse.json(ergebnis, { status: 200 });
 
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-    const ziel = slug === ''
-      ? '/portal'
-      : `/portal/${slug}/angebote/${ergebnis.angebotId}`;
+    const ziel = portalPfad(slug, `/angebote/${ergebnis.angebotId}`);
     return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     // Die Antworten des Tors: 401 ohne Sitzung, 403 ohne zweiten Faktor,

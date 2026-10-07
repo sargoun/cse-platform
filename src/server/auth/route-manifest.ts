@@ -412,6 +412,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Leistungszeilen eines Auftrags anlegen und beenden (V-360, D-825).
+     * Dasselbe Recht wie die Policy `t_mandant` auf `auftrag_leistung`
+     * (0050); der Dienst sperrt den Auftrag mit `for update`.
+     */
+    pfad: 'api/auftrag/leistungen',
+    recht: 'auftrag.schreiben',
+  },
+  {
+    /**
      * Die Kundenfreigabe zur Nennung als Referenz (0296).
      * `referenz.kundenfreigabe_erfassen` und nicht `auftrag.schreiben`: was
      * hier festgehalten wird, ist die Erklaerung des KUNDEN, mit seinem Namen

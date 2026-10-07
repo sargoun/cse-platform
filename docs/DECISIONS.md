@@ -3343,7 +3343,7 @@ Beantworten helfen:
 | O-914 | **Darf auch ein LAUFENDER Auftrag mit geltender Kundenfreigabe zur öffentlichen Referenz werden — oder nur ein abgeschlossener?** SPEC PRO-05 sagt es wörtlich: „a reference is a completed `auftrag` with customer release on file, not a marketing entry typed by hand". Seit V-161 gilt genau das (`REFERENZFAEHIGE_ZUSTAENDE = ['abgeschlossen']` in `services/auftrag/kundenfreigabe.ts`, geprüft in `legeReferenzAn`). In der Gebäudereinigung und im Objektschutz laufen Aufträge aber als Dauerauftrag oder Rahmenvertrag über Jahre, und „wir reinigen seit 2019 die Zentrale der X AG" ist dort die übliche Referenz — nach der wörtlichen Lesart entsteht sie erst mit dem Ende des Vertrags. Dazu die Nachbarfrage: ein Projekt aus der Zeit vor der Plattform wird heute als Auftrag angelegt, mit Kundenfreigabe versehen und abgeschlossen, bevor daraus eine Referenz werden kann; reicht dem Auftraggeber dieser Weg? **Ausgeliefert ist die wörtliche Lesart:** nur ein abgeschlossener Auftrag; laufende stehen unter `/website/referenzen/neu` sichtbar als „noch nicht abgeschlossen", ein stornierter nie. Die Antwort ist eine Zeile (die Liste der Zustände), keine Umbauarbeit. | PRO-05, V-161, D-654, O-913, `src/server/services/auftrag/kundenfreigabe.ts` (`REFERENZFAEHIGE_ZUSTAENDE`, `referenzHindernis`), `src/app/portal/[mandant]/website/referenzen/neu/page.tsx` · **Voreinstellung → D-793** |
 | O-919 | **Soll der Raumbuch-Import Excel-Arbeitsmappen (.xlsx, gegebenenfalls .xls/.ods) direkt lesen — und welche Bibliothek darf dafür fremde Dateien entpacken?** OPS-04 sagt „Excel/CSV". Gebaut ist CSV (UTF-8 und die Windows-1252-CSV eines deutschen Excel); eine Arbeitsmappe wird am Inhalt erkannt und mit dem Weg über „Speichern unter › CSV" abgewiesen (D-665). Die Plattform bringt keine Bibliothek dafür mit, und ein selbstgebauter Leser für ein ZIP mit XML ist genau der halbe Leser, der Formeln und verbundene Zellen übersieht und Erfolg meldet. **Zu entscheiden sind vier Dinge:** (1) ob eine Bibliothek aufgenommen wird und welche (Lizenz, Pflege, Prüfung gegen präparierte ZIP-/XML-Dateien), (2) was mit einer Formelzelle geschieht — berechneten Wert übernehmen oder abweisen, (3) welches Blatt gilt, wenn die Mappe mehrere hat, (4) ob das alte `.xls` aus Altsystemen überhaupt vorkommt. Bis dahin bleibt CSV der Weg, und die Seite sagt es. | OPS-04, D-665, V-171, `src/server/services/raumbuch/tabelle.ts`, `src/app/api/raumbuch-import/route.ts` · **Voreinstellung → D-800** |
 | O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` · **Voreinstellung → D-800** |
-| O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` · **Voreinstellung → D-796** |
+| O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` · **Voreinstellung → D-796** · Leistungszeilen → D-825 |
 | O-922 | **Darf der Nachtlauf das DWD-Wetter an einen Bautag heften, der schon abgeschlossen ist — oder soll das Wetter vor dem Abschluss angeheftet werden?** BAU-08 verlangt das Wetter automatisch; `wetter_zuordnung` (V-183, D-677) heftet es nachts an die Tage bis gestern, weil erst dann ein ganzer Tag vorliegt. `0082` sagt aber: ab dem Abschluss bewegt sich am Bautag nichts mehr (der Auslöser `bautagebuch_einfrieren` nennt die Wetterspalten zwar nicht, der Dienst hält es trotzdem so). Wer den Tag am Abend abschließt — der übliche Fall —, bekommt deshalb heute kein automatisches Wetter; der Lauf zählt solche Tage (`abgeschlossen_ohne_wetter`). **Zu entscheiden:** (a) das Wetter ist vom Einfrieren ausgenommen, weil es eine Messung Dritter und keine Aussage der Bauleitung ist, und der Lauf heftet es auch an abgeschlossene Tage (dann gehört es ausdrücklich in den Auslöser und in die Policy); (b) der Abschluss holt das Wetter vorher selbst, mit dem, was bis dahin gemessen ist; (c) es bleibt beim Knopf vor dem Abschluss. **Ausgeliefert ist (c) plus der Lauf für offene Tage** — der Tag bleibt unverändert, und die Tagesseite sagt, dass der Nachtlauf nur offene Tage erreicht. | BAU-07, BAU-08, D-677, V-183, `src/server/services/bau/wetter.ts` (`ordneWetterZu`), `drizzle/0468_wetter_zuordnung_job.sql`, `drizzle/0082` · **Voreinstellung → D-800** |
 | O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) · **Voreinstellung → D-779** |
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) · **Voreinstellung → D-796** |
@@ -24756,7 +24756,7 @@ zwingend eingetragen hat. Die Riegel und ihre Prüfungen bleiben.
 |---|---|---|
 | O-148 | Postenarten: Objektschutz, Empfang und Pforte, Revier- und Streifendienst, Veranstaltungsschutz, Baustellenbewachung, Alarmverfolgung und Intervention; Schlüsselarten: Mechanischer Schlüssel, Generalschlüssel, Gruppenschlüssel, Transponder, Chipkarte — je mit en/ar/tr, unbestätigt (`ist_platzhalter`), per Knopf in den leeren Katalog (idempotent, wettlauffest, archivierte kommen nicht zurück), im Prüfprotokoll; die Gesellschaft bestätigt, archiviert oder ergänzt im Katalogblock der Postenliste und der Schlüsselseite (`Artenkatalog`) — eine eigene Art gilt als bestätigt, ihr Schlüssel entsteht aus der Bezeichnung. | `security/arten.ts`, `api/sicherheit/{posten,schluessel,arten}`, `security/Artenkatalog.tsx`, Posten, Posten › Neu, Schlüssel, `seed/security.ts`, `tests/isolation/security-arten.test.ts`, `tests/kern/security-voreinstellung.test.ts` |
 | O-342 | Ein Posten verlangt die Unterrichtung nach § 34a Abs. 1a GewO für jede eingesetzte Kraft; eine Veranstaltung dazu mindestens eine Kraft mit Sachkundeprüfung (Zugangskontrolle, § 34a Abs. 1a Satz 5). Angelegt per Knopf auf dem Posten- bzw. Veranstaltungsblatt als unbestätigte Warnung (`zwingend: false`, `bestaetigt: false`); die Sperre stellt die Gesellschaft scharf, wenn der Vertrag es sagt. | `security/anforderung.ts` (`ANFORDERUNG_VOREINSTELLUNG`), `Anforderungsblock.tsx`, `api/sicherheit/anforderungen`, `seed/security.ts`, `tests/isolation/anforderung-pflege.test.ts` |
-| O-40 | Bewacherregister: die Bewacher-ID wird so übernommen, wie die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung, keine Prüfziffer); das Statusvokabular ist das hinterlegte; keine Frist wird aus einem Datum abgeleitet — die nächste Prüfung trägt ein, wer die Mitteilung der Behörde hat; ein Abgleich mit dem Register ist nicht verbunden. | Security › Bewacherregister, `security/bewacherregister.ts` |
+| O-40 | Bewacherregister: die Bewacher-ID wird so übernommen, wie die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung, keine Prüfziffer); das Statusvokabular ist das hinterlegte; gespeichert wird keine Frist, die niemand eingetragen hat — ohne eingetragene nächste Prüfung gilt als Wiedervorlage die letzte plus fünf Jahre, beim Lesen abgeleitet (O-140, V-320, D-815); ein Abgleich mit dem Register ist nicht verbunden. | Security › Bewacherregister, `security/bewacherregister.ts` |
 | O-707 | Vorwarnvorlauf für eine ablaufende Bewacher-Erlaubnis: 60 Tage (`BEWACHER_VORWARNUNG_TAGE`) — die Zahl steht im Dienst, nicht in der Seite. | `security/bewacherregister.ts`, Security › Bewacherregister |
 | O-706 | Der Modulkopf zeigt alle Nachweise mit Frist und markiert die Bewacherqualifikationen (wie gebaut); ob eine Zeile sperrt, entscheidet die Anforderung des Postens. | Security › Übersicht |
 | O-703 | Ein Veranstaltungsauftrag wird von der Wachleitung von Hand erfasst (Veranstaltungen › Neu, Schreibrecht der Sicherheit) und mit der Auftragsleistung verbunden, sobald der Vertrieb sie angelegt hat; Pflicht sind Objekt, Zeitraum und Stärke, die Position ist freiwillig. | Veranstaltungen, `security.ts` (i18n) |
@@ -24855,8 +24855,8 @@ weiter keine Adresse, also ordnet der Katalog ihnen keine Plattform zu.
 | O-355 | Die Modulbuchung trägt die Super-Administration beim Vertragsschluss ein; bis dahin wird nicht gefiltert. Eingetragen wird unter Einstellungen › Module (`app.mandant_module_buchen`, 0502, Super-Administration mit `system.module_zuweisen`, protokolliert); der Seed überschreibt eine eingetragene Buchung nicht — gebaut mit V-298 (D-809). | Einstellungen › Module |
 | O-358 | Den Basiszinssatz nach § 247 BGB trägt die Buchhaltung der CSE Operations zentral für die Gruppe ein, zum 1. Januar und 1. Juli nach Bekanntmachung der Bundesbank; der Wächter meldet am 15. Juni und 15. Dezember einen fehlenden Satz als gescheiterten Lauf und benachrichtigt niemanden eigens. Eingetragen wird je Kalenderhalbjahr unter Einstellungen › Mahnwesen von der Super-Administration (`system.referenzdaten_verwalten`, die Policies aus 0125) — für die Buchhaltung der CSE Operations heißt das: über ein Konto der Super-Administration; gebaut mit V-299 (D-809). | Einstellungen › Mahnwesen, `jobs/basiszinssatz.ts` |
 | O-128 | Übernahme aus den Altsystemen als CSV-Export (UTF-8, Semikolon): Aplano die Zeiten, Lexware die Belege, Excel die Listen; Zeitraum ab Beginn des laufenden Geschäftsjahres; Altdaten bleiben im Altsystem revisionssicher archiviert. Der Leser ist nicht gebaut (V-300). | Einstellungen › Import |
-| O-980 | Einen verlorenen oder abgelaufenen Einladungslink ersetzt die Super-Administration durch „Link neu ausstellen" an der offenen Einladung — der alte verfällt (wie der Kundenzugang, 0249). Gebaut ist der Weg noch nicht (V-302). | `verwaltungskonto.ts` (i18n) |
-| O-981 | Die Rolle einer Mitgliedschaft wechselt die Super-Administration am Benutzerblatt (admin ↔ leitung), protokolliert. Gebaut ist der Weg noch nicht (V-302). | `verwaltungskonto.ts` (i18n) |
+| O-980 | Einen verlorenen oder abgelaufenen Einladungslink ersetzt die Super-Administration durch „Link neu ausstellen" am Benutzerblatt — der alte verfällt (wie der Kundenzugang, 0249). Gebaut mit V-302 (D-821): `app.verwaltungskonto_link_neu` (0517); an einem aktiven Konto ist der neue Link ein Kennwortlink, weil kein Mailversand verbunden ist. | `verwaltungskonto.ts` (i18n), `system/verwaltungskonto.ts`, Benutzerblatt |
+| O-981 | Die Rolle einer Mitgliedschaft wechselt die Super-Administration am Benutzerblatt (admin ↔ leitung), protokolliert. Gebaut mit V-302 (D-821): `app.verwaltungskonto_rolle_wechseln` (0517), nicht am eigenen Konto; eine Modulzuweisung bleibt stehen. | `verwaltungskonto.ts` (i18n), `system/verwaltungskonto.ts`, Benutzerblatt |
 | O-830 | Eine Beschäftigte darf von sich aus eine Nachricht an die Einsatzleitung ihres laufenden Einsatzes eröffnen. Gebaut ist das noch nicht (`EIGENER_FADEN_MOEGLICH = false`, V-295); antworten funktioniert. | `texte.ts` (de/en/ar/tr), Mein › Nachrichten |
 | O-831 | Anlagen einer internen Nachricht sind im Arbeiterportal zu öffnen. Gebaut ist das noch nicht (`ANLAGEN_ABRUFBAR = false`, V-296); die Zahl der Anlagen steht an der Zeile. | `texte.ts` (de/en/ar/tr), Mein › Nachrichten |
 | O-850 | Ein Dokument betrifft eine Person, wenn es an ihrer Anstellung hängt (`anstellung_id`); bis Spalte, Policy und Freigabeschritt gebaut sind (V-297), zeigt die Seite, was die Gesellschaft der Belegschaft freigegeben hat. | `texte.ts` (de/en/ar/tr), Mein › Dokumente |
@@ -25106,7 +25106,7 @@ gebaut ist, steht es dabei (V-319 bis V-322).
 | O-136 | Tarifbindung je Gesellschaft: Reinigung nach dem RTV Gebäudereinigung, Security nach dem Manteltarifvertrag Wach- und Sicherheitsgewerbe Berlin/Brandenburg, Bau nach dem BRTV — unbestätigt. Der Tarif selbst ist kein Feld: die Tarifgruppe steht als Text an der Kondition (`anstellung_kondition.tarifgruppe`, K-05), die Pausenregel in `tarifvereinbarung` (O-50, D-781), das Entgelt rechnet das Lohnsystem (D-06). Wie gebaut. | `personal/anstellung.ts`, Einstellungen › Arbeitszeit |
 | O-137 | Zwei gleichzeitige Beschäftigungen desselben Menschen bei derselben Gesellschaft (Hauptvertrag plus Minijob) sind zulässig: `anstellung` kennt keine Eindeutigkeit über (Gesellschaft, Person); die ArbZG-Last zählt je Mensch über alle Beschäftigungen (Invariante 9). Wie gebaut. | `personal/einstellung.ts` |
 | O-138 | Krankheitstage im genehmigten Urlaub werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG) — von Hand: `ab_keine_dublette` lässt keine zweite Abwesenheit über den Urlaub, also kürzt ein Mensch den Urlaub und erfasst die Krankheit. Automatisch geschieht nichts (V-319). | `abwesenheit/antrag.ts` |
-| O-140 | Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet (`laeuft_ab = false`, Katalog); die behördliche Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) ist der einzige Anlass einer Nachprüfung und hat keine Wiedervorlage in der Plattform (V-320). | `nachweis/aufnahme.ts`, `seed/qualifikation.ts` |
+| O-140 | Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet (`laeuft_ab = false`, Katalog); die behördliche Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) ist der einzige Anlass einer Nachprüfung; ihre Wiedervorlage ist die eingetragene nächste Prüfung, sonst die letzte plus fünf Jahre (`ZUVERLAESSIGKEIT_JAHRE`), 60 Tage vorher gemeldet — gebaut mit V-320 (D-815). | `nachweis/aufnahme.ts`, `seed/qualifikation.ts` |
 | O-141 | Der Anker bleibt: `app.person_sichtbar` sieht einen Menschen, solange in der Gesellschaft eine nicht gelöschte Beschäftigung steht — auch eine beendete (Personalakte); die Sicht fällt erst mit dem Löschen der Beschäftigung. Wie gebaut (0030). | `personal/einstellung.ts` |
 | O-143 | Ein Stundenkonto ist offen oder gesperrt; `vorlaeufig` steht im Enum und setzt kein Weg — der Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`). Wie gebaut. | `zeit/stundenkonto.ts`, `zeit/einwand.ts` |
 | O-162 | Zeiteinträge werden nicht gelöscht (Invariante 8); die zwei Jahre des § 17 Abs. 1 MiLoG sind damit immer eingehalten. Käme je ein Löschlauf, zählt die Frist ab dem Ende des Kalenderjahres der Aufzeichnung (wie § 147 Abs. 4 AO). | `zeit/milog.ts` |
@@ -25217,7 +25217,7 @@ hiess. Das Kundenportal nennt sie an sechs Stellen „Voreinstellung" statt
 | O-89 | Die Gegenzeichnung des Leistungsnachweises erfolgt vor Ort (Name, Serverzeit, Prüfsumme — O-741); eine Gegenzeichnung oder Ablehnung im Kundenportal gibt es nicht. Wie gebaut. | Kundenportal › Nachweise |
 | O-90 | Festschreibung, Storno und DATEV-Export verlangen keinen zweiten Faktor im Moment der Handlung (`aal2 = false` im Manifest); der zweite Faktor der Verwaltungsrollen gilt für die Sitzung (AUT-02). Wie gebaut. | `auth/zugang.ts`, `registry/routen.generiert.ts` |
 | O-91 | Kunden sehen nur festgeschriebene Rechnungen; ein Entwurf ist im Kundenportal strukturell unerreichbar (`t_kunde` auf `rechnung`, 0075). Wie gebaut. | `kundenportal/rechnung.ts` |
-| O-92 | Aufbewahrung: Anmeldeversuche 30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll (`job_lauf`) ein Jahr, Prüfprotokoll (`audit_log`) zehn Jahre; Rechtsgrundlage Art. 6 Abs. 1 Buchst. c (GoBD) und f DSGVO. Löschläufe fehlen für alle vier (V-330). | Einstellungen › Protokoll › Export |
+| O-92 | Aufbewahrung: Anmeldeversuche 30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll (`job_lauf`) ein Jahr, Prüfprotokoll (`audit_log`) zehn Jahre; Rechtsgrundlage Art. 6 Abs. 1 Buchst. c (GoBD) und f DSGVO. Gebaut mit V-330 (D-822): der Nachtlauf `betriebsprotokolle_aufraeumen` löscht Anmeldeversuche und abgeschlossene Läufe nach ihrer Frist (`datenschutz.anmeldeversuch_tage`, `betrieb.job_lauf_tage`, vorläufige Einstellungen); das Prüfprotokoll hat keinen Löschpfad (Invariante 8), und eine eigene Tabelle für Sicherheitsvorfälle gibt es nicht — Anmeldung, Sperre und zweiter Faktor stehen als Plattformzeilen im Prüfprotokoll. | Einstellungen › Protokoll › Export, `jobs/betriebsprotokolle.ts`, `drizzle/0518` |
 | O-500 | Einladungslink 168 Stunden (`auth.einladung_stunden`, 0372), zehn Wiederherstellungscodes, Kennwort mindestens zwölf Zeichen ohne weitere Zusammensetzungsregel (`KENNWORT_MIN`). Wie gebaut. | `auth/kennwort-anmeldung.ts`, `drizzle/0372` |
 
 **Betreiberdaten — keine Voreinstellung.** O-82 (das EU-gehostete SMS-Gateway
@@ -25260,7 +25260,7 @@ gebaut ist (V-332 bis V-336); zwei Seiten sagen „Voreinstellung" statt „offe
 |---|---|---|
 | O-620 | Kartentext (PUB-03) und Profiltext (PRO-01) kommen aus `unternehmensprofil` je Sprache (D-82); `mandant_identitaet.kurzbeschreibung` und `.beschreibung` bleiben leer und ohne Schreibpfad (0200), bis jemand sie entfernt — kein zweiter Editor auf einem Text. Wie gebaut. | Einstellungen › Identität, `mandant/identitaet.ts` |
 | O-622 | Die fünf fail-closed gebauten Aufrufer von `gate()` (Anfrage, Mahnung, Behinderungsanzeige in Route und Dienst) laden keine Richtlinie — dort gilt immer Freigabe; `auto_erlaubt` wirkt nur bei Aktionen mit Zeile in `/einstellungen/agent-richtlinien`. Eine Richtlinie an diese Stellen zu reichen ist eine Entscheidung mit eigenen Tests (Invariante 7). Wie gebaut. | `server/agent/policy.ts`, Einstellungen › Agent-Richtlinien |
-| O-623 | Die Hashkette über `audit_log` entsteht beim Bilden eines Bündels (0204), nicht beim Schreiben — `app.protokolliere` hält keine Zeilensperre, die jede schreibende Transaktion serialisierte; das Manifest nennt die ungeketteten Zeilen. Dazu ein nächtlicher Lauf über einen eigenen, je Gesellschaft gebundenen Einstieg für `cse_job`: `app.audit_kette_fortschreiben` und `app.audit_kette_pruefen` verlangen `system.audit_exportieren` und liefern einem Job 0 bzw. nichts (V-336, verwandt O-357; Prüfstand PR #35). | Einstellungen › Protokoll › Export, `audit/buendel.ts` |
+| O-623 | Die Hashkette über `audit_log` entsteht beim Bilden eines Bündels (0204), nicht beim Schreiben — `app.protokolliere` hält keine Zeilensperre, die jede schreibende Transaktion serialisierte; das Manifest nennt die ungeketteten Zeilen. Dazu ein nächtlicher Lauf (`audit_kette_nachtlauf`, 03:25 UTC) über einen eigenen Einstieg nur für `cse_job` (`kern.audit_kette_nachtlauf`, 0516) — gebaut mit V-336 (D-820). Er ist übergreifend, nicht je Gesellschaft gebunden: die Kette ist EINE über alle Gesellschaften und die Plattformzeilen (0204), je Gesellschaft gelaufen wäre es dieselbe Kette viermal. Ein Bruch lässt den Lauf werfen und ruft den Alarm (verwandt O-357; Prüfstand PR #35). | Einstellungen › Protokoll › Export, `audit/buendel.ts`, `jobs/auditKette.ts` |
 | O-625 | Ein Übernahmelauf steht unter `system.einstellung_verwalten` (0202) UND verlangt beim Schreiben das Schreibrecht der Zieldomäne (`zeit.schreiben` für Zeiteinträge, `finanzen.schreiben` für Belege) — wie `/einstellungen/vorlagen` mit `bau.schreiben`. Wirkt erst mit dem Leser (O-128, V-300). | Einstellungen › Import, `migration/uebernahme.ts` |
 | O-640 | Ein Werbewiderspruch gilt pauschal für alle Kanäle der Gesellschaft (eine Spalte `werbewiderspruch_am`, 0020); `werbewiderspruch.kanal` beschreibt den Anlass und wirkt nicht. Wie gebaut. | Datenschutz › Widersprüche |
 | O-642 | Der interne Stundensatz (`anstellung.stundensatz_intern`, K-05) gehört in die Art.-15-Auskunft: ein Satz an einer Beschäftigung ist ein Datum über den Menschen (Art. 4 Nr. 1 DSGVO), auch wenn er zugleich Kalkulationsdatum ist. Gelesen über den beschränkten Leser `app.anstellung_entgelt_lesen` mit `personal.entgelt_lesen`; fehlt das Recht, sagt der Abschnitt es. Nicht gebaut — der Abschnitt `anstellung` lässt den Satz heute aus (V-332). Berichtigt im Prüfstand PR #35: hier stand, er gehöre nicht hinein. | `datenschutz/auskunft.ts` |
@@ -25315,7 +25315,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 | O-65 | Vertraglich notwendig ist, was der Durchführung des Vertrags dient — Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist, was eine neue oder zusätzliche Leistung anbietet (Zusatzleistung, Newsletter, Jahresgruss), auch an Bestandskunden. `app.darf_kontaktiert_werden` weist `transaktional` bei Werbewiderspruch heute noch ab — der restriktive Zweig bleibt in Kraft, bis die Funktion per Migration mit Isolationstest umgestellt ist (V-339); vier Bildschirme und zwei Dienste sagen Voreinstellung und Stand. | Datenschutz › Widersprüche, Vorgang, `/werbewiderspruch/[token]`, `datenschutz/werbewiderspruch.ts`, `crm/uwg-matrix.ts`, `bau/behinderung.ts` |
 | O-68 | Wie O-154 (D-782): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf bei BGB (§ 634a Abs. 1 Nr. 2), gerechnet von der Gesamtabnahme am Projekt und je Auftrag überschreibbar; Dienstleistungsaufträge (Reinigung, Sicherheit) führen keine. `auftrag.gewaehrleistung_bis` trägt der Abschluss von Hand ein; die am Projekt gerechnete Frist kommt noch nicht an den Auftrag (V-341), und das Kundenportal zeigt die Auftragsspalte. | `kundenportal/auftrag.ts`, `auftrag/abschluss.ts`, `db/seed/bau.ts` |
 | O-69 | Kontrolliertes Vokabular UND Freitext: die sieben Gebäudetypen des Anfrageformulars sind die Vorschläge des Objektformulars (`<datalist>`), `objekt.gebaeudetyp` bleibt `text` (0021), damit ein Flughafen oder eine Baustelle erfassbar bleibt. Gespeichert wird der deutsche Klartext; die englische Oberfläche zeigt die englische Bezeichnung aus `FORMULAR_EN` (Prüfstand PR #35). Gebaut: `lib/formular/vokabular.ts`, Vorschlagsliste und Hinweis (de/en) im Objektformular. | `objekte/ObjektFormular.tsx`, `lib/i18n/verwaltung/objekte.ts` |
-| O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Eine Konvention, keine Sperre: `kunde_id` ist nullbar, eine Dublettenprüfung je Anschrift gibt es nicht — zwei Erfasser können dasselbe Haus zweimal anlegen (Prüfstand PR #35); die Prüfung steht als V-361 (D-796). | `objekt/anlegen.ts` |
+| O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Eine Konvention, keine Sperre, aber eine Rückfrage: `kunde_id` ist nullbar; findet sich unter derselben Anschrift (Postleitzahl, Strasse, Hausnummer, normalisiert) schon ein lebendes Objekt der Gesellschaft, legt `legeObjektAn` erst nach einer bewussten Bestätigung an — gebaut mit V-361 (D-817). | `objekt/anlegen.ts` |
 | O-71 | Abgeleitete Befunde, Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz (Zeiteintrag, Person, Einsatz) und brauchen keine eigene Löschentscheidung; Abwesenheiten fallen mit der Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO) und werden dann anonymisiert, der Werbewiderspruch bleibt als Nachweis (§ 7 UWG). Die Matrix kennt keinen Sperrgrund „Voreinstellung" (V-340); ihre O-71-Zeilen stehen weiter auf „offen", die Löschseite sagt die Voreinstellung dazu. | `datenschutz/loeschentscheidung.ts` (`O71_VOREINSTELLUNG`), Datenschutz › Vorgang › Löschung, `db/seed/datenschutz.ts` |
 | O-72 | Keine Projekte ohne Auftrag: Akquise lebt in `akquise_ziel` und `lead`, bis ein Auftrag entsteht; interne Vorhaben sind kein Bauprojekt dieser Plattform. Wie gebaut (`projekt_auftrag_uk`). | `bau/projekt.ts` |
 | O-73 | Die Arbeitsvokabulare sind die Enums der Migrationen 0017, 0024 und 0025: `lead_status` (neu, in_bearbeitung, angebot, gewonnen, verloren, kein_bedarf), `lead_prioritaet` (niedrig, normal, hoch), `angebot_status`, `angebotsposition_typ`, `auftrag_art` (einzelauftrag, rahmenvertrag, dauerauftrag, projekt), `auftrag_status` (angelegt, aktiv, pausiert, abgeschlossen, storniert); ein weiterer Wert ist eine Migration, kein Freitext. Die Kundenseiten sagen „Voreinstellung" statt „Platzhalter". | Kundenportal › Angebote, Aufträge; `drizzle/0017`, `0024`, `0025` |
@@ -25361,7 +25361,7 @@ was fehlt (V-342 bis V-345).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-660 | Das Tor wird auf die Matrix des § 7 UWG umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail mit festgestellter ähnlicher Leistung und Abmeldezeile (§ 7 Abs. 3 UWG), an `einwilligung` auf den eingewilligten Kanälen; die Ebene des Kunden prüft das Tor weiter mit. Die Umstellung ist eine Migration von `app.darf_kontaktiert_werden` mit Isolationstest (V-342, in einem Zug mit V-339 aus O-65); bis dahin gilt das heutige Tor (`rechtsgrundlage <> 'keine'` plus Widersprüche), und das Kontaktblatt zeigt beide Antworten mit Nummer. | `crm/uwg-matrix.ts` (`abweichungenVomTor`), CRM › Kontakt, `db/seed/{crm,index}.ts` |
-| O-661 | Das ENGERE Recht `crm.rechtsgrundlage_lesen` trägt den Rechtsgrundlagen-Block — Liste und Blatt (`app.kontakt_rechtsgrundlage_liste`, `…_blatt`, 0247) und der Widerspruchskatalog (0222) prüfen es; `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen` (0020, `crm.lesen`) hat keinen Aufrufer mehr; sie per Migration auf das engere Recht zu stellen oder zu entfernen ist V-343. Die beiden Hinweise der Kontaktseiten nennen jetzt die Voreinstellung; `tests/kern/katalog-unbenutzt.ts` führt den Schlüssel nicht mehr als unbenutzt. | CRM › Kontakte, Kontaktblatt; `drizzle/0247`, `0222` |
+| O-661 | Das ENGERE Recht `crm.rechtsgrundlage_lesen` trägt den Rechtsgrundlagen-Block — Liste und Blatt (`app.kontakt_rechtsgrundlage_liste`, `…_blatt`, 0247) und der Widerspruchskatalog (0222) prüfen es; `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen` (0020, `crm.lesen`) hatte keinen Aufrufer mehr; 0513 entfernt sie (V-343, D-818). Die beiden Hinweise der Kontaktseiten nennen jetzt die Voreinstellung; `tests/kern/katalog-unbenutzt.ts` führt den Schlüssel nicht mehr als unbenutzt. | CRM › Kontakte, Kontaktblatt; `drizzle/0247`, `0222` |
 | O-662 | Bis Supabase Auth verbunden ist (O-501, Betreiberdatum), legt `app.kundenzugang_ausstellen` (0249) das Konto selbst an — `benutzer` im Status `eingeladen`, eine Zeile in der zweispaltigen `auth.users`-Attrappe, den Einladungstoken (`kern.kennwort_token`); das Kennwort setzt die Person über den Link, angemeldet wird gegen `kern.zugangsdaten` — und der Einladungslink wird einmal gezeigt, weil kein Postausgang verbunden ist. Danach entsteht das Konto über die Admin-API, und der Auftragsverarbeitungsvertrag mit Supabase (EU-Region) deckt auch die Konten externer Ansprechpartner; Verantwortliche nach Art. 4 Nr. 7 bleibt die Gesellschaft, die den Zugang ausstellt. Wie gebaut. | `crm/kundenzugang.ts`, `drizzle/0249`, CRM › Kunde › Zugang |
 | O-663 | Eine Wiedervorlage ist zugleich Aufgabe und Kalendereintrag (04-SEITENKARTE §5.2): `legeWiedervorlageAn` schreibt alle drei Zeilen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Seite nennt, was nicht entstand. Erledigen und Verschieben fassen die gespiegelte Aufgabe und den Kalendereintrag mit an, soweit dieselben Rechte reichen (Kalender gebaut mit V-344, D-806); die Listenseite sagte ausserdem, auf dem Leadblatt fehle das Formular, das es seit V-137 gibt. | `crm/wiedervorlage.ts`, CRM › Kontakt, CRM › Wiedervorlagen, `auth/route-manifest.ts` |
 | O-908 | Ein Widerspruch bindet den MENSCHEN, nicht den Datensatz: Werbewiderspruch und Art.-21-Widerspruch gelten für jeden Kontaktdatensatz derselben E-Mail-Adresse in der Gesellschaft, auch über Kunden hinweg. Gebaut ist das nur für den tokenlosen Weg (`app.werbewiderspruch_formular` stempelt alle Zeilen der Adresse); Token-Einlösung, manueller Werbewiderspruch und Art. 21 stempeln einen Datensatz, und `nimmKontaktMit` hält den Zwilling nur bei Art. 21 zurück, weil das Tor für `vertraglich` den Werbewiderspruch nicht liest (V-345). | `crm/lead-kette.ts`, `drizzle/0222`, `0248` |
@@ -25515,14 +25515,14 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-894 | Die Sperre der vier GoBD-Klassen endet mit der Frist nicht von selbst: nach Ablauf schlägt der Aufbewahrungslauf die Löschung vor, ein Mensch gibt sie frei, nachdem er die Ablaufhemmung geprüft hat (§ 147 Abs. 3 Satz 5 AO: offene Festsetzungsfrist, laufende Prüfung) — Art. 5 Abs. 1 lit. e DSGVO verlangt die Obergrenze, die AO die Prüfung davor. Nicht gebaut: die Sperre ist heute dauerhaft (V-354). | `jobs/dokumentAufbewahrung.ts`, `datenschutz/loeschkonzept.ts` |
-| O-906 | Rechnungen und Buchungsbelege bleiben zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts, eine zu kurze ist nicht nachholbar. Die zehn Jahre sind zugleich die Untergrenze (`UNTERGRENZE`, `kern.aufbewahrung_untergrenze` in 0141): kürzer lässt sich keine dieser Klassen stellen, auch wo der Steuerberater acht Jahre zuliesse; Voreinstellung und Untergrenze je Klasse zu trennen ist eine Migration. Berichtigt im Prüfstand PR #36: hier stand, der Steuerberater entscheide — eintragen könnte er es nicht. | `dokument/aufbewahrung.ts` (`UNTERGRENZE`) |
+| O-906 | Rechnungen und Buchungsbelege bleiben zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts, eine zu kurze ist nicht nachholbar. Die Untergrenze ist davon getrennt (V-372, D-818): Rechnung und Beleg acht, Buchhaltung zehn Jahre (`UNTERGRENZE`, `kern.aufbewahrung_untergrenze` in 0514) — wo der Steuerberater acht Jahre zulässt, trägt eine Gesellschaft sie ein; die Löschsperre der drei Finanzklassen bleibt Pflicht. Berichtigt im Prüfstand PR #36: hier stand, der Steuerberater entscheide — eintragen könnte er es nicht. | `dokument/aufbewahrung.ts` (`UNTERGRENZE`) |
 | O-933 | Der Leistungsort einer Rechnung darf einem anderen Kunden gehören als dem Empfänger (Hausverwaltung, Generalunternehmer, Muttergesellschaft): `OBJEKT_KUNDE_REGEL` heisst jetzt `frei` statt `offen`; geprüft wird die Sichtbarkeit, die Masken ordnen die Objekte des Kunden zuerst, der Beleg nennt den Ort mit Bezeichnung und Anschrift (BG-13). Wie gebaut — und seit dem Prüfstand PR #36 austauschbar: `pruefeObjektZuordnung` liest die Regel, `gleich` wiese ein Objekt eines anderen Kunden ab (Kern-Test). Eine Einstellung je Gesellschaft gibt es nicht; die Regel ist eine Zeile. | `finanz/rechnung.ts`, `finanz/entwurf.ts`, Rechnung › Neu, Entwurf; `tests/kern/rechnung-entwurf.test.ts` |
 | O-934 | Keine Sperre bei fehlenden Briefkopfangaben: wer eine Mahnung freigibt, sieht vorher, was fehlt, und entscheidet (die Folge eines Verstosses gegen § 35a GmbHG ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung); eine Gesellschaft ohne Registereintrag führt die Angaben ihrer Rechtsform, die Angaben selbst sind Betreiberdaten (O-24, O-353). Wie gebaut. | `finanz/mahnung/index.ts` (`fehlendeBriefkopfangaben`) |
 | O-129 | Ein DATEV-Export sperrt keine Periode: exportierte Buchungen tragen den Stapel (`datev_export_id`) und gehen in keinen zweiten Export, ein später Beleg fällt in den nächsten; gesperrt wird eine Periode nur durch den Periodenabschluss (vorläufig, endgültig). Wie gebaut. | `buchhaltung/datev/export.ts`, `buchhaltung/periodenschluss.ts` |
 | O-114 | Die Tarif- bzw. Zuschlagsgruppe ist ein Attribut der Rechnungsposition, nicht Teil ihrer Identität: Objekt, Leistung und Einheit bestimmen sie, eine geänderte Zuschlagsgruppe erscheint als Änderung derselben Zeile mit Delta. Wie gebaut (`ZUSAETZLICHE_SCHLUESSEL_MERKMALE = []`). | `freigabe/vergleich-schluessel.platzhalter.ts`, `freigabe/diff.ts` |
 | O-99 | Preise in ganzen Cent; ein Preis unter einem Cent je Einheit wird über die Bezugsmenge ausgedrückt — an der Rechnungsposition `preis_basismenge` (BT-149/150, etwa 1,25 € je 100 m²), in Angebot und Leistungszeile über die Einheit. Wie gebaut. | `finanz/rechnung.ts` (`berechneNetto`), `finanz/geld.ts` |
 | O-208 | Gemeinkosten, Wagnis und Gewinn (wie Material und Gerät) stecken im Einzelpreis der Leistungszeilen, der Langtext nennt sie; eigene Zuschlagszeilen gibt es nicht, die Kalkulation bleibt intern (K-05). Wie gebaut. | `kalkulation/index.ts` (`verteileNetto`), `angebot/index.ts` |
-| O-921 | Der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: Berichtigung oder geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag, eine Preisanpassung (Tariferhöhung) eine neue datierte Leistungszeile ab dem Stichtag; im Bau der Nachtrag. Die Auftragspflege sagt das jetzt (de/en). Leistungszeilen haben keinen Schreibweg (V-360). | `auftrag/aendern.ts`, `lib/i18n/verwaltung/auftrag.ts` |
+| O-921 | Der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: Berichtigung oder geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag, eine Preisanpassung (Tariferhöhung) eine neue datierte Leistungszeile ab dem Stichtag; im Bau der Nachtrag. Die Auftragspflege sagt das jetzt (de/en). Leistungszeilen hatten bis D-825 keinen Schreibweg (V-360). | `auftrag/aendern.ts`, `lib/i18n/verwaltung/auftrag.ts` |
 | O-932 | Der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung ist der Gesamtstand (bisher Berechnetes wird abgezogen), nicht der Zuwachs; die Position nennt Stand und Abzug. Wie gebaut (`anteiligerRest`). | `finanz/abrechnungsart/festpreis-los.ts` |
 | O-45 | Z3 (Datenträgerüberlassung) ist der Regelweg und gebaut; Z1 und Z2 gewährt die Gesellschaft auf Verlangen der Prüfung über ein befristetes, ausschliesslich lesendes Konto — eine Prüferrolle dafür fehlt (V-355). | `buchhaltung/z3.ts` |
 | O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Nicht gebaut; heute bleibt nur, den Entwurf zu verwerfen (V-356). | `finanz/rechnung.ts` |
@@ -25564,7 +25564,7 @@ O-28 und O-374 bleiben Betreiberdaten, O-375 ebenso (D-784).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-199 | Erhoben werden Name, E-Mail, Telefon (freiwillig) und eine Nachricht, bei der Initiativbewerbung der Bereich — kein Geburtsdatum, keine Staatsangehörigkeit, kein Foto, keine Anschrift (Art. 5 Abs. 1 lit. c DSGVO; jedes dieser Merkmale lädt zu einem Benachteiligungsvorwurf nach dem AGG ein). Führerschein, Sachkunde nach § 34a GewO oder Arbeitserlaubnis klärt das Gespräch, wenn die Stelle sie verlangt; nachgewiesen werden sie bei der Einstellung. Wie gebaut. | `app/(public)/karriere/Formular.tsx`, `api/karriere/bewerbung` |
-| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Gebaut mit V-363 (D-812): eine Stelle schliesst mit Grund und Protokoll (`recruiting.stelle_schreiben`); `in_pruefung` setzt die erste Bewertung eines Menschen, `gespraech` ein geplantes Gespräch (alle abgesagt: zurück auf `in_pruefung`), `zurueckgezogen` ein Vermerk mit Namen (`recruiting.bewerbung_bewerten`, Frist wie bei einer Absage) — danach keine Entscheidung mehr. | `recruiting/dienst.ts`, `drizzle/0166`, `drizzle/0508` |
+| O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle gebaut mit V-362 (D-816, `stelle.beschaeftigungsart`, Vorschlag aus den Wochenstunden: ab 35 Vollzeit, darunter Teilzeit). Gebaut mit V-363 (D-812): eine Stelle schliesst mit Grund und Protokoll (`recruiting.stelle_schreiben`); `in_pruefung` setzt die erste Bewertung eines Menschen, `gespraech` ein geplantes Gespräch (alle abgesagt: zurück auf `in_pruefung`), `zurueckgezogen` ein Vermerk mit Namen (`recruiting.bewerbung_bewerten`, Frist wie bei einer Absage) — danach keine Entscheidung mehr. | `recruiting/dienst.ts`, `drizzle/0166`, `drizzle/0508` |
 | O-201 | Je Kriterium (aus den Anforderungen der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der gewichtete Mittelwert in Zehnteln, die Gewichte müssen nicht 100 ergeben, ohne Gewicht ist eine Bewerbung unbewertet. Die Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. | `recruiting/rangfolge.ts`, Recruiting › Bewertung |
 | O-202 | E-Mail zusätzlich für die Arten mit Frist oder Risiko — Agentenbudget, Radar, Nachweisablauf, Wiedervorlage, neuer Lead, Lead-Frist, unbesetzte Schicht, Nachtrag; nur im Portal Schicht ohne Zeiteintrag, Einwandentscheidung und Planveröffentlichung — so, wie die Arten es eintragen (`kanaeleVorgabe`); jede Person ändert es unter Konto › Benachrichtigungen. Zugestellt wird per E-Mail noch nichts (V-367). | `benachrichtigung/registry.ts` |
 | O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter steht in der Adresse (`?bereich=`, gebaut mit V-364, D-806). | `app/(public)/karriere/page.tsx` |
@@ -25655,17 +25655,17 @@ Voreinstellung tragen — der Wortlaut folgt jetzt.
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-354 | Ein Alarm je endgültig gescheitertem Lauf (nach den Wiederholungen des Runners) und je Lauf mit fehlerhaften Mandanten; geweckt wird niemand, die Gruppe hat keinen Bereitschaftsdienst. Der Alarm steht in der Betriebsansicht, im Funktionsprotokoll (`JOB-ALARM`) und in `job_lauf` (wie gebaut); eine E-Mail an das Betriebspostfach braucht Versanddienst (O-116) und Adresse und fehlt (V-374). | `jobs/alarm.ts`, Einstellungen › Betrieb |
+| O-354 | Ein Alarm je endgültig gescheitertem Lauf (nach den Wiederholungen des Runners) und je Lauf mit fehlerhaften Mandanten; geweckt wird niemand, die Gruppe hat keinen Bereitschaftsdienst. Der Alarm steht in der Betriebsansicht, im Funktionsprotokoll (`JOB-ALARM`) und in `job_lauf` (wie gebaut); die E-Mail an das Betriebspostfach ist als zweiter Empfänger gebaut (V-374, D-823) und geht hinaus, sobald ein Postausgang verbunden (O-116, O-501) und `CSE_ALARM_POSTFACH` eingetragen ist — bis dahin sagt die Betriebsansicht „nicht verbunden" und warum. | `jobs/alarm.ts`, Einstellungen › Betrieb |
 | O-356 | Jede Gesellschaft bucht genau ihr Gewerk aus CLAUDE.md (wie im Seed); eine Überschneidung — Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security — bucht die Super-Administration als weiteres Modul (O-355) unter Einstellungen › Module (V-298, D-809). | `db/seed/index.ts`, Einstellungen › Module |
 | O-359 | Vollständige CSP mit Nonce je Anfrage aus der Middleware, ohne `'unsafe-inline'`, zuerst im Berichtsmodus, dann erzwungen; neben `'self'` nur der Supabase-Speicher der EU-Region (signierte Adressen), Rückrufe des SMS-Dienstes gehen Server an Server. Nicht gebaut (V-375); bis dahin `frame-ancestors 'none'` (wie gebaut). | `lib/sicherheitskoepfe.ts` |
 | O-360 | Keine Karte in der Gruppenansicht, bis ein Kartendienst in der EU mit Auftragsverarbeitungsvertrag eingetragen ist (O-132, Betreiberdaten); bis dahin die Anschriftenliste (D-475). Wie gebaut. | Gruppe › Objekte |
 | O-361 | Der Menüpunkt „Einstellungen" folgt dem Manifest (`system.mandant_lesen`): die Administration sieht ihn, die Karten darunter bleiben einzeln bewacht. Wie gebaut — das Register sagte noch, sie erreiche die Einstellungen nur über die Adresse. | `registry/navigation.ts`, `tests/kern/navigation-rechte.test.ts` |
 | O-368 | Keine Handlung ist umkehrbar (`app.freigabe_umkehrbar` antwortet für jede Vorgangsart nein); eine Korrektur ist eine neue Freigabe oder ein Storno. Wer eine Rückholung baut, trägt ihre Vorgangsart dort ein. Wie gebaut; die Prüfseiten sagen „Voreinstellung" statt „offene Frage". | `freigabe/fenster.platzhalter.ts`, Freigaben › Rückgängig |
-| O-369 | Ja — Vorlegen und Entscheiden sind zwei Rechte (Invariante 7): ein Definer `app.freigabe_vorlegen` legt die offene Bitte an, prüft das fachliche Recht des Vorgangs und setzt Status und Entscheidungsfelder selbst. Nicht gebaut (V-376); bis dahin hält `social-job.test.ts` die Kopplung fest. | `social/dienst.ts` (`legeVor`) |
+| O-369 | Ja — Vorlegen und Entscheiden sind zwei Rechte (Invariante 7): ein Definer `app.freigabe_vorlegen` legt die offene Bitte an, prüft das fachliche Recht des Vorgangs und setzt Status und Entscheidungsfelder selbst. Gebaut mit V-376 (D-819): `app.freigabe_vorlegen` (0515) ist der eine Weg für eine offene Bitte, `app.freigabe_zurueckziehen` nimmt sie zurück; `social-job.test.ts` hält jetzt die Trennung fest statt der Kopplung. | `social/dienst.ts` (`legeVor`), `freigabe/vorlegen.ts`, `drizzle/0515` |
 | O-372 | Keine lesende Social-Übersicht in der Gruppenansicht — die Seitenkarte führt sie in §6 nicht, jede Gesellschaft pflegt ihre Kanäle selbst. Wie gebaut. | `registry/navigation.ts` |
 | O-510 | Die Bestätigung nach dem Widerruf eines Kalenderzugangs sagt in vier Sprachen, dass eine noch sichtbare Zeile veraltet ist und ein Neuladen den Stand zeigt; der Feed antwortet sofort 404. Die Ursache der veralteten Anzeige wird nicht weiter verfolgt, solange der Zugang nachweislich geschlossen ist. Wie gebaut. | `lib/i18n/konto.ts`, `api/kalender-feed/widerrufen`, `tests/e2e/kalender.spec.ts` |
 | O-511 | Bevor der erste Kanal echt verbunden wird (O-10), bekommt der Versand einen Ausgangskorb mit Idempotenzschlüssel, Zustellung ausserhalb der Geschäftstransaktion und Abgleich danach. Heute ohne Wirkung (alle Kanäle `nicht_verbunden`); nicht gebaut (V-377). | `social/dienst.ts` (`sendeKanaele`) |
-| O-513 | Wie O-369: das Vorlegen trägt das fachliche Recht des Vorgangs — `social.schreiben`, das Recht der Stellenpflege, das Erfassen der Eingangsrechnung, beim Agenten sein Dienstkonto —, das Entscheiden `freigabe.entscheiden`. Nicht gebaut (V-376). | `drizzle/0136`, die vier vorlegenden Dienste |
+| O-513 | Wie O-369: das Vorlegen trägt das fachliche Recht des Vorgangs — `social.schreiben`, das Recht der Stellenpflege, das Erfassen der Eingangsrechnung, beim Agenten sein Dienstkonto —, das Entscheiden `freigabe.entscheiden`. Gebaut mit V-376 (D-819) nach Antwort (b): vorlegen darf, wer im Modul des Entscheidungsrechts ein nicht lesendes Recht hält; die Bitte eines Agentenlaufs, wer Agentenaufgaben starten darf, mit laufender Aufgabe der Gesellschaft. | `drizzle/0136`, `drizzle/0515`, die sechs vorlegenden Wege |
 | O-650 | Rollen im Team: Leitung, Stellvertretung, Mitglied, Springer, als Vorschlagsliste; `team_mitglied.rolle` bleibt Text (0230). Gebaut mit V-378 (D-813): Kalender › Teams legt Teams an, ordnet Beschäftigungen zu und beendet Mitgliedschaften (`kalender.schreiben`); eine beendete Mitgliedschaft bleibt mit Ende und Namen stehen (0509). | `kern/team.ts`, `db/seed/kern.ts`, `drizzle/0230`, `drizzle/0509` |
 | O-651 | Die Gruppenleitung liest keine Nachrichtenfäden der Gesellschaften (TEN-05: Zahlen statt Inhalt, wie O-910). Die Policy `t_nachricht_gruppe` (0011) bleibt bis zur Migration, die sie deckelt (V-379); eine Seite dafür gibt es nicht. | `registry/navigation.ts`, `drizzle/0011` |
 | O-871 | Ein Termin gehört einer Person, nicht einem Team; der Teamfilter des Gruppenkalenders greift auf Schichten, die Seite sagt „nur Schichten (Voreinstellung O-871)". Wie gebaut. | Gruppe › Kalender |
@@ -25892,7 +25892,7 @@ es verbunden.
 | O-09 | Datenmengen für die Migration. Die Plattform legt keine Mengen fest; die Übernahme aus dem Altsystem wartet auf dessen Exportformat (O-128). | im Gespräch zur Migration |
 | O-10 | Plattformkonten für Social Media und Jobbörsen: jeder Kanal nicht verbunden, ein Beitrag bleibt Entwurf. | Konto, Administrator und AV-Vertrag je Plattform; Zugang über Umgebungsvariablen |
 | O-12 | Exaktes CSE-Rot und SVG-Logos: angenommenes Rot `#E30613` (`annahmen.ts`), Platzhalter-Logos, sichtbar gekennzeichnet. | Logos unter Einstellungen › Identität (braucht den Speicher); das Rot in DESIGN §1 |
-| O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Die Sperre vor dem Livegang ist nicht verdrahtet (V-389). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
+| O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Vor dem Livegang hält der Build an, solange Platzhalter im Register stehen — mit `CSE_LIVEGANG=1` (V-389, D-818). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
 | O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | Einstellungen › Unternehmensdaten (seit D-804, V-390); Bankkonten für den Kontoauszug unter Finanzen › Bankkonten |
 | O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
 | O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | Einstellungen › Betrieb › Sicherheitskontakt (Super-Administration, seit D-809, V-392) — Postfach, wer es liest, Antwortfrist |
@@ -26634,4 +26634,617 @@ Name; Seed nach dem Ende; ohne Recht nichts), `tests/isolation/aufgabe.test.ts`,
 komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-378; O-650; `drizzle/0509_team_pflege.sql`, `src/server/services/kern/team.ts`, `src/app/api/kalender/teams/route.ts`, `src/app/portal/[mandant]/kalender/teams/page.tsx`, `src/app/portal/[mandant]/kalender/teams/felder.ts`, `src/app/portal/[mandant]/kalender/page.tsx`, `src/lib/i18n/verwaltung/kalender-teams.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/gruppe/kalender.ts`, `src/server/db/seed/kern.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts` |
+|---|---|
+
+### D-814 · Das Ziel einer Benachrichtigung ist ein Pfad dieser Plattform (V-394)
+
+**Der Anlass.** In der Durchsicht von PR #40 fand Copilot, dass
+`app.abwesenheit_ruecknahme_melden` (0500) sein Ziel vom Aufrufer übernahm.
+Behoben ist das dort (D-808) und in 0505/0506 (D-810). Der Befund dahinter
+gilt für jeden Schreibweg: `benachrichtigung.ziel` prüfte seit 0011 nur
+`length(ziel) > 1`, und `/api/benachrichtigungen/[id]/oeffnen` leitete mit
+`new URL(ziel, ursprung)` weiter. Der Kommentar der Route versprach einen
+CHECK auf den führenden Schrägstrich, den es nie gab. Ein Ziel
+`//boese.example` wäre eine offene Weiterleitung hinter einer echten Anmeldung
+gewesen.
+
+**Was gebaut ist — dreifach, weil jede Stufe eine andere Lücke schließt.**
+- **Die Datenbank** (`0510`): `benachrichtigung_ziel_intern` verlangt einen
+  `/`, danach weder `/` noch `\` (für den Browser beides der Anfang einer
+  Adresse auf einem fremden Wirt; in http und https gilt der Rückstrich als
+  Schrägstrich) und kein Steuerzeichen (Tabulator und Zeilenumbruch streicht
+  der URL-Parser, bevor er liest — aus `/<Tab>/boese.example` wird
+  `//boese.example`). Geprüft wird im Auslöser beim Anlegen und wenn sich
+  das Ziel ändert — nicht als CHECK: ein CHECK liefe bei jedem update der
+  Zeile, und eine Altzeile mit fremdem Ziel liesse sich dann weder öffnen
+  noch als gelesen stempeln; eine einzige ungelesene risse
+  `markiereAlleGelesen` für den ganzen Posteingang mit (Copilot zu PR #43).
+  Der Bestand wird geprüft, nicht umgeschrieben: eine solche Zeile bleibt
+  stehen, lässt sich lesen und stempeln, und eine Meldung nennt die Zahl.
+  Seed und Demodaten bestehen die Regel.
+- **Die Registry**: `erzeuge` weist ein fremdes Ziel ab, bevor eine Zeile
+  entsteht (`istInternesZiel`, dieselbe Regel; `ZielFehler` mit eigenem Satz).
+- **Die Route**: sie prüft die Form noch einmal und dann, ob die aufgelöste
+  Adresse auf DIESEM Ursprung liegt. Ein Ziel, das eines davon nicht besteht
+  (eine Altzeile), führt auf den Start des eigenen Portals
+  (`PORTAL_START`); gelesen ist die Meldung trotzdem.
+
+**Prüfung.** `tests/kern/benachrichtigung.test.ts` (1a),
+`tests/kern/benachrichtigung-oeffnen-route.test.ts`,
+`tests/isolation/benachrichtigung.test.ts` (V-394, an echten Zeilen; eine
+Altzeile mit fremdem Ziel lässt sich öffnen und stempeln, aber nicht auf ein
+fremdes Ziel ändern), `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-394; NOT-03; `drizzle/0510_benachrichtigung_ziel_intern.sql`, `src/server/benachrichtigung/registry.ts`, `src/app/api/benachrichtigungen/[id]/oeffnen/route.ts`, `tests/kern/benachrichtigung.test.ts`, `tests/kern/benachrichtigung-oeffnen-route.test.ts`, `tests/isolation/benachrichtigung.test.ts` |
+|---|---|
+
+### D-815 · Bauwelle 12: Die Zuverlässigkeitsüberprüfung hat eine Wiedervorlage (V-320)
+
+**Der Anlass.** Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet;
+der einzige Anlass einer Nachprüfung ist die Zuverlässigkeitsüberprüfung der
+Behörde, spätestens nach fünf Jahren (O-140, D-788). `bewacher_eintrag` trägt
+`letzte_pruefung_am` und `naechste_pruefung_am` seit 0031 — gelesen hat sie
+kein Wächter, und eine leere nächste Prüfung fiel nie auf. Die Registerseite
+sagte ausdrücklich, keine Frist werde abgeleitet.
+
+**Was gebaut ist.**
+- **Die Wiedervorlage wird beim Lesen abgeleitet, nicht gespeichert.**
+  `app.bewacher_naechste_pruefung` (0511): die eingetragene nächste Prüfung,
+  sonst die letzte plus `ZUVERLAESSIGKEIT_JAHRE` (fünf). Ein
+  Voreinstellungswert in der Zeile sähe aus wie eine Mitteilung der Behörde;
+  so bleibt er als solcher erkennbar. Ein 29. Februar plus fünf Jahre ist der
+  28. Februar.
+- **Security › Bewacherregister** zeigt die Wiedervorlage mit dem Zusatz
+  „abgeleitet: 5 Jahre nach der letzten, Voreinstellung", überschritten rot;
+  das Feld heisst „Nächste Prüfung (leer = letzte plus 5 Jahre)", und der
+  Hinweis zu O-40/O-140 sagt, was gilt.
+- **Der Wächter meldet sie** (SEC-02, im Nachtlauf `nachweis_warnungen` und im
+  Seed): fällig ist, was bis heute plus 60 Tage ansteht — derselbe Vorlauf
+  wie für die Bewacher-Erlaubnis (`BEWACHER_VORWARNUNG_TAGE`, O-707) —, auch
+  Überschrittenes. Gemeldet wird in jeder Gesellschaft, in der die Person
+  aktiv beschäftigt ist und Security gebucht hat (`modulAktiv`, dieselbe
+  Regel wie die Seite), an die Mitglieder mit `personal.bewacher_verwalten`,
+  dem Recht der Registerseite (`kern.bewacher_pruefung_empfaenger`, 0511,
+  Definer, Mitgliedschaft am Berliner Tag). Einmal je Konto und Datum
+  (`waechter_meldung`, die Lage ist das Datum): wer eine neue Prüfung
+  einträgt, bekommt für das neue Datum wieder eine Meldung. Scheitert die
+  Zustellung mit einem Fehler, gibt der Lauf die Quittung zurück, bevor der
+  Fehler weitergeht — der Nachtlauf schreibt ohne Transaktion darum, und der
+  nächste Lauf fände sonst eine Quittung ohne Meldung vor und schwiege für
+  immer (Copilot zu PR #43). Neue Art
+  `personal.bewacher_pruefung_faellig` (sammelbar, Ziel das Register); sie
+  sagt, ob das Datum eingetragen oder abgeleitet ist, und dass das Register
+  nicht verbunden ist.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-140 | Ohne eingetragene nächste Prüfung gilt als Wiedervorlage die letzte plus fünf Jahre (§ 34a Abs. 1 GewO: spätestens nach fünf Jahren), beim Lesen abgeleitet — wie D-788, jetzt gebaut. | `drizzle/0511`, `security/bewacherregister.ts`, `security/zuverlaessigkeit.ts` |
+| O-707 | Derselbe Vorlauf von 60 Tagen auch für die Wiedervorlage der Zuverlässigkeitsüberprüfung. | `security/zuverlaessigkeit.ts` |
+
+**Prüfung.** `tests/isolation/bewacher-wiedervorlage.test.ts` (Ableitung samt
+29. Februar, Register ohne gespeichertes Datum, Empfänger nur mit Security und
+Recht, einmal je Datum, neues Datum meldet wieder, ohne Anstellung niemand; eine
+gestörte Zustellung gibt die Quittung zurück, und der nächste Lauf stellt zu),
+`tests/kern/zuverlaessigkeit.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-320; O-140, O-707, O-40; `drizzle/0511_bewacher_pruefung_wiedervorlage.sql`, `src/server/services/security/bewacherregister.ts`, `src/server/services/security/zuverlaessigkeit.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/db/seed/security.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/[mandant]/security/bewacherregister/page.tsx` |
+|---|---|
+
+### D-816 · Bauwelle 13: Eine Stelle führt ihre Beschäftigungsart (V-362)
+
+**Der Anlass.** `stelle` (0166) kannte `wochenstunden`, aber weder Vollzeit
+noch Teilzeit, Minijob oder Aushilfe; der Anzeigentext musste es sagen, und
+die Stellenbörsen fragen danach (O-374). Voreinstellung zu O-200 (D-797): das
+Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe.
+
+**Was gebaut ist.**
+- **0512:** Typ `beschaeftigungsart` und die nullbare Spalte
+  `stelle.beschaeftigungsart` — `NULL` heisst „nicht festgelegt", wie bei den
+  Wochenstunden. Gespeichert wird die Wahl eines Menschen.
+- **Der Vorschlag aus den Wochenstunden** (`recruiting/beschaeftigungsart.ts`,
+  rein): ab 35 Stunden Vollzeit, darunter Teilzeit. Minijob und Aushilfe
+  schlägt er nie vor — ein Minijob bestimmt sich nach dem Verdienst (§ 8
+  SGB IV), eine Aushilfe nach der Dauer. Das Bearbeiten eines Entwurfs wählt
+  ihn vor, wenn noch nichts gewählt ist; der Seed setzt ihn an den
+  Demostellen, der Agentenentwurf bleibt offen, bis ein Mensch ihn bearbeitet.
+- **Formulare** (von Hand, durch den Agenten, Bearbeiten): eine Auswahl mit
+  „Nicht festgelegt", zweisprachig; ein fremder Wert ist ein Satz
+  (`unbrauchbare_beschaeftigungsart`), kein 500. Das Stellenblatt nennt die
+  Art.
+- **Karriereseite** de/en: die Eckdaten nennen die Art in der Sprache der
+  Seite (Vollzeit/Full-time …).
+- **Freigabe und Börse:** die Art steht in der Nutzlast der Freigabe — was
+  freigegeben wird, ist die ganze Anzeige — und im Auftrag an eine
+  Stellenbörse (`StellenAuftrag`), samt Wochenstunden; verbunden ist keine
+  Börse (O-374).
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-200 | Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe an der Stelle; vorgeschlagen wird ab 35 Wochenstunden Vollzeit, darunter Teilzeit — wie D-797, jetzt gebaut. | `drizzle/0512`, `recruiting/beschaeftigungsart.ts` |
+
+**Prüfung.** `tests/kern/beschaeftigungsart.test.ts` (Vokabular, Vorschlag,
+Formular, Namen in jeder Sprache), `tests/kern/stellenentwurf.test.ts`,
+`tests/isolation/recruiting-stellenentwurf.test.ts` (4) (anlegen, lesen, in
+der Freigabe; fremdes Wort abgewiesen), `tests/isolation/recruiting.test.ts`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-362; O-200, O-374; `drizzle/0512_stelle_beschaeftigungsart.sql`, `src/server/services/recruiting/beschaeftigungsart.ts`, `src/server/services/recruiting/dienst.ts`, `src/server/services/recruiting/stellenentwurf.ts`, `src/app/api/recruiting/stellen/felder.ts`, `src/app/api/recruiting/stellen/[id]/route.ts`, `src/app/api/recruiting/stellen/entwurf/route.ts`, `src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts`, `src/server/versand/stellenboerse.ts`, `src/app/portal/[mandant]/recruiting/stellen/{neu,[id]}/page.tsx`, `src/app/(public)/karriere/{daten,texte}.ts`, `src/app/(public)/karriere/Seiten.tsx`, `src/lib/i18n/verwaltung/recruiting-{stellenentwurf,rueckmeldung}.ts`, `src/server/db/seed/{recruiting,stellenentwurf}.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-817 · Bauwelle 14: Dasselbe Gebäude nicht zweimal als Objekt (V-361)
+
+**Der Anlass.** Ein Gebäude ist ein Objekt (O-70, D-792) — zwei hiessen zwei
+Raumbücher, zwei Schlüsselsätze und zwei Objektnummern für dieselbe Tür.
+`legeObjektAn` legte aber jedes Mal an; weder `objekt` (0021) noch der Dienst
+prüften die Anschrift, und zwei Erfasser konnten dasselbe Haus zweimal anlegen
+(Prüfstand PR #35).
+
+**Was gebaut ist.**
+- **Dieselbe Anschrift** (`objekt/anschrift.ts`, rein): der Schlüssel aus
+  Postleitzahl, Strasse und Hausnummer, normalisiert — Gross- und
+  Kleinschreibung, Umlaute und ß, Akzente, „Straße"/„Strasse"/„Str." am
+  Wortende, Leerzeichen und Satzzeichen zählen nicht. Eine andere Hausnummer
+  (`5` und `5a`), eine andere Postleitzahl und „Str" mitten im Wort
+  („Strassburger Platz") bleiben verschieden. Verglichen wird im Dienst,
+  gesucht je Postleitzahl in der Datenbank — eine zweite Fassung der Regel in
+  SQL liefe ihr davon.
+- **Die Rückfrage** (`findeAnschriftDubletten`, `legeObjektAn`): gibt es unter
+  derselben Anschrift schon lebende Objekte der aktiven Gesellschaft, wird nur
+  mit `trotzDublette` angelegt; sonst `anschrift_vorhanden` (409) mit der Zahl.
+  Archivierte Objekte und andere Gesellschaften zählen nicht. Eine Wohnanlage
+  mit einer Hausnummer bleibt möglich — nach der Bestätigung. Vor der Suche
+  nimmt die Anlage eine Sperre auf Gesellschaft und Anschrift bis zum Ende der
+  Transaktion, auch mit Bestätigung: zwei gleichzeitige Anlagen derselben
+  Anschrift sahen sonst beide nichts und legten zwei Objekte ohne Rückfrage
+  an; jetzt wartet die zweite und fragt nach (Copilot zu PR #43).
+- **Das Formular** (Objekte › Neu): nach der Rückfrage stehen die Eingaben
+  wieder im Formular, die Seite nennt die vorhandenen Objekte mit Verweis (aus
+  der Datenbank, nicht aus der Adresse) und verlangt ein Häkchen „Ich habe die
+  vorhandenen Objekte gesehen und lege trotzdem ein weiteres an". Zutrittshinweis
+  und Bemerkung reisen nicht über die Adresse (sie können Codes tragen, und eine
+  Adresse landet in Protokollen) — die Seite sagt es. de/en.
+- **Nicht Teil:** eine Änderung der Anschrift eines bestehenden Objekts fragt
+  nicht nach; sie ist selten und betrifft ein Objekt, das schon Raumbuch und
+  Schlüssel hat.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-70 | Ein Gebäude ist ein Objekt; unter derselben Anschrift legt die Plattform ein weiteres Objekt erst nach einer bewussten Bestätigung an — wie D-792, jetzt mit Rückfrage. | `objekt/anlegen.ts`, `objekt/anschrift.ts`, Objekte › Neu |
+
+**Prüfung.** `tests/kern/objekt-anschrift.test.ts` (gleiche und verschiedene
+Schreibweisen, „Str" im Wort, Rücktransport), `tests/isolation/objekt-anlegen.test.ts`
+§V-361 (Rückfrage mit Zahl, Bestätigung, Hausnummer, Gesellschaft, Archiv,
+zwei gleichzeitige Anlagen; die übrigen Fälle bestätigen ihre gemeinsame
+Testanschrift ausdrücklich),
+`tests/isolation/revier-anlegen.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-361; O-70; `src/server/services/objekt/anschrift.ts`, `src/server/services/objekt/anlegen.ts`, `src/app/api/objekt/route.ts`, `src/app/portal/[mandant]/objekte/neu/page.tsx`, `src/app/portal/[mandant]/objekte/ObjektFormular.tsx`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-818 · Bauwelle 15: alte Einzelabfrage entfernt, Livegang-Sperre verdrahtet, Untergrenze der Aufbewahrung getrennt (V-343, V-389, V-372)
+
+**Der Anlass.** Drei kleinere Befunde, in denen eine Regel beschlossen und an
+einer Stelle nicht durchgesetzt war.
+
+**Was gebaut ist.**
+- **V-343 — die alte Einzelabfrage des Rechtsgrundlagen-Blocks.**
+  `app.rechtsgrundlage_lesen` (0020) verlangte `crm.lesen`; seit 0247 tragen
+  Liste und Blatt den Block mit dem engeren `crm.rechtsgrundlage_lesen`
+  (O-661). Die Funktion hatte keinen Aufrufer, stand aber mit
+  Ausführungsrecht für `cse_app` in der Datenbank. 0513 entfernt sie —
+  entfernt statt umgestellt: eine zweite Tür mit demselben Schloss wäre die,
+  die beim nächsten Umbau vergessen wird. Die K-01-Altlastliste verliert
+  ihren Eintrag.
+- **V-389 — die Platzhaltersperre vor dem Livegang.** `assertKeinePlatzhalter`
+  hatte keinen Aufrufer. Jetzt ruft `next.config.ts` sie mit `istLivegang`:
+  nur `CSE_LIVEGANG=1` macht einen Build zum Livegang, nicht
+  `NODE_ENV=production` — auch die Vorführung ist ein Produktionsbuild, und
+  dort stehen die gekennzeichneten Platzhalter zu Recht. Im Livegang hält
+  `next build` an und nennt jeden Platzhalter des Registers. `.env.example`
+  führt den Schalter, leer.
+- **V-372 — Untergrenze und Voreinstellung der Aufbewahrung.** Seit dem BEG IV
+  gelten für Buchungsbelege, Rechnungen eingeschlossen, acht Jahre (§ 147
+  Abs. 3 AO, § 257 Abs. 4 HGB, § 14b Abs. 1 UStG); Bücher und Abschlüsse
+  bleiben bei zehn. `UNTERGRENZE` und `kern.aufbewahrung_untergrenze` (0514)
+  nennen jetzt acht für Rechnung und Beleg; die Voreinstellung bleibt zehn
+  Jahre in den Plattformzeilen. Die Löschsperre der drei Finanzklassen hängt
+  an der Klasse (`SPERRE_PFLICHT`), nicht mehr an „ab zehn Jahren" — sonst
+  hätte die kürzere Untergrenze Rechnung und Beleg still aus der Sperre
+  entlassen.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-906 | Zehn Jahre für Rechnung und Beleg bleiben die Voreinstellung; die gesetzliche Untergrenze ist acht Jahre (BEG IV), eintragbar je Gesellschaft. | `dokument/aufbewahrung.ts`, `drizzle/0514` |
+| O-12, O-13 | Der Livegang-Schalter ist aus, bis der Betreiber ihn für den Livegang-Build setzt; dann hält jeder Platzhalter im Register den Build an. | `lib/placeholder-assets.ts`, `next.config.ts`, `.env.example` |
+| O-661 | Den Rechtsgrundlagen-Block trägt nur das engere Recht — die alte Einzelabfrage gibt es nicht mehr. | `drizzle/0513` |
+
+**Prüfung.** `tests/isolation/crm-kontakt-grundlage.test.ts` (V-343: die
+Funktion gibt es nicht, `crm.lesen` allein öffnet nichts),
+`tests/isolation/definer-eigentum.test.ts`, `tests/kern/livegang-platzhalter.test.ts`,
+`tests/isolation/gobd-archiv.test.ts` (3) (Untergrenzen nach BEG IV, acht Jahre
+mit Pflichtsperre, Voreinstellung zehn), `tests/isolation/aufbewahrung-lauf.test.ts`,
+`tests/isolation/datenschutz-dienste.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-343, V-389, V-372; O-661, O-12, O-13, O-906; `drizzle/0513_rechtsgrundlage_einzelabfrage_entfernt.sql`, `drizzle/0514_aufbewahrung_untergrenze_beg4.sql`, `src/lib/placeholder-assets.ts`, `next.config.ts`, `.env.example`, `src/server/services/dokument/aufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `tests/isolation/definer-eigentum.test.ts` |
+|---|---|
+
+### D-819 · Bauwelle 16: Vorlegen ist nicht Entscheiden (V-376)
+
+**Der Anlass.** Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) verlangte
+`freigabe.entscheiden` für jeden Schreibvorgang, auch für das Anlegen einer
+offenen Bitte. Eine Rolle, die vorlegt und nicht entscheidet — die Trennung,
+für die Invariante 7 da ist —, scheiterte an der Policy, mit einer Meldung, die
+nach einem fehlenden Fachrecht aussah; das Zurückholen eines Beitrags zur
+Überarbeitung liess die Bitte stumm offen liegen. Voreinstellung zu O-369 und
+O-513 (D-799): ein Definer, der das fachliche Recht des Vorgangs prüft.
+
+**Was gebaut ist.**
+- **`app.freigabe_vorlegen(jsonb)` (0515)** ist der eine Weg für eine offene
+  Bitte. Gesellschaft (die aktive), Status `offen`, Urheber und
+  Entscheidungsfelder setzt er selbst; der Aufrufer gibt den Vorgang aus einer
+  festen Liste von Angaben mit — eine fremde Angabe ist ein Fehler —, die
+  extrahierten Felder eines Vorschlags im selben Aufruf (ihre Policy verlangt
+  `freigabe.lesen`, und ihr Zähler schreibt in die Freigabe). Vorlegen darf,
+  wer im Modul des erforderlichen Rechts ein nicht lesendes Recht hält
+  (`social.freigeben` → `social.schreiben`, `eingang.freigeben` →
+  `eingang.schreiben`; ohne erforderliches Recht wie bisher ein Freigaberecht).
+  Eine erfundene Rechnungsfreigabe aus dem Social-Modul geht damit nicht in
+  den Posteingang. Die Bitte eines Agentenlaufs legt vor, wer Agentenaufgaben
+  starten darf, mit einer laufenden Aufgabe dieser Gesellschaft; Agent und
+  Aufgabe kommen aus der Aufgabe, einen Urheber hat sie nicht (wie bisher, 0496
+  liest es so).
+- **`app.freigabe_zurueckziehen(uuid, text)`**: wer vorlegen dürfte, nimmt eine
+  offene Bitte zurück; eine entschiedene bleibt, wie sie ist (APR-07).
+- **Eine offene Bitte entsteht nur noch dort**: die restriktive Policy
+  `p_offen_nur_vorlegen` verbietet `cse_app` den direkten insert mit Status
+  `offen`. Eine bereits gefallene Entscheidung (`erteilen.ts`, Seed) schreibt
+  `cse_app` mit `freigabe.entscheiden` wie bisher; Lesen und Entscheiden
+  ändern sich nicht.
+- **Sechs Wege umgestellt** (`freigabe/vorlegen.ts`): der Social-Beitrag (samt
+  Zurückholen), die Stellenanzeige, die Bewerberantwort, der Vorschlag zur
+  Eingangsrechnung, der Agentenlauf und das zurückgehaltene Werkzeugergebnis des
+  Assistenten; dazu der Seed. Der Assistent fragt vor dem Werkzeug
+  `agent.aufgabe_starten` statt `freigabe.entscheiden` — wer Freigaben nicht
+  entscheidet, bekommt seine Antwort jetzt über den Posteingang, statt
+  abgewiesen zu werden.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-369 | Vorlegen und Entscheiden sind zwei Rechte — wie D-799, jetzt gebaut: `app.freigabe_vorlegen` prüft das Vorlegerecht, entschieden wird mit dem Recht der Bitte. | `drizzle/0515`, `freigabe/vorlegen.ts` |
+| O-513 | Das Vorlegerecht ist ein nicht lesendes Recht im Modul des Entscheidungsrechts (Antwort b), beim Agentenlauf `agent.aufgabe_starten` mit laufender Aufgabe — wie D-799, jetzt gebaut. | `drizzle/0515` |
+
+**Prüfung.** `tests/isolation/freigabe-vorlegen.test.ts` (11: ein Konto nur mit
+Social legt vor und holt zurück; eine entschiedene Bitte bleibt; der Köder über
+Modulgrenzen; ohne erforderliches Recht wie bisher; ein unbekanntes Recht; ohne
+schreibendes Recht nichts; fremde Angaben; direkter insert `offen` gesperrt,
+eine gefallene Entscheidung erlaubt; Felder samt Zähler; Agentenlauf mit und
+ohne laufende Aufgabe, ohne Recht, fremde Gesellschaft),
+`tests/isolation/social-job.test.ts` (die Trennung statt der Kopplung),
+`tests/isolation/agent-assistent.test.ts` (wer nicht entscheidet, legt vor;
+entscheiden muss ein anderer), `tests/isolation/pruefprotokoll-ip-agent.test.ts`,
+die Isolationsdateien von Social, Recruiting, Eingangsrechnung, Agenten,
+Freigabe, Seed und Gruppenansicht, `sql-schema`, `definer-eigentum`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-376; O-369, O-513; `drizzle/0515_freigabe_vorlegen.sql`, `src/server/services/freigabe/vorlegen.ts`, `src/server/services/social/dienst.ts`, `src/server/services/recruiting/dienst.ts`, `src/server/services/recruiting/antwort.ts`, `src/server/services/finanz/eingang/vorschlag.ts`, `src/server/agent/orchestrator.ts`, `src/server/agent/tools/ergebnis-freigabe.ts`, `src/server/db/seed/freigaben.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-820 · Bauwelle 17: Die Prüfprotokoll-Kette hat einen Nachtlauf (V-336)
+
+**Der Anlass.** Die Hashkette über das Prüfprotokoll (0204) wuchs nur, wenn
+jemand ein Beweismittelbündel bildete; zwischen zwei Bündeln blieben Zeilen
+ungekettet, und nachgerechnet hat sie niemand regelmässig. Beide Einstiege
+verlangen `system.audit_exportieren` — ein Nachtlauf hat keinen Benutzer und
+bekam 0 Glieder und keinen Befund, was aussah wie „alles in Ordnung".
+Voreinstellung zu O-623 (D-791): nächtlich fortschreiben und nachrechnen.
+
+**Was gebaut ist.**
+- **Eine Formel statt zwei** (0516): `kern.audit_glied_hash` ist die
+  Gliedformel aus 0204, Feld für Feld, Trenner für Trenner. 0204 schrieb sie
+  in `fortschreiben` und `pruefen` je einmal aus; der Nachtlauf hätte die
+  dritte Fassung gebracht. Ein Test rechnet die alte Fassung wörtlich gegen
+  die neue Funktion.
+- **Der Rumpf ohne Tor** (`kern.audit_kette_schreiben`,
+  `kern.audit_kette_rechnen`, nur `cse_definer`), beide hinter einer
+  Advisory-Sperre: ein Bündel und der Nachtlauf läsen sonst dieselben
+  ungeketteten Zeilen, und der zweite liefe in den Eindeutigkeitsschlüssel
+  auf `audit_id`. `app.audit_kette_fortschreiben` und `app.audit_kette_pruefen`
+  behalten ihre Tore aus 0204 und rufen den Rumpf.
+- **Der Einstieg für den Lauf** (`kern.audit_kette_nachtlauf`, nur `cse_job`,
+  weist eine nur lesende Sitzung ab): kettet, was fehlt, und rechnet nach —
+  die in diesem Lauf berührten Ketten, die beiden jüngsten, jede schon einmal
+  gebrochene und die am längsten nicht geprüfte. So kommt jede Kette reihum
+  wieder dran, ohne dass jede Nacht zehn Jahre Protokoll gerechnet werden.
+- **Der Job** `audit_kette_nachtlauf` (`jobs/auditKette.ts`, 03:25 UTC, nach
+  dem Rechnungs-Kettenprüfer): übergreifend — die Kette ist eine über alle
+  Gesellschaften und die Plattformzeilen; die Voreinstellung nannte einen je
+  Gesellschaft gebundenen Einstieg, und das wäre dieselbe Kette viermal.
+  `versuche: 0`; ein Bruch lässt den Lauf werfen, mit Kette und Stelle im
+  Nachtlauf-Protokoll, und ruft den Alarm (nach draussen erst mit dem
+  Versanddienst, V-374). `docs/JOB-AUSLOESER.sql` führt ihn.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-623 | Nächtlich fortschreiben und nachrechnen, der Befund im Nachtlauf-Protokoll, ein Bruch ist ein Alarm — wie D-791, jetzt gebaut; übergreifend statt je Gesellschaft, weil die Kette eine ist. | `drizzle/0516`, `jobs/auditKette.ts` |
+
+**Prüfung.** `tests/isolation/audit-kette.test.ts` §V-336 (5, unter der echten
+Jobrolle: ketten und nachrechnen, zweite Nacht ohne Doppel; eine nachgetragene
+Vormonatszeile kommt an den Vormonat und bricht nichts; eine veränderte
+Protokollzeile lässt den Lauf mit Kette und Stelle werfen; nur lesend
+abgewiesen, `cse_app` ohne Ausführungsrecht; die Formel aus 0204 gegen
+`kern.audit_glied_hash`), die übrigen Fälle der Datei über die Einstiege aus
+0204, `tests/kern/jobs-bootstrap.test.ts`, `definer-eigentum`, `sql-schema`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-336; O-623; `drizzle/0516_audit_kette_nachtlauf.sql`, `src/server/jobs/auditKette.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql`, `tests/isolation/audit-kette.test.ts`, `tests/kern/jobs-bootstrap.test.ts` |
+|---|---|
+
+### D-821 · Bauwelle 18: Ein Verwaltungskonto bekommt einen neuen Link und eine andere Rolle (V-302)
+
+**Der Anlass.** 0372 legt ein Verwaltungskonto an und stellt EINEN
+Einladungslink aus. Ging er verloren oder lief er ab, gab es keinen neuen: eine
+zweite Einladung derselben Adresse weist die Datenbank als „schon eingetragen"
+ab, und „Kennwort vergessen" braucht den Postausgang, der nicht verbunden ist
+(O-501). Die Rolle einer Mitgliedschaft änderte kein Weg — obwohl der Satz der
+Datenbank genau das riet. Voreinstellung zu O-980 und O-981 (D-784).
+
+**Was gebaut ist.**
+- **`app.verwaltungskonto_link_neu` (0517)**: für ein Verwaltungskonto der
+  aktiven Gesellschaft (lebende, vergebene Mitgliedschaft mit der
+  Plattformrolle `admin` oder `leitung`) einen neuen Link. Wartet das Konto,
+  ist er eine Einladung; ist es aktiv, ein Link zum Setzen eines neuen
+  Kennworts — derselbe Annahmeweg (`/auth/einladung/[token]`, 0155), gültig so
+  lange wie ein Link seines Zwecks (`auth.einladung_stunden` bzw.
+  `auth.zuruecksetzung_stunden`, O-500). Jeder offene Link des Kontos verfällt;
+  ein gesperrtes oder deaktiviertes Konto bekommt keinen. Eine Sperre je
+  Konto hält einen zweiten gleichzeitigen Aufruf an, bis der erste
+  festgeschrieben ist — sonst blieben beide neuen Links gültig (Copilot zu
+  PR #43). Protokolliert (`system.verwaltungskonto_link_neu`, mit Zweck).
+- **`app.verwaltungskonto_rolle_wechseln` (0517)**: zwischen `admin` und
+  `leitung`, nie zur Super-Administration (D-617), nie am eigenen Konto, nie an
+  einem Mitarbeiter- oder Kundenkonto. Eine Modulzuweisung bleibt stehen — an
+  der Leitung eine Einschränkung, nie eine Erweiterung. Protokolliert mit alter
+  und neuer Rolle. Ein direktes Umschreiben durch `cse_app` hält der
+  Auslöser aus 0416 weiterhin auf.
+- Beide wie 0372: nur die Super-Administration
+  (`system.verwaltungskonto_erstellen`, `nur_global`), mit zweitem Faktor, im
+  internen Portal, in genau einer Gesellschaft (`kern.verwaltungskonto_tor`).
+  Abweisungen kommen als Schlüssel, nicht als Satz.
+- **Route und Blatt**: `POST /api/system/verwaltungskonto` mit
+  `aktion=link_neu` bzw. `aktion=rolle`, zurück aufs Benutzerblatt mit
+  `?verwaltung=<stand>`; der neue Link reist wie bei der Einladung in einem
+  `httpOnly`-Keks unter dem Pfad des Blatts und steht genau einmal da. Das
+  Benutzerblatt zeigt beide Handlungen der Super-Administration an einem
+  fremden Verwaltungskonto (de/en). Die Sätze der Einladungsseite, die sagten,
+  der Weg sei nicht gebaut, nennen ihn jetzt.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-980 | Die Super-Administration stellt einen verlorenen oder abgelaufenen Link am Benutzerblatt neu aus, der alte verfällt; an einem aktiven Konto ist es ein Kennwortlink — wie D-784, jetzt gebaut. | `drizzle/0517`, `system/verwaltungskonto.ts` |
+| O-981 | Die Super-Administration wechselt die Rolle am Benutzerblatt zwischen Administration und Leitung, protokolliert — wie D-784, jetzt gebaut. | `drizzle/0517`, `system/verwaltungskonto.ts` |
+
+**Prüfung.** `tests/isolation/verwaltungskonto-einladung.test.ts` §4/§5 (7:
+neuer Einladungslink entwertet den alten, mit Protokoll; Kennwortlink für ein
+aktives Konto, jeder offene Link verfällt; zwei gleichzeitige neue Links lassen
+genau einen offen; kein Verwaltungskonto, gesperrt,
+deaktiviert; ein Admin der Gesellschaft nicht, nicht ohne zweiten Faktor;
+Leitung ↔ Administration mit Protokoll und `unveraendert`; nie
+Super-Administration, nie selbst, nie ein Mitarbeiterkonto; `cse_app` schreibt
+die Rolle nicht direkt um), `tests/kern/verwaltungskonto-pflege.test.ts` (14:
+die echte Route mit beiden Aktionen, Keks, Schlüssel, Sätze de/en),
+`tests/kern/verwaltungskonto-rueckweg.test.ts` (die Sätze nennen den Weg),
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-302; O-980, O-981; `drizzle/0517_verwaltungskonto_link_und_rolle.sql`, `src/server/services/system/verwaltungskonto.ts`, `src/app/api/system/verwaltungskonto/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `src/app/portal/[mandant]/einstellungen/benutzer/VerwaltungskontoPflege.tsx`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto-pflege.ts` |
+|---|---|
+
+### D-822 · Bauwelle 19: Anmeldeversuche und Nachtlauf-Protokoll werden gelöscht (V-330)
+
+**Der Anlass.** `kern.anmeldeversuch` trägt seit 0007 einen Index für genau
+diesen Zweck — gelöscht hat nie etwas; `job_lauf` und `job_lauf_mandant`
+wuchsen ebenso unbegrenzt. Voreinstellung zu O-92 (D-790): Anmeldeversuche
+30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll ein Jahr,
+Prüfprotokoll zehn Jahre.
+
+**Was gebaut ist.**
+- **Zwei vorläufige Einstellungen** (0518): `datenschutz.anmeldeversuch_tage`
+  (30) und `betrieb.job_lauf_tage` (365), änderbar ohne Code; eine Frist unter
+  einem Tag gilt als ein Tag — ein Tippfehler löscht nicht alles.
+- **`kern.betriebsprotokolle_aufraeumen`** (nur `cse_job`): löscht
+  Anmeldeversuche älter als ihre Frist und abgeschlossene Läufe, die vor ihrer
+  Frist begonnen haben, samt ihren Ergebnissen je Gesellschaft; ein noch
+  laufender Lauf bleibt. `cse_definer` bekommt dafür `delete` mit Policies, die
+  nur abgeschlossene Läufe treffen; `cse_app` löscht weiterhin nichts.
+- **Der Job** `betriebsprotokolle_aufraeumen` (`jobs/betriebsprotokolle.ts`,
+  04:30 UTC, übergreifend — die drei Tabellen tragen keinen Mandanten)
+  schreibt je Tabelle Frist und Zahl ins Nachtlauf-Protokoll;
+  `docs/JOB-AUSLOESER.sql` führt ihn.
+- **Was nicht gelöscht wird und warum.** Das Prüfprotokoll bleibt zehn Jahre
+  und kennt keinen Löschpfad (Invariante 8, GoBD, die Kette 0204/0516). Eine
+  eigene Tabelle für Sicherheitsvorfälle gibt es nicht: Anmeldung, Sperre und
+  zweiter Faktor stehen als Plattformzeilen im Prüfprotokoll — die drei Jahre
+  aus O-92 haben deshalb keinen eigenen Gegenstand.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-92 | Anmeldeversuche 30 Tage, Nachtlauf-Protokoll ein Jahr — als vorläufige Einstellungen, nächtlich gelöscht; Prüfprotokoll zehn Jahre ohne Löschlauf — wie D-790, jetzt gebaut. | `drizzle/0518`, `jobs/betriebsprotokolle.ts` |
+
+**Prüfung.** `tests/isolation/betriebsprotokolle-aufraeumen.test.ts` (4, unter
+der echten Jobrolle: alt geht, jung und laufend bleiben, die zweite Nacht
+findet nichts; die Frist ist eine Einstellung, unter einem Tag wird ein Tag;
+nur `cse_job` ruft den Einstieg, `cse_app` löscht nichts; das Prüfprotokoll
+bleibt auch elf Jahre alt), `tests/kern/jobs-bootstrap.test.ts`,
+`definer-eigentum`, `sql-schema`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-330; O-92; `drizzle/0518_betriebsprotokolle_aufraeumen.sql`, `src/server/jobs/betriebsprotokolle.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql`, `tests/isolation/betriebsprotokolle-aufraeumen.test.ts`, `tests/kern/jobs-bootstrap.test.ts` |
+|---|---|
+
+### D-823 · Bauwelle 20: Der Alarm eines gescheiterten Laufs hat einen Weg nach draussen (V-374)
+
+**Der Anlass.** `ProtokollAlarm` schrieb eine `JOB-ALARM`-Zeile auf `stderr`,
+der Runner `job_lauf.ergebnis = 'fehler'`, und die Betriebsansicht zeigte
+beides — eine Nachricht an einen Menschen ging nicht hinaus. Voreinstellung zu
+O-354 (D-799): ein Alarm je endgültig gescheitertem Lauf, niemand wird
+geweckt, eine E-Mail an das Betriebspostfach der Gruppe.
+
+**Was gebaut ist.**
+- **`PostfachAlarm`** (`jobs/alarm.ts`): der zweite Empfänger. Er sendet nur
+  über einen VERBUNDENEN Postausgang (`EmailDienst.verbunden`) und nur an eine
+  eingetragene Adresse (`CSE_ALARM_POSTFACH`, Betreiberdaten, `.env.example`).
+  Der Entwicklungsdienst zählt nicht als verbunden — kein Versand wird
+  vorgetäuscht. Ein Fehler beim Senden fällt nicht auf den Lauf zurück; er
+  steht als `JOB-ALARM-POSTFACH` im Funktionsprotokoll.
+- **`MehrfachAlarm`** und **`alarmFuerLauf`**: Funktionsprotokoll immer,
+  Betriebspostfach, wo verbunden; ein scheiternder Empfänger hält die übrigen
+  nicht auf. `/api/jobs/[schluessel]` benutzt ihn statt `ProtokollAlarm` allein.
+- **Die Betriebsansicht sagt, wohin der Alarm geht** (`alarmKanal`): an welche
+  Adresse über welchen Dienst — oder „nicht verbunden", weil kein Postausgang
+  angeschlossen ist (O-501) bzw. kein Betriebspostfach eingetragen ist.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-354 | Ein Alarm je endgültig gescheitertem Lauf, niemand wird geweckt; per E-Mail an das Betriebspostfach, sobald Postausgang und `CSE_ALARM_POSTFACH` eingetragen sind — wie D-799, jetzt als Empfänger gebaut. | `jobs/alarm.ts`, `.env.example`, Einstellungen › Betrieb |
+
+**Prüfung.** `tests/kern/job-alarm.test.ts` (9: Adresse aus der Umgebung,
+`.env.example`; ohne Postausgang und mit dem Entwicklungsdienst kein Versand;
+ohne Postfach kein Versand; mit beidem eine E-Mail mit Lauf, Versuchen und
+Fehler; ein Sendefehler fällt nicht auf den Lauf zurück; ein scheiternder
+Empfänger hält die übrigen nicht auf; das Funktionsprotokoll immer; die Route
+benutzt diesen Alarm), `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-374; O-354, O-116, O-501; `src/server/jobs/alarm.ts`, `src/app/api/jobs/[schluessel]/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `.env.example`, `tests/kern/job-alarm.test.ts` |
+|---|---|
+
+### D-824 · Bauwelle 21: Der Rückweg einer Route nimmt die Gesellschaft aus der Sitzung (V-278)
+
+**Der Anlass.** 24 Routen (25 Dateien) nahmen den Slug ihrer Umleitung aus
+`?mandant=` der Formularadresse. Gehandelt haben sie immer im aktiven
+Mandanten der Sitzung (Invariante 3 hielt), aber das ZIEL konnte
+auseinanderlaufen: nannten Formularadresse und Sitzung verschiedene
+Gesellschaften, wurde in der einen gespeichert und auf das Blatt der anderen
+zurückgeführt. Kein Leck — dieselbe Sitzung, derselbe Ursprung, die Zielseite
+prüft ihr Tor selbst —, aber eine zweite Quelle für eine Angabe, die die
+Sitzung schon hat.
+
+**Was gebaut ist.**
+- **Ein Helfer** (`src/server/auth/aktiver-slug.ts`):
+  `slugDesAktivenMandanten(sitzung)` liest den Slug in einer eigenen, lesenden
+  Transaktion VOR der eigentlichen — damit auch eine Abweisung, die vor jeder
+  Datenbankarbeit zurückführt (unvollständige Eingabe), das richtige Blatt
+  trifft. Ohne aktiven Mandanten ist er leer, und `portalPfad` führt dann auf
+  `/portal` statt auf `/portal//…`.
+- **Alle 25 Dateien** (Stammdaten, Einstellungen, Finanzen, Rechnungen,
+  Angebot, Lead, Nachrichten, Aufgaben, Abrechnung) lesen den Slug nur noch
+  so; ihre Rückweghelfer nehmen ihn als Parameter. Keine Route unter
+  `src/app/api` fragt dafür noch die Adresse.
+- **Die Formulare** tragen `?mandant=` weiterhin in ihrer Adresse; gelesen
+  wird es nirgends mehr. Es aus 81 Formularadressen zu streichen, änderte
+  nichts am Verhalten.
+
+**Prüfung.** `tests/kern/slug-aus-sitzung.test.ts` (keine Route fragt
+`?mandant=`, alle Rückwege lesen die Sitzung, `portalPfad` ohne Slug),
+`tests/kern/lead-route.test.ts` (die echte Route führt auf das Blatt der
+Sitzung, auch wenn die Adresse eine andere Gesellschaft nennt oder keine), die
+Routentests der Eingangsrechnung, des Zahlungsausgangs und der
+Agentenrichtlinien mit dem Slug der Sitzung, `tests/kern` komplett,
+`pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-278; `src/server/auth/aktiver-slug.ts`, `src/app/api/{stammdaten/*,einstellungen/{arbeitszeit,mahnwesen,agent-richtlinien,vorlagen,identitaet,identitaet/bild,mandant},lead,finanzen/{eingangsrechnungen,zahlungen,mahnungen},abrechnung,angebot,nachrichten,rechnungen/*,aufgaben}/route.ts`, `tests/kern/slug-aus-sitzung.test.ts`, `tests/kern/lead-route.test.ts` |
+|---|---|
+
+### D-825 · Bauwelle 22: Die Leistungszeilen eines Auftrags haben einen Schreibweg (V-360, O-921)
+
+**Der Anlass.** `auftrag_leistung` (0050) ist der Anker, auf den Turnus,
+Schicht, Zeiteintrag, Aufmass, LV-Position und Rechnungszeile zeigen
+(FIN-07, TIM-12) — und entstand bis hierher nur im Seed. `wandleInAuftrag`
+legte aus einem angenommenen Angebot den Auftragskopf an und keine Zeile:
+ohne Zeile setzte niemand einen Leistungsanker (V-191), die Zeit eines neuen
+Auftrags erreichte keine Abrechnungsart, und die Preisanpassung, die D-796
+als neue datierte Zeile voreinstellt, hatte keinen Ort.
+
+**Was gebaut ist.**
+- **Übernahme bei der Annahme** (`src/server/services/auftrag/leistung-uebernahme.ts`,
+  gerufen aus `wandleInAuftrag`): jede Angebotsposition des Typs `leistung`
+  wird eine Zeile, in der Reihenfolge des Angebots, ab dem Start des
+  Auftrags, mit Menge, Einheit, Einzelpreis, Steuersatz, Steuerkennzeichen,
+  Erlöskonto, Objekt, Katalogposition und dem Verweis auf die
+  Angebotsposition (OPS-09). Alternativ- und Bedarfspositionen sind nicht
+  beauftragt, Text und Zwischensumme keine Leistung. Gerechnet wird nichts:
+  der Gesamtpreis ist die generierte Spalte aus 0050, der Auftragswert
+  bleibt `angebot.netto_cent` (D-732).
+- **Anlegen** (`legeLeistungszeileAn`, `src/server/services/auftrag/leistung.ts`):
+  eine nachträglich vereinbarte Leistung am Ende der Positionsliste, ab einem
+  Stichtag — nicht vor dem Start, nicht nach der Laufzeit des Auftrags. Menge
+  und Preis liest derselbe Leser wie das Angebot von Hand (höchstens drei
+  Nachkommastellen, nicht null; deutscher Betrag, nicht negativ); die Einheit
+  kommt aus `masseinheit`, der Steuersatz am Stichtag aus
+  `steuersatz_gruppe`, nie als Zahl aus dem Formular.
+- **Beenden** (`beendeLeistungszeile`): `gueltig_bis` einschliesslich; die
+  Zeile bleibt mit Zeiten, Nachweisen und Rechnungen stehen (Invariante 8).
+  Abgewiesen wird ein Ende vor dem ersten Tag, ein Ende, das ein schon
+  gesetztes hinausschöbe, und ein Ende vor einer erfassten Zeit oder einer
+  geplanten (nicht stornierten) Schicht an dieser Zeile — am Berliner Tag
+  gemessen. Erst der Auftrag, dann die Zeile, beide gesperrt gelesen: zwei
+  gleichzeitige „Beenden" sehen das Ende des jeweils anderen.
+- **Ein abgeschlossener oder stornierter Auftrag** vereinbart nichts mehr
+  (`angelegt`, `aktiv`, `pausiert` sind pflegbar).
+- **Die Seite** `/portal/[mandant]/auftraege/[id]/leistungen` (de/en): alle
+  Zeilen mit Herkunft (aus dem Angebot / nachträglich vereinbart), Gültigkeit
+  und Steuer; je laufender Zeile „Beenden", darunter „Leistung anlegen" mit
+  dem Satz zur Preisanpassung. Lesen mit `auftrag.lesen`, schreiben mit
+  `auftrag.schreiben` (die Policy aus 0050); ohne Schreibrecht steht ein Satz
+  statt der Formulare. Das Blatt des Auftrags verlinkt die Seite.
+- **Die Route** `POST /api/auftrag/leistungen` (`fuehreUebergangAus`):
+  Vorgänge `anlegen` und `beenden`, Abweisung als Grund mit den Eingaben auf
+  die Maske, Erfolg als Schlüssel.
+- **Der Satz der Auftragspflege** zu O-921 sagte „Leistungszeilen lassen
+  sich hier noch nicht anlegen oder beenden"; er nennt jetzt die Seite.
+
+**Voreinstellung (O-921, unverändert aus D-796).** Der Wert eines Auftrags
+aus einem Angebot bleibt der angenommene; eine Preisanpassung ist eine neue
+Zeile ab dem Stichtag — die bisherige endet am Vortag. Turnus und künftige
+Schichten hängt die Planung danach über den Leistungsanker (V-191) an die
+neue Zeile; die beendete Zeile nimmt `pruefeLeistungsanker` nicht mehr an.
+`// TODO(client, O-921)` steht im Kopf von `auftrag/leistung.ts`.
+
+**Seed.** Der Demoauftrag aus dem versendeten Angebot trägt jetzt die
+Leistungszeilen aus dem Angebot; die Zusammenfassung zählt sie.
+
+**Prüfung.** `tests/isolation/auftrag-leistung.test.ts` (Übernahme über den
+echten Angebotsweg — Leistungspositionen ja, Alternativ- und Textposition
+nein, Preis/Steuer/Verweis/Stichtag; Anlegen mit Position, Steuer am
+Stichtag und jeder Abweisung; stornierter Auftrag; ohne `auftrag.schreiben`
+keine Zeile; Beenden mit Ende vor Beginn, zweitem Ende, fremder Zeile,
+geplanter Schicht und erfasster Zeit; zwei gleichzeitige „Beenden" —
+schlägt auf dem Stand ohne Sperre fehl; Anker lebend und beendet),
+`tests/kern/auftrag-leistung-texte.test.ts` (jeder Grund und jeder Erfolg
+de/en, Übernahme im Quelltext, TODO an der Stelle), die
+Isolationstests um Angebot, Auftrag, Leistungsanker, Abrechnungsart,
+Rechnung und Seed, `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-360, O-921, D-796, D-732, V-191; `src/server/services/auftrag/{leistung,leistung-uebernahme,aendern}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/leistungen/route.ts`, `src/app/portal/[mandant]/auftraege/[id]/{page,leistungen/page}.tsx`, `src/lib/i18n/verwaltung/{auftrag-leistungen,auftrag}.ts`, `src/server/db/seed/{vertrieb,index}.ts`, `tests/isolation/auftrag-leistung.test.ts`, `tests/kern/auftrag-leistung-texte.test.ts` |
 |---|---|

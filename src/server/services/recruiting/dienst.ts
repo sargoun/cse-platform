@@ -28,18 +28,18 @@
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { jcsDigest } from '../freigabe/kette.js';
+import { legeFreigabeVor } from '../freigabe/vorlegen.js';
 import { rangfolge, type Kriterium, type Rangzeile } from './rangfolge.js';
+import type { Beschaeftigungsart } from './beschaeftigungsart.js';
 
 /**
  * Die Stände aus 0166 — Voreinstellung (O-200, D-797): eine Stelle geht
  * Entwurf → freigegeben → veröffentlicht → geschlossen, eine Bewerbung
  * eingegangen → in Prüfung → Gespräch → abgelehnt | eingestellt |
  * zurückgezogen. Die Beschäftigungsart (Vollzeit, Teilzeit, Minijob,
- * Aushilfe) führt die Stelle noch nicht — bis dahin nennt sie der
- * Anzeigentext, den Umfang `wochenstunden` (V-362). Schliessen lässt sich
- * eine Stelle nicht, und `in_pruefung`, `gespraech` und `zurueckgezogen`
- * setzt ausser dem Seed kein Weg (V-363).
- * // TODO(client, O-200): Voreinstellung — Stände wie 0166; Beschäftigungsart als Feld der Stelle und die fehlenden Übergänge sind nicht gebaut (V-362, V-363). D-797.
+ * Aushilfe) führt die Stelle seit 0512 (`recruiting/beschaeftigungsart.ts`,
+ * V-362); die Übergänge baut V-363 (D-812).
+ * // TODO(client, O-200): Voreinstellung — Stände wie 0166, Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe (gebaut mit V-362, D-816). D-797.
  */
 export type StelleStatus = 'entwurf' | 'freigegeben' | 'veroeffentlicht' | 'geschlossen';
 export type BewerbungStatus =
@@ -66,6 +66,8 @@ export interface StelleZeile {
   readonly anforderungen: readonly string[];
   readonly einsatzort: string | null;
   readonly wochenstunden: string | null;
+  /** Vollzeit, Teilzeit, Minijob oder Aushilfe — `null` heisst nicht festgelegt (V-362). */
+  readonly beschaeftigungsart: Beschaeftigungsart | null;
   readonly status: StelleStatus;
   /**
    * Die Freigabe, die an dieser Anzeige haengt — `null`, solange keine erbeten
@@ -87,6 +89,7 @@ export interface StelleZeile {
 const STELLE_FELDER = `
   s.id, s.titel, s.beschreibung, s.anforderungen, s.einsatzort,
   s.wochenstunden::text                   as wochenstunden,
+  s.beschaeftigungsart::text              as beschaeftigungsart,
   s.status::text                          as status,
   s.freigabe_id                           as "freigabeId",
   s.entwurf_von_art::text                 as "entwurfVonArt",
@@ -133,6 +136,7 @@ export interface NeueStelle {
   readonly anforderungen: readonly string[];
   readonly einsatzort?: string | null;
   readonly wochenstunden?: number | null;
+  readonly beschaeftigungsart?: Beschaeftigungsart | null;
   readonly bewerbungsfrist?: string | null;
   /** `agent`, wenn ein Modell den Entwurf geschrieben hat (REC-02). */
   readonly entwurfVonArt?: 'mensch' | 'agent';
@@ -148,13 +152,14 @@ export async function legeStelleAn(
   const [z] = await kontext.schreibe<{ id: string }>(
     `insert into stelle
        (mandant_id, titel, beschreibung, anforderungen, einsatzort, wochenstunden,
-        bewerbungsfrist, entwurf_von_art, erstellt_von)
+        bewerbungsfrist, entwurf_von_art, erstellt_von, beschaeftigungsart)
      values ($1::uuid, $2, $3, $4::text[], $5, $6::numeric, $7::date,
-             $8::akteur_art, $9::uuid)
+             $8::akteur_art, $9::uuid, $10::beschaeftigungsart)
      returning id`,
     [kontext.aktiverMandantId, neu.titel.trim(), neu.beschreibung.trim(),
       [...neu.anforderungen], neu.einsatzort ?? null, neu.wochenstunden ?? null,
-      neu.bewerbungsfrist ?? null, neu.entwurfVonArt ?? 'mensch', kontext.benutzerId]);
+      neu.bewerbungsfrist ?? null, neu.entwurfVonArt ?? 'mensch', kontext.benutzerId,
+      neu.beschaeftigungsart ?? null]);
   if (z === undefined) {
     throw new RecruitingFehler('Die Stelle wurde nicht angelegt.', 'kein_schreibrecht', 403);
   }
@@ -225,22 +230,25 @@ export async function legeStelleVor(
     anforderungen: [...s.anforderungen],
     einsatzort: s.einsatzort,
     wochenstunden: s.wochenstunden,
+    beschaeftigungsart: s.beschaeftigungsart,
   };
-  const [f] = await kontext.schreibe<{ id: string }>(
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-        diff, vorschau_payload, payload_hash, bezug_typ, bezug_id, erstellt_von,
-        erforderliches_recht)
-     values ($1::uuid, 'stelle_veroeffentlichen', 'offen', 'stellenanzeige_entwurf',
-             $2, $3, 'mittel'::risiko_stufe, '[]'::jsonb, $4::jsonb, $5,
-             'stelle', $6::uuid, $7::uuid, 'recruiting.stelle_veroeffentlichen')
-     returning id`,
-    [kontext.aktiverMandantId, `Stellenanzeige: ${s.titel}`, stellenSatz(s),
-      nutzlast, jcsDigest(nutzlast), s.id, kontext.benutzerId]);
-  if (f === undefined) {
-    throw new RecruitingFehler(
-      'Die Freigabe wurde nicht angelegt.', 'kein_schreibrecht', 403);
-  }
+  /*
+   * Vorgelegt über `app.freigabe_vorlegen` (V-376, D-819): vorlegen darf,
+   * wer im Modul `recruiting` ein schreibendes Recht hält — die Stellenpflege
+   * —, entschieden wird mit `recruiting.stelle_veroeffentlichen`.
+   */
+  const freigabeId = await legeFreigabeVor(kontext, {
+    aktion: 'stelle_veroeffentlichen',
+    vorgangTyp: 'stellenanzeige_entwurf',
+    titel: `Stellenanzeige: ${s.titel}`,
+    zusammenfassung: stellenSatz(s),
+    risiko: 'mittel',
+    vorschauPayload: nutzlast,
+    payloadHash: jcsDigest(nutzlast),
+    bezugTyp: 'stelle',
+    bezugId: s.id,
+    erforderlichesRecht: 'recruiting.stelle_veroeffentlichen',
+  });
 
   /*
    * **Nur die Kennung, nicht der Status.** `stelle.status` bleibt `entwurf`,
@@ -253,13 +261,13 @@ export async function legeStelleVor(
     `update stelle set freigabe_id = $2::uuid, geaendert_am = now(), geaendert_von = $3::uuid
       where id = $1::uuid and mandant_id = app.aktiver_mandant() and status = 'entwurf'
       returning id`,
-    [id, f.id, kontext.benutzerId]);
+    [id, freigabeId, kontext.benutzerId]);
   if (geaendert.length === 0) {
     throw new RecruitingFehler(
       'Die Stelle hat sich inzwischen geändert — jemand anderes war schneller. '
       + 'Bitte die Seite neu laden.', 'gleichzeitig', 409);
   }
-  return f.id;
+  return freigabeId;
 }
 
 /** Der Satz, den ein Mensch im Freigabe-Posteingang liest. */

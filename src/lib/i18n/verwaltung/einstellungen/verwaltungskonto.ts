@@ -107,19 +107,16 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
     linkKopieren: 'Einladungslink',
     /*
      * Bis D-774 (Nachrunde) versprach der Satz „stellen Sie einen neuen aus — der
-     * alte verfällt dabei". Einen solchen Weg gibt es für ein Verwaltungskonto
-     * nicht: eine zweite Einladung derselben Adresse weist die Datenbank als
-     * „schon eingetragen" ab (0372), und keine Route stellt für eine offene
-     * Einladung einen neuen Link aus. Der Satz sagt jetzt genau das.
-     * TODO(client, O-980): Wie wird ein verlorener oder abgelaufener Einladungslink eines Verwaltungskontos ersetzt — und von wem?
+     * alte verfällt dabei", einen Weg, den es nicht gab; danach sagte er, dass es
+     * ihn nicht gibt. Seit V-302 (D-821) gibt es ihn: am Benutzerblatt.
+     * TODO(client, O-980): Voreinstellung — die Super-Administration stellt einen
+     * verlorenen oder abgelaufenen Link am Benutzerblatt neu aus, der alte verfällt.
      */
     linkEinmal:
       'Er steht genau einmal hier; gespeichert ist nur seine Prüfsumme, aus der er sich '
-      + 'nicht wiederherstellen lässt. Einen neuen Link für eine offene Einladung stellt '
-      + 'das Portal noch nicht aus — eine zweite Einladung derselben Adresse in dieser '
-      + 'Gesellschaft wird abgewiesen. Voreinstellung (O-980): die Super-Administration '
-      + 'stellt den Link neu aus und entwertet den alten — gebaut ist dieser Weg noch nicht '
-      + '(V-302).',
+      + 'nicht wiederherstellen lässt. Geht er verloren oder läuft er ab, stellt die '
+      + 'Super-Administration am Benutzerblatt des Kontos einen neuen aus — der alte '
+      + 'verfällt dabei (Voreinstellung O-980).',
     erfolg: {
       eingeladen:
         'Die Einladung ist ausgestellt; den Link zeigt die Seite nur unmittelbar danach — '
@@ -142,18 +139,16 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
         + 'Trennung der Portale auf (K-04).',
       /*
        * Der Satz der Datenbank (0372) riet „Ändern Sie seine Rolle, statt es
-       * erneut einzuladen" — einen Weg, die Rolle einer Mitgliedschaft zu
-       * ändern, gibt es nicht (D-774 Nachrunde).
-       * TODO(client, O-981): Soll sich die Rolle eines Verwaltungskontos in einer Gesellschaft ändern lassen — und von wem?
+       * erneut einzuladen" — einen Weg dafür gibt es seit V-302 (D-821) am
+       * Benutzerblatt.
+       * TODO(client, O-981): Voreinstellung — die Rolle eines Verwaltungskontos
+       * wechselt die Super-Administration am Benutzerblatt (admin oder leitung).
        */
       schon_eingetragen:
         'Dieses Konto ist in dieser Gesellschaft schon eingetragen; eine zweite Einladung legt '
-        + 'nichts an und stellt keinen neuen Link aus. Einen neuen Link für eine offene '
-        + 'Einladung stellt das Portal noch nicht aus (Voreinstellung O-980: die '
-        + 'Super-Administration stellt ihn neu aus, der alte verfällt), und die Rolle einer '
-        + 'Mitgliedschaft lässt sich hier noch nicht ändern (Voreinstellung O-981: der Wechsel '
-        + 'geschieht am Benutzerblatt durch die Super-Administration) — beides ist noch nicht '
-        + 'gebaut (V-302).',
+        + 'nichts an. Einen neuen Link stellt die Super-Administration am Benutzerblatt des '
+        + 'Kontos aus (der alte verfällt, Voreinstellung O-980), und dort wechselt sie auch '
+        + 'seine Rolle (Voreinstellung O-981).',
       nicht_ausgestellt: 'Die Datenbank hat keine Einladung ausgestellt; es wurde kein Konto '
         + 'angelegt.',
       anbieter_fremd:
@@ -211,10 +206,8 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
     linkKopieren: 'Invitation link',
     linkEinmal:
       'It is shown exactly once; only its checksum is stored, and the link cannot be '
-      + 'restored from it. The portal does not yet issue a new link for an open '
-      + 'invitation — a second invitation of the same address in this Gesellschaft is '
-      + 'rejected. Default (O-980): the super administration re-issues the link and the old '
-      + 'one expires — that path is not built yet (V-302).',
+      + 'restored from it. If it is lost or expires, the super administration issues a new '
+      + 'one on the user sheet of the account — the old one expires (default O-980).',
     erfolg: {
       eingeladen:
         'The invitation has been issued; the page shows the link only right afterwards — '
@@ -236,11 +229,9 @@ Readonly<Record<InternSprache, VerwaltungskontoTexte>> = {
         + 'break the separation of the portals (K-04).',
       schon_eingetragen:
         'This account is already registered in this Gesellschaft; a second invitation creates '
-        + 'nothing and issues no new link. The portal does not yet issue a new link for an '
-        + 'open invitation (default O-980: the super administration re-issues it, the old one '
-        + 'expires), and the role of a membership cannot be changed here yet (default O-981: '
-        + 'the change is made on the user sheet by the super administration) — neither path is '
-        + 'built yet (V-302).',
+        + 'nothing. The super administration issues a new link on the user sheet of the '
+        + 'account (the old one expires, default O-980) and changes its role there as well '
+        + '(default O-981).',
       nicht_ausgestellt: 'The database issued no invitation; no account was created.',
       anbieter_fremd:
         'Supabase Auth is active as the provider. An account is then created with the '

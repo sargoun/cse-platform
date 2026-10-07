@@ -1,4 +1,5 @@
 import 'server-only';
+import type { Beschaeftigungsart } from '../services/recruiting/beschaeftigungsart.js';
 
 /**
  * Die vier Jobbörsen — **gebaut, nicht verbunden** (REC-09, D-02).
@@ -123,6 +124,12 @@ export interface StellenAuftrag {
   readonly titel: string;
   readonly beschreibung: string;
   readonly einsatzort: string | null;
+  /**
+   * Die Beschäftigungsart (V-362) — die Börsen fragen danach (O-374). `null`
+   * heisst nicht festgelegt; ein Adapter rechnet sie in sein Vokabular um.
+   */
+  readonly beschaeftigungsart: Beschaeftigungsart | null;
+  readonly wochenstunden: string | null;
 }
 
 /**

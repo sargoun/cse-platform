@@ -50,6 +50,7 @@ function gewaehlterBezug(roh: string | null): {
 import {
   brichAb, erledige, istBezugTyp, legeAn, setzeStatus, weiseZu,
 } from '@/server/services/kern/aufgabe';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/aufgaben` — anlegen, Stand setzen, zuweisen, erledigen,
@@ -99,6 +100,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -112,7 +114,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
 
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const zurueck = (ziel: string): NextResponse => NextResponse.redirect(
     new URL(ziel, erwarteterUrsprung(anfrage)), 303);
 
@@ -241,9 +242,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ fehler: ergebnis.code }, { status });
     }
     if (ergebnis.art === 'neu') {
-      return zurueck(`/portal/${slug}/aufgaben/${ergebnis.id}`);
+      return zurueck(portalPfad(slug, `/aufgaben/${ergebnis.id}`));
     }
-    return zurueck(`/portal/${slug}/aufgaben/${String(id)}?getan=${ergebnis.was}`);
+    return zurueck(portalPfad(slug, `/aufgaben/${String(id)}?getan=${ergebnis.was}`));
   } catch (fehler) {
     const anmeldung = anmeldungsAntwort(fehler, anfrage);
     if (anmeldung !== null) return anmeldung;

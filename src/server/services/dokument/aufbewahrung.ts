@@ -29,22 +29,34 @@ export interface AufbewahrungZeile {
 }
 
 /**
- * Die gesetzlichen Untergrenzen in Jahren — § 147 AO, § 257 HGB; `null`: keine eine Zahl (O-25).
+ * Die gesetzlichen UNTERGRENZEN in Jahren; `null`: kein Gesetz nennt eine Zahl (O-25).
+ *
+ * Seit dem BEG IV (1. Januar 2025) gelten für Buchungsbelege — Rechnungen
+ * eingeschlossen — acht Jahre (§ 147 Abs. 1 Nr. 4, Abs. 3 AO, § 257 Abs. 1
+ * Nr. 4, Abs. 4 HGB, § 14b Abs. 1 UStG); Bücher, Abschlüsse und Inventare
+ * bleiben bei zehn, Handels- und Geschäftsbriefe bei sechs. Dieselben Zahlen
+ * prüft der Auslöser `kern.aufbewahrung_untergrenze` (0514).
  *
  * TODO(client, O-906): Voreinstellung — Rechnungen und Buchungsbelege bleiben
- * zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem
- * 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts,
- * eine zu kurze ist nicht nachholbar. Die zehn Jahre sind hier zugleich die
- * UNTERGRENZE (und `kern.aufbewahrung_untergrenze`, 0141): kürzer lässt sich
- * keine dieser Klassen stellen, auch wo der Steuerberater acht Jahre zuliesse.
- * Voreinstellung und Untergrenze je Klasse zu trennen ist eine Migration
- * (Prüfstand PR #36, V-372). D-796.
+ * zehn Jahre (die Plattformvorgabe in `dokument_aufbewahrung`): eine zu lange
+ * Frist kostet nichts, eine zu kurze ist nicht nachholbar. Die Untergrenze ist
+ * davon getrennt (V-372): wo der Steuerberater acht Jahre zulässt, trägt eine
+ * Gesellschaft sie ein. D-796, D-818.
  */
 export const UNTERGRENZE: Readonly<Record<Kategorie, number | null>> = {
-  rechnung: 10, buchhaltung: 10, beleg: 10,
+  rechnung: 8, buchhaltung: 10, beleg: 8,
   vertrag: 6, angebot: 6, kunde: 6,
   mitarbeiter: null, projekt: null, unternehmen: null,
 };
+
+/**
+ * Die Klassen, deren Löschsperre gesetzlich ist und sich nicht abwählen lässt
+ * (§ 147 AO, § 257 HGB) — nach der KLASSE, nicht nach der Zahl: seit die
+ * Untergrenze der Belege acht Jahre ist, wäre „ab zehn Jahren" eine Regel, die
+ * Rechnung und Beleg still aus der Sperre entlässt (V-372).
+ */
+export const SPERRE_PFLICHT: ReadonlySet<Kategorie> = new Set<Kategorie>(
+  ['rechnung', 'buchhaltung', 'beleg']);
 
 export class AufbewahrungFehler extends Error {
   constructor(nachricht: string, readonly grund: 'kategorie' | 'jahre' | 'untergrenze' | 'grundlage' | 'nicht_gesetzt') {
@@ -114,11 +126,11 @@ export async function setzeAufbewahrung(
   const min = UNTERGRENZE[kategorie];
   if (min !== null && (e.jahre === null || e.jahre < min)) {
     throw new AufbewahrungFehler(
-      `Für „${kategorie}" gilt eine gesetzliche Mindestfrist von ${String(min)} Jahren (§ 147 AO, § 257 HGB) — `
-      + 'länger ist möglich, kürzer nicht.', 'untergrenze');
+      `Für „${kategorie}" gilt eine gesetzliche Mindestfrist von ${String(min)} Jahren `
+      + '(§ 147 AO, § 257 HGB, § 14b UStG) — länger ist möglich, kürzer nicht.', 'untergrenze');
   }
   /* Offene Frist heisst Sperre; die Finanzkategorien sind ohnehin gesperrt. */
-  const loeschsperre = e.loeschsperre || e.jahre === null || (min !== null && min >= 10);
+  const loeschsperre = e.loeschsperre || e.jahre === null || SPERRE_PFLICHT.has(kategorie);
 
   const vorher = (await liesAufbewahrung(kontext)).find((z) => z.kategorie === kategorie) ?? null;
   const [z] = await kontext.schreibe<RegelRoh>(

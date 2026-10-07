@@ -8,7 +8,10 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { OBJEKTE_TEXTE } from '@/lib/i18n/verwaltung/objekte';
-import { ObjektFormular, type KundeAuswahl } from '../ObjektFormular';
+import { ObjektFormular, type KundeAuswahl, type ObjektWerte } from '../ObjektFormular';
+import { findeAnschriftDubletten, type AnschriftDublette } from '@/server/services/objekt/anlegen';
+import { zurueckgereichteWerte } from '@/server/services/objekt/anschrift';
+import Link from 'next/link';
 import { Recht } from '@/components/ui/Recht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 
@@ -74,7 +77,29 @@ export default async function ObjektNeu(
    * Schlüssel und nie Text aus der Adresse (V-153, V-240).
    */
   const grund = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
-  const meldung = grund === null ? null : eigenerEintrag(t.fehler, grund) ?? t.fehlerSonst;
+  const anzahlRoh = typeof suche['anzahl'] === 'string' && /^\d{1,4}$/u.test(suche['anzahl'])
+    ? Number(suche['anzahl']) : null;
+  const meldung = grund === null ? null
+    : grund === 'anschrift_vorhanden' ? t.anschriftVorhanden(anzahlRoh)
+      : eigenerEintrag(t.fehler, grund) ?? t.fehlerSonst;
+
+  /*
+   * V-361: „Anschrift schon vorhanden" bringt die Eingaben mit zurück — und
+   * die Seite fragt die vorhandenen Objekte selbst, statt Namen aus der
+   * Adresse zu zeigen (V-153).
+   */
+  const mit = grund === 'anschrift_vorhanden' ? zurueckgereichteWerte(suche['werte']) : {};
+  const vorbelegt: ObjektWerte | undefined = grund === 'anschrift_vorhanden' ? {
+    bezeichnung: mit.bezeichnung ?? '', strasse: mit.strasse ?? '',
+    hausnummer: mit.hausnummer ?? null, adresszusatz: mit.adresszusatz ?? null,
+    plz: mit.plz ?? '', ort: mit.ort ?? '', land: mit.land ?? 'DE',
+    kundeId: mit.kundeId ?? null, gebaeudetyp: mit.gebaeudetyp ?? null,
+    etagenAnzahl: mit.etagenAnzahl !== undefined && /^\d{1,3}$/u.test(mit.etagenAnzahl)
+      ? Number(mit.etagenAnzahl) : null,
+    zutrittHinweis: null, bemerkung: null,
+    geoLat: mit.geoLat ?? null, geoLon: mit.geoLon ?? null,
+    objektnummer: mit.objektnummer ?? null,
+  } : undefined;
 
   /*
    * Die Kundenliste kommt aus derselben Gesellschaft und nur ungesperrt: ein
@@ -88,6 +113,11 @@ export default async function ObjektNeu(
         where archiviert_am is null and status <> 'inaktiv'
         order by name`,
     ))) as Promise<readonly KundeAuswahl[]>);
+  const dubletten = vorbelegt === undefined || darf['objekt.lesen'] !== true ? []
+    : await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+      withTenant(tx, zugang.sitzung, (kontext) => findeAnschriftDubletten(kontext, {
+        strasse: vorbelegt.strasse, hausnummer: vorbelegt.hausnummer, plz: vorbelegt.plz,
+      }))) as Promise<readonly AnschriftDublette[]>);
 
   return (
     <PortalRahmen
@@ -108,6 +138,19 @@ export default async function ObjektNeu(
       {meldung !== null && (
         <Hinweis art="warnung" cse="objekt-meldung" className="mb-s5 max-w-prose">
           {meldung}
+          {dubletten.length > 0 && (
+            <ul className="mb-0 mt-s2 pl-s5" data-cse="objekt-dubletten">
+              {dubletten.map((o) => (
+                <li key={o.id}>
+                  <Link href={`/portal/${mandant}/objekte/${o.id}`} className="underline">
+                    {o.objektnummer} · {o.bezeichnung}
+                  </Link>{' '}
+                  — {o.strasse}{o.hausnummer === null ? '' : ` ${o.hausnummer}`}, {o.plz} {o.ort}
+                </li>
+              ))}
+            </ul>
+          )}
+          {vorbelegt !== undefined && <p className="mb-0 mt-s2">{t.dublettenNeuEintragen}</p>}
         </Hinweis>
       )}
 
@@ -117,7 +160,8 @@ export default async function ObjektNeu(
           <Recht schluessel={RECHT} sprache={zugang.sprache} />.
         </Hinweis>
       ) : (
-        <ObjektFormular zurueck={pfad} kunden={kunden} t={t} />
+        <ObjektFormular zurueck={pfad} kunden={kunden} t={t} werte={vorbelegt}
+                        bestaetigeDublette={grund === 'anschrift_vorhanden'} />
       )}
     </PortalRahmen>
   );

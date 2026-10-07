@@ -55,9 +55,11 @@ test.describe('GoBD-Archiv (PR 64)', () => {
     await expect(page.locator('[data-cse="wirtschaftsjahr"]')).toContainText('O-05');
 
     const rechnung = page.locator('[data-cse="aufbewahrung-regel"][data-kategorie="rechnung"]');
+    // Die Voreinstellung bleibt zehn Jahre (O-906) …
     await expect(rechnung.locator('[data-cse="regel-jahre"]')).toHaveText('10 Jahre');
-    // Die Untergrenze steht im Feld — der Browser laesst weniger gar nicht zu.
-    await expect(rechnung.locator('input[name="jahre"]')).toHaveAttribute('min', '10');
+    // … die gesetzliche Untergrenze ist seit dem BEG IV acht (§ 147 Abs. 3 AO, § 14b UStG;
+    // V-372, D-818). Sie steht im Feld — der Browser laesst weniger gar nicht zu.
+    await expect(rechnung.locator('input[name="jahre"]')).toHaveAttribute('min', '8');
     await expect(rechnung.locator('input[name="loeschsperre"][type="checkbox"]')).toBeDisabled();
 
     await rechnung.locator('input[name="jahre"]').fill('12');

@@ -1164,6 +1164,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'objekt', pfad: 'objekt/anlegen',
     schreibend: true, schreibRecht: 'objekt.schreiben',
   },
+  /** V-361 — ob zwei Anschriften dieselbe sind, und was ins Formular zurückreist; rein. */
+  { modul: 'objekt', pfad: 'objekt/anschrift', schreibend: false },
   /**
    * V-044 — was an einem Objekt haengt: Reviere, Posten,
    * Dienstanweisungen, Schluessel, Auftraege, Einsaetze, Dokumente,
@@ -1544,6 +1546,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'auftrag', pfad: 'auftrag/aendern',
     schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
+  /**
+   * V-360 — die Leistungszeilen eines Auftrags: anlegen und beenden unter
+   * `auftrag.schreiben` (`t_mandant`, 0050), die Übernahme aus dem Angebot
+   * in `wandleInAuftrag` unter demselben Recht wie der Auftrag selbst.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/leistung',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
+  {
+    modul: 'auftrag', pfad: 'auftrag/leistung-uebernahme',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },
@@ -1592,6 +1607,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
   {
     modul: 'freigabe', pfad: 'freigabe/erteilen',
     schreibend: true, schreibRecht: 'freigabe.entscheiden',
+  },
+  /*
+   * Eine offene Bitte vorlegen und zurücknehmen (V-376, D-819) — über
+   * `app.freigabe_vorlegen` und `app.freigabe_zurueckziehen`. Das Vorlegerecht
+   * ist kein einzelner Schlüssel: der Definer leitet es aus dem Modul des
+   * Entscheidungsrechts ab (`social.freigeben` → ein schreibendes
+   * Social-Recht), beim Agentenlauf `agent.aufgabe_starten`. Das Register
+   * nennt eines davon; in der Gruppenansicht trägt keines, und die Definer
+   * weisen sie ohnehin ab (Invariante 10).
+   */
+  {
+    modul: 'freigabe', pfad: 'freigabe/vorlegen',
+    schreibend: true, schreibRecht: 'social.schreiben',
   },
   /**
    * **Der Posteingang (PR 62, APR-01/02/03/07) — und alles daran LIEST.**
@@ -1802,6 +1830,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * (Invariante 10) — auch wenn es dort heute keine Recruiting-Seite gibt.
    */
   { modul: 'recruiting', pfad: 'recruiting/rangfolge', schreibend: false },
+  /** V-362 — das Vokabular der Beschäftigungsart und der Vorschlag aus den Stunden; rein. */
+  { modul: 'recruiting', pfad: 'recruiting/beschaeftigungsart', schreibend: false },
   {
     modul: 'recruiting', pfad: 'recruiting/dienst', schreibend: true,
     schreibRecht: 'recruiting.stelle_schreiben',
@@ -2108,6 +2138,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'personal', pfad: 'security/bewacherregister',
     schreibend: true, schreibRecht: 'personal.bewacher_verwalten',
   },
+  /**
+   * V-320 — die Wiedervorlage der Zuverlässigkeitsüberprüfung. Ein Wächter
+   * wie `waechter/dienstplan`: er liest und meldet; geschrieben wird nur die
+   * Quittung in `waechter_meldung`, und die schreibt `cse_job` über seine
+   * Policy — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'personal', pfad: 'security/zuverlaessigkeit', schreibend: false },
   { modul: 'security', pfad: 'security/uebersicht', schreibend: false },
   { modul: 'security', pfad: 'security/veranstaltung', schreibend: false },
   /**

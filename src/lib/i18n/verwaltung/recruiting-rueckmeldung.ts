@@ -67,6 +67,8 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
         + 'Liste aus wie eine fertige Anzeige.',
       unbrauchbare_stunden: 'Wochenstunden zwischen 1 und 60, in halben Stunden.',
       unbrauchbare_frist: 'Die Bewerbungsfrist ist kein Tag, den der Kalender kennt.',
+      unbrauchbare_beschaeftigungsart:
+        'Die Beschäftigungsart ist Vollzeit, Teilzeit, Minijob oder Aushilfe.',
       kein_schreibrecht: 'Die Stelle wurde nicht angelegt.',
       /* V-222: der Entwurf durch den Agenten — dieselbe Seite, derselbe Rückweg. */
       angaben_fehlen:
@@ -144,6 +146,8 @@ export const RECRUITING_RUECKMELDUNG: Readonly<Record<InternSprache, RecruitingR
         + 'finished advertisement in the list.',
       unbrauchbare_stunden: 'Weekly hours between 1 and 60, in half hours.',
       unbrauchbare_frist: 'The application deadline is not a calendar day.',
+      unbrauchbare_beschaeftigungsart:
+        'The type of employment is full-time, part-time, mini-job or temporary help.',
       kein_schreibrecht: 'The position was not created.',
       angaben_fehlen:
         'You give the title, place of work and start — the agent sets none of them itself.',

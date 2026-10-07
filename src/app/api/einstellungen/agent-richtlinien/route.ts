@@ -13,6 +13,7 @@ import { HINWEIS_TEXT, RichtlinieFehler, setzeRichtlinie }
   from '@/server/services/agent/richtlinie';
 import { AKTIONEN, type Aktion } from '@/server/agent/policy';
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/agent-richtlinien` — eine Richtlinie des
@@ -42,8 +43,8 @@ export const dynamic = 'force-dynamic';
  * Adresse wird, entscheidet diese Karte und nicht das Feld.
  */
 const ZIELE: Readonly<Record<string, (slug: string) => string>> = {
-  einstellungen: (slug) => `/portal/${slug}/einstellungen/agent-richtlinien`,
-  agenten: (slug) => `/portal/${slug}/agenten/richtlinien`,
+  einstellungen: (slug) => portalPfad(slug, `/einstellungen/agent-richtlinien`),
+  agenten: (slug) => portalPfad(slug, `/agenten/richtlinien`),
 };
 
 /**
@@ -56,8 +57,7 @@ const ZIELE: Readonly<Record<string, (slug: string) => string>> = {
  * faehrt nur der NAME mit; aufgeloest wird er aus `HINWEIS_TEXT`, und ein
  * Code, den diese Tabelle nicht kennt, zeigt gar nichts.
  */
-function zurueck(anfrage: NextRequest, ziel: string, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, ziel: string, hinweis?: string): NextResponse {
   /*
    * Nur ein EIGENER Eintrag (D-728): `ziel` kommt aus dem Formular, und
    * `ZIELE['__proto__']` war `Object.prototype` — kein Bauer, sondern ein
@@ -79,6 +79,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -110,7 +111,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           maxBetragCent: grenze,
           begruendung: text('begruendung'),
         });
-        return zurueck(anfrage, ziel, 'gesetzt');
+        return zurueck(anfrage, slug, ziel, 'gesetzt');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /*
@@ -121,8 +122,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * schreibt die Seite aus `HINWEIS_TEXT`; durch die Adresse faehrt nur
      * der Name.
      */
-    if (fehler instanceof RichtlinieFehler) return zurueck(anfrage, ziel, fehler.grund);
-    if (fehler instanceof GeldFehler) return zurueck(anfrage, ziel, 'wert');
+    if (fehler instanceof RichtlinieFehler) return zurueck(anfrage, slug, ziel, fehler.grund);
+    if (fehler instanceof GeldFehler) return zurueck(anfrage, slug, ziel, 'wert');
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

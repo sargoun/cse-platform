@@ -207,35 +207,45 @@ describe('Anmeldung und Recht zuerst (AUT-06, D-766)', () => {
 });
 
 /**
- * **Der Satz zum Link verspricht keinen Weg, den es nicht gibt** (D-774
- * Nachrunde, O-980, O-981). `linkEinmal` sagte „wenn Sie ihn verlieren,
- * stellen Sie einen neuen aus — der alte verfällt dabei"; eine zweite
- * Einladung derselben Adresse ergibt aber `schon_eingetragen`, und dessen
- * Satz riet, die Rolle zu ändern — auch dafür gibt es keinen Weg. Einen
- * neuen Link für eine offene Einladung stellt beim Kundenzugang
- * `app.kundenzugang_neu_einladen` aus (0249); für ein Verwaltungskonto gibt
- * es nichts Entsprechendes.
+ * **Der Satz zum Link nennt den Weg, den es gibt** (D-774 Nachrunde, V-302,
+ * O-980, O-981, D-821). Bis D-774 versprach `linkEinmal` einen neuen Link,
+ * den niemand ausstellen konnte; danach sagte er, dass es ihn nicht gibt,
+ * und dieser Test hielt das fest — mit dem Hinweis, dass er fällt, sobald
+ * jemand den Weg baut. Seit V-302 gibt es ihn: am Benutzerblatt stellt die
+ * Super-Administration einen neuen Link aus (`stelleLinkNeuAus`, der alte
+ * verfällt) und wechselt die Rolle (`wechsleVerwaltungsrolle`). Der Test
+ * prüft jetzt, dass die Sätze genau diesen Weg nennen und dass es ihn gibt.
  */
 describe('der Satz zum Einladungslink sagt, was wirklich geht', () => {
   const lies = (datei: string): string => readFileSync(join(WURZEL, datei), 'utf8');
 
-  it.each(['de', 'en'] as const)('%s: kein Versprechen eines neuen Links, dafür die offene Frage', (sprache) => {
+  it.each(['de', 'en'] as const)('%s: der neue Link und der Rollenwechsel stehen am Benutzerblatt', (sprache) => {
     const t = VERWALTUNGSKONTO_TEXTE[sprache];
-    expect(t.linkEinmal).not.toMatch(/stellen Sie einen neuen aus|verfällt dabei|issue a new one|expires in the process/u);
+    expect(t.linkEinmal).toMatch(sprache === 'de' ? /Benutzerblatt/u : /user sheet/u);
     expect(t.linkEinmal).toContain('O-980');
+    expect(t.linkEinmal).not.toMatch(/noch nicht|not built yet|not yet/u);
+    /* Der Satz der Datenbank riet, die Rolle zu ändern — die Seite sagt, WO. */
     expect(t.fehler.schon_eingetragen).not.toMatch(/Ändern Sie seine Rolle|Change its role/u);
+    expect(t.fehler.schon_eingetragen).toMatch(sprache === 'de' ? /Benutzerblatt/u : /user sheet/u);
     expect(t.fehler.schon_eingetragen).toContain('O-980');
     expect(t.fehler.schon_eingetragen).toContain('O-981');
+    expect(t.fehler.schon_eingetragen).not.toMatch(/noch nicht|not built yet|not yet/u);
   });
 
-  it('der Satz bleibt wahr: die Datenbank weist eine zweite Einladung ab, und kein Dienst stellt neu aus', () => {
+  it('der Satz bleibt wahr: eine zweite Einladung bleibt abgewiesen, den neuen Link stellt das Blatt aus', () => {
     /* 0372: eine Mitgliedschaft in dieser Gesellschaft → „schon eingetragen", kein neuer Token. */
     const einladung = lies('drizzle/0372_verwaltungskonto_einladung.sql');
     expect(einladung).toMatch(/and bm\.entzogen_am is null\) then\s+return query select false, 'Dieses Konto ist in dieser Gesellschaft schon '/u);
-    /* Baut jemand den Weg, fällt dieser Test — und erinnert an die zwei Sätze und O-980. */
+    /* 0517 und der Dienst: der Weg, den die Sätze nennen. */
+    expect(lies('drizzle/0517_verwaltungskonto_link_und_rolle.sql'))
+      .toMatch(/create function app\.verwaltungskonto_link_neu[\s\S]*create function app\.verwaltungskonto_rolle_wechseln/u);
     const dienst = lies('src/server/services/system/verwaltungskonto.ts');
-    expect(dienst).not.toMatch(/neu_einladen|neuEinladen|ladeNeuEin|linkNeu/u);
-    expect(lies('src/app/api/system/verwaltungskonto/route.ts')).not.toMatch(/neu_einladen|ladeNeuEin/u);
+    expect(dienst).toMatch(/export async function stelleLinkNeuAus/u);
+    expect(dienst).toMatch(/export async function wechsleVerwaltungsrolle/u);
+    const route = lies('src/app/api/system/verwaltungskonto/route.ts');
+    expect(route).toMatch(/aktion === 'link_neu' \|\| aktion === 'rolle'/u);
+    const blatt = lies('src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx');
+    expect(blatt).toMatch(/<VerwaltungskontoPflege/u);
   });
 
   it.each(['O-980', 'O-981'])('%s steht im Register, und sein TODO steht an dem Satz, den die Antwort ändert', (frage) => {

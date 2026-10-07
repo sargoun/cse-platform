@@ -28,6 +28,7 @@ import { legeERechnungAb } from '@/server/services/finanz/eingang/ablage';
 import { VorschlagFehler }
   from '@/server/services/finanz/eingang/vorschlag';
 import type { ErfassenFehlerGrund } from '@/lib/i18n/verwaltung/finanzen/eingangsrechnungen';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/finanzen/eingangsrechnungen` — erfassen und weiterschieben
@@ -54,11 +55,12 @@ import type { ErfassenFehlerGrund } from '@/lib/i18n/verwaltung/finanzen/eingang
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, pfad: string, such?: { readonly fehler: ErfassenFehlerGrund }):
-NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(
+  anfrage: NextRequest, slug: string, pfad: string,
+  such?: { readonly fehler: ErfassenFehlerGrund },
+): NextResponse {
   const url = new URL(
-    `/portal/${slug}/finanzen/eingangsrechnungen${pfad}`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/finanzen/eingangsrechnungen${pfad}`), erwarteterUrsprung(anfrage));
   for (const [k, v] of Object.entries(such ?? {})) url.searchParams.set(k, v);
   return NextResponse.redirect(url, 303);
 }
@@ -71,6 +73,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -102,10 +105,10 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   try {
     if (aktion === 'erechnung') {
-      return await liesERechnung(anfrage, sitzung, daten, waise);
+      return await liesERechnung(anfrage, sitzung, slug, daten, waise);
     }
     if (aktion !== 'erfassen') {
-      return await schiebeWeiter(anfrage, sitzung, aktion, text);
+      return await schiebeWeiter(anfrage, sitzung, slug, aktion, text);
     }
 
     const lieferantId = text('lieferantId');
@@ -116,7 +119,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const steuergruppe = text('steuergruppe');
     if (lieferantId === null || rechnungsnummer === null || rechnungsdatum === null
         || nettoRoh === null || steuerRoh === null || steuergruppe === null) {
-      return zurueck(anfrage, '/neu', { fehler: 'unvollstaendig' });
+      return zurueck(anfrage, slug, '/neu', { fehler: 'unvollstaendig' });
     }
     const netto = parseGeld(nettoRoh);
     const steuer = parseGeld(steuerRoh);
@@ -125,7 +128,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     const vorhandenerBeleg = text('belegId');
     const hatDatei = datei instanceof File && datei.size > 0;
     if (!hatDatei && vorhandenerBeleg === null) {
-      return zurueck(anfrage, '/neu', { fehler: 'ohne_beleg' });
+      return zurueck(anfrage, slug, '/neu', { fehler: 'ohne_beleg' });
     }
 
     return await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -142,7 +145,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           lieferantId, rechnungsnummerLieferant: rechnungsnummer, rechnungsdatum,
         });
         /* Ohne die Warnung des Dienstes: sie wiederholte die getippte Rechnungsnummer (D-774). */
-        if (dublette.istDublette) return zurueck(anfrage, '/neu', { fehler: 'dublette' });
+        if (dublette.istDublette) return zurueck(anfrage, slug, '/neu', { fehler: 'dublette' });
 
         let belegId = vorhandenerBeleg;
         if (belegId === null && datei instanceof File) {
@@ -203,7 +206,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
 
         waise.wert = null;   // Ab hier trägt die Datenbank das Objekt.
-        return zurueck(anfrage, `/${id}`);
+        return zurueck(anfrage, slug, `/${id}`);
       }))) as NextResponse;
   } catch (fehler) {
     if (waise.wert !== null) {
@@ -218,7 +221,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
          */
       }
     }
-    return uebersetze(fehler, anfrage, {
+    return uebersetze(fehler, anfrage, slug, {
       /* Eines der zwei Formulare auf `/neu` — Erfassung oder E-Rechnung —, von einem Browser geschickt. */
       neuFormular: (aktion === 'erfassen' || aktion === 'erechnung')
         && istBrowserFormular(anfrage, daten),
@@ -241,12 +244,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 async function liesERechnung(
   anfrage: NextRequest,
   sitzung: NonNullable<Awaited<ReturnType<typeof aktuelleSitzung>>>,
+  slug: string,
   daten: FormData,
   waise: { wert: { bucket: Bucket; pfad: string } | null },
 ): Promise<NextResponse> {
   const datei = daten.get('datei');
   if (!(datei instanceof File) || datei.size === 0) {
-    return zurueck(anfrage, '/neu', { fehler: 'erechnung_fehlt' });
+    return zurueck(anfrage, slug, '/neu', { fehler: 'erechnung_fehlt' });
   }
   const bytes = new Uint8Array(await datei.arrayBuffer());
   const istPdf = bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
@@ -256,7 +260,7 @@ async function liesERechnung(
   if (istPdf) {
     const anhang = await eingebetteteERechnung(bytes);
     if (anhang === null) {
-      return zurueck(anfrage, '/neu', { fehler: 'keine_erechnung' });
+      return zurueck(anfrage, slug, '/neu', { fehler: 'keine_erechnung' });
     }
     xml = anhang.xml;
     dateiname = `${datei.name} › ${anhang.dateiname}`;
@@ -270,7 +274,7 @@ async function liesERechnung(
     extrakt = extrahiereERechnung(xml);
   } catch (fehler: unknown) {
     if (fehler instanceof ERechnungFehler) {
-      return zurueck(anfrage, '/neu', { fehler: `erechnung_${fehler.grund}` });
+      return zurueck(anfrage, slug, '/neu', { fehler: `erechnung_${fehler.grund}` });
     }
     throw fehler;
   }
@@ -294,8 +298,8 @@ async function liesERechnung(
       const vorschlag = abgelegt.vorschlag;
       waise.wert = null;
 
-      const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-      const ziel = new URL(`/portal/${slug}/freigaben/${vorschlag.freigabeId}`, erwarteterUrsprung(anfrage));
+      const ziel = new URL(
+        portalPfad(slug, `/freigaben/${vorschlag.freigabeId}`), erwarteterUrsprung(anfrage));
       ziel.searchParams.set('vorschlag', vorschlag.neu ? 'neu' : 'vorhanden');
       return NextResponse.redirect(ziel, 303);
     }))) as NextResponse;
@@ -305,6 +309,7 @@ async function liesERechnung(
 async function schiebeWeiter(
   anfrage: NextRequest,
   sitzung: NonNullable<Awaited<ReturnType<typeof aktuelleSitzung>>>,
+  slug: string,
   aktion: string,
   text: (name: string) => string | null,
 ): Promise<NextResponse> {
@@ -379,7 +384,7 @@ async function schiebeWeiter(
       } else if (aktion === 'buchen') await buche(kontext, id);
       else return NextResponse.json({ fehler: 'unbekannte_aktion' }, { status: 400 });
 
-      return zurueck(anfrage, `/${id}`);
+      return zurueck(anfrage, slug, `/${id}`);
     }))) as NextResponse;
 }
 
@@ -403,7 +408,7 @@ const ERFASSEN_ABWEISUNG: Readonly<Record<EingangsrechnungFehler['grund'], Erfas
 };
 
 function uebersetze(
-  fehler: unknown, anfrage: NextRequest, herkunft: { readonly neuFormular: boolean },
+  fehler: unknown, anfrage: NextRequest, slug: string, herkunft: { readonly neuFormular: boolean },
 ): NextResponse {
   const anmeldung = anmeldungsAntwort(fehler, anfrage);
   if (anmeldung !== null) return anmeldung;
@@ -411,7 +416,7 @@ function uebersetze(
     return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
   }
   if (fehler instanceof NichtVerbundenFehler) {
-    return zurueck(anfrage, '/neu', { fehler: 'speicher_nicht_verbunden' });
+    return zurueck(anfrage, slug, '/neu', { fehler: 'speicher_nicht_verbunden' });
   }
   /*
    * Die Prüfkette der Datei (`ladeHoch`, auf beiden Wegen: der Beleg der
@@ -423,14 +428,14 @@ function uebersetze(
    * angegebenen Typ passt (D-774 Nachrunde). Geschrieben ist in beiden Fällen
    * nichts: die Kette prüft, bevor der Speicher etwas bekommt.
    */
-  if (fehler instanceof MimeFehler) return zurueck(anfrage, '/neu', { fehler: `datei_${fehler.grund}` });
-  if (fehler instanceof ExifFehler) return zurueck(anfrage, '/neu', { fehler: 'datei_metadaten' });
-  if (fehler instanceof GeldFehler) return zurueck(anfrage, '/neu', { fehler: 'betrag' });
+  if (fehler instanceof MimeFehler) return zurueck(anfrage, slug, '/neu', { fehler: `datei_${fehler.grund}` });
+  if (fehler instanceof ExifFehler) return zurueck(anfrage, slug, '/neu', { fehler: 'datei_metadaten' });
+  if (fehler instanceof GeldFehler) return zurueck(anfrage, slug, '/neu', { fehler: 'betrag' });
   if (fehler instanceof FreigabeFehler) {
     return NextResponse.json({ fehler: 'freigabe', meldung: fehler.message }, { status: 409 });
   }
   if (fehler instanceof VorschlagFehler) {
-    return zurueck(anfrage, '/neu', { fehler: `vorschlag_${fehler.grund}` });
+    return zurueck(anfrage, slug, '/neu', { fehler: `vorschlag_${fehler.grund}` });
   }
   if (fehler instanceof EingangsrechnungFehler) {
     /*
@@ -440,7 +445,7 @@ function uebersetze(
      * weiter JSON (D-599: „ein Browser bekommt eine Seite, ein Programm JSON").
      */
     const grund = herkunft.neuFormular ? ERFASSEN_ABWEISUNG[fehler.grund] : null;
-    if (grund !== null) return zurueck(anfrage, '/neu', { fehler: grund });
+    if (grund !== null) return zurueck(anfrage, slug, '/neu', { fehler: grund });
     return NextResponse.json({ fehler: fehler.grund, meldung: fehler.message },
       { status: fehler.grund === 'nicht_gefunden' ? 404 : 409 });
   }

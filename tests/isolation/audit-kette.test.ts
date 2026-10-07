@@ -34,6 +34,11 @@ import {
   MANIFEST_NAME, NUTZLAST_NAME, ZEILEN_NAME, erstelleAuditBuendel, nutzlastCsv,
   packeAuditBuendel, zeilenCsv,
 } from '../../src/server/services/audit/buendel.js';
+import {
+  AuditKetteGebrochen, fuehreAuditKetteAus, registriereAuditKette,
+} from '../../src/server/jobs/auditKette.js';
+import { alsJobRolle } from '../../src/server/jobs/sitzung.js';
+import { leereRegister } from '../../src/server/jobs/registry.js';
 import { leseZipEintrag, leseZipVerzeichnis }
   from '../../src/server/services/archiv/zip.js';
 
@@ -615,5 +620,142 @@ describe('Kein DELETE auf der Kette (Invariante 8)', () => {
 
     await expect(sql.unsafe(`delete from kern.audit_kettenglied`)).rejects.toThrow();
     await expect(sql.unsafe(`delete from kern.audit_kette`)).rejects.toThrow();
+  });
+});
+
+/**
+ * **Der Nachtlauf** (V-336, O-623, D-820) — unter der echten Jobrolle.
+ *
+ * Bis 0516 wuchs die Kette nur beim Bilden eines Bündels; beide Einstiege
+ * verlangen `system.audit_exportieren`, und ein Lauf ohne Benutzer bekam 0
+ * Glieder und keinen Befund. Geprüft wird hier, was `cse_job` wirklich
+ * erreicht: ketten, nachrechnen, eine nachgetragene Vormonatszeile, ein Bruch
+ * mit Kette und Stelle — und dass dieselbe Formel gilt wie im Bündelweg.
+ */
+describe('V-336 — der Nachtlauf der Prüfprotokoll-Kette', () => {
+  async function zahlen(): Promise<{ zeilen: string; glieder: string }> {
+    const [z] = await sql.unsafe<{ zeilen: string; glieder: string }[]>(
+      `select (select count(*)::text from audit_log) as zeilen,
+              (select count(*)::text from kern.audit_kettenglied) as glieder`);
+    return z!;
+  }
+
+  it('kettet, was fehlt, rechnet nach — und die zweite Nacht hängt nichts doppelt an', async () => {
+    await protokolliere(f.reinigung, 'probe.nacht.a');
+    await protokolliere(f.bau, 'probe.nacht.b');
+    const erste = await fuehreAuditKetteAus(sql);
+    expect(erste.gekettet).toBeGreaterThanOrEqual(2);
+    const teil = await partition();
+    expect(erste.geprueft.find((p) => p.kette === teil)).toMatchObject({ bruchBei: null });
+    expect(erste.geprueft.every((p) => p.bruchBei === null)).toBe(true);
+    const z = await zahlen();
+    expect(z.glieder).toBe(z.zeilen);
+
+    const zweite = await fuehreAuditKetteAus(sql);
+    expect(zweite.gekettet).toBe(0);
+    expect((await zahlen()).glieder).toBe(z.glieder);
+  });
+
+  it('eine nachgetragene Vormonatszeile kommt an den Vormonat — und bricht nichts', async () => {
+    await protokolliere(f.reinigung, 'probe.nacht.c');
+    await fuehreAuditKetteAus(sql);
+    await nachgetragen(f.reinigung);
+    const [v] = await sql.unsafe<{ p: string }[]>(
+      `select 'audit_log_' || to_char((date_trunc('month', now()) - interval '5 days')
+                                        at time zone 'UTC', 'YYYY_MM') as p`);
+    const befund = await fuehreAuditKetteAus(sql);
+    expect(befund.gekettet).toBe(1);
+    expect(befund.geprueft.find((p) => p.kette === v!.p)).toMatchObject({ bruchBei: null });
+    const teil = await partition();
+    expect(befund.geprueft.find((p) => p.kette === teil)).toMatchObject({ bruchBei: null });
+  });
+
+  it('eine veränderte Protokollzeile: der Lauf wirft — mit Kette und Stelle', async () => {
+    for (const teilname of ['n.a', 'n.b', 'n.c', 'n.d']) {
+      await protokolliere(f.reinigung, `probe.${teilname}`);
+    }
+    await fuehreAuditKetteAus(sql);
+    const teil = await partition();
+    const [glied] = await sql.unsafe<{ audit_id: string; ketten_nr: string }[]>(
+      `select g.audit_id::text as audit_id, g.ketten_nr::text as ketten_nr
+         from kern.audit_kettenglied g join kern.audit_kette k on k.id = g.kette_id
+        where k.partition = $1 order by g.ketten_nr limit 1 offset 2`, [teil]);
+    expect(glied, 'zu wenige Glieder fuer diesen Test').toBeDefined();
+    await sql.unsafe(
+      `update audit_log set aktion = aktion || '.manipuliert' where id = $1`,
+      [glied!.audit_id] as never[]);
+
+    leereRegister();
+    try {
+      const job = registriereAuditKette(sql);
+      const lauf = job.ausfuehren({ mandantId: null, laufId: 'probe', versuch: 1 });
+      await expect(lauf).rejects.toBeInstanceOf(AuditKetteGebrochen);
+      await expect(lauf).rejects.toThrow(`${teil} ab Glied ${glied!.ketten_nr}`);
+    } finally {
+      leereRegister();
+    }
+  });
+
+  it('nur lesend weist der Einstieg ab — und cse_app ruft ihn gar nicht', async () => {
+    await expect(alsJobRolle(sql, (db) => db.abfrage(
+      `select * from kern.audit_kette_nachtlauf()`))).rejects.toThrow(/nur lesend/u);
+    const benutzer = await konto(f.reinigung);
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+        portal: 'intern', readonly: false },
+      (tx) => tx.unsafe(`select * from kern.audit_kette_nachtlauf()`),
+    )).rejects.toThrow(/permission denied/u);
+  });
+
+  /*
+   * **Eine Formel, nicht drei.** 0516 zieht die Gliedformel aus den beiden
+   * Funktionen von 0204 in `kern.audit_glied_hash`. Ein vor 0516 gebildetes
+   * Glied muss danach gleich rechnen — sonst meldete der erste Nachtlauf auf
+   * jeder bestehenden Kette einen Bruch. Gegenprobe: die Formel, wie 0204 sie
+   * ausschrieb, Wort für Wort, gegen die neue Funktion.
+   */
+  it('die Formel aus 0204 und kern.audit_glied_hash rechnen dasselbe', async () => {
+    await protokolliere(f.reinigung, 'probe.formel');
+    await sql.unsafe(
+      `insert into audit_log (mandant_id, ebene, akteur_typ, aktion, objekt_typ, objekt_id,
+                              vorher, nachher, geaendert_felder, ip)
+       values ($1::uuid, 'mandant', 'mensch', 'probe.voll', 'probe', 'x-1',
+               '{"a": 1}'::jsonb, '{"b": [1, 2]}'::jsonb, '{a,b}', '192.0.2.7')`,
+      [f.reinigung] as never[]);
+    const zeilen = await sql.unsafe<{ alt: string; neu: string }[]>(
+      `select encode(digest(convert_to(
+                coalesce('ab', '')
+                || '|' || a.id::text
+                || '|' || coalesce(a.mandant_id::text, '')
+                || '|' || a.ebene::text
+                || '|' || a.akteur_typ::text
+                || '|' || coalesce(a.akteur_id::text, '')
+                || '|' || coalesce(a.agent_id::text, '')
+                || '|' || a.aktion
+                || '|' || a.objekt_typ
+                || '|' || coalesce(a.objekt_id, '')
+                || '|' || coalesce(a.vorher::text, '')
+                || '|' || coalesce(a.nachher::text, '')
+                || '|' || coalesce(array_to_string(a.geaendert_felder, ','), '')
+                || '|' || coalesce(a.ip::text, '')
+                || '|' || coalesce(a.sitzung_id::text, '')
+                || '|' || to_char(a.erstellt_am at time zone 'UTC',
+                                  'YYYY-MM-DD HH24:MI:SS.US'),
+                'UTF8'), 'sha256'), 'hex') as alt,
+              kern.audit_glied_hash('ab', a) as neu
+         from audit_log a`);
+    expect(zeilen.length).toBeGreaterThanOrEqual(2);
+    for (const z of zeilen) expect(z.neu).toBe(z.alt);
+
+    /* Und ein Glied aus dem Bündelweg rechnet der Nachtlauf als geschlossen. */
+    const benutzer = await konto(f.reinigung);
+    await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: benutzer,
+        portal: 'intern', readonly: false },
+      (tx) => tx.unsafe(`select app.audit_kette_fortschreiben()`));
+    const befund = await fuehreAuditKetteAus(sql);
+    expect(befund.gekettet).toBe(0);
+    const teil = await partition();
+    expect(befund.geprueft.find((p) => p.kette === teil)).toMatchObject({ bruchBei: null });
   });
 });

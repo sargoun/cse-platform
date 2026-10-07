@@ -51,12 +51,19 @@ async function objekt(bezeichnung: string): Promise<string> {
   return o!.id;
 }
 
-/** Eine Schicht der Wache, `von` bis `bis` Stunden ab jetzt. */
+/**
+ * Eine Schicht der Wache, `von` bis `bis` Stunden ab jetzt.
+ *
+ * Sie kann über Berliner Mitternacht laufen — abends gestartet, liegt eine
+ * Schicht von −50 bis −42 Stunden genau darüber. Dann endet sie am Folgetag,
+ * und `einsatz_folgetag` (0028) verlangt, dass die Zeile das sagt; ohne
+ * `endet_am_folgetag` scheiterte die Fixtur je nach Uhrzeit des Laufs.
+ */
 async function schicht(objekt_id: string, von: number, bis: number): Promise<string> {
   const [e] = await sql.unsafe<{ id: string }[]>(
     `insert into einsatz (mandant_id, quelle, quell_schluessel, plan_datum,
                           beginn_zeitpunkt, ende_zeitpunkt, zeitzone,
-                          beginn_lokal, ende_lokal, objekt_id, kunde_id,
+                          beginn_lokal, ende_lokal, endet_am_folgetag, objekt_id, kunde_id,
                           erstellt_von_art, status)
      select $1, 'manuell', $2,
             ((now() + ($3 || ' hours')::interval) at time zone 'Europe/Berlin')::date,
@@ -64,6 +71,8 @@ async function schicht(objekt_id: string, von: number, bis: number): Promise<str
             'Europe/Berlin',
             ((now() + ($3 || ' hours')::interval) at time zone 'Europe/Berlin')::time,
             ((now() + ($4 || ' hours')::interval) at time zone 'Europe/Berlin')::time,
+            ((now() + ($4 || ' hours')::interval) at time zone 'Europe/Berlin')::date
+              > ((now() + ($3 || ' hours')::interval) at time zone 'Europe/Berlin')::date,
             $5, o.kunde_id, 'system', 'geplant'
        from objekt o where o.id = $5
      returning id`,

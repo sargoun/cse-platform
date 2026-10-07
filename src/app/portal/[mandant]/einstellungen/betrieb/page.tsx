@@ -17,6 +17,9 @@ import {
   leseSicherheitskontakt, type Sicherheitskontakt,
 } from '@/server/services/inhalt/sicherheitskontakt';
 import { haeltRechte } from '@/app/portal/rechte';
+import { alarmKanal, betriebspostfach } from '@/server/jobs/alarm';
+import { emailDienst } from '@/server/versand/email';
+import { devFlaechenAn } from '@/lib/dev-flaechen';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
 /**
@@ -108,6 +111,8 @@ export default async function Betriebsseite(
   const kontaktMeldung = eigenerEintrag(KONTAKT_MELDUNG, suche['sicherheitskontakt']) ?? null;
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
+  /* V-374 (D-823): wohin ein Alarm ausser hierher geht — oder warum nirgends. */
+  const alarm = alarmKanal(emailDienst(devFlaechenAn()), betriebspostfach());
 
   return (
     <PortalRahmen
@@ -136,6 +141,21 @@ export default async function Betriebsseite(
           ? ` · ${String(lage.unbeurteilbar)} mit kalendergebundenem Zeitplan`
           : ''}
       </p>
+
+      <Hinweis art={alarm.verbunden ? 'erfolg' : 'warnung'} cse="betrieb-alarm"
+               className="mb-s6 max-w-prose">
+        <strong>Der Alarm.</strong>{' '}
+        {alarm.verbunden
+          ? `Ein gescheiterter Lauf geht ausser hierher und ins Funktionsprotokoll per E-Mail an ${alarm.an} (über ${alarm.dienst}).`
+          : alarm.grund === 'kein_postausgang'
+            ? 'Nicht verbunden: es ist kein Postausgang angeschlossen (O-501). Ein gescheiterter '
+              + 'Lauf steht hier, im Nachtlauf-Protokoll und im Funktionsprotokoll (JOB-ALARM) — '
+              + 'per E-Mail geht er erst, wenn der Betreiber den Postausgang und das '
+              + 'Betriebspostfach (CSE_ALARM_POSTFACH) einträgt.'
+            : 'Nicht verbunden: der Postausgang ist angeschlossen, aber kein Betriebspostfach '
+              + 'eingetragen (CSE_ALARM_POSTFACH, Betreiberdaten). Ein gescheiterter Lauf steht '
+              + 'hier, im Nachtlauf-Protokoll und im Funktionsprotokoll.'}
+      </Hinweis>
 
       <Hinweis art={lage.ausloeser.erweiterung && lage.ausloeser.eintraege !== null
         && lage.ausloeser.eintraege >= lage.ausloeser.erwartet ? 'erfolg' : 'warnung'}
