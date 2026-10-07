@@ -32,6 +32,10 @@ export interface AufnahmeTexte {
   readonly nameBeispiel: string;
   readonly email: string;
   readonly emailErklaerung: string;
+  /** Die Postanschrift — der Weg ohne E-Mail (V-370, O-892). */
+  readonly anschrift: string;
+  readonly anschriftErklaerung: string;
+  readonly erreichbarErklaerung: string;
   readonly rolle: string;
   readonly rolleBeispiel: string;
   readonly rolleErklaerung: string;
@@ -81,8 +85,16 @@ export const AUFNAHME_TEXTE: Readonly<Record<InternSprache, AufnahmeTexte>> = {
     nameBeispiel: 'so, wie sie sich genannt hat',
     email: 'E-Mail-Adresse',
     emailErklaerung:
-      'An sie geht die Antwort. Auch beim Brief: wer nur eine Anschrift hat, '
-      + 'vermerkt sie unten in der Nachricht.',
+      'An sie geht die Antwort, wenn die Anfrage nicht per Brief kam. Wer nur '
+      + 'eine Anschrift hat, lässt das Feld leer.',
+    anschrift: 'Postanschrift',
+    anschriftErklaerung:
+      'So, wie sie auf dem Brief steht — Name, Strasse, Postleitzahl und Ort in '
+      + 'Zeilen. Kam die Anfrage per Brief, geht die Antwort hierher '
+      + '(Voreinstellung O-892).',
+    erreichbarErklaerung:
+      'Eine der beiden Angaben ist Pflicht: die E-Mail-Adresse oder die '
+      + 'Postanschrift. Ohne sie lässt sich nicht antworten.',
     rolle: 'Als was sie sich bezeichnet',
     rolleBeispiel: 'z. B. ehemalige Mitarbeiterin, Bewerber, Kundin',
     rolleErklaerung:
@@ -148,8 +160,15 @@ export const AUFNAHME_TEXTE: Readonly<Record<InternSprache, AufnahmeTexte>> = {
     nameBeispiel: 'as they gave it',
     email: 'Email address',
     emailErklaerung:
-      'The answer goes there. For a letter too: if you only have a postal '
-      + 'address, note it in the message below.',
+      'The answer goes there unless the request came by letter. If you only have '
+      + 'a postal address, leave this field empty.',
+    anschrift: 'Postal address',
+    anschriftErklaerung:
+      'As it stands on the letter — name, street, postcode and town on separate '
+      + 'lines. If the request came by letter, the answer goes here (default O-892).',
+    erreichbarErklaerung:
+      'One of the two is required: the email address or the postal address. '
+      + 'Without either, there is no way to answer.',
     rolle: 'How they describe themselves',
     rolleBeispiel: 'e.g. former employee, applicant, customer',
     rolleErklaerung:

@@ -83,7 +83,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           await verlaengere(kontext, id, text);
           return;
         }
-        await entscheide(kontext, id, handlung as 'beantwortet' | 'abgelehnt', text);
+        /*
+         * Der Antwortweg (V-370): gewählt auf dem Vorgangsblatt, sonst der
+         * Weg der Anfrage (`antwortwegVorgabe`, O-892).
+         */
+        await entscheide(kontext, id, handlung as 'beantwortet' | 'abgelehnt', text,
+          String(daten.get('antwortweg') ?? ''));
       }));
   } catch (fehler) {
     if (fehler instanceof AnfrageFehler) {

@@ -92,8 +92,10 @@ export type AnfrageFehlerGrund =
   /* der Eingang: öffentlich (`nimmAn`) und im Portal (`nimmAnfrageAuf`) */
   | 'name_fehlt' | 'email_ungueltig' | 'art_fehlt' | 'nicht_gespeichert'
   | 'weg_fehlt' | 'eingang_unlesbar' | 'eingang_zukunft'
+  /* der Eingang im Büro ohne E-Mail (V-370): Adresse oder Anschrift */
+  | 'nicht_erreichbar' | 'anschrift_zu_lang'
   /* Entscheidung, Identitätsnachfrage, Fristverlängerung */
-  | 'ohne_begruendung' | 'nicht_gefunden' | 'nicht_moeglich'
+  | 'ohne_begruendung' | 'nicht_gefunden' | 'nicht_moeglich' | 'antwortweg_unmoeglich'
   /* die Zuordnung zu einem Datensatz */
   | 'ziel_fehlt' | 'person_unbekannt' | 'bewerbung_unbekannt' | 'kontakt_unbekannt'
   | 'nicht_zuordenbar';
@@ -165,7 +167,16 @@ export interface AnfrageZeile {
   readonly art: AnfrageArt;
   readonly status: AnfrageStatus;
   readonly name: string;
-  readonly email: string;
+  /** `null` nur bei einer Anfrage, die mit Anschrift aufgenommen wurde (V-370). */
+  readonly email: string | null;
+  /** Die Postanschrift, wie sie auf dem Brief steht — oder `null` (V-370). */
+  readonly anschrift: string | null;
+  /**
+   * Auf welchem Weg die Antwort hinausging — festgehalten bei der
+   * Entscheidung (V-370); `null`, solange nicht entschieden ist, und bei
+   * Vorgängen, die vor 0529 entschieden wurden.
+   */
+  readonly antwortweg: Antwortweg | null;
   readonly nachricht: string | null;
   readonly rolleAngabe: string | null;
   readonly eingegangenAm: Date;
@@ -197,7 +208,8 @@ export interface AnfrageZeile {
   readonly erfasstVon: string | null;
 }
 
-const FELDER = `id, art::text as art, status::text as status, name, email, nachricht,
+const FELDER = `id, art::text as art, status::text as status, name, email, anschrift,
+                antwortweg, nachricht,
                 rolle_angabe as "rolleAngabe", eingegangen_am as "eingegangenAm",
                 frist_am as "fristAm", verlaengert_bis as "verlaengertBis",
                 verlaengert_grund as "verlaengertGrund",
@@ -246,26 +258,93 @@ export async function lade(
 export async function entscheide(
   kontext: SchreibKontext, id: string,
   ergebnis: 'beantwortet' | 'abgelehnt', entscheidung: string,
+  gewaehlterWeg?: string | null,
 ): Promise<void> {
   if (entscheidung.trim() === '') {
     throw new AnfrageFehler(
       'Zu einer Entscheidung gehört, was entschieden wurde — und warum. Sie ist '
       + 'das, was eine Aufsichtsbehörde liest.', 'ohne_begruendung');
   }
+  const [kopf] = await kontext.abfrage<{
+    email: string | null; anschrift: string | null; eingangsweg: Eingangsweg;
+  }>(
+    `select email, anschrift, eingangsweg::text as eingangsweg
+       from betroffenenanfrage
+      where mandant_id = app.aktiver_mandant() and id = $1::uuid
+        and status not in ('beantwortet', 'abgelehnt')
+      for update`, [id]);
+  if (kopf === undefined) {
+    throw new AnfrageFehler(
+      'Diese Anfrage gibt es nicht — oder sie ist bereits entschieden.',
+      'nicht_gefunden', 404);
+  }
+  /*
+   * Der Antwortweg (V-370, O-892): gewählt, wenn die Seite einen schickt,
+   * sonst der Weg der Anfrage. Er muss zur Anfrage passen — per E-Mail nur mit
+   * Adresse, per Brief nur mit Anschrift; die Datenbank prüft dasselbe noch
+   * einmal (`betroffenenanfrage_antwortweg_erreichbar`, 0529).
+   */
+  const weg = gewaehlterWeg === undefined || gewaehlterWeg === null || gewaehlterWeg === ''
+    ? antwortwegVorgabe(kopf) : gewaehlterWeg;
+  if (!antwortwegeFuer(kopf).includes(weg as Antwortweg)) {
+    throw new AnfrageFehler(
+      weg === 'email'
+        ? 'Zu dieser Anfrage ist keine E-Mail-Adresse erfasst — die Antwort geht per Brief.'
+        : weg === 'brief'
+          ? 'Zu dieser Anfrage ist keine Anschrift erfasst — die Antwort geht per E-Mail.'
+          : 'Diesen Antwortweg gibt es nicht — per E-Mail oder per Brief.',
+      'antwortweg_unmoeglich');
+  }
   const zeilen = await kontext.schreibe<{ id: string }>(
     `update betroffenenanfrage
         set status = $2::betroffenenanfrage_status, entscheidung = $3,
+            antwortweg = $4,
             beantwortet_am = now(), beantwortet_von = app.aktueller_benutzer()
       where mandant_id = app.aktiver_mandant() and id = $1::uuid
         and status not in ('beantwortet', 'abgelehnt')
       returning id`,
-    [id, ergebnis, entscheidung.trim()]);
+    [id, ergebnis, entscheidung.trim(), weg]);
   if (zeilen[0] === undefined) {
     throw new AnfrageFehler(
       'Diese Anfrage gibt es nicht — oder sie ist bereits entschieden.',
       'nicht_gefunden', 404);
   }
 }
+
+/* ------------------------------------------------------------------------- *
+ * Der Antwortweg (V-370, O-892, D-844)
+ * ------------------------------------------------------------------------- */
+
+/** Wie die Antwort hinausging — die Plattform versendet nichts (Invariante 7). */
+export type Antwortweg = 'email' | 'brief';
+
+/** Die Wege, auf denen eine Anfrage erreichbar ist — in der Reihenfolge der Vorgabe. */
+export function antwortwegeFuer(
+  a: { readonly email: string | null; readonly anschrift: string | null },
+): readonly Antwortweg[] {
+  const wege: Antwortweg[] = [];
+  if (a.email !== null) wege.push('email');
+  if (a.anschrift !== null) wege.push('brief');
+  return wege;
+}
+
+/**
+ * Der Weg, auf dem die Antwort geht, wenn niemand einen anderen wählt —
+ * „auf dem Weg, auf dem die Anfrage kam" (Voreinstellung O-892, D-798):
+ * ein Brief mit Anschrift wird per Brief beantwortet, sonst per E-Mail, wo
+ * eine Adresse da ist, und ohne sie per Brief.
+ */
+// TODO(client, O-892): Voreinstellung — eine Anfrage ohne E-Mail-Adresse ist mit Anschrift erfassbar; die Antwort geht auf dem Weg, auf dem die Anfrage kam (Brief mit Anschrift per Brief, sonst per E-Mail, ohne Adresse per Brief). D-798, D-844.
+export function antwortwegVorgabe(a: {
+  readonly email: string | null; readonly anschrift: string | null;
+  readonly eingangsweg: Eingangsweg;
+}): Antwortweg {
+  if (a.eingangsweg === 'brief' && a.anschrift !== null) return 'brief';
+  return a.email !== null ? 'email' : 'brief';
+}
+
+/** Die Postanschrift höchstens so lang wie die Spalte erlaubt (0529). */
+export const ANSCHRIFT_HOECHSTENS = 500;
 
 /**
  * **Zusätzliche Angaben zur Identität anfordern** (V-088, Art. 12 Abs. 6).
@@ -700,6 +779,11 @@ export const WEG_TEXT_EN: Readonly<Record<Eingangsweg, string>> = {
 export interface AufzunehmendeAnfrage extends NeueAnfrage {
   readonly eingangsweg: Eingangsweg;
   /**
+   * Die Postanschrift, wie sie auf dem Brief steht (V-370). Mit ihr darf
+   * `email` leer sein — die Antwort geht dann per Brief.
+   */
+  readonly anschrift?: string | undefined;
+  /**
    * Der Eingang als Berliner Ortszeit-Angabe (`YYYY-MM-DDTHH:mm`), so wie ein
    * `datetime-local`-Feld sie liefert. Leer heisst: jetzt.
    */
@@ -735,26 +819,35 @@ export async function nimmAnfrageAuf(
   kontext: SchreibKontext, eingabe: AufzunehmendeAnfrage,
 ): Promise<{ readonly id: string; readonly fristAm: Date }> {
   const name = eingabe.name.trim();
-  const email = eingabe.email.trim().toLowerCase();
+  const emailRoh = eingabe.email.trim().toLowerCase();
+  const email = emailRoh === '' ? null : emailRoh;
+  const anschriftRoh = (eingabe.anschrift ?? '').replace(/\r\n/gu, '\n').trim();
+  const anschrift = anschriftRoh === '' ? null : anschriftRoh;
 
   if (name === '') {
     throw new AnfrageFehler('Bitte nennen Sie den Namen der anfragenden Person.',
       'name_fehlt');
   }
   /*
-   * **Die E-Mail-Adresse bleibt Pflicht, auch beim Brief.** An sie geht die
-   * Antwort, und die Spalte verlangt sie (0176). Wer nur eine Anschrift hat,
-   * beantwortet die Anfrage postalisch — dann gehört die Anschrift in die
-   * Nachricht, und die Zeile braucht trotzdem eine erreichbare Adresse.
-   * TODO(client, O-892): Voreinstellung — eine rein postalische Anfrage ist
-   * ohne E-Mail-Adresse erfassbar, mit Anschrift, und die Antwort geht auf dem
-   * Weg, auf dem die Anfrage kam. Nicht gebaut (V-370): bis dahin bleibt die
-   * Adresse Pflicht und die Anschrift steht in der Nachricht. D-798.
+   * **E-Mail-Adresse ODER Anschrift** (V-370, O-892, D-844). Eine Anfrage,
+   * die mit der Post kam, braucht keine erfundene Adresse: die Antwort geht
+   * dann per Brief an die Anschrift. Eine von beiden muss da sein — sonst
+   * lässt sich nicht antworten (`betroffenenanfrage_erreichbar`, 0529).
    */
-  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/iu.test(email)) {
+  if (email === null && anschrift === null) {
     throw new AnfrageFehler(
-      'Bitte prüfen Sie die E-Mail-Adresse — an sie geht die Antwort.',
-      'email_ungueltig');
+      'Bitte erfassen Sie eine E-Mail-Adresse oder eine Postanschrift — an eine der '
+      + 'beiden geht die Antwort.', 'nicht_erreichbar');
+  }
+  if (email !== null && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/iu.test(email)) {
+    throw new AnfrageFehler(
+      'Bitte prüfen Sie die E-Mail-Adresse — oder lassen Sie das Feld leer, wenn die '
+      + 'Antwort per Brief geht.', 'email_ungueltig');
+  }
+  if (anschrift !== null && anschrift.length > ANSCHRIFT_HOECHSTENS) {
+    throw new AnfrageFehler(
+      `Die Anschrift hat höchstens ${String(ANSCHRIFT_HOECHSTENS)} Zeichen.`,
+      'anschrift_zu_lang');
   }
   if (!ANFRAGE_ARTEN.includes(eingabe.art)) {
     throw new AnfrageFehler('Bitte wählen Sie das Anliegen.', 'art_fehlt');
@@ -782,9 +875,9 @@ export async function nimmAnfrageAuf(
        * (Invariante 2).
        */
       `insert into betroffenenanfrage
-         (mandant_id, art, name, email, nachricht, rolle_angabe,
+         (mandant_id, art, name, email, anschrift, nachricht, rolle_angabe,
           eingangsweg, erfasst_von, eingegangen_am)
-       values (app.aktiver_mandant(), $1::betroffenenanfrage_art, $2, $3, $4, $5,
+       values (app.aktiver_mandant(), $1::betroffenenanfrage_art, $2, $3, $8, $4, $5,
                $6::betroffenenanfrage_eingangsweg, app.aktueller_benutzer(),
                coalesce(($7::text)::timestamp at time zone 'Europe/Berlin', now()))
        returning id, frist_am`,
@@ -793,7 +886,7 @@ export async function nimmAnfrageAuf(
           ? null : eingabe.nachricht.trim(),
         eingabe.rolleAngabe?.trim() === undefined || eingabe.rolleAngabe.trim() === ''
           ? null : eingabe.rolleAngabe.trim(),
-        eingabe.eingangsweg, roh === '' ? null : roh],
+        eingabe.eingangsweg, roh === '' ? null : roh, anschrift],
     );
   } catch (fehler) {
     /*

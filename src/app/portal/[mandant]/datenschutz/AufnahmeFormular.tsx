@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/Card';
 import type { AufnahmeTexte } from '@/lib/i18n/verwaltung/datenschutz';
 import type { InternSprache } from '@/lib/i18n/intern';
 import {
-  ANFRAGE_ARTEN, ART_TEXT, ART_TEXT_EN, AUFNAHME_WEGE,
+  ANFRAGE_ARTEN, ANSCHRIFT_HOECHSTENS, ART_TEXT, ART_TEXT_EN, AUFNAHME_WEGE,
 } from '@/server/services/datenschutz/anfrage';
 
 /**
@@ -110,11 +110,25 @@ export function AufnahmeFormular({ mandant, sprache, t }: AufnahmeFormularProps)
             <input type="text" name="name" required maxLength={200} className={FELD}
                    placeholder={t.nameBeispiel} data-cse="aufnahme-name" />
           </label>
+          {/*
+            * **E-Mail-Adresse ODER Postanschrift** (V-370, O-892). Keines der
+            * beiden Felder ist für sich Pflicht; der Dienst verlangt eines,
+            * die Datenbank auch (`betroffenenanfrage_erreichbar`, 0529).
+            */}
+          <p className="m-0 text-xs text-text-muted" data-cse="aufnahme-erreichbar">
+            {t.erreichbarErklaerung}
+          </p>
           <label className="flex flex-col gap-s2 text-sm text-text">
             {t.email}
-            <input type="email" name="email" required maxLength={200} className={FELD}
+            <input type="email" name="email" maxLength={200} className={FELD}
                    data-cse="aufnahme-email" />
             <span className="text-xs text-text-muted">{t.emailErklaerung}</span>
+          </label>
+          <label className="flex flex-col gap-s2 text-sm text-text">
+            {t.anschrift}
+            <textarea name="anschrift" rows={4} maxLength={ANSCHRIFT_HOECHSTENS}
+                      className={FELD} data-cse="aufnahme-anschrift" />
+            <span className="text-xs text-text-muted">{t.anschriftErklaerung}</span>
           </label>
           <label className="flex flex-col gap-s2 text-sm text-text">
             {t.rolle} <span className="text-text-muted">{t.freiwillig}</span>

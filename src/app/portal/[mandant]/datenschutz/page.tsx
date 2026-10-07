@@ -184,7 +184,9 @@ export default async function Anfragen(
                 </span>
               ),
             },
-            { schluessel: 'email', kopf: 'Antwort an', zelle: (z) => z.email },
+            /* V-370: ohne E-Mail-Adresse geht die Antwort per Brief. */
+            { schluessel: 'email', kopf: 'Antwort an',
+              zelle: (z) => z.email ?? 'per Brief' },
             {
               schluessel: 'eingang',
               kopf: 'Eingegangen',
