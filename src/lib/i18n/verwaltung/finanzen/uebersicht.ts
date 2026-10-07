@@ -242,12 +242,10 @@ export interface UebersichtTexte {
   readonly schrittSchliessenNach: string;
   readonly schrittNachfolger: string;
   readonly schrittVorgaenger: string;
-  readonly keinKnopfDafuer: string;
-  readonly keinKnopfWer: string;
-  readonly keinKnopfNach: string;
+  readonly wechselWer: string;
+  readonly wechselNach: string;
   readonly rechtGehalten: string;
   readonly rechtFehlt: string;
-  readonly auchMitRecht: string;
   readonly zaehlerFussnote: string;
   readonly zumAusgangsbuch: string;
 
@@ -580,7 +578,7 @@ const DE: UebersichtTexte = {
   zugDefiner: 'Zug in der Datenbank',
   zugAnwendung: 'Zug in der Anwendung',
   widerspruchZeile: 'Bezeichnung und Platzhalter-Kennzeichnung widersprechen sich (O-606).',
-  jahreswechselTitel: 'Der Jahreswechsel — beschrieben, nicht auslösbar',
+  jahreswechselTitel: 'Der Jahreswechsel',
   jahreswechselEinleitung:
     'Ein Kreis mit jährlicher Rücksetzung wird nicht einfach weitergezählt. '
     + 'Der Vorgang hat drei Schritte, und sie gehören in eine Transaktion:',
@@ -593,14 +591,12 @@ const DE: UebersichtTexte = {
   schrittVorgaenger:
     'Beim Nachfolger den Vorgänger eintragen, damit die Prüfung den Übergang '
     + 'nachrechnen kann (§5.7 Schritt 3b).',
-  keinKnopfDafuer: 'Der Knopf dafür folgt (V-284).',
-  keinKnopfWer: 'Voreinstellung (O-352): den Jahreswechsel führt die Administration aus; das Recht',
-  keinKnopfNach:
+  wechselWer: 'Voreinstellung (O-352): den Jahreswechsel führt die Administration aus; das Recht',
+  wechselNach:
     'hält sie in den drei Gesellschaften — die Geschäftsführung kann es sich '
-    + 'zuweisen lassen.',
+    + 'zuweisen lassen. Die Datenbank führt alle drei Schritte in einer Transaktion aus (V-284).',
   rechtGehalten: 'Dieses Konto hält das Recht.',
   rechtFehlt: 'Diesem Konto fehlt das Recht.',
-  auchMitRecht: 'Auch mit dem Recht gibt es den Vorgang noch nicht.',
   zaehlerFussnote:
     'Der Zähler ist hier Ansicht. Er wird ausschliesslich beim Festschreiben '
     + 'fortgezählt, unter Zeilensperre — jede andere Stelle wäre eine zweite, '
@@ -962,7 +958,7 @@ const EN: UebersichtTexte = {
   zugDefiner: 'drawn in the database',
   zugAnwendung: 'drawn in the application',
   widerspruchZeile: 'Label and placeholder marking contradict each other (O-606).',
-  jahreswechselTitel: 'The turn of the year — described, not triggerable',
+  jahreswechselTitel: 'The turn of the year',
   jahreswechselEinleitung:
     'A Nummernkreis with a yearly reset is not simply counted on. The '
     + 'procedure has three steps, and they belong in one transaction:',
@@ -975,13 +971,12 @@ const EN: UebersichtTexte = {
   schrittVorgaenger:
     'Record the predecessor on the successor, so that the check can recompute '
     + 'the transition (§5.7 step 3b).',
-  keinKnopfDafuer: 'The button for it follows (V-284).',
-  keinKnopfWer: 'Default (O-352): the administration carries out the turn of the year; the right',
-  keinKnopfNach:
-    'is held by it in the three companies — management can have it assigned.',
+  wechselWer: 'Default (O-352): the administration carries out the turn of the year; the right',
+  wechselNach:
+    'is held by it in the three companies — management can have it assigned. The database '
+    + 'carries out all three steps in one transaction (V-284).',
   rechtGehalten: 'This account holds the right.',
   rechtFehlt: 'This account lacks the right.',
-  auchMitRecht: 'Even with the right the procedure does not exist yet.',
   zaehlerFussnote:
     'The counter is a view here. It is counted on solely at Festschreibung '
     + '(finalisation), under a row lock — any other place would be a second '

@@ -2880,7 +2880,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-30 | Nachträge: how many days may an announced Nachtrag stay unsubmitted before the watchdog escalates, and to whom? | BAU-04 watchdog · **Voreinstellung → D-800** |
 | O-31 | Certificates: at what intervals before a §34a / Sachkunde expiry does the warning escalate, and to whom at each step? | SEC-02, SEC-04 · **Voreinstellung → D-800** |
 | O-32 | Sector minimum wage: which MiLoG / sector rates apply per area, and from which date? | LEG-02, TIM-13 · **Voreinstellung → D-795** |
-| O-134 | `nummernkreis`: one circle per legal entity, or per entity **and** document type? Does the number run on or restart on 1 January, and what is the exact mask? | FIN-03, TEN-02, LEG-01 — **no invoice may be finalised anywhere until this is answered** · **Voreinstellung → D-779** |
+| O-134 | `nummernkreis`: one circle per legal entity, or per entity **and** document type? Does the number run on or restart on 1 January, and what is the exact mask? | FIN-03, TEN-02, LEG-01 — **no invoice may be finalised anywhere until this is answered** · **Voreinstellung → D-779; Freigabe unter Finanzen › Nummernkreise → D-848** |
 | O-135 | Which processor extracts data from incoming invoices (OCR), in which region, under which DPA? | ACC-05, LEG-09, D-04 · **Voreinstellung → D-779** |
 **`02-datenmodell/01-KERN.md`**
 
@@ -5540,7 +5540,7 @@ niemand ihn suchen.
 
 | # | Question | Blocks |
 |---|---|---|
-| O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 · **Voreinstellung → D-779** |
+| O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 · **Voreinstellung → D-779; Knopf → D-848** |
 | O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` · **Voreinstellung → D-799** |
 | O-360 | **Soll die Gruppenansicht der Objekte eine Karte zeigen — und mit welchem Kartendienst?** SEITENKARTE §6 schreibt „objects across areas, one map". Eine Karte braucht Kacheln von einem externen Dienst (OpenStreetMap-Anbieter, ein EU-Anbieter) oder selbst gehostete; jeder Aufruf gibt Objektkoordinaten und die IP der Nutzerin an den Anbieter — ein Auftragsverarbeiter, der in `docs/DECISIONS.md` mit DPA und EU-Region stehen muss (CLAUDE.md, Datenresidenz). Bis dahin listet `/portal/gruppe/objekte` Adressen ohne Karte (D-475). | OPS-01, SEITENKARTE §6, D-475 · **Voreinstellung → D-799** |
@@ -24493,7 +24493,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-46 | Belege ohne Frist (vor 0489 entstanden) bleiben gesperrt und heissen „ohne Frist"; neue erhalten die Regel ihrer Klasse. | `belege.ts` |
 | O-66 | Zahlungsziel 14 Tage netto, öffentliche Auftraggeber 30 Tage (§ 271a Abs. 2 BGB) — als letzte Stufe nach Kundenkondition und Gesellschaftseinstellung (`finanzen.zahlungsziel_tage_standard`). Ob der Kunde öffentlich ist, liest `app.kunde_ist_oeffentlich` (0490) mandantengebunden mit `finanzen.schreiben`, unabhängig vom CRM-Leserecht. Die Festschreibung prüft das Feld des Entwurfs weiter (zweite Linie). | `rechnung.ts` (`ermittleZahlungsziel`), `0490`, `crm/kondition.ts` |
 | O-77 | Storno stellen Buchhaltung und Geschäftsführung aus, nie der Ersteller allein — der Katalog bindet `finanzen.stornieren` nur an den Super-Admin und lässt es für admin und leitung zuweisen; die Voreinstellung ist also eine ausdrückliche Zuweisung durch den Super-Admin, keine stille Bindung. | `rechnung-akte.ts`, `auth/katalog.generiert.ts` |
-| O-134, O-606 | Ein Nummernkreis je Gesellschaft und Belegart, Maske `RE-{jahr}-{nr:5}`, Neustart am 1. Januar. Der Betriebs-Seed legt den Rechnungskreis mit dieser Voreinstellung an, aber **zur Freigabe** (`ist_platzhalter`): eine Rechnungsnummer ist unumkehrbar, und die Prüfung „kein freigegebener Kreis ohne Demo-Maske" (`seed.test.ts`) bleibt — die Freigabe braucht heute eine Migration, der Knopf folgt (V-284). Die Demodaten sind freigegeben, behalten `DEMO-{jahr}-{nr:5}` und heissen „Ausgangsrechnungen (Demo — Voreinstellung, O-134)". Ein Kreis mit `ist_platzhalter` heisst „Platzhalter — nicht freigegeben" und vergibt nichts — unverändert. | Seed, `nummernkreis.ts`, `kreisuebersicht.ts`, `uebersicht.ts` |
+| O-134, O-606 | Ein Nummernkreis je Gesellschaft und Belegart, Maske `RE-{jahr}-{nr:5}`, Neustart am 1. Januar. Der Betriebs-Seed legt den Rechnungskreis mit dieser Voreinstellung an, aber **zur Freigabe** (`ist_platzhalter`): eine Rechnungsnummer ist unumkehrbar, und die Prüfung „kein freigegebener Kreis ohne Demo-Maske" (`seed.test.ts`) bleibt. Freigegeben wird unter Finanzen › Nummernkreise (V-284, D-848): die Administration bestätigt die Voreinstellung oder passt Maske und Rücksetzung an, bevor die erste Nummer vergeben ist. Die Demodaten sind freigegeben, behalten `DEMO-{jahr}-{nr:5}` und heissen „Ausgangsrechnungen (Demo — Voreinstellung, O-134)". Ein Kreis mit `ist_platzhalter` heisst „Platzhalter — nicht freigegeben" und vergibt nichts — unverändert. | Seed, `nummernkreis.ts`, `kreisuebersicht.ts`, `uebersicht.ts` |
 | O-174 | Einheiten nach UN/ECE Rec. 20: Stk → H87, Std → HUR, m² → MTK, Monat → MON, Einsatz → E48, pauschal → LS — als Voreinstellung beschriftet. | `rechnung-akte.ts` |
 | O-175, O-301 | Die Gruppe nutzt die Erleichterung des § 33 UStDV (250 €) nicht; auch Kleinbeträge tragen die vollen Pflichtangaben. | `ustg14.ts` |
 | O-177 | Kein Skonto; jede Unterzahlung bleibt offener Rest, bis ein Mensch sie als Skonto bucht. | `zahlung/skonto.platzhalter.ts` |
@@ -24501,7 +24501,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-186 | Keine Registrierkasse mit TSE; offene Ladenkasse mit Kassenbuch. | `belege.ts` |
 | O-189 | Ausschliesslich EUR — Fremdwährung wird abgewiesen, nicht umgerechnet. | `bank/camt.ts`, `eingang/erechnung.ts` |
 | O-300 | Grundstücksbezug einer Leistung führt die Plattform nicht; der Hinweis nach § 14 Abs. 4 Nr. 9 UStG gehört von Hand in den Fußtext. | `ustg14.ts` |
-| O-352 | Nummernkreis eröffnen und Jahreswechsel: die Administration mit `nummernkreis.verwalten`; der Knopf folgt (V-284). | `uebersicht.ts` |
+| O-352 | Nummernkreis freigeben und Jahreswechsel: die Administration mit `nummernkreis.verwalten`. Beide Knöpfe sind gebaut (V-284, D-848): „Kreis freigeben" für einen Platzhalterkreis und „Nachfolgekreis eröffnen", sobald das Jahr eines jährlichen Kreises vergangen ist — in der Datenbank, in einer Transaktion, protokolliert. | `uebersicht.ts`, `finanz/nummernkreis-{freigabe,wechsel}.ts` |
 | O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder und nur mit `finanzen.lesen` (das Recht des Prüfberichts); die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
@@ -28626,4 +28626,105 @@ offen; die Frist im Kalender mit Weg, nicht im persönlichen).
 Dazu `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-315, O-187, D-787, FIN-10, LEG-06; `src/server/services/finanz/estg48/anmeldung.ts`, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/finanzen/{bauabzug/page.tsx,page.tsx}`, `src/app/portal/[mandant]/kalender/{page.tsx,QuellenPill.tsx}`, `src/lib/i18n/verwaltung/finanzen/{bauabzug,uebersicht}.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/kern/bauabzug-anmeldung.test.ts`, `tests/isolation/{bauabzug-anmeldung,kalender}.test.ts` |
+|---|---|
+
+### D-848 · Bauwelle 45: Ein Nummernkreis wird freigegeben, und der Jahreswechsel hat einen Knopf (V-284, O-134, O-352)
+
+**Der Anlass.** Zwei Vorgänge am Nummernkreis konnte nur eine Migration
+auslösen, weil `cse_app` auf `nummernkreis` kein INSERT hält und beim UPDATE
+nur den Zähler und den Kettenkopf:
+- **Die Freigabe.** Der Betriebs-Seed legt den Rechnungskreis mit der
+  Voreinstellung `RE-{jahr}-{nr:5}` als Platzhalter an (O-134, D-779), und
+  solange `ist_platzhalter` steht, wird nichts festgeschrieben. D-779 hielt
+  fest: „die Freigabe braucht heute eine Migration, der Knopf folgt (V-284)".
+  Im Betrieb hätte damit keine Gesellschaft eine Rechnung ausstellen können,
+  ohne dass jemand eine Migration schreibt.
+- **Der Jahreswechsel.** Am 1. Januar weist `fin.rechnung_nummer_ziehen` jede
+  Festschreibung eines jährlichen Kreises ab — „es fehlt der Nachfolgekreis"
+  (0077) — und verweist auf Finanzen › Nummernkreise, wo es den Vorgang
+  nicht gab.
+
+**Was gebaut ist.**
+- **`fin.nummernkreis_freigeben`** (0532, Definer): nur in einer Gesellschaft,
+  angemeldet, nicht lesend, mit `nummernkreis.verwalten`, mit bestätigter
+  Maske; nur ein offener Platzhalterkreis, der nie gezogen hat. Die
+  Voreinstellung darf dabei angepasst werden — O-134 fragt genau das:
+  Maske, Neustart am 1. Januar oder fortlaufend. Die Maske trägt genau ein
+  `{nr}` (Breite 1 bis 9), `{jahr}` genau dann, wenn jährlich zurückgesetzt
+  wird, sonst nur Buchstaben, Ziffern und `- / _ .` — enger als
+  `formatiereNummer`, mit Absicht: `fin.nummer_formatieren` ersetzt nur das
+  erste `{nr}`, zwei davon lösten die zwei Fassungen verschieden auf. Das
+  Jahr wird das laufende (ein vorgemerktes späteres bleibt; fortlaufend 0);
+  ist es schon belegt, weist die Funktion ab. Dienst
+  `finanz/nummernkreis-freigabe.ts` (`maskenMangel`, `freigabeJahr`,
+  `ersteFreigegebeneNummer`, `behauptetVorbehalt`,
+  `vorgeschlageneBezeichnung`, `gibKreisFrei`) prüft vorher mit Grund und
+  protokolliert vorher/nachher (`nummernkreis.freigegeben`).
+  `TODO(client, O-134)` am Dienst.
+- **`fin.nummernkreis_nachfolger_eroeffnen`** (0532, Definer): dieselben
+  Schranken; nur für einen offenen, freigegebenen, jährlich
+  zurückgesetzten Kreis, dessen Jahr (Berliner Kalendertag) vergangen ist,
+  und nur, wenn es für das neue Jahr noch keinen Kreis dieses
+  Geltungsbereichs gibt. Schliesst den Vorgänger mit dem heutigen Tag und
+  legt den Nachfolger an: dieselbe Maske, Rücksetzung und
+  Geltungsbereich, Zähler 1, Verweis auf den Vorgänger, `genesis_hash` =
+  `letzter_hash` des Vorgängers (hat er nie festgeschrieben: sein eigener
+  `genesis_hash`) — die Kette bleibt über die Jahresgrenze EINE Linie
+  (§5.4). Ein Platzhalter wird freigegeben, nicht fortgesetzt: er hat
+  nichts vergeben, und seine Freigabe setzt ihn ins laufende Jahr. Dienst
+  `finanz/nummernkreis-wechsel.ts` (`wechselLage`, `ersteNummer`,
+  `eroeffneNachfolgekreis`), Protokoll `nummernkreis.nachfolger_eroeffnet`.
+  `TODO(client, O-352)` am Dienst.
+- **Rechte und Policies.** `cse_definer` bekommt die Spalten
+  `geschlossen_am`, `format_maske`, `zuruecksetzung`, `jahr`,
+  `bezeichnung`, `ist_platzhalter` und drei Policies, alle auf den aktiven
+  Mandanten begrenzt (Freigabe nur auf offene Platzhalter, Schliessen nur
+  auf offene freigegebene Kreise, Anlegen nur mit Vorgänger). `cse_app`
+  bekommt nichts dazu: der Weg sind die zwei Funktionen. Nach der ersten
+  Nummer friert `fin.nummernkreis_pruefen` (0006) Maske und
+  Geltungsbereich wie bisher ein.
+- **Die Seite `/finanzen/nummernkreise`** (zweisprachig): ein Abschnitt
+  „Freigabe" je offenem Platzhalterkreis mit Maske, Rücksetzung,
+  Bezeichnung (ohne die Klammer der Voreinstellung vorgeschlagen), der
+  ersten Nummer und dem Häkchen „geprüft"; am Jahreswechsel je fälligem
+  Kreis die erste Nummer des neuen Jahres, der Kettenanfang und das
+  Formular „Nachfolgekreis eröffnen". Ohne das Recht steht der Satz, wer es
+  hält; in der Gruppenansicht keine Formulare (Invariante 10). Route
+  `POST /api/finanzen/nummernkreise` (`aktion=freigeben|nachfolger`,
+  `nummernkreis.verwalten`); eine abgewiesene Freigabe kommt mit ihren
+  Eingaben und dem genauen Mangel der Maske zurück (V-240). Die Übersicht
+  verspricht keinen Knopf mehr, der „folgt", und ihr Hinweis auf einen
+  widersprüchlichen Namen (O-606) prüft mit derselben Regel, mit der die
+  Freigabe einen Namen mit Vorbehalt abweist (`behauptetVorbehalt`; „Demo"
+  nur noch als Wort — „Demontage" ist keiner).
+- **Seed.** Der Betriebs-Seed übt die Freigabe: sein Rechnungskreis ist der
+  Platzhalter mit der Voreinstellung. Der Demobetrieb gibt seine Kreise
+  weiter selbst frei (Demo-Maske, O-606). Alle Kreise beider Seeds tragen
+  das Jahr 2026 — das Formular „Nachfolgekreis eröffnen" erscheint dort ab
+  dem 1. Januar 2027 von selbst. Einen vergangenen Demo-Kreis legt der Seed
+  nicht an: neben ihm wäre der Geltungsbereich für das laufende Jahr
+  gesperrt (`nummernkreis_offen_key`); den Vorgang übt die
+  Isolationsprüfung.
+
+**Prüfung.** `tests/isolation/nummernkreis-freigabe.test.ts` (vor der
+Freigabe weist die Festschreibung ab, danach tragen die Rechnungen
+`RE-<Jahr>-00001` und `-00002`; fortlaufend mit eigener Maske `AR/000001`;
+ein Platzhalter des Vorjahres rückt ins laufende Jahr, ist es belegt, geht
+nur fortlaufend; zehn Abweisungen an Maske, Rücksetzung, Bezeichnung und
+Bestätigung, nach denen der Kreis unverändert ist, dazu schon freigegeben,
+geschlossen, fremde Gesellschaft, keine Kennung;
+ohne Recht weder über den Dienst noch an ihm vorbei; die Grammatik hält auch
+die Datenbankfunktion; `cse_app` ändert die Spalte nicht selbst).
+`tests/isolation/nummernkreis-wechsel.test.ts` (Vorgänger heute geschlossen,
+Nachfolger mit neuem Jahr, Maske, Zähler 1, Vorgänger und letztem Hash,
+Protokoll; ohne Festschreibung der eigene `genesis_hash`; Abweisungen mit
+Grund, der Platzhalter auch am Dienst vorbei; ohne Recht).
+`tests/kern/nummernkreis-verwaltung.test.ts` (Lage im Jahreswechsel, erste
+Nummer, die Grammatik mit ihren acht Mängeln und gegen `formatiereNummer`,
+dieselben Ausdrücke in 0532, Jahr und Vorschau der Freigabe, Vorbehalt im
+Namen, Wörter in beiden Sprachen, Verdrahtung von Route, Diensten,
+Funktionen und Formularfeldern). Dazu `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-284, O-134, O-352, O-606, D-779, FIN-03, LEG-01, TEN-02; `drizzle/0532_nummernkreis_freigabe_jahreswechsel.sql`, `src/server/services/finanz/{nummernkreis-freigabe,nummernkreis-wechsel}.ts`, `src/app/api/finanzen/nummernkreise/route.ts`, `src/app/portal/[mandant]/finanzen/nummernkreise/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{nummernkreis-freigabe,nummernkreis-wechsel,uebersicht}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/{nummernkreis-freigabe,nummernkreis-wechsel}.test.ts`, `tests/kern/nummernkreis-verwaltung.test.ts` |
 |---|---|

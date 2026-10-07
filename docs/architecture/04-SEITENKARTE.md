@@ -1487,7 +1487,7 @@ requirement it has no way to create. An earlier draft had no such route at all.
 | `/portal/[mandant]/finanzen/bankkonten` — the Gesellschaft's own bank accounts. One of them is frozen into every finalised invoice as BT-85, so the IBAN is checked on its check digits and not only its shape. `legeBankkontoAn` existed since `0121` with no caller but tests — “received on” knew only what the seed had created | `zahlung.lesen` (write: `zahlung.schreiben`) | `M1` | FIN-15, ACC-04 | 8 |
 | `/portal/[mandant]/finanzen/mahnungen` , `/[id]` — escalation level, fee, interest | `mahnung.lesen` | `M1` | FIN-15 | 6 |
 | `/portal/[mandant]/finanzen/mahnungen/vorschlaege` — agent-proposed dunning awaiting approval | `mahnung.freigeben` | `M1` | FIN-15, APR-01, AGT-03 | 8 |
-| `/portal/[mandant]/finanzen/nummernkreise` — number circles; counters read-only | `nummernkreis.lesen` / `nummernkreis.verwalten` | `M1` | TEN-02, FIN-03, FIN-16 | 6 |
+| `/portal/[mandant]/finanzen/nummernkreise` — number circles; counters read-only; a placeholder circle is released with its mask confirmed or adjusted (O-134), and the turn of the year opens the successor of a yearly circle once its year has ended (close predecessor, `genesis_hash` = last hash, mask confirmed — O-352); both V-284 | `nummernkreis.lesen` / `nummernkreis.verwalten` | `M1` | TEN-02, FIN-03, FIN-16 | 6 |
 
 #### 5.14.1 What invariant 4 forces the routes to express
 

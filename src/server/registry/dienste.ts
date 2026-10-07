@@ -334,6 +334,23 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /** V-315 — die Anmeldung nach § 48a EStG, vorbereitet (O-187, D-847); liest nur. */
   { modul: 'finanzen', pfad: 'finanz/estg48/anmeldung', schreibend: false },
   /**
+   * V-284 — der Jahreswechsel eines Nummernkreises (O-352, D-848). Er
+   * SCHREIBT über `fin.nummernkreis_nachfolger_eroeffnen` (0532) mit
+   * `nummernkreis.verwalten` — dem Recht, das die Funktion prüft.
+   */
+  {
+    modul: 'nummernkreis', pfad: 'finanz/nummernkreis-wechsel',
+    schreibend: true, schreibRecht: 'nummernkreis.verwalten',
+  },
+  /**
+   * V-284 — die Freigabe eines Platzhalterkreises (O-134, D-779, D-848). Sie
+   * SCHREIBT über `fin.nummernkreis_freigeben` (0532) mit demselben Recht.
+   */
+  {
+    modul: 'nummernkreis', pfad: 'finanz/nummernkreis-freigabe',
+    schreibend: true, schreibRecht: 'nummernkreis.verwalten',
+  },
+  /**
    * V-011 — der Schreibweg der Ausgabe.
    *
    * `eingang.schreiben` ist das kleinere der zwei Rechte: erfassen ist
