@@ -40,8 +40,10 @@ import { markdownZelle } from '../../../lib/markdown.js';
  * Die Dokumentation rechnet nichts und entscheidet nichts (D-06); sie zaehlt.
  *
  * TODO(client, O-188): Voreinstellung — die Geschäftsführung der Gesellschaft
- * zeichnet; geprüft wird jährlich und bei jedem Schemastand-Wechsel; ein
- * Zeichnungsvermerk ist nicht gebaut (V-316, D-787).
+ * zeichnet; geprüft wird jährlich und bei jedem Schemastand-Wechsel (D-787).
+ * Die Zeichnungen führt `verfahrensdokumentation-zeichnung.ts` je Fassung
+ * (Hash, Schemastand) — neben diesem Dokument, nicht in ihm: eine Zeichnung
+ * im Hash änderte die Fassung, die sie bezeugt (V-316, D-837).
  */
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -252,7 +254,7 @@ export async function erstelleVerfahrensdokumentation(
     + 'Betreiber ein — O-119.');
   offen.push('Unveränderlichkeit des Objektspeichers auf Bucket-Ebene beim Anbieter — O-364.');
   offen.push('Die DTD des Beschreibungsstandards liegt dem Z3-Paket nicht bei — Voreinstellung (O-365): Version 1.0 des Standards, Abnahme durch Probeimport beim Steuerberater (D-485).');
-  offen.push('Zeichnung und Prüfturnus dieser Dokumentation — Voreinstellung (O-188): die Geschäftsführung der Gesellschaft zeichnet, geprüft wird jährlich und bei jedem Schemastand-Wechsel; ein Zeichnungsvermerk wird in der Plattform nicht geführt (V-316).');
+  offen.push('Zeichnung und Prüfturnus dieser Dokumentation — Voreinstellung (O-188): die Geschäftsführung der Gesellschaft zeichnet, geprüft wird jährlich und bei jedem Schemastand-Wechsel. Die Zeichnungen führt die Plattform je Fassung (Hash und Schemastand) auf der Seite der Verfahrensdokumentation, nicht in diesem Dokument (V-316, D-837).');
   if (schemastand === null) {
     offen.push('Diese Datenbank führt kein Migrationsjournal (die Migrationen wurden direkt eingespielt); der Schemastand ist hier nicht ablesbar.');
   }

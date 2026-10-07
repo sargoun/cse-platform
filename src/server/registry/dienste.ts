@@ -1393,6 +1393,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 66 — Z3-Datentraegerueberlassung und Verfahrensdokumentation. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/z3', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation', schreibend: false },
+  /*
+   * V-316, O-188, D-837 — der Zeichnungsvermerk der Verfahrensdokumentation:
+   * wer sie in welcher Fassung gezeichnet hat, und ob die Zeichnung noch gilt.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation-zeichnung',
+    schreibend: true, schreibRecht: 'buchhaltung_konfiguration.verwalten',
+  },
   /* PR 67 — Jahrespaket und Lohnexport. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/jahrespaket', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/lohnexport', schreibend: false },

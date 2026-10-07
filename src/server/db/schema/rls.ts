@@ -1591,6 +1591,15 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.',
   },
   {
+    tabelle: 'verfahrensdokumentation_zeichnung',
+    art: 'append',
+    migration: '0526',
+    grund:
+      'V-316, O-188, ACC-10, GoBD Rz. 151 ff. Wer die Verfahrensdokumentation in '
+      + 'welcher Fassung gezeichnet hat. Loeschbar waere sie die Zeichnung, die es '
+      + 'nicht gegeben haben soll — und eine Pruefung, deren Datum niemand belegt.',
+  },
+  {
     tabelle: 'dokument_zugriff',
     art: 'append',
     migration: '0139',

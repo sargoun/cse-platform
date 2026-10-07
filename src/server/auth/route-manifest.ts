@@ -2648,6 +2648,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Verfahrensdokumentation zeichnen (V-316, O-188, D-837) — unter
+     * `buchhaltung_konfiguration.verwalten`, mit zweitem Faktor: wer die
+     * Konfiguration aendern darf, bezeugt auch ihre Beschreibung. Die Policy
+     * `t_vdz_zeichnen` (0526) prueft dasselbe Recht ein zweites Mal.
+     */
+    pfad: 'api/buchhaltung/verfahrensdokumentation/zeichnung',
+    recht: 'buchhaltung_konfiguration.verwalten',
+  },
+  {
+    /**
      * Das Verarbeitungsverzeichnis nach Art. 30 DSGVO (LEG-09, Phase 10) als
      * Markdown oder JSON — unter `system.einstellung_lesen`, demselben Recht
      * wie die Seite: es beschreibt die Konfiguration der Gesellschaft und

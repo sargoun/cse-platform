@@ -25047,7 +25047,7 @@ gelesen.
 | O-182 | Keine Aufrechnung in der Plattform (§ 387 BGB): Kundengutschrift und Lieferantenverbindlichkeit werden getrennt ausgeglichen; entscheidet die Geschäftsführung eine Aufrechnung, bucht die Buchhaltung beide Seiten mit Zahlweg `verrechnung` (0121) — eine Verknüpfung gibt es nicht (V-314). | `finanz/zahlung/index.ts`, `finanz/ausgabe.ts` |
 | O-184 | Keine Gutschriftsabrechnung (§ 14 Abs. 2 Satz 2 UStG) mit Nachunternehmern: sie stellen Rechnungen, die als Eingangsrechnung mit § 13b-Prüfung laufen (`lieferant.leistungsart`, `ist_bauleistender_bis`); „Gutschrift" ist in der Plattform der Stornobeleg (Kreis `gutschrift`). Wie gebaut. | `finanz/eingangsrechnung.ts`, `finanz/lieferant.ts`, `finanz/nummernkreis.ts` |
 | O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab; einen Fristenkalender führt die Plattform nicht (V-315). | `finanz/estg48/abzug.ts`, `buchhaltung/buchungssatz.ts` |
-| O-188 | Die Geschäftsführung der Gesellschaft zeichnet die Verfahrensdokumentation; geprüft wird jährlich und bei jedem Schemastand-Wechsel (der Stand steht im Dokument: `schemastand`, `auslieferung`). Ein Zeichnungsvermerk ist nicht gebaut (V-316); das Dokument nennt die Voreinstellung unter „offen". | `buchhaltung/verfahrensdokumentation.ts` |
+| O-188 | Die Geschäftsführung der Gesellschaft zeichnet die Verfahrensdokumentation; geprüft wird jährlich und bei jedem Schemastand-Wechsel (der Stand steht im Dokument: `schemastand`, `auslieferung`). Seit V-316 (D-837) mit Zeichnungsvermerk: wer `buchhaltung_konfiguration.verwalten` hält, zeichnet die beim Zeichnen erzeugte Fassung (Hash, Schemastand) mit seiner Funktion; die Seite sagt, ob die letzte Zeichnung noch gilt (Turnus zwölf Monate, Schemastand). Das Dokument nennt die Voreinstellung weiter unter „offen". | `buchhaltung/verfahrensdokumentation.ts`, `buchhaltung/verfahrensdokumentation-zeichnung.ts` |
 | O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen; eine Abrechnungsart, die den Leistungszeitraum aus ihm herleitet, bleibt gesperrt (O-54). Wie gebaut. | `finanz/positionsquelle.ts` |
 | O-363 | **Gebaut:** bei zwei passenden § 13b-Gruppen (0 %, AE) entscheidet das Gewerk des Lieferanten — `lieferant.leistungsart` bau → `ust_0_13b_bau`, gebaeudereinigung → `ust_0_13b_reinigung` (`GRUPPE_JE_LEISTUNGSART`, `waehleGruppeNachLeistungsart`); der Befund nennt die Voreinstellung. Ohne Gewerk im Stamm bleibt das Feld unsicher, und ein Mensch wählt (wie bisher); die Freigabe des Belegs bleibt menschlich (Invariante 7). | `finanz/eingang/vorschlag.ts`, `tests/kern/eingang-steuersatzgruppe.test.ts` (5) |
 | O-365 | Beschreibungsstandard Version 1.0; die DTD liegt dem Z3-Paket nicht bei (sie ist nicht Teil des Repositories), `index.xml` nennt sie; Abnahme durch Probeimport beim Steuerberater (D-485). Wie gebaut. | `buchhaltung/z3.ts`, Buchhaltung › Z3-Export |
@@ -27903,4 +27903,94 @@ kaputte Zeile gilt als Voreinstellung. `tests/kern/leistungsort-regel.test.ts`
 Satzwachen), `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-373, O-933, D-796, D-798; `src/server/services/finanz/{leistungsort-regel,rechnung,entwurf}.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/auth/route-manifest.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/app/portal/[mandant]/einstellungen/{page,rechnungen/page}.tsx`, `src/app/api/einstellungen/rechnungen/route.ts`, `src/lib/i18n/verwaltung/einstellungen/rechnungen.ts`, `tests/isolation/leistungsort-regel.test.ts`, `tests/kern/leistungsort-regel.test.ts`, `tests/e2e/einstellungen.spec.ts` |
+|---|---|
+
+### D-837 · Bauwelle 34: Die Verfahrensdokumentation trägt einen Zeichnungsvermerk (V-316, O-188)
+
+**Der Anlass.** `erstelleVerfahrensdokumentation` erzeugt die
+Verfahrensdokumentation aus der lebenden Konfiguration, mit SHA-256 und
+Schemastand (ACC-10, D-485). Wer sie gezeichnet hat und wann sie zuletzt
+geprüft wurde, hielt nichts fest — das Dokument sagte selbst: „ein
+Zeichnungsvermerk wird in der Plattform nicht geführt". Voreinstellung
+(O-188, D-787): die Geschäftsführung der Gesellschaft zeichnet; geprüft wird
+jährlich und bei jedem Wechsel des Schemastands.
+
+**Was gebaut ist.**
+- **0526 `verfahrensdokumentation_zeichnung`:** eine Zeile je Zeichnung,
+  anfügend (kein Ändern: Auslöser `kern.vdz_unveraenderlich`; kein Löschen:
+  der generierte Block aus `rls.ts`, `KEIN_HARD_DELETE` art `append`).
+  `sha256` (Form geprüft) und `schemastand` sind die der gezeichneten
+  Fassung; `funktion` (3 bis 200 Zeichen) und `bemerkung` (höchstens 2000)
+  trägt der Zeichnende ein. **Zeichner und Zeit setzt die Datenbank:** der
+  Auslöser `kern.vdz_zeichner_und_zeit` schreibt `app.aktueller_benutzer()`
+  und `now()` (Invariante 5), und `cse_app` sind die beiden Spalten gar nicht
+  gewährt. RLS: lesen mit `buchhaltung_konfiguration.lesen`, zeichnen mit
+  `buchhaltung_konfiguration.verwalten`, nicht in einer lesenden Sitzung,
+  nicht für eine archivierte Gesellschaft; die Decke `p_intern_decke` hält
+  das Kundenportal draußen.
+- **`buchhaltung/verfahrensdokumentation-zeichnung.ts`:** `zeichne` (prüft
+  Funktion und Bemerkung, schreibt die Zeile und eine Zeile ins
+  Prüfprotokoll mit Hash, Schemastand und Funktion), `ladeZeichnungen` (die
+  jüngste zuerst, Berliner Tag), `ladeZeichnungsvermerk` (Verlauf und Stand,
+  „heute" aus `app.berlin_heute()`), `fassungVon` und die reine Rechnung
+  `zeichnungsStand`: ungezeichnet → Schemastand gewechselt (gleich wie jung
+  die Zeichnung ist) → Turnus abgelaufen (der Prüftag selbst ist fällig) →
+  Inhalt geändert → aktuell. „Inhalt geändert" ist ein Hinweis, keine
+  Fälligkeit: der Hash deckt Konfiguration UND Auslieferung, und nicht jede
+  Auslieferung ändert ein Verfahren — ob sie es tut, klärt die Prüfung.
+  `plusMonate` rechnet im Kalender; ein Tag, den es im Zielmonat nicht gibt
+  (31., 29. Februar), wird der letzte des Monats — früher prüfen ist erlaubt,
+  später nicht.
+- **Gezeichnet wird, was beim Zeichnen entsteht.** `POST
+  /api/buchhaltung/verfahrensdokumentation/zeichnung` (im Routenmanifest,
+  `authorize` mit `buchhaltung_konfiguration.verwalten` und zweitem Faktor)
+  erzeugt die Dokumentation in derselben Transaktion neu und zeichnet deren
+  Hash und Schemastand; das Formular schickt nur Funktion und Bemerkung. Ein
+  Hash aus dem Formular wäre eine Behauptung über eine Fassung, die der
+  Zeichnende vielleicht nie gesehen hat. Zurück mit genau einem Schlüssel
+  `?zeichnung=` (V-275, D-769).
+- **Die Seite der Verfahrensdokumentation** trägt den Abschnitt „Prüfung und
+  Zeichnung" (`Zeichnungsvermerk.tsx`, zweisprachig über
+  `i18n/verwaltung/verfahrensdokumentation-zeichnung.ts`, anders als die
+  Seite um ihn, die auf der Ausnahmeliste der Übersetzungswache bleibt): den
+  Stand als Satz, den Verlauf (Zeitpunkt in Berliner Zeit, Name, Funktion,
+  Schemastand, Anfang des Hashs mit „diese Fassung"), für den Berechtigten
+  das Formular, sonst „Zeichnen kann, wer … hält.", und die Voreinstellung.
+  Die Kopfmarke „Nur Lesen" steht nur noch, wo nicht gezeichnet werden darf.
+- **Die Zeichnung steht NEBEN dem Dokument, nicht in ihm.** Ginge sie in den
+  Hash ein, änderte jede Zeichnung die Fassung, die sie bezeugt. Der Satz
+  unter „Offene Punkte" sagt jetzt, wo die Zeichnungen stehen — das ändert
+  den Hash jeder Gesellschaft einmal.
+- **Kein Seed.** Eine Zeichnung ist die Erklärung eines Menschen, dass er
+  geprüft hat; eine erfundene wäre ein falscher Beleg, auch in der
+  Vorführung. Der Seed zeigt deshalb den ehrlichen Stand „noch nicht
+  gezeichnet"; gezeichnet wird im Browserlauf.
+
+**Wer zeichnen darf.** `buchhaltung_konfiguration.verwalten` ist nur an
+`super_admin` gebunden und der Administration bindbar (0008). Die
+Geschäftsführung zeichnet also, sobald ihr Konto das Recht hält — die
+Voreinstellung (O-188) nennt die Funktion, die Plattform prüft das Recht.
+
+**Prüfung.** `tests/isolation/verfahrensdokumentation-zeichnung.test.ts`
+(12): Zeichnen schreibt Hash und Schemastand der erzeugten Fassung, Zeichner
+und Zeit aus Sitzung und Serveruhr, eine Protokollzeile; die beiden Spalten
+sind dem Aufrufer nicht gewährt; Funktion und Bemerkung werden geprüft, im
+Dienst und als CHECK; der Stand geht ungezeichnet → aktuell → Inhalt geändert
+(ein neuer Nummernkreis) → wieder aktuell, der Verlauf hält beide; eine ein
+Jahr alte Zeichnung ist fällig; kein Ändern und kein Löschen, auch nicht für
+den Eigentümer; wer nur lesen darf, sieht den Verlauf und zeichnet nicht, wer
+nicht lesen darf, sieht nichts; eine lesende Sitzung zeichnet nicht; der Bau
+sieht die Zeichnung der Reinigung nicht und kann nicht für sie zeichnen; das
+Kundenportal sieht keine. `tests/kern/verfahrensdokumentation-zeichnung.test.ts`
+(Kalender mit Monatsende, Schaltjahr und Hundertjahresregel; die Gründe in
+ihrer Reihenfolge und der Prüftag als Grenze; die Route zeichnet nach
+`authorize` mit zweitem Faktor die eben erzeugte Fassung, aus dem Formular
+kommen nur Funktion und Bemerkung; jeder Grund hat einen Satz in beiden
+Sprachen). `tests/e2e/z3-verfahrensdokumentation.spec.ts` (die
+Administration sieht Stand und Recht, aber kein Formular; die
+Super-Administration zeichnet, und gezeichnet ist der Hash der Seite). Dazu
+`tests/kern` komplett, `pnpm guards`, `pnpm db:triggers --check`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-316, O-188, D-787, D-485, ACC-10; `drizzle/0526_verfahrensdokumentation_zeichnung.sql`, `src/server/db/schema/rls.ts`, `src/server/db/triggers/no-hard-delete.sql`, `scripts/generate-triggers.ts`, `src/server/services/buchhaltung/{verfahrensdokumentation,verfahrensdokumentation-zeichnung}.ts`, `src/server/registry/dienste.ts`, `src/server/auth/route-manifest.ts`, `src/app/api/buchhaltung/verfahrensdokumentation/zeichnung/route.ts`, `src/app/portal/[mandant]/buchhaltung/verfahrensdokumentation/{page,Zeichnungsvermerk}.tsx`, `src/lib/i18n/verwaltung/verfahrensdokumentation-zeichnung.ts`, `tests/isolation/verfahrensdokumentation-zeichnung.test.ts`, `tests/kern/verfahrensdokumentation-zeichnung.test.ts`, `tests/e2e/z3-verfahrensdokumentation.spec.ts` |
 |---|---|

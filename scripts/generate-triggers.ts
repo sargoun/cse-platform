@@ -142,6 +142,8 @@ export const MIGRATIONS_DATEIEN: Readonly<Record<string, string>> = {
   // nicht bekommen, die ihn brauchen. Neue Datenbanken bekommen ihn mit
   // `0384` ebenso; die Reihenfolge stimmt, weil die Tabelle aus `0113` stammt.
   '0384': join(WURZEL, 'drizzle/0384_der_zugang_laesst_sich_einrichten.sql'),
+  // V-316 (D-837): der Zeichnungsvermerk der Verfahrensdokumentation.
+  '0526': join(WURZEL, 'drizzle/0526_verfahrensdokumentation_zeichnung.sql'),
 };
 export const BEGINN = '-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern';
 export const ENDE = '-- >>> Ende des generierten Blocks';

@@ -2637,3 +2637,19 @@ create trigger trg_mitarbeiter_zugang_audit
   for each row execute function kern.protokolliere_aenderung();
 
 -- >>> Ende des generierten Blocks
+
+-- <<< generiert aus src/server/db/schema/rls.ts — nicht von Hand ändern (0526)
+-- Erzeugt von scripts/generate-triggers.ts. `pnpm db:triggers` schreibt neu.
+
+-- verfahrensdokumentation_zeichnung (append): V-316, O-188, ACC-10, GoBD Rz. 151 ff. Wer die Verfahrensdokumentation in welcher Fassung gezeichnet hat. Loeschbar waere sie die Zeichnung, die es nicht gegeben haben soll — und eine Pruefung, deren Datum niemand belegt.
+create trigger trg_verfahrensdokumentation_zeichnung_kein_hard_delete
+  before delete on verfahrensdokumentation_zeichnung
+  for each row execute function kern.verhindere_loeschung();
+create trigger trg_verfahrensdokumentation_zeichnung_kein_truncate
+  before truncate on verfahrensdokumentation_zeichnung
+  for each statement execute function kern.verhindere_loeschung();
+revoke delete, truncate on verfahrensdokumentation_zeichnung from cse_app, cse_anon, cse_checkin, cse_job;
+
+
+
+-- >>> Ende des generierten Blocks

@@ -10,9 +10,13 @@ import {
   QUELLE_LABEL, TEILE, auslieferungAusUmgebung, erstelleVerfahrensdokumentation,
   type Abschnitt, type Verfahrensdokumentation,
 } from '@/server/services/buchhaltung/verfahrensdokumentation';
+import {
+  fassungVon, ladeZeichnungsvermerk, type Zeichnung, type ZeichnungsStand,
+} from '@/server/services/buchhaltung/verfahrensdokumentation-zeichnung';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import { haeltRechte } from '@/app/portal/rechte';
+import { ZEICHNUNG_RECHT, Zeichnungsvermerk } from './Zeichnungsvermerk';
 
 /**
  * `/portal/[mandant]/buchhaltung/verfahrensdokumentation` — die
@@ -22,6 +26,10 @@ import { haeltRechte } from '@/app/portal/rechte';
  * Die Seite ZEIGT das Dokument, das die API als Markdown, PDF oder JSON
  * liefert: dieselbe Struktur, derselbe Hash. Jeder Abschnitt traegt seine
  * Quelle; was ein Platzhalter ist, steht als Platzhalter.
+ *
+ * Darunter der Zeichnungsvermerk (V-316, O-188, D-837): ob die letzte
+ * Zeichnung noch gilt, wer bisher gezeichnet hat, und fuer den, der
+ * `buchhaltung_konfiguration.verwalten` haelt, das Formular.
  */
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +53,12 @@ function Tabelle({ a }: { readonly a: Abschnitt }) {
   );
 }
 
-export default async function Verfahrensdoku({ params }: { params: Promise<{ mandant: string }> }) {
+export default async function Verfahrensdoku(
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
   const { mandant } = await params;
   const tor = await mandantTor(`/portal/${mandant}/buchhaltung/verfahrensdokumentation`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
@@ -58,12 +71,19 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
    * fuehrte dann auf 404 und verriete, was er nicht zeigen darf (AUT-06,
    * Copilot-Runde auf PR 16 / D-581).
    */
-  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen');
+  const darf = await haeltRechte(zugang.sitzung, 'buchhaltung.lesen', ZEICHNUNG_RECHT);
+  const suche = await searchParams;
+  const ergebnis = typeof suche['zeichnung'] === 'string' ? suche['zeichnung'] : null;
 
   const jobs = alleJobs(db());
-  const d = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, zugang.sitzung, (kontext) =>
-      erstelleVerfahrensdokumentation(kontext, { jobs, auslieferung: auslieferungAusUmgebung() }))) as Promise<Verfahrensdokumentation>);
+  const { d, vermerk } = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, zugang.sitzung, async (kontext) => {
+      const doku = await erstelleVerfahrensdokumentation(kontext, { jobs, auslieferung: auslieferungAusUmgebung() });
+      return { d: doku, vermerk: await ladeZeichnungsvermerk(kontext, fassungVon(doku)) };
+    })) as Promise<{
+      readonly d: Verfahrensdokumentation;
+      readonly vermerk: { readonly zeichnungen: readonly Zeichnung[]; readonly stand: ZeichnungsStand };
+    }>);
 
   const api = `/api/buchhaltung/verfahrensdokumentation?mandant=${mandant}`;
   const knopf = 'inline-flex min-h-11 items-center rounded-md border border-line-strong px-s5 py-s3 text-sm text-text hover:bg-surface-2';
@@ -73,7 +93,7 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
       titel="Verfahrensdokumentation"
       wurzelTitel="Buchhaltung"
       bereich={mandant as BereichSchluessel}
-      nurLesen
+      nurLesen={darf[ZEICHNUNG_RECHT] !== true}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="buchhaltung"
@@ -156,6 +176,15 @@ export default async function Verfahrensdoku({ params }: { params: Promise<{ man
           <strong>{String(d.offen.length)} offene Punkte.</strong> Diese Dokumentation gibt sie als offen aus, nicht als entschieden — Abschnitt 5 nennt jeden.
         </Hinweis>
       ) : null}
+
+      <Zeichnungsvermerk
+        sprache={zugang.sprache}
+        stand={vermerk.stand}
+        zeichnungen={vermerk.zeichnungen}
+        aktuellerHash={d.sha256}
+        darfZeichnen={darf[ZEICHNUNG_RECHT] === true}
+        ergebnis={ergebnis}
+      />
 
       {TEILE.map((teil) => (
         <section key={teil.praefix} data-cse="vd-teil" className="mb-s7">

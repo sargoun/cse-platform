@@ -12,6 +12,9 @@
  *  2. Verfahrensdokumentation: jeder Abschnitt mit seiner Quelle, der Hash im
  *     Kopf; Markdown, PDF und JSON tragen denselben Hash.
  *  3. Ohne das Recht gibt es die Seiten nicht (404), auch fuer die Leitung.
+ *  4. Der Zeichnungsvermerk (V-316, D-837): die Administration sieht den
+ *     Stand und wer zeichnen darf; die Super-Administration zeichnet, und
+ *     gezeichnet ist der Hash, den die Seite zeigt.
  */
 import { expect, test, type Page } from '@playwright/test';
 import { alsKonto, KONTO } from './hilfen/anmeldung';
@@ -99,6 +102,40 @@ test.describe('Z3-Export und Verfahrensdokumentation (PR 66)', () => {
     const struktur = await json.json() as Record<string, unknown>;
     expect(struktur['art']).toBe('cse-verfahrensdokumentation');
     expect(struktur['firma']).toBe('CSE Dienstleistungen GmbH');
+  });
+
+  test('Zeichnung (V-316): die Administration sieht den Stand, aber kein Formular', async ({ page }) => {
+    await anmelden(page);
+    expect((await page.goto(VD))?.status()).toBe(200);
+    await expect(page.locator('[data-cse="vd-zeichnung"]')).toBeVisible();
+    await expect(page.locator('[data-cse="vd-zeichnung-stand"] [data-stand]')).toHaveAttribute(
+      'data-stand', /^(ungezeichnet|schemastand_gewechselt|turnus_abgelaufen|inhalt_geaendert|aktuell)$/u);
+    // `buchhaltung_konfiguration.verwalten` ist der Administration nur bindbar, nicht gebunden.
+    await expect(page.locator('[data-cse="vd-zeichnung-formular"]')).toHaveCount(0);
+    await expect(page.locator(
+      '[data-cse="vd-zeichnung-ohne-recht"] [data-recht="buchhaltung_konfiguration.verwalten"]')).toBeVisible();
+    await expect(page.locator('[data-cse="vd-zeichnung-voreinstellung"]')).toContainText('O-188');
+  });
+
+  test('Zeichnung (V-316): die Super-Administration zeichnet — den Hash, den die Seite zeigt', async ({ page }) => {
+    await alsKonto(page, KONTO.gruppe);
+    await page.goto(VD);
+    const wechsel = page.locator('[data-cse="wechsel-knopf"]');
+    if ((await wechsel.count()) > 0) await wechsel.click();
+    await expect(page).toHaveURL(new RegExp(`${VD}$`, 'u'));
+
+    const sha = (await page.locator('[data-cse="vd-sha256"]').textContent())?.trim() ?? '';
+    expect(sha).toMatch(/^[0-9a-f]{64}$/u);
+    await page.locator('[data-cse="vd-zeichnung-funktion"]').fill('Geschäftsführung');
+    await page.locator('[data-cse="vd-zeichnen"]').click();
+
+    await expect(page).toHaveURL(new RegExp(`${VD}\\?zeichnung=gezeichnet#zeichnung$`, 'u'));
+    await expect(page.locator('[data-cse="vd-zeichnung-ergebnis"]')).toBeVisible();
+    await expect(page.locator('[data-cse="vd-zeichnung-stand"] [data-stand]'))
+      .toHaveAttribute('data-stand', 'aktuell');
+    const juengste = page.locator('[data-cse="vd-zeichnungen"] [data-cse="tabelle"] tbody tr').first();
+    await expect(juengste).toContainText('Geschäftsführung');
+    await expect(juengste).toContainText(sha.slice(0, 12));
   });
 
   test('ohne das Recht gibt es beide Seiten nicht — auch fuer die Leitung', async ({ page }) => {
