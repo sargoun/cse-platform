@@ -518,7 +518,7 @@ export default async function TurnusNeu(
 
         <div className="mt-s4 max-w-[60ch]">
           <LeistungsankerFeld leistungen={daten.anker} gewaehlt={gewaehlterAnker}
-                              sprache={zugang.sprache} feldKlasse={feld} />
+                              sprache={zugang.sprache} feldKlasse={feld} ohne={tL.ohneTurnus} />
         </div>
 
         <div>

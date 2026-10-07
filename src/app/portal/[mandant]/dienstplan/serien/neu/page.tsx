@@ -216,7 +216,7 @@ export default async function SerieNeu({ params, searchParams }: {
             </select>
           </label>
           <LeistungsankerFeld leistungen={daten.anker} gewaehlt={vor.anker}
-                              sprache={zugang.sprache} feldKlasse={feld} />
+                              sprache={zugang.sprache} feldKlasse={feld} ohne={tL.ohneTurnus} />
           <div>
             <Button type="submit" variante="primary" data-cse="serie-anlegen">Serie anlegen und Schichten erzeugen</Button>
           </div>

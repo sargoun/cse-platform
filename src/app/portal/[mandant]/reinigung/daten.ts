@@ -31,6 +31,11 @@ export interface RevierZeile {
   readonly anzahlRaeume: number;
   readonly aktivAb: string;
   readonly aktivBis: string | null;
+  /**
+   * Die Leistungszeile des Reviers (V-352) — ein Turnus ohne eigene übernimmt
+   * sie (O-927 (2)). `null` ohne.
+   */
+  readonly auftragLeistungId: string | null;
 }
 
 interface RevierDbZeile {
@@ -44,6 +49,7 @@ interface RevierDbZeile {
   readonly anzahl: string;
   readonly aktiv_ab: string;
   readonly aktiv_bis: string | null;
+  readonly anker: string | null;
 }
 
 const REVIER_ABFRAGE = `
@@ -54,7 +60,8 @@ const REVIER_ABFRAGE = `
            where rr.revier_id = r.id) as summe,
          (select count(*)::text from revier_raum rr where rr.revier_id = r.id) as anzahl,
          to_char(r.aktiv_ab, 'DD.MM.YYYY') as aktiv_ab,
-         to_char(r.aktiv_bis, 'DD.MM.YYYY') as aktiv_bis
+         to_char(r.aktiv_bis, 'DD.MM.YYYY') as aktiv_bis,
+         r.auftrag_leistung_id::text as anker
     from revier r
     join objekt o on o.id = r.objekt_id and o.mandant_id = r.mandant_id
    where r.archiviert_am is null`;
@@ -71,6 +78,7 @@ function alsRevier(z: RevierDbZeile): RevierZeile {
     anzahlRaeume: Number(z.anzahl),
     aktivAb: z.aktiv_ab,
     aktivBis: z.aktiv_bis,
+    auftragLeistungId: z.anker,
   };
 }
 

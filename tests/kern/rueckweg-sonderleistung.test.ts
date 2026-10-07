@@ -32,6 +32,7 @@ const zustand = vi.hoisted(() => ({
   status: vi.fn(),
   storno: vi.fn(),
   zeitwert: vi.fn(),
+  zuordnung: vi.fn(),
   /** Der Slug des aktiven Mandanten, den die Mandantenschicht liefert. */
   bereich: 'reinigung' as string | null,
 }));
@@ -54,11 +55,12 @@ vi.mock('@/server/services/reinigung/sonderleistung', async (original) => ({
   setzeStatus: zustand.status,
   storniereAbruf: zustand.storno,
   setzeZeitwert: zustand.zeitwert,
+  ordneVertragszeileZu: zustand.zuordnung,
 }));
 
 const {
   AbrufEingabeFehlt, AbrufNichtGefunden, SONDERLEISTUNG_ERFOLGE, SONDERLEISTUNG_GRUENDE,
-  StatusNichtErlaubt, statuswechsel,
+  StatusNichtErlaubt, ZuordnungAbgewiesen, statuswechsel,
 } = await import('../../src/server/services/reinigung/sonderleistung.js');
 const { POST } = await import('../../src/app/api/reinigung/sonderleistungen/route.js');
 
@@ -76,6 +78,9 @@ const STORNO = [
 const ZEITWERT = [
   ['art', 'zeitwert'], ['position', KENNUNG], ['zeitwert', '12,5'],
 ] as const;
+const ZUORDNUNG = [
+  ['art', 'zuordnung'], ['abruf', KENNUNG], ['auftrag_leistung', KENNUNG],
+] as const;
 const ohne = (felder: readonly (readonly [string, string])[], feld: string) =>
   felder.filter(([k]) => k !== feld);
 
@@ -86,6 +91,7 @@ beforeEach(() => {
   zustand.status.mockReset().mockResolvedValue({ von: 'geplant', nach: 'erbracht' });
   zustand.storno.mockReset().mockResolvedValue(undefined);
   zustand.zeitwert.mockReset().mockResolvedValue(undefined);
+  zustand.zuordnung.mockReset().mockResolvedValue(undefined);
   zustand.bereich = 'reinigung';
 });
 
@@ -133,6 +139,28 @@ describe('POST /api/reinigung/sonderleistungen — Gründe statt Sätze', () => 
     }
   });
 
+  it('Vertragszeile (V-325): jeder Grund des Dienstes, leer heisst lösen, keine Kennung wird abgewiesen', async () => {
+    for (const grund of [
+      'zuordnung_abgerechnet', 'zuordnung_storniert', 'zuordnung_in_rechnung',
+      'vertragszeile_unbekannt', 'vertragszeile_ausserhalb', 'vertragszeile_auftrag_storniert',
+    ] as const) {
+      zustand.zuordnung.mockRejectedValueOnce(new ZuordnungAbgewiesen('x', grund));
+      expect(rueckweg(await POST(formular('/api/reinigung/sonderleistungen', ZUORDNUNG))).search,
+        grund).toBe(`?fehler=${grund}`);
+    }
+    expect(rueckweg(await POST(formular('/api/reinigung/sonderleistungen',
+      ohne(ZUORDNUNG, 'auftrag_leistung')))).search).toBe('?erfolg=vertragszeile_gesetzt');
+    expect(zustand.zuordnung).toHaveBeenLastCalledWith(
+      expect.anything(), { id: KENNUNG, auftragLeistungId: null });
+    zustand.zuordnung.mockClear();
+    expect(rueckweg(await POST(formular('/api/reinigung/sonderleistungen',
+      [...ohne(ZUORDNUNG, 'auftrag_leistung'), ['auftrag_leistung', 'keine-kennung']]))).search)
+      .toBe('?fehler=vertragszeile_unbekannt');
+    expect(rueckweg(await POST(formular('/api/reinigung/sonderleistungen',
+      ohne(ZUORDNUNG, 'abruf')))).search).toBe('?fehler=zuordnung_unvollstaendig');
+    expect(zustand.zuordnung).not.toHaveBeenCalled();
+  });
+
   it('die Gründe der Route selbst — ohne den Dienst zu rufen', async () => {
     const faelle: readonly [readonly (readonly [string, string])[], string][] = [
       [ohne(ZEITWERT, 'position'), 'position_fehlt'],
@@ -157,6 +185,7 @@ describe('POST /api/reinigung/sonderleistungen — Gründe statt Sätze', () => 
     for (const [felder, erfolg] of [
       [ABRUF, 'abruf_erfasst'], [STATUS, 'status_gesetzt'],
       [STORNO, 'abruf_storniert'], [ZEITWERT, 'zeitwert_gesetzt'],
+      [ZUORDNUNG, 'vertragszeile_gesetzt'],
     ] as const) {
       const ziel = rueckweg(await POST(formular('/api/reinigung/sonderleistungen', felder)));
       expect(`${ziel.pathname}${ziel.search}`, erfolg).toBe(`${SEITE}?erfolg=${erfolg}`);
@@ -232,6 +261,7 @@ describe('die Seite liegt im Bereich der Sitzung — nicht in dem aus dem Formul
     for (const [felder, erfolg] of [
       [ABRUF, 'abruf_erfasst'], [STATUS, 'status_gesetzt'],
       [STORNO, 'abruf_storniert'], [ZEITWERT, 'zeitwert_gesetzt'],
+      [ZUORDNUNG, 'vertragszeile_gesetzt'],
     ] as const) {
       const ziel = rueckweg(await POST(formular('/api/reinigung/sonderleistungen', felder)));
       expect(`${ziel.pathname}${ziel.search}`, erfolg).toBe(`${SEITE}?erfolg=${erfolg}`);

@@ -1,15 +1,17 @@
 import { type NextRequest, type NextResponse } from 'next/server';
 import { fuehreUebergangAus, grundAus, UUID } from '../../uebergang';
 import {
-  LeistungFehler, beendeLeistungszeile, legeLeistungszeileAn,
+  LeistungFehler, beendeLeistungszeile, legeLeistungszeileAn, passePreisAn,
 } from '@/server/services/auftrag/leistung';
 
 /**
  * `POST /api/auftrag/leistungen` — eine Leistungszeile anlegen oder beenden
  * (V-360, O-921, D-825).
  *
- * Zwei Vorgänge (`vorgang`): `anlegen` (eine nachträglich vereinbarte
- * Leistung, ab einem Stichtag) und `beenden` (letzter Tag, einschliesslich).
+ * Drei Vorgänge (`vorgang`): `anlegen` (eine nachträglich vereinbarte
+ * Leistung, ab einem Stichtag), `beenden` (letzter Tag, einschliesslich) und
+ * `preis` (eine Preisanpassung ab einem Stichtag: neue Zeile, die bisherige
+ * endet am Vortag, die geplanten Schichten ab dann hängen um — D-826).
  * Das Recht ist `auftrag.schreiben` — die Policy `t_mandant` auf
  * `auftrag_leistung` (0050) verlangt dasselbe. Zurück geht es auf die
  * Leistungszeilen des Auftrags mit `?erfolg=`; eine Abweisung kommt mit
@@ -40,9 +42,16 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
         return { auftragId, erfolg: 'angelegt' };
       }
-      if (vorgang === 'beenden') {
+      if (vorgang === 'beenden' || vorgang === 'preis') {
         const zeileId = rumpf.felder['zeileId'] ?? '';
         if (!UUID.test(zeileId)) throw new LeistungFehler('unbekannte_zeile');
+        if (vorgang === 'preis') {
+          await passePreisAn(kontext, auftragId, zeileId, {
+            einzelpreis: rumpf.felder['neuerPreis'] ?? '',
+            stichtag: rumpf.felder['stichtag'] ?? '',
+          });
+          return { auftragId, erfolg: 'preis' };
+        }
         await beendeLeistungszeile(kontext, auftragId, zeileId, rumpf.felder['gueltigBis'] ?? '');
         return { auftragId, erfolg: 'beendet' };
       }

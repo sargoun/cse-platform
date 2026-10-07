@@ -10,8 +10,9 @@ import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import { grundAufsFormular } from '../../formular-antwort';
 import {
-  aendereRevier, archiviereRevier, legeRevierAn, RevierFehler,
+  aendereRevier, archiviereRevier, legeRevierAn, RevierFehler, setzeRevierLeistung,
 } from '@/server/services/reinigung/revier';
+import { LeistungsankerFehler } from '@/server/services/dienstplan/leistungsanker';
 
 /**
  * `POST /api/reinigung/reviere` — eine Zone anlegen, ändern oder archivieren
@@ -29,7 +30,9 @@ import {
  * Turnus hängt an einem Revier, ein Einsatz am Turnus, ein Leistungsnachweis
  * am Einsatz.
  *
- * **Drei Handlungen, eine Adresse, ein Recht.** Alle drei verlangen
+ * **Vier Handlungen, eine Adresse, ein Recht.** Anlegen, ändern, archivieren
+ * und — seit V-352 — die Leistungszeile setzen (`aktion=leistung`). Alle vier
+ * verlangen
  * `reinigung.schreiben` — dasselbe Recht, das die RLS von `revier` verlangt
  * und das `dienste.ts` für `reinigung/revier` führt. Welche gemeint ist,
  * entscheidet `aktion`; dieselbe Bauart wie `api/objekt` und `api/crm/kunde`.
@@ -40,6 +43,8 @@ import {
  * Schlüssel (`?fehler=`, V-275), nie als Satz (D-769).
  */
 export const dynamic = 'force-dynamic';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (!istGleicherUrsprung(anfrage)) {
@@ -89,6 +94,23 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
         if (aktiv === undefined) throw new NichtGefundenFehler('Bereich ohne Slug');
         const bereich = aktiv.slug;
+
+        if (aktion === 'leistung') {
+          const id = wert('id');
+          if (id === undefined) throw new RevierFehler('Kein Revier angegeben.', 'id_fehlt');
+          /*
+           * Leer heisst „ohne" (lösen). Ein Wert, der keine Kennung ist, wird
+           * abgewiesen, nicht still zu `null` (V-192). Welche Zeile es gibt,
+           * prüft der Dienst.
+           */
+          const anker = wert('auftrag_leistung') ?? null;
+          if (anker !== null && !UUID.test(anker)) {
+            throw new LeistungsankerFehler('leistung_unbekannt');
+          }
+          const { sofortGeplant } = await setzeRevierLeistung(kontext, id, anker);
+          return `/portal/${bereich}/reinigung/reviere/${id}?leistung=`
+            + (sofortGeplant ? 'gesetzt' : 'nachtlauf');
+        }
 
         if (aktion === 'archivieren') {
           const id = wert('id');
@@ -140,6 +162,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * ihn in der Sprache der Sitzung nach (`REVIER_FEHLER_TEXTE`). Ohne `zurueck`
      * fragt ein Programm und bekommt `{ fehler, meldung }` mit Status (D-599).
      */
+    if (fehler instanceof LeistungsankerFehler) {
+      return grundAufsFormular(anfrage, {
+        json: false, zurueck: formularZurueck, grund: fehler.grund,
+      }) ?? NextResponse.json(
+        { fehler: fehler.grund, meldung: fehler.message }, { status: fehler.status });
+    }
     if (fehler instanceof RevierFehler) {
       return grundAufsFormular(anfrage, {
         json: false, zurueck: formularZurueck, grund: fehler.grund,

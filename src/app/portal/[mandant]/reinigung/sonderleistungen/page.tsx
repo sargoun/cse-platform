@@ -507,6 +507,49 @@ export default async function Sonderleistungen(
                           Setzen
                         </Button>
                       </form>
+                      {/*
+                        V-325 (O-708): die Vertragszeile bis zur Abrechnung
+                        nachtragen, ändern oder lösen — ohne sie kommt der
+                        Abruf in keine Rechnung. Ohne `auftrag.lesen` ist die
+                        Liste leer, und das Feld fehlt: ein Speichern löste
+                        sonst die Zeile, die jemand anderes gesetzt hat.
+                      */}
+                      {daten.auswahl.vertragszeilen.length > 0 && (
+                        <form
+                          method="post"
+                          action="/api/reinigung/sonderleistungen"
+                          className="flex flex-wrap items-end gap-s2"
+                          data-cse="abruf-zuordnung-formular"
+                        >
+                          <input type="hidden" name="art" value="zuordnung" />
+                          <input type="hidden" name="abruf" value={a.id} />
+                          <select
+                            name="auftrag_leistung"
+                            className={`${kleinfeld} w-36`}
+                            defaultValue={a.auftragLeistungId ?? ''}
+                            aria-label={`Vertragszeile für ${a.bezeichnung}`}
+                          >
+                            <option value="">— ohne Vertragszeile —</option>
+                            {a.auftragLeistungId !== null
+                              && !daten.auswahl.vertragszeilen.some(
+                                (v) => v.id === a.auftragLeistungId) && (
+                              <option value={a.auftragLeistungId}>bisherige Vertragszeile</option>
+                            )}
+                            {vertragszeilenJeObjekt.map((g) => (
+                              <optgroup key={g.schluessel} label={g.name}>
+                                {g.zeilen.map((v) => (
+                                  <option key={v.id} value={v.id}>
+                                    {v.auftragNummer} · Pos. {v.positionNr} · {v.bezeichnung}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          <Button type="submit" variante="ghost" className="px-s3">
+                            Zuordnen
+                          </Button>
+                        </form>
+                      )}
                       <form
                         method="post"
                         action="/api/reinigung/sonderleistungen"
@@ -634,8 +677,8 @@ export default async function Sonderleistungen(
                 </strong>{' '}
                 Die Auswahl bleibt trotzdem freiwillig: ein Abruf entsteht oft
                 vor dem Nachtrag. Die Liste oben führt solche Zeilen dann als
-                offen — nachtragen lässt sich die Zuordnung noch nicht (Voreinstellung
-                O-708: bis zur Abrechnung nachtragbar, der Weg fehlt, V-325).
+                offen, und dort lässt sich die Zuordnung bis zur Abrechnung
+                nachtragen (Voreinstellung O-708).
               </span>
             </label>
             <label className="block">

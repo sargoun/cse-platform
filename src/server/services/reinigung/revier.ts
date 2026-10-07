@@ -22,6 +22,8 @@
  * zuschneiden. Die offene Frage steht im Abschlussbericht dieses PRs.
  */
 import type { SchreibKontext, LeseKontext } from '../../kontext/index.js';
+import { pruefeLeistungsanker } from '../dienstplan/leistungsanker.js';
+import { generiereSofort } from '../dienstplan/generator.js';
 import { mengeAusPostgresOderNull, type MilliMenge } from '../finanz/menge.js';
 import { berlinKalendertag } from '../zeit/dauer.js';
 import {
@@ -490,4 +492,55 @@ export async function aendereRevier(
       'Dieses Revier gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
       'revier_unbekannt', 404);
   }
+}
+
+/**
+ * **Die Leistungszeile eines Reviers** setzen, ändern oder lösen (V-352,
+ * O-927 (2), D-826).
+ *
+ * `revier.auftrag_leistung_id` stand seit 0029 samt Fremdschlüssel da, und
+ * niemand las oder schrieb sie. Seit 0519 übernimmt ein Turnus ohne eigene
+ * Zeile die seines Reviers (Voreinstellung O-927 (2), D-795); hat der Turnus
+ * eine, gilt seine. Geprüft wird der neue Anker nur, wenn er sich ändert —
+ * dieselbe Regel wie am Posten (`setzePostenLeistung`).
+ *
+ * Danach läuft der Generator sofort, wenn die Sitzung den Dienstplan
+ * schreiben darf: die künftigen Schichten ohne erfasste Zeit bekommen die
+ * Zeile, was schon Zeit trägt, behält seine. Ohne dieses Recht tut es der
+ * nächste Nachtlauf; die Rückgabe sagt, welcher Fall vorliegt.
+ */
+export async function setzeRevierLeistung(
+  kontext: SchreibKontext, revierId: string, auftragLeistungId: string | null,
+): Promise<{ readonly sofortGeplant: boolean }> {
+  const [bisher] = await kontext.abfrage<{ anker: string | null }>(
+    `select auftrag_leistung_id::text as anker from revier
+      where id = $1::uuid and archiviert_am is null`, [revierId]);
+  if (bisher === undefined) {
+    throw new RevierFehler(
+      'Dieses Revier gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
+      'revier_unbekannt', 404);
+  }
+  if (auftragLeistungId !== null && auftragLeistungId !== bisher.anker) {
+    await pruefeLeistungsanker(kontext, auftragLeistungId);
+  }
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update revier
+        set auftrag_leistung_id = $2::uuid,
+            geaendert_von = app.aktueller_benutzer(),
+            geaendert_von_art = case when app.aktueller_benutzer() is null
+                                     then 'system' else 'mensch' end::akteur_art
+      where id = $1::uuid and archiviert_am is null
+     returning id`, [revierId, auftragLeistungId]);
+  if (zeilen[0] === undefined) {
+    throw new RevierFehler(
+      'Dieses Revier gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
+      'revier_unbekannt', 404);
+  }
+  const [planung] = await kontext.abfrage<{ darf: boolean }>(
+    `select app.hat_recht('dienstplan.schreiben', app.aktiver_mandant()) as darf`);
+  if (planung?.darf !== true) return { sofortGeplant: false };
+  await generiereSofort(
+    { unsafe: (sql, werte) => kontext.schreibe<unknown>(sql, werte) },
+    kontext.aktiverMandantId);
+  return { sofortGeplant: true };
 }

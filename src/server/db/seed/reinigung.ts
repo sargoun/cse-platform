@@ -62,7 +62,7 @@ import {
   erstelleReklamation, schreibeAbstellung,
 } from '../../services/reinigung/reklamation.js';
 import {
-  erfasseAbruf, storniereAbruf,
+  erfasseAbruf, ordneVertragszeileZu, storniereAbruf,
 } from '../../services/reinigung/sonderleistung.js';
 import { erfassePruefung } from '../../services/reinigung/qualitaet.js';
 import { tagePlus } from '@/lib/datum/kalendertag';
@@ -720,6 +720,11 @@ async function seedSonderleistungen(
     readonly einheit: string | null;
     readonly status: 'angefragt' | 'beauftragt' | 'geplant' | 'erbracht';
     readonly stornoGrund: string | null;
+    /**
+     * Ohne Vertragszeile erfasst und danach nachgetragen (V-325, O-708) —
+     * der Weg, den ein Abruf vor dem Nachtrag geht.
+     */
+    readonly zeileNachtragen?: boolean;
   }[] = [
     {
       katalog: 0, bezeichnung: 'Glasreinigung Treppenhaus, aussen',
@@ -730,6 +735,7 @@ async function seedSonderleistungen(
       katalog: 1, bezeichnung: 'Sonderreinigung Kantine nach Wasserschaden',
       beauftragtVor: -6, fensterVon: 3, fensterBis: 4,
       menge: '96.000', einheit: 'm²', status: 'beauftragt', stornoGrund: null,
+      zeileNachtragen: true,
     },
     {
       katalog: 2, bezeichnung: 'Warenräumung Kellerarchiv',
@@ -761,7 +767,7 @@ async function seedSonderleistungen(
         bezeichnung: a.bezeichnung,
         beauftragtAm: tagePlus(heute, a.beauftragtVor),
         revierId: revier?.id ?? null,
-        auftragLeistungId: leistung?.id ?? null,
+        auftragLeistungId: a.zeileNachtragen === true ? null : (leistung?.id ?? null),
         beauftragtDurch: 'Objektverwaltung des Kunden',
         ausfuehrungVon: a.fensterVon === null ? null : tagePlus(heute, a.fensterVon),
         ausfuehrungBis: a.fensterBis === null ? null : tagePlus(heute, a.fensterBis),
@@ -769,6 +775,9 @@ async function seedSonderleistungen(
         einheit: a.einheit,
         status: a.status,
       });
+      if (a.zeileNachtragen === true && leistung !== undefined) {
+        await ordneVertragszeileZu(kontext, { id: neu, auftragLeistungId: leistung.id });
+      }
       if (a.stornoGrund !== null) {
         await storniereAbruf(kontext, { id: neu, grund: a.stornoGrund });
       }

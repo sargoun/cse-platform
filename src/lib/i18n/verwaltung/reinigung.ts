@@ -313,6 +313,8 @@ export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> =
       status_gesetzt: 'Der Zustand des Abrufs ist geändert — die Liste unten zeigt ihn.',
       abruf_storniert: 'Der Abruf ist storniert — mit Grund und Urheber, und nicht gelöscht.',
       zeitwert_gesetzt: 'Der Zeitwert der Katalogzeile ist gesetzt.',
+      vertragszeile_gesetzt:
+        'Die Vertragszeile des Abrufs ist gespeichert — abgerechnet wird zu ihrem Preis.',
     },
     titel: 'Nicht gespeichert.',
     sonst: 'Es wurde nichts gespeichert. Prüfen Sie die Angaben und versuchen Sie es noch '
@@ -361,6 +363,22 @@ export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> =
       abgerechnet_kein_storno:
         'Ein abgerechneter Abruf lässt sich nicht stornieren — er steht in einer '
         + 'festgeschriebenen Rechnung. Korrigiert wird durch Storno der Rechnung.',
+      zuordnung_unvollstaendig: 'Welcher Abruf gemeint ist, fehlt.',
+      zuordnung_abgerechnet:
+        'Ein abgerechneter Abruf behält seine Vertragszeile — er steht in einer '
+        + 'festgeschriebenen Rechnung (Voreinstellung O-708).',
+      zuordnung_storniert: 'Ein stornierter Abruf kommt in keine Rechnung mehr.',
+      zuordnung_in_rechnung:
+        'Der Abruf steht in einem Rechnungsentwurf, der den Preis der bisherigen '
+        + 'Vertragszeile führt. Erst den Entwurf verwerfen, dann die Zeile ändern.',
+      vertragszeile_unbekannt:
+        'Diese Vertragszeile gibt es in dieser Gesellschaft nicht, oder Ihrem Konto fehlt '
+        + 'das Recht, Aufträge zu lesen.',
+      vertragszeile_ausserhalb:
+        'Diese Vertragszeile gilt am Tag des Abrufs (Ausführung, sonst Beauftragung) nicht — '
+        + 'nach einer Preisanpassung ist es die neue Zeile.',
+      vertragszeile_auftrag_storniert:
+        'Der Auftrag dieser Vertragszeile ist storniert; er nimmt keinen Abruf an.',
       abruf_unbekannt:
         'Diesen Abruf gibt es in dieser Gesellschaft nicht mehr — die Liste zeigt den '
         + 'aktuellen Stand.',

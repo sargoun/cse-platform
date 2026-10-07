@@ -14,6 +14,14 @@ import { kennungOder404 } from '../../../../kennung';
 import {
   findeRevier, ladeZugeordneteRaeume, mitLesekontext, type RevierRaumZeile,
 } from '../../daten';
+import { Button } from '@/components/ui/Button';
+import { Hinweis } from '@/components/ui/Hinweis';
+import { LeistungsankerFeld } from '@/components/portal/LeistungsankerFeld';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { LEISTUNGSANKER_TEXTE } from '@/lib/i18n/verwaltung/leistungsanker';
+import { REVIER_FEHLER_TEXTE } from '@/lib/i18n/verwaltung/reinigung';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import { listeAnkerbareLeistungen } from '@/server/services/dienstplan/leistungsanker';
 
 /**
  * `/portal/[mandant]/reinigung/reviere/[id]` — eine Zone und ihr Rechenweg
@@ -38,13 +46,15 @@ function deutsch(wert: string | null): string {
 }
 
 export default async function RevierBlatt({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ mandant: string; id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { mandant, id } = await params;
   kennungOder404(id);
-  const zugang = await portalZugang(`/portal/${mandant}/reinigung/reviere/${id}`);
+  const pfad = `/portal/${mandant}/reinigung/reviere/${id}`;
+  const zugang = await portalZugang(pfad);
   if (zugang === null) return <AnmeldungNoetig />;
 
   const tor = await slugTor(zugang, mandant);
@@ -59,14 +69,41 @@ export default async function RevierBlatt({
      darf, sah „Räume zuordnen und neu kalkulieren" und bekam dahinter ein
      404. Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde
      auf PR 16 / D-581). */
-  const darf = await haeltRechte(sitzung, 'reinigung.schreiben');
+  const darf = await haeltRechte(sitzung, 'reinigung.schreiben', 'auftrag.lesen');
 
-  const { revier, raeume } = await mitLesekontext(sitzung, async (kontext) => ({
-    revier: await findeRevier(kontext, id),
-    raeume: await ladeZugeordneteRaeume(kontext, id),
-  }));
+  /*
+   * Die Leistungszeile des Reviers (V-352): die Auswahl nur mit
+   * `auftrag.lesen` — ohne steht ein Satz und KEIN Feld, damit kein Speichern
+   * einen Anker löst, den der Betrachter nicht sieht (LeistungsankerFeld).
+   */
+  const { revier, raeume, anker } = await mitLesekontext(sitzung, async (kontext) => {
+    const gefunden = await findeRevier(kontext, id);
+    return {
+      revier: gefunden,
+      raeume: await ladeZugeordneteRaeume(kontext, id),
+      anker: gefunden !== null && darf['reinigung.schreiben'] === true
+        && darf['auftrag.lesen'] === true
+        ? await listeAnkerbareLeistungen(kontext, gefunden.auftragLeistungId) : null,
+    };
+  });
   // AUT-06: eine fremde Zone ist nicht vorhanden, nicht verboten.
   if (revier === null) notFound();
+
+  /*
+   * Rückweg der Route (`aktion=leistung`): ein abgewiesener Anker als Grund
+   * aus `LEISTUNGSANKER_TEXTE`, ein Revierfehler aus `REVIER_FEHLER_TEXTE` —
+   * nur als eigener Eintrag nachgeschlagen, nie das Wort aus der Adresse.
+   */
+  const suche = await searchParams;
+  const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
+  const tF = nachSprache(REVIER_FEHLER_TEXTE, zugang.sprache);
+  const fehler = typeof suche['fehler'] === 'string' ? suche['fehler'] : null;
+  const fehlerText = fehler === null ? null
+    : (eigenerEintrag(tL.fehler, fehler) ?? eigenerEintrag(tF.fehler, fehler) ?? tL.fehlerSonst);
+  const gesetzt = fehler === null
+    ? (suche['leistung'] === 'gesetzt' ? tL.gesetzt
+      : suche['leistung'] === 'nachtlauf' ? tL.gesetztNachtlauf : null)
+    : null;
 
   const stimmt = revier.summeRaeume === null
     ? raeume.length === 0
@@ -187,6 +224,46 @@ export default async function RevierBlatt({
             },
           ]}
         />
+      )}
+
+      {/*
+        **Die Leistungszeile des Reviers** (V-352, O-927 (2)). Ein Turnus ohne
+        eigene Zeile übernimmt sie; nach dem Speichern schreibt der Generator
+        sie auf die künftigen Schichten ohne erfasste Zeit.
+      */}
+      {darf['reinigung.schreiben'] === true && (
+        <section data-cse="revier-leistung"
+                 className="mt-s6 rounded-lg border border-line bg-surface p-s5">
+          <h2 className="mb-s3 mt-0 text-h3 text-text">{tL.feld}</h2>
+          {fehlerText !== null && (
+            <Hinweis art="warnung" rolle="alert" cse="revier-leistung-fehler"
+                     className="mb-s4 max-w-prose">
+              {fehlerText}
+            </Hinweis>
+          )}
+          {gesetzt !== null && (
+            <Hinweis art="erfolg" rolle="status" cse="revier-leistung-gesetzt"
+                     className="mb-s4 max-w-prose">
+              {gesetzt}
+            </Hinweis>
+          )}
+          <form method="post" action="/api/reinigung/reviere"
+                className="flex max-w-[60ch] flex-col gap-s4">
+            <input type="hidden" name="aktion" value="leistung" />
+            <input type="hidden" name="id" value={revier.id} />
+            <input type="hidden" name="zurueck" value={pfad} />
+            <LeistungsankerFeld leistungen={anker} gewaehlt={revier.auftragLeistungId}
+                                sprache={zugang.sprache} erklaerung={tL.revierErklaerung}
+                                feldKlasse="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 py-s2 text-sm text-text" />
+            {anker !== null && (
+              <div>
+                <Button type="submit" variante="secondary" data-cse="revier-leistung-knopf">
+                  {tL.speichern}
+                </Button>
+              </div>
+            )}
+          </form>
+        </section>
       )}
     </PortalRahmen>
   );

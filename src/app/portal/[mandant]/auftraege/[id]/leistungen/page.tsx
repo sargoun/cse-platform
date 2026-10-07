@@ -27,10 +27,11 @@ import { haeltRechte } from '@/app/portal/rechte';
  * `/portal/[mandant]/auftraege/[id]/leistungen` — die Leistungszeilen eines
  * Auftrags (V-360, O-921, D-825).
  *
- * Lesen mit `auftrag.lesen`, anlegen und beenden mit `auftrag.schreiben`
- * (die Policy aus 0050). Ohne Schreibrecht steht ein Satz statt der
- * Formulare (AUT-06). Aus einem Angebot kommen die Zeilen bei der Annahme;
- * eine beendete Zeile bleibt mit ihrem letzten Tag stehen.
+ * Lesen mit `auftrag.lesen`, anlegen, im Preis anpassen und beenden mit
+ * `auftrag.schreiben` (die Policy aus 0050). Ohne Schreibrecht steht ein Satz
+ * statt der Formulare (AUT-06). Aus einem Angebot kommen die Zeilen bei der
+ * Annahme; eine beendete Zeile bleibt mit ihrem letzten Tag stehen, eine
+ * ersetzte nennt ihre Nachfolgerin (D-826).
  */
 export const dynamic = 'force-dynamic';
 
@@ -162,21 +163,41 @@ export default async function Leistungszeilen(
                       <span className="block text-xs text-text-muted">{z.beschreibung}</span>
                     )}
                     {darfSchreiben && pflegbar && z.gueltigBis === null && (
-                      <form method="post" action="/api/auftrag/leistungen"
-                            data-cse="leistungszeile-beenden"
-                            aria-label={`${t.beendenTitel}: ${z.bezeichnung}`}
-                            className="mt-s2 flex flex-wrap items-end gap-s2">
-                        <input type="hidden" name="vorgang" value="beenden" />
-                        <input type="hidden" name="auftragId" value={k.id} />
-                        <input type="hidden" name="zeileId" value={z.id} />
-                        <input type="hidden" name="zurueck" value={pfad} />
-                        <label className="flex flex-col gap-s1 text-xs text-text-muted">
-                          {t.beendenZum}
-                          <input type="date" name="gueltigBis" required min={z.gueltigAb}
-                                 className={FELD} />
-                        </label>
-                        <Button type="submit" variante="ghost">{t.beendenKnopf}</Button>
-                      </form>
+                      <>
+                        <form method="post" action="/api/auftrag/leistungen"
+                              data-cse="leistungszeile-preis"
+                              aria-label={`${t.preisTitel}: ${z.bezeichnung}`}
+                              className="mt-s2 flex flex-wrap items-end gap-s2">
+                          <input type="hidden" name="vorgang" value="preis" />
+                          <input type="hidden" name="auftragId" value={k.id} />
+                          <input type="hidden" name="zeileId" value={z.id} />
+                          <input type="hidden" name="zurueck" value={pfad} />
+                          <label className="flex flex-col gap-s1 text-xs text-text-muted">
+                            {t.preisNeu}
+                            <input name="neuerPreis" required inputMode="decimal" className={FELD} />
+                          </label>
+                          <label className="flex flex-col gap-s1 text-xs text-text-muted">
+                            {t.preisAb}
+                            <input type="date" name="stichtag" required className={FELD} />
+                          </label>
+                          <Button type="submit" variante="secondary">{t.preisKnopf}</Button>
+                        </form>
+                        <form method="post" action="/api/auftrag/leistungen"
+                              data-cse="leistungszeile-beenden"
+                              aria-label={`${t.beendenTitel}: ${z.bezeichnung}`}
+                              className="mt-s2 flex flex-wrap items-end gap-s2">
+                          <input type="hidden" name="vorgang" value="beenden" />
+                          <input type="hidden" name="auftragId" value={k.id} />
+                          <input type="hidden" name="zeileId" value={z.id} />
+                          <input type="hidden" name="zurueck" value={pfad} />
+                          <label className="flex flex-col gap-s1 text-xs text-text-muted">
+                            {t.beendenZum}
+                            <input type="date" name="gueltigBis" required min={z.gueltigAb}
+                                   className={FELD} />
+                          </label>
+                          <Button type="submit" variante="ghost">{t.beendenKnopf}</Button>
+                        </form>
+                      </>
                     )}
                   </td>
                   <td className="p-s2 text-right tabular-nums">
@@ -200,7 +221,16 @@ export default async function Leistungszeilen(
                       <span className="block text-xs">{t.beendet}</span>
                     )}
                   </td>
-                  <td className="p-s2 text-xs">{z.ausAngebot ? t.ausAngebot : t.vonHand}</td>
+                  <td className="p-s2 text-xs">
+                    {z.ersetztPosition !== null
+                      ? setzeEin(t.ersetzt, { nr: String(z.ersetztPosition) })
+                      : (z.ausAngebot ? t.ausAngebot : t.vonHand)}
+                    {z.ersetztDurchPosition !== null && (
+                      <span className="block text-text-muted" data-cse="leistungszeile-ersetzt">
+                        {setzeEin(t.ersetztDurch, { nr: String(z.ersetztDurchPosition) })}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

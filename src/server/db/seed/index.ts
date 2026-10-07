@@ -1803,6 +1803,14 @@ async function main(): Promise<void> {
     + `Leistungszeilen, ${String(auftrag.verankerteTurnusse)} Turnusse und `
     + `${String(auftrag.verankerteEinsaetze)} Einsaetze verankert (Preise: Demowerte)\n`,
   );
+  if (auftrag.preisanpassungAb !== null || auftrag.revieranker > 0) {
+    process.stdout.write(
+      `  Leistungskette: ${auftrag.preisanpassungAb === null ? 'keine neue Preisanpassung'
+        : `Preisanpassung der Unterhaltsreinigung ab ${auftrag.preisanpassungAb} als `
+          + 'Nachfolgezeile (Voreinstellung O-921, D-826)'}, `
+      + `${String(auftrag.revieranker)} Revier mit Leistungszeile (O-927, V-352)\n`,
+    );
+  }
 
   /**
    * Und zuletzt die Einteilung samt erfasster Zeit — sie braucht den Plan UND

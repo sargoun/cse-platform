@@ -18,6 +18,19 @@ export type LeistungsankerAbweisung = (typeof LEISTUNGSANKER_GRUENDE)[number];
 export interface LeistungsankerTexte {
   readonly feld: string;
   readonly ohne: string;
+  /**
+   * „ohne" an einem Turnus (V-352): ohne eigene Zeile gilt die seines
+   * Reviers (Voreinstellung O-927 (2)) — „an keiner Abrechnung" stimmte dort
+   * nicht mehr.
+   */
+  readonly ohneTurnus: string;
+  /** Unter dem Feld am Revier: wer die Zeile übernimmt (V-352). */
+  readonly revierErklaerung: string;
+  /**
+   * Nach dem Speichern am Revier ohne Recht, den Dienstplan zu schreiben: die
+   * Schichten bekommen die Zeile mit dem nächsten Nachtlauf (V-352).
+   */
+  readonly gesetztNachtlauf: string;
   readonly position: string;
   /** Hinter einer Zeile, die nur als bisheriger Anker dasteht und nicht neu wählbar ist. */
   readonly nichtWaehlbar: string;
@@ -54,6 +67,16 @@ export const LEISTUNGSANKER_TEXTE: Readonly<Record<InternSprache, Leistungsanker
   de: {
     feld: 'Leistungszeile (Abrechnung)',
     ohne: 'ohne Leistungszeile — die Zeit hängt an keiner Abrechnung',
+    ohneTurnus:
+      'ohne eigene Leistungszeile — es gilt die des Reviers; hat es keine, hängt die Zeit an '
+      + 'keiner Abrechnung',
+    revierErklaerung:
+      'Jeder Turnus dieses Reviers ohne eigene Leistungszeile übernimmt diese (Voreinstellung '
+      + 'O-927); hat ein Turnus eine eigene, gilt seine. Künftige Schichten ohne erfasste Zeit '
+      + 'bekommen sie, schon erfasste Zeit behält, was sie hatte.',
+    gesetztNachtlauf:
+      'Die Leistungszeile ist gespeichert. Die künftigen Schichten bekommen sie mit dem '
+      + 'nächsten Nachtlauf der Planung — diese Sitzung darf den Dienstplan nicht schreiben.',
     position: 'Pos.',
     nichtWaehlbar: 'nicht wählbar',
     bisherNichtGelistet: 'bisherige Leistungszeile (bleibt, wie sie ist)',
@@ -106,6 +129,16 @@ export const LEISTUNGSANKER_TEXTE: Readonly<Record<InternSprache, Leistungsanker
   en: {
     feld: 'Leistungszeile (billing line)',
     ohne: 'no Leistungszeile — the time is not attached to any billing',
+    ohneTurnus:
+      'no own Leistungszeile — the one of the Revier applies; without one the time is not '
+      + 'attached to any billing',
+    revierErklaerung:
+      'Every Turnus of this Revier without its own Leistungszeile takes over this one (default '
+      + 'O-927); a Turnus with its own keeps it. Future shifts without recorded time get it, '
+      + 'time already recorded keeps what it had.',
+    gesetztNachtlauf:
+      'The Leistungszeile is saved. Future shifts get it with the next nightly planning run — '
+      + 'this session may not write the roster.',
     position: 'item',
     nichtWaehlbar: 'not selectable',
     bisherNichtGelistet: 'current Leistungszeile (stays as it is)',

@@ -7,7 +7,7 @@ import type { PortalSprache } from '@/lib/i18n/texte';
 
 /**
  * Das Feld „Leistungszeile" — der Abrechnungsanker einer Schicht, eines
- * Turnus oder eines Postens (TIM-12, V-191).
+ * Turnus, eines Reviers oder eines Postens (TIM-12, V-191, V-352).
  *
  * Ein Baustein und keine Abschrift je Seite: sieben Masken setzen denselben
  * Anker (Einzelschicht anlegen und Schichtblatt, zwei Turnusmasken,
@@ -31,7 +31,7 @@ import type { PortalSprache } from '@/lib/i18n/texte';
  * Uhrzeit.
  */
 export function LeistungsankerFeld({
-  leistungen, gewaehlt, sprache, feldKlasse, name = 'auftrag_leistung',
+  leistungen, gewaehlt, sprache, feldKlasse, name = 'auftrag_leistung', ohne, erklaerung,
 }: {
   /** `null`: der Betrachter darf Aufträge nicht lesen — dann kein Feld. */
   readonly leistungen: readonly AnkerbareLeistung[] | null;
@@ -39,6 +39,13 @@ export function LeistungsankerFeld({
   readonly sprache: PortalSprache | InternSprache | null | undefined;
   readonly feldKlasse: string;
   readonly name?: string;
+  /**
+   * Was „ohne" an dieser Stelle heisst — am Turnus gilt dann die Zeile des
+   * Reviers (`ohneTurnus`, V-352). Ohne Angabe der allgemeine Satz.
+   */
+  readonly ohne?: string;
+  /** Der Satz unter dem Feld, wenn es Zeilen gibt — ohne Angabe der allgemeine. */
+  readonly erklaerung?: string;
 }) {
   const t = nachSprache(LEISTUNGSANKER_TEXTE, sprache);
   if (leistungen === null) {
@@ -54,7 +61,7 @@ export function LeistungsankerFeld({
       {t.feld}
       <select name={name} className={feldKlasse} defaultValue={gewaehlt ?? ''}
               data-cse="leistungsanker">
-        <option value="">{t.ohne}</option>
+        <option value="">{ohne ?? t.ohne}</option>
         {fehlt && gewaehlt !== null && (
           <option value={gewaehlt} data-cse="leistungsanker-bisher">{t.bisherNichtGelistet}</option>
         )}
@@ -68,7 +75,7 @@ export function LeistungsankerFeld({
         ))}
       </select>
       <span className="text-xs text-text-muted">
-        {leistungen.length === 0 ? t.keineZeilen : t.erklaerung}
+        {leistungen.length === 0 ? t.keineZeilen : (erklaerung ?? t.erklaerung)}
       </span>
     </label>
   );
