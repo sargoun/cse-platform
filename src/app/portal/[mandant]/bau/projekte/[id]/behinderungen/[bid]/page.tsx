@@ -14,6 +14,9 @@ import {
 import {
   BEHINDERUNG_GRUND_KURZ, BEHINDERUNG_PILLE, BEHINDERUNG_STATUS_TEXT,
 } from '../../../../nachtrag-anzeige';
+import { ladeWitterungsbelege, type WitterungsBeleg } from '@/server/services/bau/bautagebuch';
+import { tagDeutsch } from '@/lib/datum/kalendertag';
+import { haeltRechte } from '@/app/portal/rechte';
 import { AnmeldungNoetig } from '../../../../../../Anmeldung';
 import { portalZugang } from '../../../../../../zugang';
 import { slugTor } from '../../../../../../unterseite';
@@ -60,12 +63,20 @@ export default async function BehinderungDetail(
   const { sitzung } = zugang;
   if (sitzung.aktiverMandantId === null) notFound();
 
-  const b = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, sitzung, async (kontext) => findeBehinderung(kontext, bid)),
-  ) as Promise<BehinderungZeile | null>);
+  const gelesen = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
+    withTenant(tx, sitzung, async (kontext) => {
+      const zeile = await findeBehinderung(kontext, bid);
+      return zeile === null ? null
+        : { b: zeile, belege: await ladeWitterungsbelege(kontext, bid) };
+    }),
+  ) as Promise<{ b: BehinderungZeile; belege: readonly WitterungsBeleg[] } | null>);
 
   // AUT-06: eine fremde Anzeige ist nicht vorhanden, nicht verboten.
-  if (b === null) notFound();
+  if (gelesen === null) notFound();
+  const { b, belege } = gelesen;
+  /* Die Bautagseite verlangt `bau.schreiben` (Seitenkarte); ohne das Recht
+     steht der Tag als Text da, nicht als Verweis auf ein 404 (AUT-06). */
+  const darfBautag = (await haeltRechte(sitzung, 'bau.schreiben'))['bau.schreiben'] === true;
 
   const heute = await berlinHeute();
   const abgesendet = b.angezeigt_lokal !== null;
@@ -114,6 +125,45 @@ export default async function BehinderungDetail(
             && ' Seit dem Versand unveränderlich — eine Korrektur ist eine neue Anzeige,'
               + ' keine Änderung an dieser.'}
         </p>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* V-328: die Witterungsbelege aus dem Bautagebuch (BAU-06).           */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="mb-s6" data-cse="witterungsbelege">
+        <h2 className="mb-s2 text-h3 text-text">Witterungsbelege aus dem Bautagebuch</h2>
+        <p className="m-0 mb-s3 max-w-prose text-sm text-text-muted">
+          Die Bautage dieses Projekts zwischen Beginn und Ende der Behinderung, an denen die
+          Bauleitung die Witterung als arbeitsbehindernd gekennzeichnet hat — mit den Werten,
+          wie sie angeheftet wurden. Sie stehen neben dem Anzeigetext, nicht in ihm.
+        </p>
+        {belege.length === 0 ? (
+          <p className="m-0 text-sm text-text-muted" data-cse="witterungsbelege-leer">
+            Kein Bautag in diesem Zeitraum ist als arbeitsbehindernde Witterung gekennzeichnet.
+          </p>
+        ) : (
+          <ul className="m-0 flex list-none flex-col gap-s2 p-0">
+            {belege.map((w) => (
+              <li key={w.bautagebuchId}
+                  className="rounded-lg border border-line bg-surface p-s4 text-sm text-text">
+                {darfBautag ? (
+                  <Link href={`/portal/${mandant}/bau/projekte/${id}/bautagebuch/${w.datum}`}
+                        className="text-text underline-offset-2 hover:text-brand hover:underline">
+                    {tagDeutsch(w.datum)}
+                  </Link>
+                ) : tagDeutsch(w.datum)}
+                {' · '}
+                {w.wetterQuelle === 'keine' ? 'Wetterdaten nicht verfügbar'
+                  : `${w.temperaturMinC ?? '—'} bis ${w.temperaturMaxC ?? '—'} °C · `
+                    + `${w.niederschlagMm ?? '—'} mm`}
+                {w.wetterNotiz !== null && <span className="text-text-muted"> · {w.wetterNotiz}</span>}
+                {!w.abgeschlossen && (
+                  <span className="text-text-muted"> · Bautag noch offen</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* ------------------------------------------------------------------ */}

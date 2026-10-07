@@ -25163,7 +25163,7 @@ nicht gebaut ist (V-323 bis V-328). Jede Zeile ist gegen den Dienst gelesen.
 | O-153 | `neue_version_oeffnet_pflicht = true`: jede neue Fassung einer Dienstanweisung verlangt eine neue Bestätigung; wer die Anweisung veröffentlicht (`security.schreiben`), kann es je Anweisung abschalten. Eine Sperre folgt daraus nicht (O-241 bleibt). Wie gebaut. | `security/dienstanweisung.ts` |
 | O-155 | Sechs Positionsarten (unbestimmt, Normal-, Bedarfs-, Alternativ-, Zuschlags-, Grundposition); Normal-, Zuschlags- und Grundposition zählen in die Auftragssumme, Bedarfs- und Alternativposition nicht, eine unbestimmte zählt wie eine Normalposition (03-GEWERKE §3.3, `zaehltPositionsartInSumme`). Wie gebaut. | `bau/lv.ts`, `bau/lv-quelle.ts` |
 | O-157 | Ein Bautagebuch je Projekt (Baustelle), ein lebender Tag je Kalendertag (`bautagebuch_tag_uk`); Bauabschnitte stehen im Text des Tages. Wie gebaut. | `bau/bautagebuch.ts` |
-| O-158 | Keine Schwelle: ob Witterung arbeitsbehindernd war, entscheidet die Bauleitung am Tag (`arbeitsbehindernde_witterung`, 0083), die DWD-Werte stehen daneben. Ein Eingabeweg für das Kennzeichen fehlt (V-328). | `bau/bautagebuch.ts`, `drizzle/0083` |
+| O-158 | Keine Schwelle: ob Witterung arbeitsbehindernd war, entscheidet die Bauleitung am Tag (`arbeitsbehindernde_witterung`, 0083), die DWD-Werte stehen daneben. Gesetzt wird das Kennzeichen am offenen Tag auf der Bautagseite, die Behinderungsanzeige liest die Belege — gebaut mit V-328 (D-808). | `bau/bautagebuch.ts`, `drizzle/0083` |
 | O-160 | Der Materialverbrauch wird je Auftrag und Tag erfasst (Artikel, Menge, Einheit) und ist die vierte Quelle einer Rechnungsposition (`materialverbrauch_id`, 0066); die Tabelle `materialverbrauch` fehlt (V-324). | `finanz/positionsquelle.ts` |
 | O-161 | `wiedergefunden` führt den Schlüssel in den Bestand zurück und schliesst nichts sonst: einen Haftungsfall kennt die Plattform nicht als Objekt, ob ein beauftragter Schlosswechsel damit erledigt ist, entscheidet der Kunde; eine `sperrung` bleibt bis zur `entsperrung`. Wie gebaut (0079). | `security/schluessel.ts` |
 | O-708 | Die Vertragszeile eines Abrufs lässt sich bis zur Abrechnung nachtragen oder ändern, danach nicht mehr; der Nachtragsweg fehlt (V-325), die Liste führt solche Abrufe als offen. | `reinigung/sonderleistung.ts`, Reinigung › Sonderleistungen |
@@ -26168,12 +26168,13 @@ die Bewerberfrist ab der Absage (O-373, D-797).
 | Betrifft | V-393, V-331, V-365; O-512, O-79, O-373; `drizzle/0498_bewerberfrist_ab_absage.sql`, `src/app/(public)/karriere/**`, `src/app/(public)/en/karriere/**`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/sitemap.ts`, `src/lib/sprache.ts`, `src/lib/oeffentliche-navigation.ts`, `src/server/services/konto/sitzungen.ts`, `src/app/api/konto/sitzung/route.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/lib/i18n/konto.ts`, `docs/DESIGN.md`, `src/server/services/reinigung/qualitaet.ts`, `src/server/db/seed/{bau,index}.ts` |
 |---|---|
 
-### D-808 · Bauwelle 4: Erfassung bis Schichtende plus Ausstempeltoleranz, Nachtragswache ohne Bauleitung, Rücknahme einer Abwesenheit meldet sich (V-326, V-381, V-353)
+### D-808 · Bauwelle 4: Erfassung bis Schichtende plus Ausstempeltoleranz, Nachtragswache ohne Bauleitung, Rücknahme einer Abwesenheit meldet sich, Witterungskennzeichen im Bautagebuch (V-326, V-381, V-353, V-328)
 
-**Der Anlass.** Drei Voreinstellungen standen beschlossen und ungebaut: die
+**Der Anlass.** Vier Voreinstellungen standen beschlossen und ungebaut: die
 Erfassung bis Schichtende plus Ausstempeltoleranz (O-740, D-789), der
-Ersatzempfänger der Nachtragswache (O-30, D-800) und die Meldung einer
-Selbstrücknahme an die Personalstelle (O-895, D-795).
+Ersatzempfänger der Nachtragswache (O-30, D-800), die Meldung einer
+Selbstrücknahme an die Personalstelle (O-895, D-795) und das
+Witterungskennzeichen im Bautagebuch (O-158, D-789).
 
 **Was gebaut ist.**
 - **Schichtende plus Ausstempeltoleranz (V-326).** 0499:
@@ -26211,6 +26212,17 @@ Selbstrücknahme an die Personalstelle (O-895, D-795).
   Abwesenheiten entscheiden und lesen. `cse_app` behält kein INSERT auf
   `benachrichtigung` (0266). Die Route meldet in derselben Transaktion wie die
   Rücknahme; die Meldung nennt Person und Zeitraum, nie die Art (Art. 9 DSGVO).
+- **Witterungskennzeichen im Bautagebuch (V-328).** Die Bautagseite setzt
+  `arbeitsbehindernde_witterung` am offenen Tag — arbeitsbehindernd, nicht
+  arbeitsbehindernd oder nicht beurteilt (`vorgang=witterung`,
+  `setzeWitterung`); eine Schwelle gibt es nicht. Die Behinderungsanzeige
+  zeigt die Witterungsbelege: die lebenden, gekennzeichneten Bautage ihres
+  Projekts zwischen Beginn und Ende, mit den angehefteten Werten
+  (`ladeWitterungsbelege`, Zeitraum aus der Zeile der Behinderung). Dabei
+  fiel auf, dass `kern.bautagebuch_einfrieren` (0082) die Wetterspalten aus
+  0083 nie kannte: ein geschlossener Tag liess sich im Wetter noch ändern.
+  0501 nimmt die zehn Spalten ins Einfrieren auf; Wetterlauf und Anheften
+  schreiben ohnehin nur offene Tage.
 
 **Voreinstellungen** (Regel 1, D-778).
 
@@ -26220,12 +26232,14 @@ Selbstrücknahme an die Personalstelle (O-895, D-795).
 | O-211 | Die Wache sieht Kontrollpunkte, Dienstanweisung und Zutritt bis zum Ende der Ausstempeltoleranz nach ihrer letzten Schicht — eine Grenze mit der Erfassung (O-740). | `drizzle/0499` |
 | O-30 | Ohne Bauleitung an alle, die in der Gesellschaft Nachträge einreichen dürfen — wie D-800, jetzt gebaut. | `jobs/nachtragWache.ts` |
 | O-895 | Jede Selbstrücknahme meldet sich bei der Personalstelle — wie D-795, jetzt gebaut. | `drizzle/0500`, `abwesenheit/benachrichtigung.ts` |
+| O-158 | Keine Schwelle: die Bauleitung kennzeichnet die Witterung am Tag, die DWD-Werte stehen daneben — wie D-789, jetzt gebaut. | `bau/bautagebuch.ts`, `drizzle/0501` |
 
 **Prüfung.** `tests/isolation/mitarbeiterportal-schicht.test.ts`,
 `tests/isolation/mein-dokumente-objekte.test.ts`, `tests/isolation/bau-nachtrag.test.ts`,
-`tests/isolation/abwesenheit-ruecknahme.test.ts` (in der CI),
-`tests/kern/mein-ruecknahme-route.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`tests/isolation/abwesenheit-ruecknahme.test.ts`, `tests/isolation/bau-bautagebuch.test.ts`
+(in der CI), `tests/kern/mein-ruecknahme-route.test.ts`,
+`tests/kern/bautagebuch-witterung-route.test.ts`, `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
-| Betrifft | V-326, V-381, V-353; O-740, O-211, O-852, O-853, O-30, O-895; `drizzle/0499_schichtende_toleranz.sql`, `drizzle/0500_abwesenheit_ruecknahme_melden.sql`, `src/server/services/mitarbeiter/schichten.ts`, `src/app/portal/mein/bausteine.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,leistungsnachweis,fotos,bautagebuch}/page.tsx`, `src/lib/i18n/texte.ts`, `src/server/jobs/nachtragWache.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/server/services/abwesenheit/benachrichtigung.ts`, `src/app/api/mein/abwesenheit/[id]/zurueckziehen/route.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts` |
+| Betrifft | V-326, V-381, V-353, V-328; O-740, O-211, O-852, O-853, O-30, O-895, O-158; `drizzle/0499_schichtende_toleranz.sql`, `drizzle/0500_abwesenheit_ruecknahme_melden.sql`, `src/server/services/mitarbeiter/schichten.ts`, `src/app/portal/mein/bausteine.tsx`, `src/app/portal/mein/schichten/[zuordnungId]/{wachbuch,leistungsnachweis,fotos,bautagebuch}/page.tsx`, `src/lib/i18n/texte.ts`, `src/server/jobs/nachtragWache.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/server/services/abwesenheit/benachrichtigung.ts`, `src/app/api/mein/abwesenheit/[id]/zurueckziehen/route.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `drizzle/0501_bautag_wetter_einfrieren.sql`, `src/server/services/bau/bautagebuch.ts`, `src/app/api/bau/bautagebuch/route.ts`, `src/app/portal/[mandant]/bau/projekte/[id]/bautagebuch/[datum]/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/behinderungen/[bid]/page.tsx` |
 |---|---|

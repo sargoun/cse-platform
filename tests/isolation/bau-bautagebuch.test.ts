@@ -37,7 +37,8 @@ import {
 import {
   BautagebuchFehler, ersetzeBautag, findeBautagZuDatum, gleicheMannstundenAb,
   hefteMannstundenAn, heftePositionAn, hefteTagesfotoAn, korrigiereMannstunden, legeBautagAn,
-  leseMannstunden, lesePositionen, leseTagesfotos, schliesseBautag,
+  leseMannstunden, lesePositionen, leseTagesfotos, ladeWitterungsbelege, schliesseBautag,
+  setzeWitterung,
 } from '../../src/server/services/bau/bautagebuch.js';
 
 let f: Fixtur;
@@ -740,3 +741,82 @@ describe('(3) die Mannstunden werden gegen `zeiteintrag` gehalten — und Abweic
         });
       });
   });
+
+/* ===========================================================================
+ * V-328 — das Witterungskennzeichen: gesetzt am offenen Tag, danach fest,
+ * und die Behinderungsanzeige liest die Belege (O-158, BAU-06, D-808)
+ * ======================================================================== */
+describe('V-328 — arbeitsbehindernde Witterung', () => {
+  async function kennzeichen(id: string): Promise<boolean | null> {
+    const [z] = await sql.unsafe<{ w: boolean | null }[]>(
+      `select arbeitsbehindernde_witterung as w from bautagebuch where id = $1`, [id]);
+    return z!.w;
+  }
+
+  it('die Bauleitung setzt es am offenen Tag — ja, nein und wieder „nicht beurteilt"', async () => {
+    const bau = await baueBaustelle(f.bau);
+    await alsBauleitung(bau, async (k) => {
+      const tag = await legeBautagAn(k, { projektId: bau.projekt, datum: '2026-08-10' });
+      await setzeWitterung(k, { bautagebuchId: tag, behindernd: true });
+      expect((await findeBautagZuDatum(k, bau.projekt, '2026-08-10'))!
+        .arbeitsbehindernde_witterung).toBe(true);
+      await setzeWitterung(k, { bautagebuchId: tag, behindernd: false });
+      expect(await kennzeichen(tag)).toBe(false);
+      await setzeWitterung(k, { bautagebuchId: tag, behindernd: null });
+      expect(await kennzeichen(tag)).toBeNull();
+    });
+  });
+
+  it('am geschlossenen Tag steht es fest — auch am Dienst vorbei (0501)', async () => {
+    const bau = await baueBaustelle(f.bau);
+    const tag = await alsBauleitung(bau, async (k) => {
+      const id = await legeBautagAn(k, { projektId: bau.projekt, datum: '2026-08-11' });
+      await setzeWitterung(k, { bautagebuchId: id, behindernd: true });
+      await schliesseBautag(k, id);
+      return id;
+    });
+    await expect(alsBauleitung(bau, (k) =>
+      setzeWitterung(k, { bautagebuchId: tag, behindernd: false })))
+      .rejects.toMatchObject({ code: 'tag_abgeschlossen' });
+    // Selbst der Eigentümer der Tabelle ändert weder Kennzeichen noch Wetter.
+    await expect(sql.unsafe(
+      `update bautagebuch set arbeitsbehindernde_witterung = false where id = $1`, [tag]))
+      .rejects.toThrow(/unveraenderlich/u);
+    await expect(sql.unsafe(
+      `update bautagebuch set wetter_notiz = 'nachgetragen' where id = $1`, [tag]))
+      .rejects.toThrow(/unveraenderlich/u);
+    expect(await kennzeichen(tag)).toBe(true);
+  });
+
+  it('die Behinderungsanzeige liest die gekennzeichneten, lebenden Tage ihres Zeitraums', async () => {
+    const bau = await baueBaustelle(f.bau);
+    const [h] = await sql.unsafe<{ id: string }[]>(
+      `insert into behinderung (mandant_id, projekt_id, nummer, grund_kategorie, ursache,
+                                beginn_am, ende_am)
+       values ($1, $2, $3, 'hoehere_gewalt', 'Starkregen', '2026-08-03', '2026-08-07')
+       returning id`, [bau.mandant, bau.projekt, `BH-${zufall()}`] as never[]);
+
+    const belege = await alsBauleitung(bau, async (k) => {
+      const tag = async (datum: string, behindernd: boolean | null): Promise<string> => {
+        const id = await legeBautagAn(k, { projektId: bau.projekt, datum });
+        if (behindernd !== null) await setzeWitterung(k, { bautagebuchId: id, behindernd });
+        return id;
+      };
+      await tag('2026-08-02', true);                 // vor dem Beginn
+      await tag('2026-08-04', true);                 // Beleg
+      await tag('2026-08-05', false);                // nicht behindernd
+      const irrtum = await tag('2026-08-06', true);  // storniert: belegt nichts
+      await ersetzeBautag(k, { bautagebuchId: irrtum, grund: 'Falsches Datum erfasst' });
+      const zu = await tag('2026-08-07', true);      // Beleg, geschlossen
+      await schliesseBautag(k, zu);
+      return ladeWitterungsbelege(k, h!.id);
+    });
+    expect(belege.map((b) => [b.datum, b.abgeschlossen])).toEqual([
+      ['2026-08-04', false],
+      ['2026-08-07', true],
+    ]);
+    // Ein fremdes Projekt und eine unbekannte Kennung belegen nichts.
+    const leer = await alsBauleitung(bau, (k) => ladeWitterungsbelege(k, randomUUID()));
+    expect(leer).toEqual([]);
+  });
+});

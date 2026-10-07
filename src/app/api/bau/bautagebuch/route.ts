@@ -15,6 +15,7 @@ import {
   BautagebuchFehler, ersetzeBautag, findeOderLegeBautagAn, gegenzeichneBautag,
   hefteMannstundenAn, hefteTagesfotoAn, heftePositionAn, istHerkunft,
   istPositionArt, korrigiereMannstunden, korrigierePosition, schliesseBautag,
+  setzeWitterung,
 } from '@/server/services/bau/bautagebuch';
 import { alsAntwort } from './antwort';
 
@@ -112,7 +113,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const vorgang = feld('vorgang') === '' ? 'tag' : feld('vorgang');
   const ERLAUBT = [
     'tag', 'mannstunden', 'position', 'korrektur_mannstunden', 'korrektur_position',
-    'abschluss', 'gegenzeichnung', 'ersatztag',
+    'abschluss', 'gegenzeichnung', 'ersatztag', 'witterung',
   ];
   if (!ERLAUBT.includes(vorgang)) {
     return fehlerAntwort('ungueltige_eingabe', `Unbekannter Vorgang „${vorgang}".`, 422);
@@ -212,6 +213,22 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
               bautagebuchId: bautagId, grund: feld('grund'),
             });
             break;
+          case 'witterung': {
+            /*
+             * Drei Werte (V-328): `ja`, `nein` und leer — „nicht beurteilt".
+             * Alles andere ist kein Wert und wird nicht still zu `null`.
+             */
+            const w = feld('witterung');
+            if (w !== 'ja' && w !== 'nein' && w !== '') {
+              throw new BautagebuchFehler('ungueltige_eingabe',
+                'Die Witterung ist arbeitsbehindernd (ja), nicht arbeitsbehindernd (nein) '
+                + 'oder nicht beurteilt (leer).');
+            }
+            await setzeWitterung(kontext, {
+              bautagebuchId: bautagId, behindernd: w === '' ? null : w === 'ja',
+            });
+            break;
+          }
           default:
             throw new BautagebuchFehler('ungueltige_eingabe', 'Unbekannter Vorgang.');
         }

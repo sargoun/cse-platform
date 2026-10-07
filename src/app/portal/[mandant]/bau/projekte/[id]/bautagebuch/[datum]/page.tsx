@@ -290,6 +290,44 @@ export default async function Bautag(
             <Button type="submit" variante="secondary">Wetter vom DWD nachtragen</Button>
           </form>
         )}
+
+        {/* V-328, O-158: ob die Witterung die Arbeit behindert hat, sagt die
+            Bauleitung am Tag — die Werte oben stehen daneben, eine Schwelle
+            gibt es nicht. Ein „ja" ist ein Beleg der Behinderungsanzeige
+            (BAU-06). Am geschlossenen Tag steht das Kennzeichen fest (0501). */}
+        {kopf !== null && (
+          <div className="mt-s4 border-t border-line pt-s4" data-cse="witterung">
+            <h3 className="m-0 mb-s2 text-base text-text">Arbeitsbehindernde Witterung</h3>
+            <p className="m-0 mb-s3 max-w-prose text-sm text-text-muted">
+              Voreinstellung: keine Schwelle — die Bauleitung entscheidet am Tag, die Werte
+              stehen daneben. Ein „arbeitsbehindernd" belegt die Behinderungsanzeige.
+            </p>
+            {offen ? (
+              <form action="/api/bau/bautagebuch" method="post"
+                    className="flex flex-wrap items-end gap-s3" data-cse="witterung-setzen">
+                <Bezug />
+                <input type="hidden" name="vorgang" value="witterung" />
+                <label>
+                  <span className={BESCHRIFTUNG}>Witterung an diesem Tag</span>
+                  <select name="witterung" className={FELD}
+                          defaultValue={kopf.arbeitsbehindernde_witterung === null ? ''
+                            : kopf.arbeitsbehindernde_witterung ? 'ja' : 'nein'}>
+                    <option value="">nicht beurteilt</option>
+                    <option value="ja">arbeitsbehindernd</option>
+                    <option value="nein">nicht arbeitsbehindernd</option>
+                  </select>
+                </label>
+                <Button type="submit" variante="secondary">Kennzeichen speichern</Button>
+              </form>
+            ) : (
+              <p className="m-0 text-sm text-text" data-cse="witterung-stand">
+                {kopf.arbeitsbehindernde_witterung === null ? 'nicht beurteilt'
+                  : kopf.arbeitsbehindernde_witterung ? 'arbeitsbehindernd'
+                    : 'nicht arbeitsbehindernd'}
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       {/* ------------------------------------------------------------------ */}
