@@ -2314,6 +2314,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Angaben einer Gesellschaft pflegen und bestaetigen (V-390, D-804,
+     * TEN-01, TEN-09): Firma, Register, Steuern, Anschrift, Bank, Rechtsform.
+     * Nur die Super-Administration, mit zweitem Faktor; die Datenbank fragt
+     * beides in `app.mandant_angaben_setzen` (0494) noch einmal.
+     */
+    pfad: 'api/einstellungen/mandant',
+    recht: 'system.mandant_verwalten',
+  },
+  {
+    /**
      * Logo, Avatar und Titelbild setzen oder die Zuordnung wegnehmen (V-100,
      * D-628). Dasselbe Recht wie die uebrige Identitaet: wer das
      * Erscheinungsbild pflegt, pflegt auch seine Bilder.

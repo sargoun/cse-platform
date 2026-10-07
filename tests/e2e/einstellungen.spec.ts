@@ -43,6 +43,22 @@ test.describe('Einstellungen', () => {
     await expect(page.locator('main form')).toHaveCount(0);
   });
 
+  test('Unternehmensdaten: die Super-Administration pflegt und bestätigt (V-390)', async ({ page }) => {
+    await alsKonto(page, KONTO.gruppe);
+    await page.goto('/portal/reinigung/einstellungen/mandant');
+    /*
+     * Die Gruppensitzung bekommt auf einer Mandantsseite das Wechselblatt —
+     * ein GET wechselt nie (D-474). Gepflegt wird in genau einer
+     * Gesellschaft (Invariante 10).
+     */
+    await page.locator('[data-cse="wechsel-knopf"]').click();
+    await expect(page).toHaveURL(/\/portal\/reinigung\/einstellungen\/mandant$/u);
+    await expect(page.locator('[data-cse="angaben-pflegen"] form')).toHaveCount(1);
+    await expect(page.locator('[data-cse="angaben-pflegen"] input[name="firma"]'))
+      .toHaveValue('CSE Dienstleistungen GmbH');
+    await expect(page.locator('[data-cse="angaben-bestaetigen"] form')).toHaveCount(1);
+  });
+
   test('Benutzer: die Konten der Gesellschaft, der zweite Faktor, die eigenen Sitzungen', async ({ page }) => {
     await alsKonto(page, KONTO.adminReinigung);
     await page.goto('/portal/reinigung/einstellungen/benutzer');

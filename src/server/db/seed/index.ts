@@ -317,14 +317,26 @@ async function main(): Promise<void> {
       -- Template-Literal beenden die Zeichenkette.)
       on conflict (slug) do update
         set name = excluded.name,
-            ist_rechtseinheit = excluded.ist_rechtseinheit,
-            eigener_nummernkreis = excluded.eigener_nummernkreis,
-            ust_id = excluded.ust_id,
-            handelsregister_gericht = excluded.handelsregister_gericht,
-            handelsregister_nummer = excluded.handelsregister_nummer,
-            rechnung_kontakt_name = excluded.rechnung_kontakt_name,
-            elektronische_adresse = excluded.elektronische_adresse,
-            elektronische_adresse_schema = excluded.elektronische_adresse_schema,
+            -- Bestaetigte Angaben (V-390, D-804) bleiben, wie die
+            -- Super-Administration sie bestaetigt hat: der Seed ueberschreibt
+            -- nur, was niemand bestaetigt hat. Beide Spalten des CHECKs
+            -- bleiben dabei zusammen.
+            ist_rechtseinheit = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.ist_rechtseinheit else mandant.ist_rechtseinheit end,
+            eigener_nummernkreis = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.eigener_nummernkreis else mandant.eigener_nummernkreis end,
+            ust_id = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.ust_id else mandant.ust_id end,
+            handelsregister_gericht = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.handelsregister_gericht else mandant.handelsregister_gericht end,
+            handelsregister_nummer = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.handelsregister_nummer else mandant.handelsregister_nummer end,
+            rechnung_kontakt_name = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.rechnung_kontakt_name else mandant.rechnung_kontakt_name end,
+            elektronische_adresse = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.elektronische_adresse else mandant.elektronische_adresse end,
+            elektronische_adresse_schema = case when mandant.angaben_bestaetigt_am is null
+                 then excluded.elektronische_adresse_schema else mandant.elektronische_adresse_schema end,
             -- Nur WAS FEHLT: wer eine echte Bankverbindung eingetragen hat,
             -- behaelt sie. Ein Seed, der eine Kontonummer ueberschreibt, ist
             -- ein Seed, den niemand mehr laufen laesst.

@@ -25888,21 +25888,21 @@ es verbunden.
 
 | Frage | Was die Plattform bis dahin tut | Wo der Betreiber es einträgt |
 |---|---|---|
-| O-01 | Rechtsform der CSE Operations. Bis sie eingetragen ist, stellt Operations keine Rechnung unter eigener Nummer: kein eigener Kreis, die Vorabprüfung und `fin.rechnung_nummer_ziehen` sagen „eine Abteilung fakturiert über eine der drei Gesellschaften". Die Frage bleibt in `OFFEN_GEBLIEBEN` (`annahmen.test.ts`) — jede Vorbelegung wäre eine Behauptung über eine Rechtsform; der Kopf von `annahmen.ts` nennt sie jetzt (er nannte O-05 statt O-01). | `mandant.ist_rechtseinheit`, `eigener_nummernkreis` — ohne Oberfläche (V-390) |
+| O-01 | Rechtsform der CSE Operations. Bis sie eingetragen ist, stellt Operations keine Rechnung unter eigener Nummer: kein eigener Kreis, die Vorabprüfung und `fin.rechnung_nummer_ziehen` sagen „eine Abteilung fakturiert über eine der drei Gesellschaften". Die Frage bleibt in `OFFEN_GEBLIEBEN` (`annahmen.test.ts`) — jede Vorbelegung wäre eine Behauptung über eine Rechtsform; der Kopf von `annahmen.ts` nennt sie jetzt (er nannte O-05 statt O-01). | Einstellungen › Unternehmensdaten, „Eigene Rechtseinheit" (seit D-804; vorher ohne Oberfläche, V-390) |
 | O-09 | Datenmengen für die Migration. Die Plattform legt keine Mengen fest; die Übernahme aus dem Altsystem wartet auf dessen Exportformat (O-128). | im Gespräch zur Migration |
 | O-10 | Plattformkonten für Social Media und Jobbörsen: jeder Kanal nicht verbunden, ein Beitrag bleibt Entwurf. | Konto, Administrator und AV-Vertrag je Plattform; Zugang über Umgebungsvariablen |
 | O-12 | Exaktes CSE-Rot und SVG-Logos: angenommenes Rot `#E30613` (`annahmen.ts`), Platzhalter-Logos, sichtbar gekennzeichnet. | Logos unter Einstellungen › Identität (braucht den Speicher); das Rot in DESIGN §1 |
 | O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Die Sperre vor dem Livegang ist nicht verdrahtet (V-389). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
-| O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | `mandant` ohne Oberfläche (V-390); Bankkonten unter Finanzen › Bankkonten |
+| O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | Einstellungen › Unternehmensdaten (seit D-804, V-390); Bankkonten für den Kontoauszug unter Finanzen › Bankkonten |
 | O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
-| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | `plattform_einstellung` `sicherheit.kontakt` — ohne Oberfläche (V-390) |
+| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | `plattform_einstellung` `sicherheit.kontakt` — ohne Oberfläche (V-392) |
 | O-82 | SMS-Gateway in der EU mit Ausgabendeckel: nicht verbunden; die Schichtleitung gibt Codes von Hand aus (D-790). | Gateway und Vertrag; Anbindung in `auth/sms.ts` |
 | O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Entwürfe lesen sie noch nicht (V-391), versendet wird ohne Postausgang nichts. | Einstellungen › Identität |
 | O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
 | O-119 | Unabhängige, verschlüsselte Sicherung: gesichert wird beim Anbieter (Supabase, Frankfurt; Verfahrensdokumentation 4.3); ein eigenes Sicherungsziel, seine Frist und der Schlüsselhalter fehlen, der Wiederherstellungstest ist eingeplant und nicht erbracht (Abschnitt 5 nennt jetzt O-119). | Sicherungsziel und Schlüssel; Test in ROADMAP Phase 10 |
 | O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: die Plattform führt Bescheinigungen der Kunden und Lieferanten, nicht die eigenen (V-388). | — (V-388) |
 | O-132 | Karten- und Geokodierungsdienst: nicht verbunden; Objekte stehen als Liste, Koordinaten trägt ein Mensch ein (O-122, D-802). | Anbieter und Vertrag |
-| O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | `mandant` ohne Oberfläche (V-390) |
+| O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | Einstellungen › Unternehmensdaten, danach „Angaben bestätigen" (seit D-804, V-390) |
 | O-374 | Jobbörse und Vertrag: keine verbunden; „Veröffentlichen" vermerkt den Versuch als nicht verbunden. | Vertrag und Kennung je Börse; Anbindung in `versand/stellenboerse.ts` |
 | O-501 | Supabase-Projekt, Auftragsverarbeitungsvertrag, Anmeldeweg: angemeldet wird über die eigene Kennwortprüfung, Administration mit 2FA; ein Firmenverzeichnis (SAML/OIDC) gibt es nicht; E-Mails gehen nicht hinaus. | Projekt und Vertrag; der Codetausch in `auth/callback` kommt mit dem Projekt |
 | O-509 | KI-Endpunkte im Auftragsverarbeitungsvertrag: zugelassen ist `eu.api.openai.com`, jeder andere Host wird abgewiesen. | `OPENAI_EU_HOSTS` |
@@ -25940,4 +25940,64 @@ tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-803), 21 keinen
 — die zwanzig Betreiberdaten oben und O-183.
 
 | Betrifft | O-01, O-09, O-10, O-12, O-13, O-24, O-28, O-35, O-82, O-115, O-116, O-118, O-119, O-123, O-130, O-132, O-353, O-374, O-375, O-501, O-509, O-596, O-603; V-387 bis V-391; `src/app/portal/[mandant]/einstellungen/{integrationen,import,dpa,identitaet}/page.tsx`, `src/app/portal/[mandant]/nachrichten/page.tsx`, `src/app/portal/[mandant]/objekte/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/app/(public)/karriere/Formular.tsx`, `src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts`, `src/app/auth/callback/route.ts`, `src/components/oeffentlich/Gesellschaften.tsx`, `src/lib/{annahmen,placeholder-assets,weiterleitungen}.ts`, `src/server/registry/{integrationen,auftragsverarbeiter}.ts`, `src/server/versand/{email,social-plattform,stellenboerse,modell-openai}.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/services/{angebot/index,betrieb/ueberwachung,buchhaltung/verfahrensdokumentation,finanz/mahnung/index,finanz/rechnung,inhalt/sicherheit-txt}.ts`, `docs/ANNAHMEN.md` |
+|---|---|
+
+### D-804 · Firmenangaben pflegen und bestätigen (V-390)
+
+**Der Anlass.** D-803 fand, dass Register, Steuernummern, Anschrift, Bank und
+Rechtsform einer Gesellschaft keinen Eingabeweg hatten — nur Seed oder SQL —,
+obwohl die Seite Unternehmensdaten sagte, geändert werde über die
+Super-Administration, und das Recht `system.mandant_verwalten` (0008)
+nirgends benutzt wurde. Der Betreiber konnte O-01, O-24 und O-353 nicht
+eintragen, ohne die Datenbank anzufassen (V-390, blockiert).
+
+**Was gebaut ist.**
+- `0494`: `app.mandant_angaben_setzen(jsonb)` und
+  `app.mandant_angaben_bestaetigen()`, beide `security definer` im Eigentum
+  von `cse_definer`, mit dem Tor von `app.mitgliedschaft_module_setzen`
+  (0462): genau eine aktive Gesellschaft, keine Gruppenansicht
+  (Invariante 10), keine lesende Sitzung, `aal2`, `system.mandant_verwalten`.
+  Spaltenrecht UPDATE nur für die pflegbaren Spalten, Policy auf die aktive
+  Gesellschaft. Slug, Markenname, Module, Farbe und Sortierung bleiben
+  draussen; ein unbekanntes Feld weist die Funktion ab. Ändert sich etwas,
+  ist `angaben_bestaetigt_am` wieder leer; unverändert absenden ist kein
+  Fehler und lässt die Bestätigung stehen. Bestätigt wird mit der Serveruhr
+  (Invariante 5). Jede Änderung schreibt `trg_mandant_audit` (0005) mit
+  vorher und nachher ins Protokoll (TEN-09).
+- `services/mandant/angaben.ts`: `pruefeAngaben` sagt die Regeln vorher in
+  Worten — USt-IdNr. DE und neun Ziffern, Postleitzahl, Land, IBAN mit
+  Prüfziffer, BIC, E-Mail, Webadresse, elektronische Adresse nur mit
+  EAS-Schema, ein eigener Nummernkreis nur für eine eigene Rechtseinheit mit
+  den Angaben nach § 14 Abs. 4 UStG. Die CHECKs aus 0001 und 0120 bleiben
+  die letzte Linie und kommen mit demselben Satz zurück, nie als roher
+  Datenbanktext.
+- `POST /api/einstellungen/mandant` (`system.mandant_verwalten`, zweiter
+  Faktor) und auf Einstellungen › Unternehmensdaten „Angaben pflegen" und
+  „Angaben bestätigen" — nur mit dem Recht. Die Administration einer
+  Gesellschaft sieht die Seite weiter lesend.
+- Die Rechtseinheit hat drei Zustände: ja, nein, „nicht eingetragen" (O-01).
+  Der dritte ist der Stand der CSE Operations, kein Fehler; die Seite zeigt
+  NULL nicht mehr als „nein".
+- Der Seed überschreibt bestätigte Angaben nicht mehr (Rechtseinheit,
+  Nummernkreis, USt-IdNr., Register, Rechnungskontakt, elektronische
+  Adresse); Bank, Anschrift und Kontakt hat er nie überschrieben.
+
+**Was sich NICHT ändert.** Festgeschriebene Rechnungen behalten die
+eingefrorenen Angaben (0120, K-12). Kein neues Recht: `system.mandant_verwalten`
+bleibt der Super-Administration vorbehalten. Der Sicherheitskontakt der
+Plattform (O-35) ist eine Plattform-, keine Gesellschaftsangabe und hat
+weiter keinen Eingabeweg (V-392).
+
+**Prüfung.** `tests/kern/mandant-angaben.test.ts` (Normalisierung, die drei
+Zustände der Rechtseinheit, jede Abweisung mit ihrem Grund);
+`tests/isolation/mandant-angaben.test.ts` auf einer eigenen Gesellschaft
+(Pflege mit Protokolleintrag der handelnden Person, unverändert ist kein
+Fehler, Bestätigung und ihr Rücknehmen, Abweisung ohne Recht, ohne zweiten
+Faktor, in der Gruppenansicht, per UPDATE am Weg vorbei, mit unbekanntem
+Feld, die CHECKs als letzte Linie); `tests/e2e/einstellungen.spec.ts` (die
+Super-Administration sieht Formular und Bestätigung, die Administration
+weiter keines); `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`,
+`tests/kern` komplett.
+
+| Betrifft | V-390, V-392; O-01, O-24, O-35, O-353; `drizzle/0494_mandant_angaben_pflege.sql`, `src/server/services/mandant/angaben.ts`, `src/app/api/einstellungen/mandant/route.ts`, `src/app/portal/[mandant]/einstellungen/mandant/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/index.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `tests/kern/mandant-angaben.test.ts`, `tests/isolation/mandant-angaben.test.ts`, `tests/e2e/einstellungen.spec.ts` |
 |---|---|

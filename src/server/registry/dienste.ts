@@ -1976,6 +1976,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'system.identitaet_verwalten',
   },
   /*
+   * V-390, D-804: Firma, Register, Steuern, Anschrift, Bank und Rechtsform —
+   * nicht dasselbe Recht wie die Identitaet. Wer das Logo pflegt, aendert
+   * damit keine Registernummer.
+   */
+  {
+    modul: 'system', pfad: 'mandant/angaben',
+    schreibend: true, schreibRecht: 'system.mandant_verwalten',
+  },
+  /*
    * V-100, D-628: Logo, Avatar und Titelbild — dasselbe Recht wie die
    * uebrige Identitaet. Die Pfadspalten bekamen ihr Spaltenrecht erst mit
    * diesem Dienst (0393).
