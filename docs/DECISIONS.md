@@ -2864,7 +2864,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-20 | Abschlagszahlungen: which VOB/B §16 terms apply; Sicherheits-/Gewährleistungseinbehalt percentage, release date, and replacement by a Bürgschaft | 50 · **Voreinstellung → D-779** |
 | O-21 | §48 EStG: which Bagatellgrenze, at which date (Leistungsdatum or payment), and which customers count as Leistungsempfänger | 51 · **Voreinstellung → D-779** |
 | O-22 | Leitweg-IDs per public client and the required transmission route (OZG-RE / ZRE / Landesportal / Peppol / e-mail) | 52 · **Voreinstellung → D-779** |
-| O-23 | The §2 VOB/B basis list; VOB/C deduction and Übermessung rules per trade — automatic or manual | 43, 44 · **Voreinstellung → D-800** |
+| O-23 | The §2 VOB/B basis list; VOB/C deduction and Übermessung rules per trade — automatic or manual | 43, 44 · **Voreinstellung → D-800, D-842** |
 | O-24 | Handelsregister data, USt-IdNr. and bank details per entity | 26, 47 |
 | O-25 | Retention period and legal basis per document category, beyond the GoBD ten years; and how long applicant documents are kept after a rejection | 9, 85 · **Voreinstellung → D-779** |
 | O-26 | Monthly AI budget per entity and per agent | 74 · **Voreinstellung → D-786** |
@@ -25708,7 +25708,7 @@ ab). O-97 ist wortgleich mit O-41 und folgt dessen Voreinstellung (D-782).
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet; bestätigen lässt sie sich noch nicht (V-384). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
+| O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet, bis die Gesellschaft sie unter Bau › Anspruchsgrundlagen bestätigt oder archiviert (V-384, D-842). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
 | O-30 | 14 Tage (SPEC §14), gemeldet an die verantwortliche Bauleitung des Projekts, einmal (`ueberfaellig_gemeldet_am`); fehlt die Bauleitung, an alle, die in der Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`) und den Nachtrag lesen können (`bau.lesen`) — gebaut mit V-381 (D-808). | `bau/nachtrag.ts`, `jobs/nachtragWache.ts` |
 | O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle (`personal.nachweis_lesen` in der erfassenden Gesellschaft), ab 7 Tagen an die Leitung (Rolle `leitung`) — je Konto eine Meldung je Stufe, gebaut mit V-380 (`kern.nachweis_ablauf_empfaenger`, 0504, D-810); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
 | O-97 | Wie O-41 (D-782): Zielformat GAEB DA XML (X83/X84); gelesen wird heute CSV mit Semikolon, der GAEB-Leser fehlt (V-291). | `bau/lv-quelle.ts` |
@@ -28269,4 +28269,59 @@ Wörter; die Seiten). Dazu `pnpm guards`, `pnpm typecheck`, `pnpm lint`,
 `pnpm db:triggers --check`.
 
 | Betrifft | V-287, O-735, D-780, D-467; `drizzle/0528_referenz_herausnahme_aufgabe.sql`, `src/lib/datum/werktage.ts`, `src/server/services/auftrag/kundenfreigabe.ts`, `src/server/services/kern/aufgabe.ts`, `src/app/portal/[mandant]/auftraege/[id]/kundenfreigabe/page.tsx`, `src/app/portal/[mandant]/website/referenzen/[id]/page.tsx`, `src/lib/i18n/verwaltung/website-referenz.ts`, `tests/isolation/referenz-herausnahme.test.ts`, `tests/kern/referenz-herausnahme.test.ts` |
+|---|---|
+
+### D-842 · Bauwelle 39: Die Anspruchsgrundlagen der Nachträge lassen sich bestätigen und archivieren (V-384, O-23)
+
+**Der Anlass.** `kern.nachtrag_grundlagen_vorbelegen` (0080) legt je
+Gesellschaft die vollständige Liste aus dem Gesetzestext an — § 1 Abs. 3 und 4,
+§ 2 Abs. 3 bis 8 VOB/B, § 650b BGB —, jede Zeile als `ist_platzhalter`. Kein
+Dienst schrieb `nachtrag_grundlage`: jede Grundlage trug im Nachtrag für immer
+„unbestätigter Wert", und eine Gesellschaft, die nur VOB/B-Verträge schliesst,
+konnte § 650b BGB nicht aus der Auswahl nehmen. Voreinstellung (O-23, D-800):
+die vollständige Liste, bestätigbar je Gesellschaft.
+
+**Was gebaut ist.**
+- **`bau/nachtrag-grundlage.ts`:** `leseGrundlagenKatalog` (lebende in der
+  Ordnung des Gesetzes, archivierte danach; je Zeile Stand und Zahl der
+  Nachträge auf ihr), `bestaetigeGrundlage` (nimmt den Platzhaltervermerk;
+  Text und Fundstelle bleiben — geändert wird kein Wort, und eine eigene
+  Grundlage legt niemand an, K-17), `archiviereGrundlage` (aus der Auswahl
+  eines neuen Nachtrags; Nachträge auf ihr behalten sie — der Fremdschlüssel
+  zeigt weiter auf die Zeile, gelöscht wird nie), `nimmGrundlageWiederAuf`
+  (das Archivieren rückgängig; ein lebender Schlüssel derselben Art wird mit
+  Grund abgewiesen statt als 23505). Jede Handlung sperrt die Zeile, prüft den
+  Zustand, nennt jeden Fehler mit Grund und schreibt eine Protokollzeile mit
+  Schlüssel und Fundstelle (beim Archivieren mit der Zahl der Nachträge) —
+  `nachtrag_grundlage.bestaetigt`, `.archiviert`, `.wiederaufgenommen`,
+  neben den Zeilen des allgemeinen Prüfprotokolls. `TODO(client, O-23)` am
+  Dienst.
+- **Route** `POST /api/bau/nachtragsgrundlagen` (bestätigen, archivieren,
+  wieder aufnehmen) unter `bau.schreiben` — dasselbe Recht, das die
+  `WITH CHECK`-Hälfte von `nachtrag_grundlage.t_mandant` verlangt (0080), wie
+  beim Gewerkekatalog (V-182). Kein neues Recht: ein eigenes hätte die Policy
+  nicht ersetzt, sondern nur ein zweites Tor davor gestellt.
+- **Seite** `/portal/[mandant]/bau/nachtragsgrundlagen`, zweisprachig
+  (`i18n/verwaltung/nachtragsgrundlagen.ts`): die Voreinstellung als Satz,
+  jede Grundlage mit Fundstelle, Text, Stand, Ankündigungspflicht und Zahl der
+  Nachträge; die Knöpfe nur mit `bau.schreiben` und nicht in der
+  Gruppenansicht, sonst der Satz, wer es darf. Verweise von der Bau-Übersicht,
+  der Nachtragsliste und dem Formular eines neuen Nachtrags; Zeile in der
+  Seitenkarte (`bau.lesen` / `bau.schreiben`), Register neu erzeugt.
+- **Kein Seed.** Welche Grundlagen die Gruppe verwendet, ist die offene
+  Entscheidung (O-23); eine Bestätigung im Seed wäre eine Voreinstellung, die
+  sich als Tatsache ausgibt.
+
+**Prüfung.** `tests/isolation/nachtrag-grundlage.test.ts`: Bestätigen mit
+Mensch und Protokoll, Text unverändert, ein zweites abgewiesen; Archivieren
+nimmt aus der Auswahl, ein Nachtrag auf der Grundlage behält sie, das
+Protokoll zählt ihn; Wiederaufnehmen und danach Bestätigen; ohne
+`bau.schreiben`, in der Gruppenansicht und in fremder Gesellschaft ändert sich
+nichts; der Katalog der Seite in seiner Ordnung.
+`tests/kern/nachtrag-grundlage.test.ts` (Manifest und Recht, die drei
+Handlungen, jeder Grund und jedes Ergebnis mit Satz in beiden Sprachen, die
+Verweise, die Voreinstellung). Dazu `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-384, O-23, D-800, K-17; `src/server/services/bau/nachtrag-grundlage.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts`, `src/app/api/bau/nachtragsgrundlagen/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/bau/nachtragsgrundlagen/page.tsx`, `src/app/portal/[mandant]/bau/page.tsx`, `src/app/portal/[mandant]/bau/nachtraege/page.tsx`, `src/app/portal/[mandant]/bau/projekte/[id]/nachtraege/neu/page.tsx`, `src/lib/i18n/verwaltung/nachtragsgrundlagen.ts`, `tests/isolation/nachtrag-grundlage.test.ts`, `tests/kern/nachtrag-grundlage.test.ts` |
 |---|---|

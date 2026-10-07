@@ -1069,6 +1069,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'bau.schreiben',
   },
   /**
+   * V-384 — die Anspruchsgrundlagen der Nachträge (O-23, D-842). Sie
+   * SCHREIBT `nachtrag_grundlage` (bestätigen, archivieren, wieder aufnehmen)
+   * mit `bau.schreiben` — dem Recht der `WITH CHECK`-Hälfte von
+   * `nachtrag_grundlage.t_mandant` (0080), wie beim Gewerkekatalog.
+   */
+  {
+    modul: 'bau', pfad: 'bau/nachtrag-grundlage',
+    schreibend: true, schreibRecht: 'bau.schreiben',
+  },
+  /**
    * Die Reinigung — die Sollzeitrechnung und der Abzug LESEN, der Rest
    * schreibt.
    *

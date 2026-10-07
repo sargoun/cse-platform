@@ -1454,6 +1454,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Anspruchsgrundlagen der Nachträge bestätigen, archivieren und
+     * wieder aufnehmen (BAU-04, K-17, V-384, O-23). `bau.schreiben`: dasselbe
+     * Recht, das die `WITH CHECK`-Hälfte von `nachtrag_grundlage.t_mandant`
+     * verlangt (0080) — wie beim Gewerkekatalog. Ohne diese Adresse trug
+     * jede Grundlage im Nachtrag für immer „unbestätigter Wert".
+     */
+    pfad: 'api/bau/nachtragsgrundlagen',
+    recht: 'bau.schreiben',
+  },
+  {
+    /**
      * Einen Nachtrag ANMELDEN (BAU-04, BAU-05).
      *
      * `bau.nachtrag_anmelden` — das Recht der Ankuendigung nach § 2 Abs. 6
