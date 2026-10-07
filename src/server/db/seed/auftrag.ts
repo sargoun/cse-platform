@@ -35,6 +35,8 @@ import { cent, type Cent } from '../../services/finanz/geld.js';
 import { vergebeNummer } from '../../services/finanz/nummernkreis.js';
 import { alsPortalSitzung } from './sitzung.js';
 import { legeEinzelschichtAn } from '../../services/dienstplan/einzelschicht.js';
+import { passePreisAn } from '../../services/auftrag/leistung.js';
+import { setzeRevierLeistung } from '../../services/reinigung/revier.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -43,10 +45,15 @@ export interface AuftragErgebnis {
   readonly leistungen: number;
   readonly verankerteTurnusse: number;
   readonly verankerteEinsaetze: number;
+  /** Der Stichtag der Demo-Preisanpassung (D-826) — `null`, wenn keine angelegt wurde. */
+  readonly preisanpassungAb: string | null;
+  /** Reviere, deren Leistungszeile dieser Lauf gesetzt hat (V-352). */
+  readonly revieranker: number;
 }
 
 const LEER: AuftragErgebnis = {
   auftraege: 0, leistungen: 0, verankerteTurnusse: 0, verankerteEinsaetze: 0,
+  preisanpassungAb: null, revieranker: 0,
 };
 
 /**
@@ -231,13 +238,73 @@ export async function seedAuftrag(
      returning e.id`;
 
   await seedEinzelschichtMitAnker(sql, reinigung, leitung.id, objekt.id, auftragId, grund);
+  const revieranker = await seedRevieranker(sql, reinigung, leitung.id, unterhalt);
+  const preisanpassungAb = await seedPreisanpassung(
+    sql, reinigung, leitung.id, auftragId, unterhalt);
 
   return {
     auftraege: 1,
     leistungen: leistungIds.length,
     verankerteTurnusse: turnusse.length,
     verankerteEinsaetze: einsaetze.length,
+    preisanpassungAb,
+    revieranker,
   };
+}
+
+/**
+ * **Der Revieranker** (V-352, Voreinstellung O-927 (2)) — über den echten
+ * Dienst. Das Revier des Unterhaltsturnus trägt dieselbe Zeile wie sein
+ * Turnus: das Feld am Revier ist gefüllt, und der eigene Anker des Turnus
+ * geht vor. Die Glasflächen bleiben ohne — ihr Turnus ist der Fall, den
+ * `zeiteintrag_ohne_auftrag` melden muss. Idempotent: ein Revier mit Anker
+ * bleibt, wie es ist.
+ */
+async function seedRevieranker(
+  sql: Sql, mandantId: string, planerId: string, zeileId: string,
+): Promise<number> {
+  const [revier] = await sql<{ id: string; anker: string | null }[]>`
+    select r.id, r.auftrag_leistung_id::text as anker
+      from revier r
+      join turnus t on t.mandant_id = r.mandant_id and t.revier_id = r.id
+     where r.mandant_id = ${mandantId} and r.archiviert_am is null
+       and t.bezeichnung like 'Unterhaltsreinigung%'
+     order by r.bezeichnung limit 1`;
+  if (revier === undefined || revier.anker !== null) return 0;
+  await alsPortalSitzung(sql, mandantId, planerId,
+    (k) => setzeRevierLeistung(k, revier.id, zeileId));
+  return 1;
+}
+
+/**
+ * **Eine Preisanpassung** (D-826, Voreinstellung O-921) — über den echten
+ * Dienst, wie auf Auftrag › Leistungszeilen. Die Unterhaltsreinigung wird
+ * zum Monatsersten des übernächsten Monats teurer (Demowert, etwa nach einer
+ * Tariferhöhung): der Stichtag liegt immer in der Zukunft, die geplanten
+ * Schichten ab dann hängen an der neuen Zeile, und die Seite zeigt die
+ * Kette. Idempotent über die Nachfolgerin.
+ */
+async function seedPreisanpassung(
+  sql: Sql, mandantId: string, planerId: string, auftragId: string, zeileId: string,
+): Promise<string | null> {
+  const [schon] = await sql<{ id: string }[]>`
+    select id from auftrag_leistung where mandant_id = ${mandantId} and ersetzt_id = ${zeileId}`;
+  if (schon !== undefined) return null;
+  const [tag] = await sql<{ t: string }[]>`
+    select to_char(date_trunc('month', app.berlin_heute()) + interval '2 months',
+                   'YYYY-MM-DD') as t`;
+  if (tag === undefined) return null;
+  try {
+    await alsPortalSitzung(sql, mandantId, planerId, (k) => passePreisAn(k, auftragId, zeileId, {
+      einzelpreis: '1.950,00', stichtag: tag.t,
+    }));
+    return tag.t;
+  } catch (fehler) {
+    process.stdout.write(
+      `  · Preisanpassung nicht angelegt: `
+      + `${fehler instanceof Error ? fehler.message : String(fehler)}\n`);
+    return null;
+  }
 }
 
 /** Der Wiedererkennungsschlüssel der Demo-Einzelschicht — ihre Notiz. */

@@ -399,8 +399,8 @@ export function behinderungNutzlast(
      * // TODO(client, O-65): Voreinstellung — die Schranke des § 7 UWG trifft
      * nur Werbung; Mahnung, Behinderungsanzeige, Bewerberantwort und
      * Lieferantenrueckfrage sind vertraglich oder vorvertraglich notwendig und
-     * gehen ohne Einwilligung hinaus. `app.darf_kontaktiert_werden` kennt
-     * `transaktional` noch als gesperrt (V-339). D-792.
+     * gehen ohne Einwilligung hinaus. `app.darf_kontaktiert_werden` laesst
+     * `transaktional` seit 0524 wie `vertraglich` durch (V-339). D-792, D-833.
      */
     empfaengerRechtsgrundlage: 'vertrag',
     inhalt: {

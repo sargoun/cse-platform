@@ -54,6 +54,8 @@ const BELAEGE: readonly (readonly [string, string, string])[] = [
   ['FLIESE', 'Fliesen', '200.000'],
   ['NATUR', 'Naturstein', '180.000'],
   ['BETON', 'Sichtbeton / Estrich', '320.000'],
+  // Die Glaszone rechnet auf die Glasfläche (V-358, O-349, D-830).
+  ['GLAS', 'Glas (Fenster und Glasflächen)', '50.000'],
 ];
 
 /**

@@ -48,6 +48,12 @@ const GEWERK: Readonly<Record<string, string>> = {
   operations: 'Digitale Betriebsführung',
 };
 
+interface GesellschaftZeile {
+  readonly name: string;
+  readonly slug: string;
+  readonly signatur: string | null;
+}
+
 function Zeile({ kopf, children }: { readonly kopf: string; readonly children: React.ReactNode }) {
   return (
     <div className="flex flex-wrap gap-s2 border-b border-line py-s3 last:border-b-0">
@@ -87,10 +93,14 @@ export default async function Akquiseziel(
       const abfrage = { unsafe: (s: string, w?: readonly unknown[]) => kontext.abfrage(s, w) };
       const ziel = await lade(abfrage, mandantId, zielId);
       if (ziel === null) return null;
-      const [gesellschaft] = await kontext.abfrage<{ name: string; slug: string }>(
-        `select name, slug from mandant where id = $1`, [mandantId]);
+      // Die Signatur aus Einstellungen › Identität schliesst den Entwurf (V-391).
+      const [gesellschaft] = await kontext.abfrage<GesellschaftZeile>(
+        `select m.name, m.slug, mi.email_signatur as signatur
+           from mandant m
+           left join mandant_identitaet mi on mi.mandant_id = m.id
+          where m.id = $1`, [mandantId]);
       return { ziel, gesellschaft: gesellschaft ?? null };
-    })) as { ziel: Ziel; gesellschaft: { name: string; slug: string } | null } | null;
+    })) as { ziel: Ziel; gesellschaft: GesellschaftZeile | null } | null;
 
   /*
    * 404 und nicht 403 (AUT-06). Eine Kennung aus einer fremden Gesellschaft
@@ -103,6 +113,7 @@ export default async function Akquiseziel(
     name: gesellschaft.name,
     slug: gesellschaft.slug,
     gewerk: GEWERK[gesellschaft.slug] ?? 'unsere Leistungen',
+    signatur: gesellschaft.signatur,
   };
   const entwurf = entwerfe(ziel, firma);
   const zurueck = `/portal/${mandant}/crm/akquise`;

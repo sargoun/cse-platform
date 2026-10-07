@@ -692,7 +692,8 @@ export default async function Serienblatt(
                   Anker nur, wenn das Feld geschickt wurde.
                 */}
                 <LeistungsankerFeld leistungen={anker} gewaehlt={blatt.auftragLeistungId}
-                                    sprache={zugang.sprache} feldKlasse={PFLEGEFELD} />
+                                    sprache={zugang.sprache} feldKlasse={PFLEGEFELD}
+                                    ohne={tL.ohneTurnus} />
                 <div>
                   <Button type="submit" variante="primary" data-cse="pflege-regel-knopf">
                     {tP.regelSpeichern}

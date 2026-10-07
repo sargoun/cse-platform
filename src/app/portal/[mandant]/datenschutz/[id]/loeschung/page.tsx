@@ -298,6 +298,7 @@ export default async function Loeschungsseite(
                                  data-cse="ort-fundstelle"
                                  defaultValue={o.sperre.art === 'gesetz'
                                    || o.sperre.art === 'unveraenderlich'
+                                   || o.sperre.art === 'voreinstellung'
                                    ? o.sperreText : ''} />
                         </label>
                         <label className="flex flex-col gap-s2 text-xs text-text">

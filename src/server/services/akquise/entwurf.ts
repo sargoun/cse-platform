@@ -25,6 +25,7 @@
  * Ein Angebot rechnet `services/kalkulation` (Invariante 6). Der Entwurf lädt
  * zu einem Gespräch ein, er beziffert nichts.
  */
+import { schlussMitSignatur } from '../mandant/signatur.js';
 import type { Ziel } from './ziel.js';
 
 export type Kanal = 'post' | 'telefon' | 'email';
@@ -34,6 +35,11 @@ export interface Gesellschaft {
   readonly slug: string;
   /** Das Gewerk in einem Satz — steht schon im Unternehmensprofil. */
   readonly gewerk: string;
+  /**
+   * Die Signatur aus Einstellungen › Identität (V-391, O-115) — `null`, wenn
+   * keine hinterlegt ist; dann schliesst der Entwurf mit dem Namen.
+   */
+  readonly signatur: string | null;
 }
 
 export interface Entwurf {
@@ -142,8 +148,7 @@ export function entwerfe(ziel: Ziel, gesellschaft: Gesellschaft): Entwurf {
     'Wenn Sie mögen, schaue ich mir Ihre Objekte unverbindlich an und melde '
     + 'mich mit einem konkreten Vorschlag. Ein kurzes Telefonat genügt.',
     '',
-    'Mit freundlichen Grüßen',
-    gesellschaft.name,
+    schlussMitSignatur('Mit freundlichen Grüßen', gesellschaft.name, gesellschaft.signatur),
   ].join('\n');
 
   return {

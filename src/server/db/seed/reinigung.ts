@@ -62,7 +62,7 @@ import {
   erstelleReklamation, schreibeAbstellung,
 } from '../../services/reinigung/reklamation.js';
 import {
-  erfasseAbruf, storniereAbruf,
+  erfasseAbruf, ordneVertragszeileZu, storniereAbruf,
 } from '../../services/reinigung/sonderleistung.js';
 import { erfassePruefung } from '../../services/reinigung/qualitaet.js';
 import { tagePlus } from '@/lib/datum/kalendertag';
@@ -129,13 +129,10 @@ function istNebenraum(bezeichnung: string | null): boolean {
  * Raeumen (CLN-05). Verboten ist nur die doppelte Zeile im selben Revier.
  *
  * // TODO(client, O-349): Voreinstellung — ein Glasreinigungsrevier rechnet seine
- * Sollzeit auf die GLASflaeche mit einem eigenen Leistungswert je m² Glas aus dem
- * Belagsartenkatalog; nicht gebaut (V-358, D-796). `berechneRevierSollzeit`
- * rechnet heute fuer jede Zone auf die BODENflaeche und den Leistungswert der
- * Belagsart; die Glasflaeche reist als Schnappschuss mit
- * (`revier_raum.fenster_flaeche_qm`), geht aber in keine Zeit ein. Die
- * Demozone „Glasflaechen" traegt deshalb die Raeume, die Glas haben — ihre
- * Sollzeit ist bis dahin die des Bodens und keine Glasreinigungszeit.
+ * Sollzeit auf die GLASflaeche mit dem Leistungswert der Belagsart GLAS (50 m²/h,
+ * nicht bestaetigt, O-17); gebaut mit V-358 (D-830). Die Demozone „Glasflaechen"
+ * traegt die Bezugsgroesse `glas` (`seed/dienstplan.ts`) und die Raeume, die
+ * Glas haben; ihre Sollzeit ist Σ Glasflaeche ÷ Leistungswert Glas.
  */
 function zuschnitt(kurzzeichen: string | null, raeume: readonly RaumZeile[]): readonly RaumZeile[] {
   switch (kurzzeichen) {
@@ -720,6 +717,11 @@ async function seedSonderleistungen(
     readonly einheit: string | null;
     readonly status: 'angefragt' | 'beauftragt' | 'geplant' | 'erbracht';
     readonly stornoGrund: string | null;
+    /**
+     * Ohne Vertragszeile erfasst und danach nachgetragen (V-325, O-708) —
+     * der Weg, den ein Abruf vor dem Nachtrag geht.
+     */
+    readonly zeileNachtragen?: boolean;
   }[] = [
     {
       katalog: 0, bezeichnung: 'Glasreinigung Treppenhaus, aussen',
@@ -730,6 +732,7 @@ async function seedSonderleistungen(
       katalog: 1, bezeichnung: 'Sonderreinigung Kantine nach Wasserschaden',
       beauftragtVor: -6, fensterVon: 3, fensterBis: 4,
       menge: '96.000', einheit: 'm²', status: 'beauftragt', stornoGrund: null,
+      zeileNachtragen: true,
     },
     {
       katalog: 2, bezeichnung: 'Warenräumung Kellerarchiv',
@@ -761,7 +764,7 @@ async function seedSonderleistungen(
         bezeichnung: a.bezeichnung,
         beauftragtAm: tagePlus(heute, a.beauftragtVor),
         revierId: revier?.id ?? null,
-        auftragLeistungId: leistung?.id ?? null,
+        auftragLeistungId: a.zeileNachtragen === true ? null : (leistung?.id ?? null),
         beauftragtDurch: 'Objektverwaltung des Kunden',
         ausfuehrungVon: a.fensterVon === null ? null : tagePlus(heute, a.fensterVon),
         ausfuehrungBis: a.fensterBis === null ? null : tagePlus(heute, a.fensterBis),
@@ -769,6 +772,9 @@ async function seedSonderleistungen(
         einheit: a.einheit,
         status: a.status,
       });
+      if (a.zeileNachtragen === true && leistung !== undefined) {
+        await ordneVertragszeileZu(kontext, { id: neu, auftragLeistungId: leistung.id });
+      }
       if (a.stornoGrund !== null) {
         await storniereAbruf(kontext, { id: neu, grund: a.stornoGrund });
       }

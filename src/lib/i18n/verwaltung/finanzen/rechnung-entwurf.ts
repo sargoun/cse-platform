@@ -300,9 +300,18 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       fertigstellung_ungueltig:
         'Der Fertigstellungsgrad ist keine Prozentangabe über 0 und bis 100.',
       kennung_ungueltig: 'Eine Auswahl war nicht lesbar.',
+      grund_zu_kurz:
+        'Eine Position verlässt den Entwurf nur mit Grund — mindestens drei Zeichen.',
+      schon_entfernt: 'Diese Position ist schon aus dem Entwurf entfernt.',
+      letzte_position:
+        'Die letzte Leistungszeile bleibt — ohne sie gäbe es keinen Beleg mehr. Wer nichts '
+        + 'abrechnen will, verwirft den Entwurf.',
     },
     hinweis: {
       kopf_gespeichert: 'Der Kopf ist gespeichert.',
+      position_entfernt:
+        'Die Position ist aus dem Entwurf entfernt. Sie steht unten mit Grund, die Summen '
+        + 'sind neu gerechnet, und ihre Herkunft ist wieder frei.',
       abzug_zurueckgenommen:
         'Der Kopf ist gespeichert. Die abgezogenen Abschläge gehörten zur bisherigen '
         + 'Zuordnung und wirken nicht mehr.',
@@ -505,9 +514,17 @@ export const RECHNUNG_ENTWURF_TEXTE: Readonly<Record<InternSprache, RechnungEntw
       fertigstellung_ungueltig:
         'The degree of completion is not a percentage above 0 and up to 100.',
       kennung_ungueltig: 'A selection could not be read.',
+      grund_zu_kurz: 'A line only leaves the draft with a reason — at least three characters.',
+      schon_entfernt: 'This line has already been removed from the draft.',
+      letzte_position:
+        'The last service line stays — without it there would be no invoice left. To bill '
+        + 'nothing, discard the draft.',
     },
     hinweis: {
       kopf_gespeichert: 'The header has been saved.',
+      position_entfernt:
+        'The line has been removed from the draft. It is listed below with its reason, the '
+        + 'totals are recomputed, and its origin is free again.',
       abzug_zurueckgenommen:
         'The header has been saved. The deducted Abschläge belonged to the previous '
         + 'assignment and no longer apply.',

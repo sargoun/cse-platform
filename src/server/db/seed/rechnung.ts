@@ -5,6 +5,7 @@ import {
 import { cent } from '../../services/finanz/geld.js';
 import { milliMenge } from '../../services/finanz/menge.js';
 import { alsPortalSitzung } from './sitzung.js';
+import { entfernePosition } from '../../services/finanz/entwurf.js';
 import { schreibeVerrechnung } from '../../services/finanz/abschlag/index.js';
 import type { Abfrage } from '../../services/finanz/rechnung.js';
 
@@ -48,10 +49,12 @@ export interface RechnungsErgebnis {
   readonly nummern: readonly string[];
   readonly uebersprungen: boolean;
   readonly grund: string | null;
+  /** Positionen, die einen Entwurf mit Grund verlassen haben (V-356). */
+  readonly entfernt: number;
 }
 
 const LEER: RechnungsErgebnis = {
-  festgeschrieben: 0, entwuerfe: 0, nummern: [], uebersprungen: true, grund: null,
+  festgeschrieben: 0, entwuerfe: 0, nummern: [], uebersprungen: true, grund: null, entfernt: 0,
 };
 
 /**
@@ -192,6 +195,7 @@ export async function seedRechnungen(
   const nummern: string[] = [];
   let festgeschrieben = 0;
   let entwuerfe = 0;
+  let entfernt = 0;
 
   for (const [slug, posten] of Object.entries(POSTEN)) {
     const mandantId = ids.get(slug);
@@ -282,6 +286,24 @@ export async function seedRechnungen(
         if (art === 'fest') {
           const fest = await finalisiere(db, id);
           eigene.push(fest.nummer);
+        } else {
+          /*
+           * **Eine versehentlich erfasste Zeile verlässt den Entwurf** (V-356,
+           * D-831) — über denselben Dienst wie im Portal: sie bleibt mit
+           * Grund stehen, zählt in keiner Summe, und das Rechnungsblatt zeigt
+           * sie unter „Entfernte Positionen".
+           */
+          const doppelt = await fuegePositionHinzu(db, {
+            rechnungId: id,
+            bezeichnung: posten[0]?.bezeichnung ?? 'Leistung',
+            menge: milliMenge(posten[0]?.mengeMilli ?? 1000n),
+            einheit: posten[0]?.einheit ?? 'Std',
+            einzelpreisCent: cent(posten[0]?.einzelpreisCent ?? 100n),
+            steuergruppe: 'ust_19',
+            quellen: vonHand('Demodaten des Seeds — von Hand erfasst, keine Messung.'),
+          });
+          await entfernePosition(db, doppelt, 'Doppelt erfasst — Demodaten des Seeds');
+          entfernt += 1;
         }
       }
       /* V-205: im Bau ein Abschlag und die Schlussrechnung dazu, am Auftrag. */
@@ -295,5 +317,5 @@ export async function seedRechnungen(
     entwuerfe += ergebnis.schlussEntwurf ? 2 : 1;
   }
 
-  return { festgeschrieben, entwuerfe, nummern, uebersprungen: false, grund: null };
+  return { festgeschrieben, entwuerfe, nummern, uebersprungen: false, grund: null, entfernt };
 }

@@ -36,6 +36,8 @@ export interface RevierWerte {
   readonly aktivBis: string | null;
   /** Der Name des Objekts — beim Ändern nur noch Anzeige. */
   readonly objekt: string | null;
+  /** Worauf die Zone rechnet (V-358): `boden` oder `glas`. */
+  readonly bezugsgroesse: string;
 }
 
 export interface RevierFormularProps {
@@ -118,6 +120,15 @@ export function RevierFormular(
                    data-cse="revier-sollzeit" />
             <span className="text-xs text-text-muted">{t.sollzeitErklaerung}</span>
             <span className="text-xs text-text-muted">{t.sollzeitWirdGerechnet}</span>
+          </label>
+          <label className="flex flex-col gap-s2 text-sm text-text">
+            {t.bezugsgroesse}
+            <select name="bezugsgroesse" className={FELD} data-cse="revier-bezugsgroesse"
+                    defaultValue={werte?.bezugsgroesse ?? 'boden'}>
+              <option value="boden">{t.bezugBoden}</option>
+              <option value="glas">{t.bezugGlas}</option>
+            </select>
+            <span className="text-xs text-text-muted">{t.bezugErklaerung}</span>
           </label>
         </div>
       </Card>

@@ -5,7 +5,8 @@
  * Die Zeilen sind der Anker für Turnus, Schicht, Zeiteintrag, Aufmass und
  * Rechnungszeile. Aus einem Angebot kommen sie bei der Annahme; danach legt
  * man nachträglich vereinbarte Leistungen an und beendet, was nicht mehr
- * geschuldet ist. Eine Preisanpassung ist eine neue, datierte Zeile.
+ * geschuldet ist. Eine Preisanpassung ist eine neue, datierte Zeile, die die
+ * bisherige ersetzt (D-826).
  */
 import type { InternSprache } from '../intern.js';
 
@@ -34,6 +35,15 @@ export interface AuftragLeistungenTexte {
   readonly beendenTitel: string;
   readonly beendenZum: string;
   readonly beendenKnopf: string;
+  /** Die Preisanpassung an einer laufenden Zeile (D-826). */
+  readonly preisTitel: string;
+  readonly preisNeu: string;
+  readonly preisAb: string;
+  readonly preisKnopf: string;
+  /** `{nr}` wird eingesetzt — die Position, die diese Zeile ersetzt. */
+  readonly ersetzt: string;
+  /** `{nr}` wird eingesetzt — die Position, die diese Zeile ab ihrem Ende ersetzt. */
+  readonly ersetztDurch: string;
   readonly neuTitel: string;
   readonly neuHinweis: string;
   readonly bezeichnung: string;
@@ -83,12 +93,20 @@ export const AUFTRAG_LEISTUNGEN_TEXTE: Readonly<Record<InternSprache, AuftragLei
     beendenTitel: 'Zeile beenden',
     beendenZum: 'Letzter Tag',
     beendenKnopf: 'Beenden',
+    preisTitel: 'Preis anpassen',
+    preisNeu: 'Neuer Einzelpreis (netto, €)',
+    preisAb: 'Gilt ab',
+    preisKnopf: 'Preis anpassen',
+    ersetzt: 'Preisanpassung von Pos. {nr}',
+    ersetztDurch: 'ersetzt durch Pos. {nr}',
     neuTitel: 'Leistung anlegen',
     neuHinweis:
-      'Eine Preisanpassung ist eine neue Zeile ab dem Stichtag (Voreinstellung O-921): die '
-      + 'bisherige zum Vortag beenden, die neue mit dem neuen Preis anlegen. Turnus und künftige '
-      + 'Schichten hängt die Planung danach an die neue Zeile. Der Auftragswert ändert sich '
-      + 'dabei nicht.',
+      'Eine Preisanpassung ist eine neue Zeile ab dem Stichtag (Voreinstellung O-921) — dafür '
+      + 'steht „Preis anpassen" an der Zeile: die bisherige endet am Vortag, die neue übernimmt '
+      + 'alles ausser dem Preis, und die geplanten Schichten ab dem Stichtag hängen an ihr. '
+      + 'Turnus und Posten behalten ihren Anker; jede künftige Schicht bekommt die Zeile ihres '
+      + 'Tages. Hier legen Sie eine Leistung an, die neu vereinbart ist. Der Auftragswert ändert '
+      + 'sich in keinem Fall.',
     bezeichnung: 'Bezeichnung',
     beschreibung: 'Beschreibung',
     menge: 'Menge',
@@ -104,6 +122,9 @@ export const AUFTRAG_LEISTUNGEN_TEXTE: Readonly<Record<InternSprache, AuftragLei
     erfolg: {
       angelegt: 'Die Leistung ist angelegt.',
       beendet: 'Die Zeile ist beendet. Sie bleibt mit ihren Zeiten und Rechnungen stehen.',
+      preis:
+        'Der neue Preis gilt ab dem Stichtag. Die bisherige Zeile endet am Vortag; die geplanten '
+        + 'Schichten ab dem Stichtag hängen an der neuen.',
     },
     fehler: {
       unbekannter_auftrag: 'Diesen Auftrag gibt es nicht — oder diese Sitzung darf ihn nicht ändern.',
@@ -130,6 +151,16 @@ export const AUFTRAG_LEISTUNGEN_TEXTE: Readonly<Record<InternSprache, AuftragLei
         'Nach diesem Tag sind noch Schichten an dieser Zeile geplant. Erst die Schichten an eine '
         + 'andere Zeile hängen oder absagen, dann beenden.',
       unbekannter_vorgang: 'Dieser Vorgang ist unbekannt.',
+      schon_ersetzt:
+        'Diese Zeile ist schon durch eine Preisanpassung ersetzt. Geändert wird die neue Zeile.',
+      stichtag_zu_frueh:
+        'Eine Preisanpassung gilt frühestens ab dem zweiten Tag der Zeile — ein anderer Preis '
+        + 'ab ihrem ersten Tag wäre eine Berichtigung, keine Anpassung.',
+      gleicher_preis: 'Das ist der bisherige Preis — es gibt nichts anzupassen.',
+      schichten_nicht_umhaengbar:
+        'Ab dem Stichtag stehen Schichten an dieser Zeile, die sich nicht umhängen lassen — sie '
+        + 'haben schon begonnen, oder diese Sitzung darf den Dienstplan nicht schreiben. Es ist '
+        + 'nichts geändert.',
     },
     fehlerSonst: 'Der Vorgang wurde abgewiesen.',
   },
@@ -161,11 +192,19 @@ export const AUFTRAG_LEISTUNGEN_TEXTE: Readonly<Record<InternSprache, AuftragLei
     beendenTitel: 'End line',
     beendenZum: 'Last day',
     beendenKnopf: 'End',
+    preisTitel: 'Change price',
+    preisNeu: 'New unit price (net, €)',
+    preisAb: 'Effective from',
+    preisKnopf: 'Change price',
+    ersetzt: 'price change of no. {nr}',
+    ersetztDurch: 'replaced by no. {nr}',
     neuTitel: 'Add service',
     neuHinweis:
-      'A price change is a new line from its effective date (default O-921): end the current line '
-      + 'on the day before, add the new one with the new price. Planning then moves the rota and '
-      + 'future shifts to the new line. The order value does not change.',
+      'A price change is a new line from its effective date (default O-921) — use “Change price” '
+      + 'on the line: the current line ends on the day before, the new one takes over everything '
+      + 'but the price, and the planned shifts from the effective date move to it. Rota and post '
+      + 'keep their anchor; every future shift gets the line of its day. Here you add a service '
+      + 'that is newly agreed. The order value does not change either way.',
     bezeichnung: 'Name',
     beschreibung: 'Description',
     menge: 'Quantity',
@@ -181,6 +220,9 @@ export const AUFTRAG_LEISTUNGEN_TEXTE: Readonly<Record<InternSprache, AuftragLei
     erfolg: {
       angelegt: 'The service has been added.',
       beendet: 'The line has been ended. It stays with its times and invoices.',
+      preis:
+        'The new price applies from the effective date. The previous line ends on the day '
+        + 'before; the planned shifts from the effective date hang on the new one.',
     },
     fehler: {
       unbekannter_auftrag: 'This order does not exist — or this session may not change it.',
@@ -205,6 +247,15 @@ export const AUFTRAG_LEISTUNGEN_TEXTE: Readonly<Record<InternSprache, AuftragLei
         'Shifts are still planned on this line after this day. Move them to another line or cancel '
         + 'them first, then end it.',
       unbekannter_vorgang: 'This action is unknown.',
+      schon_ersetzt:
+        'This line has already been replaced by a price change. Change the new line instead.',
+      stichtag_zu_frueh:
+        'A price change applies from the second day of the line at the earliest — a different '
+        + 'price from its first day would be a correction, not a change.',
+      gleicher_preis: 'That is the current price — there is nothing to change.',
+      schichten_nicht_umhaengbar:
+        'There are shifts on this line from the effective date that cannot be moved — they have '
+        + 'already started, or this session may not write the roster. Nothing has been changed.',
     },
     fehlerSonst: 'The request was refused.',
   },

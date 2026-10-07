@@ -717,7 +717,7 @@ describe('§7 der Ansprechpartner der Anfrage — gewählt, angelegt, angesproch
     return { leadId: l!.id, kontaktId: a!.id };
   }
 
-  it('ein Lead von Hand bekommt einen Kontakt, und ausgehend geht er als Werbung durchs Tor', async () => {
+  it('ein Lead von Hand bekommt einen Kontakt — ausgehend Werbung, bis eine Anfrage des Kontakts festgehalten ist', async () => {
     const l = await inR((k) => legeLeadAn(k, {
       betreff: 'Anruf von Frau Ohnekunde', firmaName: 'Ohnekunde GmbH', besitzerBenutzerId: chefR }));
     // Vorher: kein Kontakt, also kein ausgehender Anruf.
@@ -746,17 +746,46 @@ describe('§7 der Ansprechpartner der Anfrage — gewählt, angelegt, angesproch
       .rejects.toMatchObject({ grund: 'uwg_werbung' });
     expect(await ausgehend(l.id)).toEqual([]);
 
-    // Mit festgestellter Grundlage (Quelle, Datum) geht er durch — als Werbung belegt.
+    /*
+     * Mit festgehaltener Anfrage DES KONTAKTS (Quelle, Datum) allein noch
+     * nicht: die Grundlage hängt am Kontakt, und ein Kontakt kann an vielen
+     * Leads hängen (Copilot-Runde PR #44). Die Anfrage muss an DIESEM Lead
+     * stehen — als Eingehendes von ihm.
+     */
     await sql.unsafe(
       `update ansprechpartner set rechtsgrundlage = 'anfrage',
               rechtsgrundlage_quelle = 'Telefonat am Empfang', rechtsgrundlage_erfasst_am = now()
         where id = $1`, [neu.id]);
+    await expect(inR((k) => halteLeadAktivitaetFest(k, l.id, { ...anruf, benutzerId: chefR })))
+      .rejects.toMatchObject({ grund: 'uwg_werbung' });
+
+    /*
+     * Ist sie am Lead als Eingehendes vermerkt, geht der Rückruf durch — als
+     * Antwort darauf, nicht als Werbung. Werbung an eine Anfrage lässt das Tor
+     * seit 0524 nie zu (§ 7 UWG, V-342); die Antwort ist keine (O-907,
+     * `zweckGegenueber`).
+     */
+    await inR((k) => halteLeadAktivitaetFest(k, l.id, {
+      typ: 'anruf', richtung: 'eingehend', inhalt: 'Frau Ohnekunde fragt nach einem Angebot',
+      benutzerId: chefR }));
     await inR((k) => halteLeadAktivitaetFest(k, l.id, { ...anruf, benutzerId: chefR }));
     expect(await ausgehend(l.id)).toEqual([
-      { zweck: 'werbung', kanal: 'telefon', ansprechpartner_id: neu.id }]);
+      { zweck: 'vertraglich', kanal: 'telefon', ansprechpartner_id: neu.id }]);
     const [uhr] = await sql.unsafe<{ erste_reaktion_am: Date | null }[]>(
       `select erste_reaktion_am from lead where id = $1`, [l.id]);
     expect(uhr!.erste_reaktion_am).not.toBeNull();
+
+    /*
+     * Derselbe Kontakt an einem ANDEREN Lead: dort hat er nichts angefragt.
+     * Seine Anfrage macht dessen Anruf nicht zur Antwort — er bleibt Werbung,
+     * und ohne Werbegrundlage weist das Tor ihn ab.
+     */
+    const zweiter = await inR((k) => legeLeadAn(k, {
+      betreff: 'Recherche: Ohnekunde', firmaName: 'Ohnekunde GmbH', besitzerBenutzerId: chefR }));
+    await sql.unsafe(`update lead set ansprechpartner_id = $2 where id = $1`, [zweiter.id, neu.id]);
+    await expect(inR((k) => halteLeadAktivitaetFest(k, zweiter.id, { ...anruf, benutzerId: chefR })))
+      .rejects.toMatchObject({ grund: 'uwg_werbung' });
+    expect(await ausgehend(zweiter.id)).toEqual([]);
 
     // Und er wandert mit, sobald die Anfrage ihren Kunden bekommt.
     const kd = await inR((k) => uebernehmeLeadAlsKunde(k, l.id, { typ: 'firma' }));

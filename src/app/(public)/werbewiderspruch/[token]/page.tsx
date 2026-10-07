@@ -169,23 +169,20 @@ export default async function Seite(
           </form>
 
           {/*
-            * **Leistungsnachweis und Mahnung standen hier und stimmen nicht.**
-            * Sie sind als `zweck = 'transaktional'` gefuehrt, und
-            * `app.darf_kontaktiert_werden` weist die bei gesetztem
-            * Werbewiderspruch ab — der restriktive Zweig. Nach der
-            * Voreinstellung (O-65, D-792) sind sie vertraglich notwendig und
-            * laufen weiter; bis die Funktion umgestellt ist (V-339), sagt der
-            * Satz, was heute gilt. Nur `zweck = 'vertraglich'` laeuft wirklich
-            * weiter.
+            * **Der Satz sagt, was die Versandpruefung tut.** Terminbestaetigung,
+            * Leistungsnachweis und Mahnung sind als `zweck = 'transaktional'`
+            * gefuehrt. Bis 0524 wies `app.darf_kontaktiert_werden` sie bei
+            * gesetztem Werbewiderspruch ab, und hier stand, dass wir sie
+            * zurueckhalten. Seit 0524 laufen sie wie die vertragliche Post
+            * (V-339, O-65, D-792, D-833).
             */}
           <p className="m-0 mb-s5 max-w-prose text-sm text-text-muted">
             Vertraglich notwendige Post läuft weiter: eine Rechnung erreicht Sie
-            auch nach diesem Widerspruch. Terminbestätigungen,
-            Leistungsnachweise und Mahnungen gehören zur Durchführung Ihres
-            Vertrags; solange unsere Versandprüfung noch nicht umgestellt ist,
-            halten wir auch sie zurück — im Zweifel zu Ihren Gunsten. Wenn Sie
-            der Verarbeitung insgesamt widersprechen möchten (Art. 21 DSGVO),
-            nutzen Sie bitte das Datenschutzformular.
+            auch nach diesem Widerspruch, ebenso Terminbestätigungen,
+            Leistungsnachweise und Mahnungen — sie gehören zur Durchführung Ihres
+            Vertrags und sind keine Werbung. Wenn Sie der Verarbeitung insgesamt
+            widersprechen möchten (Art. 21 DSGVO), nutzen Sie bitte das
+            Datenschutzformular.
           </p>
         </>
       )}

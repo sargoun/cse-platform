@@ -28,7 +28,7 @@ describe('V-360 — die Sätze der Leistungszeilen', () => {
       'unbekannter_auftrag', 'auftrag_beendet', 'kein_steuersatz', 'zeit_danach',
       'schichten_danach', 'unbekannter_vorgang',
     ]));
-    expect(erfolge.sort()).toEqual(['angelegt', 'beendet']);
+    expect(erfolge.sort()).toEqual(['angelegt', 'beendet', 'preis']);
   });
 
   it.each(['de', 'en'] as const)('%s: jeder Grund und jeder Erfolg', (sprache) => {

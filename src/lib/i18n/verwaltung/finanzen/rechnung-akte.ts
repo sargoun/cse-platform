@@ -87,6 +87,20 @@ export interface RechnungAkteTexte {
   readonly codeOffen: string;
   readonly unbestaetigterWert: string;
 
+  /* V-356 (D-831): eine Position verlässt den Entwurf, mit Grund. */
+  readonly positionEntfernenTitel: string;
+  readonly positionEntfernenErklaerung: string;
+  readonly positionWaehlen: string;
+  readonly entfernenGrund: string;
+  readonly entfernenGrundBeispiel: string;
+  readonly entfernenKnopf: string;
+  readonly entfernteTitel: string;
+  readonly entfernteErklaerung: string;
+  readonly tabelleEntfernte: string;
+  readonly entferntAm: string;
+  readonly entferntVon: string;
+  readonly entferntGrund: string;
+
   readonly herkunftTitel: string;
   readonly anspruchErloschen: string;
   readonly summeDerBelege: string;
@@ -315,6 +329,8 @@ export interface RechnungAkteTexte {
   readonly herkunftNamen: Readonly<Record<
     'zeiteintrag' | 'aufmass' | 'vertrag' | 'material' | 'leistungsnachweis'
     | 'nachtrag' | 'sonderleistung' | 'manuell', string>>;
+  /** Eine Zeile „von Hand" aus einer Abrechnungsvereinbarung (V-395). */
+  readonly herkunftVereinbarung: string;
 }
 
 export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTexte>> = {
@@ -376,6 +392,27 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     tabellePositionen: 'Positionen der Rechnung mit Menge, Einzelpreis und Steuersatz',
     codeOffen: 'offen',
     unbestaetigterWert: 'Voreinstellung (O-174)',
+
+    positionEntfernenTitel: 'Position entfernen',
+    positionEntfernenErklaerung:
+      'Eine versehentlich erfasste Zeile verlässt den Entwurf mit Grund. Gelöscht wird '
+      + 'nichts: die Zeile bleibt mit Grund, Zeit und Person stehen, fällt aus jeder Summe '
+      + 'und erscheint weder auf dem Beleg noch in der XRechnung. Ihre Herkunft — Stunden, '
+      + 'Abruf, Nachweis, Aufmaß, Ausgabe — wird wieder frei. Die letzte Leistungszeile '
+      + 'bleibt; wer nichts abrechnen will, verwirft den Entwurf.',
+    positionWaehlen: 'Position',
+    entfernenGrund: 'Grund',
+    entfernenGrundBeispiel: 'z. B. doppelt erfasst, falscher Monat',
+    entfernenKnopf: 'Position entfernen',
+    entfernteTitel: 'Entfernte Positionen',
+    entfernteErklaerung:
+      'Diese Zeilen haben den Entwurf verlassen. Sie stehen nicht auf dem Beleg, zählen '
+      + 'in keiner Summe, und ihre Herkunft ist frei; die Nummern der übrigen Zeilen '
+      + 'bleiben, wie sie waren.',
+    tabelleEntfernte: 'Aus dem Entwurf entfernte Positionen mit Grund',
+    entferntAm: 'Entfernt am',
+    entferntVon: 'Von',
+    entferntGrund: 'Grund',
 
     herkunftTitel: 'Herkunft der Positionen',
     anspruchErloschen: 'Anspruch erloschen',
@@ -654,7 +691,8 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'wieder abrechenbar — entweder stehen die Positionen „von Hand", oder '
       + 'der Entwurf hat noch keine.',
     quellenErklaerung:
-      'Diese Quellen sind heute als abgerechnet markiert. Nach dem Verwerfen '
+      'Diese Quellen beansprucht heute dieser Entwurf — eine Zeile aus einer '
+      + 'Abrechnungsvereinbarung ihren Monat oder ihr Los. Nach dem Verwerfen '
       + 'sind sie wieder abrechenbar und erscheinen bei der nächsten Rechnung zu '
       + 'diesem Auftrag erneut.',
     tabelleQuellen: 'Quellen, die durch das Verwerfen wieder abrechenbar werden',
@@ -690,6 +728,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       material: 'Material (Ausgabe)', leistungsnachweis: 'Leistungsnachweis',
       nachtrag: 'Nachtrag', sonderleistung: 'Sonderleistung', manuell: 'von Hand',
     },
+    herkunftVereinbarung: 'Abrechnungsvereinbarung',
   },
 
   en: {
@@ -750,6 +789,26 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     tabellePositionen: 'Invoice line items with quantity, unit price and tax rate',
     codeOffen: 'open',
     unbestaetigterWert: 'Default (O-174)',
+
+    positionEntfernenTitel: 'Remove a line',
+    positionEntfernenErklaerung:
+      'A line entered by mistake leaves the draft with a reason. Nothing is deleted: the '
+      + 'line stays with reason, time and person, drops out of every total and appears '
+      + 'neither on the invoice nor in the XRechnung. Its origin — hours, call-off, record '
+      + 'of work, Aufmaß, expense — becomes free again. The last service line stays; to '
+      + 'bill nothing, discard the draft.',
+    positionWaehlen: 'Line',
+    entfernenGrund: 'Reason',
+    entfernenGrundBeispiel: 'e.g. entered twice, wrong month',
+    entfernenKnopf: 'Remove line',
+    entfernteTitel: 'Removed lines',
+    entfernteErklaerung:
+      'These lines have left the draft. They are not on the invoice, count in no total, '
+      + 'and their origin is free; the numbers of the remaining lines stay as they were.',
+    tabelleEntfernte: 'Lines removed from the draft, with reason',
+    entferntAm: 'Removed on',
+    entferntVon: 'By',
+    entferntGrund: 'Reason',
 
     herkunftTitel: 'Origin of the line items',
     anspruchErloschen: 'claim extinguished',
@@ -1045,9 +1104,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'again — either the line items stand "by hand", or the draft has none '
       + 'yet.',
     quellenErklaerung:
-      'These sources are marked as invoiced today. After discarding they are '
-      + 'invoiceable again and will reappear on the next invoice for this '
-      + 'Auftrag.',
+      'This draft claims these sources today — a line from a billing agreement '
+      + 'claims its month or its lot. After discarding they are invoiceable '
+      + 'again and will reappear on the next invoice for this Auftrag.',
     tabelleQuellen: 'Sources that become invoiceable again through discarding',
     herkunft: 'Origin',
     anteil: 'Share',
@@ -1082,5 +1141,6 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       nachtrag: 'Nachtrag (variation order)', sonderleistung: 'Special supply',
       manuell: 'by hand',
     },
+    herkunftVereinbarung: 'Billing agreement',
   },
 };

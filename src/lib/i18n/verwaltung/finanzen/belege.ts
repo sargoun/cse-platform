@@ -270,6 +270,8 @@ export interface BelegeTexte {
   readonly wirksam: string;
   readonly berechnet: string;
   readonly unwirksamAusStorno: string;
+  /** V-356: die Zeile hat den Entwurf verlassen, die Ausgabe ist wieder frei. */
+  readonly unwirksamEntfernt: string;
   readonly zustandsverlauf: string;
   readonly hier: string;
   readonly uebergangErzwungen: string;
@@ -593,6 +595,7 @@ const DE: BelegeTexte = {
   wirksam: 'Wirksam',
   berechnet: 'berechnet',
   unwirksamAusStorno: 'unwirksam — aus einem Storno übernommen',
+  unwirksamEntfernt: 'unwirksam — die Zeile hat den Entwurf verlassen',
   zustandsverlauf: 'Der Zustandsverlauf',
   hier: 'hier',
   uebergangErzwungen: 'Den Übergang erzwingt die Datenbank; die Oberfläche bietet ihn nicht an.',
@@ -923,6 +926,7 @@ const EN: BelegeTexte = {
   berechnet: 'charged',
   unwirksamAusStorno:
     'not effective — carried over from a Storno (reversing entry)',
+  unwirksamEntfernt: 'not effective — the line has left the draft',
   zustandsverlauf: 'The sequence of states',
   hier: 'here',
   uebergangErzwungen: 'The database enforces the transition; the interface does not offer it.',

@@ -150,7 +150,8 @@ export async function fuegeQuelleHinzu(
             $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid, $8::uuid, $9::uuid,
             $10::numeric, $11, 'mensch', app.aktueller_benutzer()
        from rechnungsposition p
-      where p.id = $1
+      -- Eine entfernte Zeile bekommt keine Herkunft mehr (V-356, 0522).
+      where p.id = $1 and p.entfernt_am is null
      returning id`,
     [positionId, eingabe.typ, ...werte,
      eingabe.mengeAnteil == null ? null : mengeNachPostgres(eingabe.mengeAnteil),
@@ -269,6 +270,18 @@ export interface QuelleZeile {
   readonly ziel: string | null;
   /** Der auf diese Quelle entfallende Anteil des Zeilenbetrags (Cent). */
   readonly anteilCent: Cent;
+  /**
+   * Die Zeile hat den Entwurf verlassen (V-356): ihre Herkunft ist frei und
+   * gehört nicht mehr zu dem, was der Beleg abrechnet.
+   */
+  readonly positionEntfernt: boolean;
+  /**
+   * Die Zeile stammt aus einer Abrechnungsvereinbarung
+   * (`vertrag_abrechnung_id`). Bei einer Herkunft „von Hand" — Pauschale,
+   * Los — heisst das: sie beansprucht den Zeitraum der Vereinbarung (V-207)
+   * und wird mit dem Beleg wieder frei (V-395).
+   */
+  readonly ausVereinbarung: boolean;
 }
 
 interface QuelleRoh {
@@ -283,6 +296,8 @@ interface QuelleRoh {
   readonly netto_cent: string | null;
   readonly bezeichnung: string | null;
   readonly ziel: string | null;
+  readonly position_entfernt: boolean;
+  readonly aus_vereinbarung: boolean;
 }
 
 /**
@@ -303,6 +318,8 @@ export async function ladeQuellen(
                      q.sonderleistung_id,
                      q.leistungsnachweis_id, q.nachtrag_id)::text as quelle_id,
             q.menge_anteil::text, q.notiz, q.wirksam, p.netto_cent::text,
+            p.entfernt_am is not null as position_entfernt,
+            p.vertrag_abrechnung_id is not null as aus_vereinbarung,
             case q.quelle_typ
               when 'zeiteintrag' then
                 coalesce('Schicht ' || to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin',
@@ -388,6 +405,8 @@ export async function ladeQuellen(
         bezeichnung: r.bezeichnung ?? 'Beleg',
         ziel: r.ziel,
         anteilCent: anteile[i] ?? cent(0n),
+        positionEntfernt: r.position_entfernt,
+        ausVereinbarung: r.aus_vereinbarung,
       });
     });
   }
@@ -455,37 +474,56 @@ export async function markiereQuellenAbgerechnet(
    * inzwischen ohnehin ab; hier steht der Grund, den ein Mensch auf dem
    * Blatt liest, statt einer Eindeutigkeitsverletzung.
    *
-   * Wie oben: die Zahl muss stimmen. Ein Stempel, der die Haelfte trifft, ist
-   * schlimmer als keiner, weil er Sicherheit vortaeuscht.
+   * Gesetzt wird er seit V-395 (D-832) von `fin.abrufstatus_nachziehen`
+   * (0523) und nicht mehr von einem eigenen UPDATE: der Status liegt hinter
+   * `reinigung.schreiben`, und wer festschreiben darf, haelt dieses Recht
+   * nicht zwingend. Unter FORCE RLS traf das UPDATE fuer eine solche Rolle
+   * null Zeilen — und die Zaehlung daneben, die denselben Policies
+   * unterliegt, ebenfalls null. Die Pruefung „die Zahl muss stimmen" sah
+   * also genau den Ausfall nicht, fuer den sie da war.
    */
-  const [sollAbruf] = await db.abfrage<{ n: string }>(
-    `select count(*)::text as n
-       from rechnungsposition_quelle q
-       join sonderleistung s on s.mandant_id = q.mandant_id and s.id = q.sonderleistung_id
-      where q.rechnung_id = $1 and q.quelle_typ = 'sonderleistung' and q.wirksam
-        and s.status = 'erbracht'`,
-    [rechnungId],
-  );
-  const abrufe = await db.abfrage<{ id: string }>(
-    `update sonderleistung s
-        set status = 'abgerechnet'
-       from rechnungsposition_quelle q
-      where q.rechnung_id = $1 and q.quelle_typ = 'sonderleistung' and q.wirksam
-        and s.mandant_id = q.mandant_id and s.id = q.sonderleistung_id
-        and s.status = 'erbracht'
-      returning s.id`,
-    [rechnungId],
-  );
-  if (abrufe.length !== Number(sollAbruf?.n ?? '0')) {
-    throw new QuellenFehler(
-      `Der Abrechnungsstempel traf ${String(abrufe.length)} von `
-      + `${sollAbruf?.n ?? '0'} Einzelabrufen — ohne ihn steht die `
-      + 'Doppelabrechnungssperre nur halb.',
-      'nicht_uebernommen',
-    );
-  }
+  const abrufe = await abrufstatusNachziehen(db, rechnungId);
 
-  return getroffen.length + abrufe.length;
+  return getroffen.length + abrufe;
+}
+
+/**
+ * Der Status der Einzelabrufe einer Rechnung folgt ihrer Herkunft (V-395,
+ * D-832): `abgerechnet`, solange eine WIRKSAME Herkunft auf einem
+ * festgeschriebenen Beleg den Abruf nennt, sonst wieder `erbracht`. Die
+ * Datenbank entscheidet das in EINER Anweisung (`fin.abrufstatus_nachziehen`,
+ * 0523) — der Dienst reicht keinen Status hinein, also kann er auch keinen
+ * falschen setzen.
+ *
+ * Gerufen nach der Festschreibung und nach jeder Freigabe; die Zahl der
+ * geaenderten Abrufe kommt zurueck.
+ */
+async function abrufstatusNachziehen(db: Abfrage, rechnungId: string): Promise<number> {
+  const [zeile] = await db.abfrage<{ n: number }>(
+    `select fin.abrufstatus_nachziehen($1::uuid) as n`, [rechnungId]);
+  return Number(zeile?.n ?? 0);
+}
+
+/**
+ * Die Herkunft EINER Position freigeben — wenn sie den Entwurf verlässt
+ * (V-356, O-212, D-831).
+ *
+ * Dasselbe wie `gibQuellenFrei`, nur für eine Zeile: `wirksam` fällt, und die
+ * Teilindizes auf Zeit, Abruf, Nachweis, Aufmaß und Ausgabe lassen sie wieder
+ * zu. Ein Zeiteintrag trägt im Entwurf noch keinen Abrechnungsstempel — den
+ * setzt erst die Festschreibung (`markiereQuellenAbgerechnet`) —, also gibt es
+ * hier keinen zurückzunehmen. Wieder wirksam wird die Herkunft einer
+ * entfernten Position nie (`trg_rpq_3_entfernt`, 0522).
+ */
+export async function gibPositionFrei(db: Abfrage, positionId: string): Promise<number> {
+  const frei = await db.abfrage<{ id: string }>(
+    `update rechnungsposition_quelle
+        set wirksam = false
+      where rechnungsposition_id = $1::uuid and wirksam
+      returning id`,
+    [positionId],
+  );
+  return frei.length;
 }
 
 /**
@@ -497,6 +535,11 @@ export async function markiereQuellenAbgerechnet(
  * `zeiteintrag` wird im selben Zug geloescht; bliebe er stehen, waere die
  * Stunde nach dem Storno immer noch „abgerechnet" und tauchte in keiner
  * Arbeitsliste mehr auf.
+ *
+ * Dasselbe gilt fuer den Einzelabruf (V-395, D-832): sein Status geht von
+ * `abgerechnet` zurueck auf `erbracht`, sonst laese ihn `einzelabruf.ts` nie
+ * wieder, und die Neuausstellung nach einem Storno faende ihn nicht. Beim
+ * Verwerfen aendert sich nichts — ein Entwurf hat ihn nie abgerechnet.
  */
 export async function gibQuellenFrei(db: Abfrage, rechnungId: string): Promise<number> {
   await db.abfrage(
@@ -514,6 +557,7 @@ export async function gibQuellenFrei(db: Abfrage, rechnungId: string): Promise<n
       returning id`,
     [rechnungId],
   );
+  await abrufstatusNachziehen(db, rechnungId);
   return zeilen.length;
 }
 

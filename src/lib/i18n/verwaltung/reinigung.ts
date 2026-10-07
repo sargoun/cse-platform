@@ -56,6 +56,14 @@ export interface RevierTexte {
   readonly beschreibungBeispiel: string;
   readonly sollzeit: string;
   readonly sollzeitBeispiel: string;
+  /** Worauf die Zone rechnet (V-358, O-349). */
+  readonly bezugsgroesse: string;
+  readonly bezugBoden: string;
+  readonly bezugGlas: string;
+  readonly bezugErklaerung: string;
+  readonly bezugSpeichern: string;
+  readonly bezugGesetzt: string;
+  readonly bezugNeuGerechnet: string;
   readonly aktivAb: string;
   readonly aktivBis: string;
   readonly aktivBisOffen: string;
@@ -104,6 +112,20 @@ export const REVIER_TEXTE: Readonly<Record<InternSprache, RevierTexte>> = {
       'z. B. Flure, Teeküche, WC Damen und Herren — ohne Serverraum',
     sollzeit: 'Sollzeit je Durchgang (Minuten)',
     sollzeitBeispiel: 'z. B. 90',
+    bezugsgroesse: 'Gerechnet auf',
+    bezugBoden: 'Bodenfläche — Unterhaltsreinigung',
+    bezugGlas: 'Glasfläche — Glasreinigung',
+    bezugErklaerung:
+      'Eine Glaszone rechnet ihre Sollzeit auf die Glasfläche der Räume und den '
+      + 'Leistungswert der Belagsart GLAS aus Stammdaten › Belagsarten '
+      + '(Voreinstellung, O-349); jede andere Zone auf die Bodenfläche und den '
+      + 'Leistungswert ihres Belags. Wer die Bezugsgrösse ändert, bekommt die '
+      + 'Sollzeit mit denselben Räumen sofort neu gerechnet.',
+    bezugSpeichern: 'Bezugsgrösse speichern',
+    bezugGesetzt:
+      'Gespeichert. Die Zone trägt noch keine Räume — gerechnet wird, sobald sie '
+      + 'zugeordnet sind.',
+    bezugNeuGerechnet: 'Gespeichert und mit denselben Räumen neu gerechnet.',
     aktivAb: 'Aktiv ab',
     aktivBis: 'Aktiv bis',
     aktivBisOffen: 'leer = offen',
@@ -173,6 +195,20 @@ export const REVIER_TEXTE: Readonly<Record<InternSprache, RevierTexte>> = {
       'e.g. corridors, kitchenette, both WCs — server room excluded',
     sollzeit: 'Target minutes per round',
     sollzeitBeispiel: 'e.g. 90',
+    bezugsgroesse: 'Computed on',
+    bezugBoden: 'Floor area — routine cleaning',
+    bezugGlas: 'Glass area — window cleaning',
+    bezugErklaerung:
+      'A glass zone computes its target minutes from the rooms’ glass area and '
+      + 'the performance rate of the Belagsart GLAS under Master data › Floor '
+      + 'types (default setting, O-349); every other zone uses the floor area '
+      + 'and the rate of its floor covering. Changing this recomputes the target '
+      + 'minutes with the same rooms straight away.',
+    bezugSpeichern: 'Save',
+    bezugGesetzt:
+      'Saved. The zone has no rooms yet — it is computed as soon as rooms are '
+      + 'assigned.',
+    bezugNeuGerechnet: 'Saved and recomputed with the same rooms.',
     aktivAb: 'Active from',
     aktivBis: 'Active until',
     aktivBisOffen: 'empty = open-ended',
@@ -255,6 +291,9 @@ export const REVIER_FEHLER_TEXTE: Readonly<Record<InternSprache, RevierFehlerTex
       revier_unbekannt:
         'Dieses Revier gibt es in dieser Gesellschaft nicht mehr, oder es ist archiviert — '
         + 'die Liste zeigt den aktuellen Stand.',
+      bezugsgroesse_ungueltig:
+        'Eine Zone rechnet auf die Bodenfläche oder auf die Glasfläche — bitte eines davon '
+        + 'wählen.',
     },
   },
   en: {
@@ -273,6 +312,8 @@ export const REVIER_FEHLER_TEXTE: Readonly<Record<InternSprache, RevierFehlerTex
       revier_unbekannt:
         'This Revier no longer exists in this Gesellschaft, or it has been archived — the '
         + 'list shows the current state.',
+      bezugsgroesse_ungueltig:
+        'A zone is computed on the floor area or on the glass area — please choose one.',
     },
   },
 };
@@ -313,6 +354,8 @@ export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> =
       status_gesetzt: 'Der Zustand des Abrufs ist geändert — die Liste unten zeigt ihn.',
       abruf_storniert: 'Der Abruf ist storniert — mit Grund und Urheber, und nicht gelöscht.',
       zeitwert_gesetzt: 'Der Zeitwert der Katalogzeile ist gesetzt.',
+      vertragszeile_gesetzt:
+        'Die Vertragszeile des Abrufs ist gespeichert — abgerechnet wird zu ihrem Preis.',
     },
     titel: 'Nicht gespeichert.',
     sonst: 'Es wurde nichts gespeichert. Prüfen Sie die Angaben und versuchen Sie es noch '
@@ -361,6 +404,23 @@ export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> =
       abgerechnet_kein_storno:
         'Ein abgerechneter Abruf lässt sich nicht stornieren — er steht in einer '
         + 'festgeschriebenen Rechnung. Korrigiert wird durch Storno der Rechnung.',
+      zuordnung_unvollstaendig: 'Welcher Abruf gemeint ist, fehlt.',
+      zuordnung_abgerechnet:
+        'Ein abgerechneter Abruf behält seine Vertragszeile — er steht in einer '
+        + 'festgeschriebenen Rechnung (Voreinstellung O-708).',
+      zuordnung_storniert: 'Ein stornierter Abruf kommt in keine Rechnung mehr.',
+      zuordnung_in_rechnung:
+        'Der Abruf steht in einem Rechnungsentwurf, der den Preis der bisherigen '
+        + 'Vertragszeile führt. Erst seine Position aus dem Entwurf entfernen oder den '
+        + 'Entwurf verwerfen, dann die Zeile ändern.',
+      vertragszeile_unbekannt:
+        'Diese Vertragszeile gibt es in dieser Gesellschaft nicht, oder Ihrem Konto fehlt '
+        + 'das Recht, Aufträge zu lesen.',
+      vertragszeile_ausserhalb:
+        'Diese Vertragszeile gilt am Tag des Abrufs (Ausführung, sonst Beauftragung) nicht — '
+        + 'nach einer Preisanpassung ist es die neue Zeile.',
+      vertragszeile_auftrag_storniert:
+        'Der Auftrag dieser Vertragszeile ist storniert; er nimmt keinen Abruf an.',
       abruf_unbekannt:
         'Diesen Abruf gibt es in dieser Gesellschaft nicht mehr — die Liste zeigt den '
         + 'aktuellen Stand.',

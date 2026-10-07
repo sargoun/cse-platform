@@ -12,6 +12,7 @@ import { berlinFormularZeitpunkt } from '@/lib/datum/formularzeit';
 import { herkunft } from '@/app/auth/mitarbeiter/anmeldung';
 import {
   KeinAktuellerEintragFehler, KeinKontorechtFehler, korrekturRueckweg, korrigiereZeiteintrag,
+  ZuordnungsFehler,
   LaufenderEintragFehler,
   type KorrekturArt, type KorrekturErgebnis, type KorrekturGrund,
 } from '@/server/services/zeit/korrektur';
@@ -99,9 +100,17 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * vorhanden, nicht verboten.
    */
   const einwand = feld(daten, 'einwand');
+  /*
+   * V-351: die neue Zuordnung — leer heisst unverändert, wie bei den Zeiten.
+   * Eine Angabe, die keine Kennung ist, ist eine unbrauchbare Eingabe.
+   */
+  const objekt = feld(daten, 'objekt');
+  const leistung = feld(daten, 'auftrag_leistung');
 
   if (!UUID.test(eintrag)
       || (einwand !== '' && !UUID.test(einwand))
+      || (objekt !== '' && !UUID.test(objekt))
+      || (leistung !== '' && !UUID.test(leistung))
       || !SLUG.test(mandant)
       || !ARTEN.has(art as KorrekturArt)
       || !GRUENDE.has(grund as KorrekturGrund)
@@ -152,6 +161,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           ...(ende === null ? {} : { endeZeitpunkt: ende }),
           ...(pause === null ? {} : { pauseMinuten: pause }),
           ...(ip === null ? {} : { ipAdresse: ip }),
+          ...(objekt === '' && leistung === '' ? {} : {
+            zuordnung: {
+              ...(objekt === '' ? {} : { objektId: objekt }),
+              ...(leistung === '' ? {} : { auftragLeistungId: leistung }),
+            },
+          }),
         });
       })) as Promise<KorrekturErgebnis>);
   } catch (fehler) {
@@ -208,6 +223,8 @@ function fehlerschluessel(
     return { wort: 'kein_kontorecht', status: 403 };
   }
   if (fehler instanceof NichtGefundenFehler) return { wort: 'nicht_gefunden', status: 404 };
+  /* V-351: warum die Zuordnung nicht geändert wurde — der Grund ist das Wort. */
+  if (fehler instanceof ZuordnungsFehler) return { wort: fehler.grund, status: fehler.status };
 
   const pg = fehler as { code?: string; detail?: string };
   /*

@@ -5,7 +5,9 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { alsStundenText } from '@/server/services/kalkulation/richtzeit';
-import { PRUEFLISTE_ZIELRECHTE, ladePruefliste } from '@/server/services/auftrag/abschluss';
+import {
+  PRUEFLISTE_ZIELRECHTE, ladePruefliste, projektFrist,
+} from '@/server/services/auftrag/abschluss';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
@@ -90,6 +92,7 @@ export default async function Abschluss(
                 a.abnahme_am::text as abnahme_am_iso,
                 to_char(a.abnahme_am, 'DD.MM.YYYY') as abnahme_am,
                 to_char(a.gewaehrleistung_bis, 'DD.MM.YYYY') as gewaehrleistung_bis,
+                a.gewaehrleistung_bis::text as gewaehrleistung_bis_iso,
                 a.sicherheitseinbehalt_bp,
                 a.sicherheitseinbehalt_cent::text as sicherheitseinbehalt_cent,
                 to_char(a.abgeschlossen_am at time zone 'Europe/Berlin',
@@ -102,14 +105,21 @@ export default async function Abschluss(
           where a.id = $1`, [id]);
       if (kopf === undefined) return null;
       const pruefliste = await ladePruefliste(kontext, id);
-      return { kopf, pruefliste };
+      /*
+       * V-341 (O-68): die Frist des Bauprojekts samt Abnahmetag — die Maske
+       * belegt damit vor, wenn der Auftrag noch keine eigene trägt.
+       */
+      const ausProjekt = kopf.gewaehrleistung_bis_iso === null
+        ? await projektFrist(kontext, id) : null;
+      return { kopf, pruefliste, ausProjekt };
     })) as Promise<{
       kopf: AbschlussKopf;
       pruefliste: Awaited<ReturnType<typeof ladePruefliste>>;
+      ausProjekt: Awaited<ReturnType<typeof projektFrist>>;
     } | null>);
 
   if (daten === null) notFound();
-  const { kopf, pruefliste } = daten;
+  const { kopf, pruefliste, ausProjekt } = daten;
 
   const abgeschlossen = kopf.status === 'abgeschlossen' || kopf.abgeschlossen_am !== null;
   const storniert = kopf.status === 'storniert';
@@ -357,7 +367,7 @@ export default async function Abschluss(
                   id="abnahmeAm"
                   name="abnahmeAm"
                   type="date"
-                  defaultValue={kopf.abnahme_am_iso ?? ''}
+                  defaultValue={kopf.abnahme_am_iso ?? ausProjekt?.abnahmeAm ?? ''}
                   className={FELD}
                 />
                 <p className="mt-s1 text-xs text-text-muted">
@@ -372,12 +382,20 @@ export default async function Abschluss(
                   id="gewaehrleistungBis"
                   name="gewaehrleistungBis"
                   type="date"
+                  defaultValue={kopf.gewaehrleistung_bis_iso ?? ausProjekt?.gewaehrleistungBis ?? ''}
                   className={FELD}
                 />
                 <p className="mt-s1 text-xs text-text-muted">
                   Braucht ein Abnahmedatum — von ihm läuft sie; ohne Abnahme nimmt die
                   Datenbank kein Gewährleistungsende an.
                 </p>
+                {ausProjekt !== null && (
+                  <p className="mt-s1 text-xs text-text-muted" data-cse="frist-aus-projekt">
+                    Vorbelegt aus der Abnahme des Bauprojekts (Voreinstellung O-68: die
+                    Projektfrist ist die Auftragsfrist) — überschreibbar. Bleibt das Feld
+                    leer, übernimmt der Abschluss sie trotzdem.
+                  </p>
+                )}
               </div>
             </div>
 

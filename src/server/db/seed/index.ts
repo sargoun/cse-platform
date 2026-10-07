@@ -1803,6 +1803,14 @@ async function main(): Promise<void> {
     + `Leistungszeilen, ${String(auftrag.verankerteTurnusse)} Turnusse und `
     + `${String(auftrag.verankerteEinsaetze)} Einsaetze verankert (Preise: Demowerte)\n`,
   );
+  if (auftrag.preisanpassungAb !== null || auftrag.revieranker > 0) {
+    process.stdout.write(
+      `  Leistungskette: ${auftrag.preisanpassungAb === null ? 'keine neue Preisanpassung'
+        : `Preisanpassung der Unterhaltsreinigung ab ${auftrag.preisanpassungAb} als `
+          + 'Nachfolgezeile (Voreinstellung O-921, D-826)'}, `
+      + `${String(auftrag.revieranker)} Revier mit Leistungszeile (O-927, V-352)\n`,
+    );
+  }
 
   /**
    * Und zuletzt die Einteilung samt erfasster Zeit — sie braucht den Plan UND
@@ -2362,7 +2370,7 @@ async function main(): Promise<void> {
       + `${String(crm.bescheinigungen)} §-48b-Bescheinigung, `
       + `${String(crm.wiedervorlagen)} Wiedervorlagen in allen vier Faechern und `
       + `${String(crm.aehnlicheLeistung)} begruendete §-7-Abs.-3-Wertung `
-      + '(Voreinstellung O-660: wird Tor, V-342 — heute ohne Wirkung im Tor)\n');
+      + '(Voreinstellung O-660: das Tor verlangt sie fuer Werbung per E-Mail, V-342)\n');
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,
@@ -2375,7 +2383,8 @@ async function main(): Promise<void> {
       : `  ${String(rechnungen.festgeschrieben)} festgeschriebene Rechnungen `
         + `(${rechnungen.nummern.join(', ')}) und ${String(rechnungen.entwuerfe)} Entwürfe `
         + 'ohne Nummer — über legeEntwurfAn → fuegePositionHinzu → finalisiere, '
-        + 'als cse_app mit gebundener Sitzung\n');
+        + 'als cse_app mit gebundener Sitzung; '
+        + `${String(rechnungen.entfernt)} Position(en) mit Grund aus einem Entwurf entfernt (V-356)\n`);
 
   process.stdout.write('\nSeed fertig.\n');
   if (demodaten) {

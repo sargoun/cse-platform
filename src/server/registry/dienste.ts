@@ -760,8 +760,9 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   /*
    * Die Matrix des § 7 UWG (O-660). Rein — ohne Datenbank, ohne Uhr. Sie ist
-   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`. Laeuft deshalb
-   * auch in der Gruppenansicht.
+   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`, das ihr seit
+   * 0524 auf den Fernkanaelen folgt (V-342). Laeuft auch in der
+   * Gruppenansicht.
    */
   { modul: 'crm', pfad: 'crm/uwg-matrix', schreibend: false },
   /*
@@ -1207,6 +1208,20 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'finanzen', pfad: 'finanz/kanonisch', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/kettenlauf', schreibend: false },
+  /**
+   * V-356, D-831 — ob eine Steuerzeile auf den Beleg gehört: eine SQL-Bedingung,
+   * kein Lese- und kein Schreibweg. Eine Gruppe, deren einzige Position den
+   * Entwurf verlassen hat, steht mit null Netto und null Steuer da.
+   */
+  { modul: 'finanzen', pfad: 'finanz/steuerzeile', schreibend: false },
+  /*
+   * Die Regel zum Leistungsort (V-373, O-933, D-836): gelesen beim Anlegen und
+   * Ändern eines Entwurfs, gesetzt unter Einstellungen › Rechnungen.
+   */
+  {
+    modul: 'finanzen', pfad: 'finanz/leistungsort-regel',
+    schreibend: true, schreibRecht: 'system.einstellung_verwalten',
+  },
   {
     modul: 'finanzen', pfad: 'finanz/rechnung',
     schreibend: true, schreibRecht: 'finanzen.festschreiben',
@@ -1378,6 +1393,14 @@ export const DIENSTE: readonly DienstEintrag[] = [
   /* PR 66 — Z3-Datentraegerueberlassung und Verfahrensdokumentation. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/z3', schreibend: false },
   { modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation', schreibend: false },
+  /*
+   * V-316, O-188, D-837 — der Zeichnungsvermerk der Verfahrensdokumentation:
+   * wer sie in welcher Fassung gezeichnet hat, und ob die Zeichnung noch gilt.
+   */
+  {
+    modul: 'buchhaltung', pfad: 'buchhaltung/verfahrensdokumentation-zeichnung',
+    schreibend: true, schreibRecht: 'buchhaltung_konfiguration.verwalten',
+  },
   /* PR 67 — Jahrespaket und Lohnexport. */
   { modul: 'buchhaltung', pfad: 'buchhaltung/jahrespaket', schreibend: false },
   { modul: 'zeit', pfad: 'zeit/lohnexport', schreibend: false },
@@ -1510,6 +1533,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * (V-166, D-660).
    */
   { modul: 'system', pfad: 'mandant/umschalter', schreibend: false },
+  /**
+   * V-391, D-829 — der Schluss eines Entwurfs aus Gruss und Signatur der
+   * Gesellschaft. Rein: liest nichts, schreibt nichts; die Signatur liest
+   * der Dienst, der den Entwurf baut.
+   */
+  { modul: 'system', pfad: 'mandant/signatur', schreibend: false },
   /**
    * V-081 — der Auftrag laeuft, ruht oder ist storniert.
    *

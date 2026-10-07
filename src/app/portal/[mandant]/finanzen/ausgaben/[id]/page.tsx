@@ -429,7 +429,7 @@ export default async function Ausgabenblatt(
                   <span className="text-xs text-text-muted">
                     {w.wirksam
                       ? `${t.berechnet} · ${w.rechnungStatus}`
-                      : t.unwirksamAusStorno}
+                      : w.positionEntfernt ? t.unwirksamEntfernt : t.unwirksamAusStorno}
                   </span>
                 </span>
               ),

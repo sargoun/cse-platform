@@ -254,6 +254,7 @@ export const TABELLEN: readonly TabellenSpezifikation[] = [
             join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
            where p.mandant_id = $1::uuid and r.status = 'festgeschrieben'
              and r.rechnungsdatum between $2::date and $3::date
+             and p.entfernt_am is null
            order by r.rechnungsdatum, r.nummer_laufend, p.rechnung_id, p.position_nr, p.id`,
     spalten: [
       { name: 'id', typ: 'text', schluessel: true, text: 'Kennung der Position' },

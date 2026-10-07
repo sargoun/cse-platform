@@ -337,3 +337,34 @@ describe('§6 die Antwort geht mit, wenn die Bewerbung gelöscht wird (REC-07)',
     ))).rejects.toThrow(/permission denied/u);
   });
 });
+
+describe('§7 der Schluss trägt die Signatur der Gesellschaft (V-391, O-115, D-829)', () => {
+  async function schlussVon(art: 'eingangsbestaetigung' | 'absage'): Promise<string> {
+    const bewerbungId = await bewerbungAnlegen();
+    await alsApp(sitzung(), (tx) => entwirf(kontextAus(tx), { bewerbungId, art }));
+    const [a] = await alsApp(sitzung(), (tx) => liste(kontextAus(tx), bewerbungId));
+    return a!.text.slice(a!.text.lastIndexOf('\n\n') + 2);
+  }
+
+  it('mit Signatur steht sie unter dem Gruss, ohne sie der Name der Gesellschaft', async () => {
+    const [m] = await sql.unsafe<{ name: string }[]>(
+      `select name from mandant where id = $1`, [f.reinigung]);
+
+    // Die Fixtur hat keine Identitätszeile (im Seed feuert der Anlageauslöser nicht).
+    expect(await schlussVon('absage')).toBe(`Freundliche Grüße\n${m!.name}`);
+
+    // So, wie das Textfeld in Einstellungen › Identität sie schickt: mit \r\n.
+    await sql.unsafe(
+      `insert into mandant_identitaet (mandant_id, kurzname, identitaets_token, email_signatur)
+       values ($1, 'CSE', 'area-reinigung', $2)
+       on conflict (mandant_id) do update set email_signatur = excluded.email_signatur`,
+      [f.reinigung, 'Anna Schmidt\r\nPersonal\r\nMusterstraße 1, 10115 Berlin']);
+    expect(await schlussVon('eingangsbestaetigung'))
+      .toBe('Freundliche Grüße\nAnna Schmidt\nPersonal\nMusterstraße 1, 10115 Berlin');
+
+    await sql.unsafe(
+      `update mandant_identitaet set email_signatur = null where mandant_id = $1`,
+      [f.reinigung]);
+    expect(await schlussVon('absage')).toBe(`Freundliche Grüße\n${m!.name}`);
+  });
+});

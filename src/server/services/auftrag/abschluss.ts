@@ -22,6 +22,7 @@
  */
 import { cent, parseGeld, type Cent } from '../finanz/geld.js';
 import { prozentInBasispunkteOderGrund } from '../finanz/prozent.js';
+import { tagDeutsch } from '../../../lib/datum/kalendertag.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -31,7 +32,7 @@ export class AbschlussFehler extends Error {
   constructor(nachricht: string, readonly grund:
     | 'nicht_gefunden' | 'schon_abgeschlossen' | 'storniert'
     | 'gewaehrleistung_ohne_abnahme' | 'einbehalt_doppelt' | 'zahl_unlesbar'
-    | 'kein_recht') {
+    | 'frist_andere_abnahme' | 'kein_recht') {
     super(nachricht);
     this.name = 'AbschlussFehler';
   }
@@ -242,6 +243,46 @@ export function prozentInBasispunkte(roh: string): number {
 const EINBEHALT_HOECHSTENS_BP = 10_000;
 
 /**
+ * **Die Gewährleistungsfrist des Bauprojekts** dieses Auftrags (V-341, O-68,
+ * D-792, D-828).
+ *
+ * Die Abnahme (`bau/abnahme.ts`) rechnet die Frist und schreibt sie an das
+ * PROJEKT (`projekt.gewaehrleistung_bis`, D-782); das Kundenportal zeigt die
+ * des AUFTRAGS. Ohne Übernahme sah ein Kunde nach der Abnahme keine Frist,
+ * solange niemand sie abtippte. Voreinstellung (O-68, D-792): die
+ * Projektfrist ist die Auftragsfrist, von Hand überschreibbar.
+ *
+ * Zurück kommt die Frist mit dem Abnahmetag, von dem sie läuft — der Tag der
+ * Abnahme, die die Frist gesetzt hat (`gewaehrleistung_aus_abnahme_id`,
+ * 0493), sonst der späteste Tag einer wirksamen, angenommenen Gesamtabnahme.
+ * Ohne einen solchen Tag gibt es nichts zu übernehmen:
+ * `auftrag_gewaehrleistung_nach_abnahme` verlangt ihn, und eine Frist ohne
+ * Beginn ist keine. Gelesen unter der RLS des Aufrufers (`bau.lesen`); wer
+ * das Projekt nicht sieht, trägt die Frist von Hand ein.
+ */
+export async function projektFrist(
+  db: Abfrage, auftragId: string,
+): Promise<{ readonly abnahmeAm: string; readonly gewaehrleistungBis: string } | null> {
+  const [z] = await db.abfrage<{ bis: string; abnahme: string | null }>(
+    `select p.gewaehrleistung_bis::text as bis,
+            coalesce(
+              (select ab.abnahme_am from abnahme ab
+                where ab.mandant_id = p.mandant_id
+                  and ab.id = p.gewaehrleistung_aus_abnahme_id
+                  and ab.storniert_am is null),
+              (select max(ab.abnahme_am) from abnahme ab
+                where ab.mandant_id = p.mandant_id and ab.projekt_id = p.id
+                  and ab.storniert_am is null and ab.abgenommen
+                  and ab.art <> 'teilabnahme'))::text as abnahme
+       from projekt p
+      where p.auftrag_id = $1::uuid and p.gewaehrleistung_bis is not null
+      order by p.gewaehrleistung_bis desc
+      limit 1`, [auftragId]);
+  if (z === undefined || z.abnahme === null) return null;
+  return { abnahmeAm: z.abnahme, gewaehrleistungBis: z.bis };
+}
+
+/**
  * Der Abschluss — mit den Abnahmeangaben, weil sie dazugehoeren.
  *
  * `abnahme_am`, `gewaehrleistung_bis` und der Sicherheitseinbehalt stehen in
@@ -257,10 +298,10 @@ export async function schliesseAuftragAb(
 ): Promise<{ readonly auftragsnummer: string; readonly abgeschlossenAm: Date }> {
   const [vorher] = await db.abfrage<{
     auftragsnummer: string; status: string; abgeschlossen_am: Date | null;
-    abnahme_am: string | null;
+    abnahme_am: string | null; gewaehrleistung_bis: string | null;
   }>(
     `select auftragsnummer, status::text as status, abgeschlossen_am,
-            abnahme_am::text as abnahme_am
+            abnahme_am::text as abnahme_am, gewaehrleistung_bis::text as gewaehrleistung_bis
        from auftrag where id = $1 for update`, [auftragId]);
   if (vorher === undefined) {
     throw new AbschlussFehler('Auftrag nicht gefunden', 'nicht_gefunden');
@@ -274,8 +315,33 @@ export async function schliesseAuftragAb(
       'Ein stornierter Auftrag wird nicht abgeschlossen', 'storniert');
   }
 
-  const abnahme = leer(eingabe.abnahmeAm);
-  const gewaehrleistung = leer(eingabe.gewaehrleistungBis);
+  /*
+   * V-341 (O-68): ohne eigene Angabe und ohne eigene Frist des Auftrags gilt
+   * die des Bauprojekts — samt dem Abnahmetag, von dem sie läuft. Eine
+   * Angabe in der Maske geht vor.
+   */
+  const ausProjekt = leer(eingabe.gewaehrleistungBis) === null
+    && vorher.gewaehrleistung_bis === null
+    ? await projektFrist(db, auftragId) : null;
+  /*
+   * **Frist und Abnahme kommen als Paar** (Copilot-Runde PR #44). Nennt der
+   * Auftrag — in der Maske oder schon in der Zeile — eine ANDERE Abnahme als
+   * die, von der die Frist des Projekts läuft, wird sie nicht still daneben
+   * gestellt: eine Frist ab dem 10.09. neben einer Abnahme vom 12.09. wäre
+   * eine Frist, die von keiner Abnahme läuft. Dann trägt der Mensch die Frist
+   * in der Maske ein.
+   */
+  const eigeneAbnahme = leer(eingabe.abnahmeAm) ?? vorher.abnahme_am;
+  if (ausProjekt !== null && eigeneAbnahme !== null && eigeneAbnahme !== ausProjekt.abnahmeAm) {
+    throw new AbschlussFehler(
+      `Die Gewährleistungsfrist des Bauprojekts (bis ${tagDeutsch(ausProjekt.gewaehrleistungBis)}) `
+      + `läuft von der Abnahme am ${tagDeutsch(ausProjekt.abnahmeAm)}, der Auftrag nennt die Abnahme `
+      + `am ${tagDeutsch(eigeneAbnahme)}. Bitte die Frist in der Maske eintragen.`,
+      'frist_andere_abnahme');
+  }
+  const abnahme = leer(eingabe.abnahmeAm)
+    ?? (ausProjekt !== null && vorher.abnahme_am === null ? ausProjekt.abnahmeAm : null);
+  const gewaehrleistung = leer(eingabe.gewaehrleistungBis) ?? ausProjekt?.gewaehrleistungBis ?? null;
   /**
    * `auftrag_gewaehrleistung_nach_abnahme`: eine Gewaehrleistungsfrist ohne
    * Abnahmedatum hat keinen Beginn. Die vorhandene Abnahme zaehlt mit — die

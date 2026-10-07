@@ -14,9 +14,11 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import {
-  ladeAbrufAuswahl, ladeKatalogzeilen, listeAbrufe, statuswechsel,
+  ladeAbrufAuswahl, ladeKatalogzeilen, listeAbrufe, statuswechsel, zeilenAmTag,
+  zeilenNichtBeendet,
   PFLEGBARE_STATUS, SONDERLEISTUNG_STATUS, STATUS_TEXT,
   type AbrufAuswahl, type AbrufZeile, type KatalogAusschnitt, type SonderleistungStatus,
+  type Vertragszeile,
 } from '@/server/services/reinigung/sonderleistung';
 import { Recht } from '@/components/ui/Recht';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
@@ -141,19 +143,24 @@ export default async function Sonderleistungen(
    * steht die Auftragsnummer in der Zeile selbst.
    */
   const objektName = new Map(daten.auswahl.objekte.map((o) => [o.id, o.bezeichnung]));
-  const vertragszeilenJeObjekt = [
+  /*
+   * Je Abruf die Zeilen, die an SEINEM Tag galten (`zeilenAmTag`) — nach einer
+   * Preisanpassung ist das für einen älteren Abruf die Vorgängerin. Gruppiert
+   * nach Objekt, wie vorher.
+   */
+  const jeObjekt = (zeilen: readonly Vertragszeile[]) => [
     ...daten.auswahl.objekte.map((o) => ({
       schluessel: o.id,
       name: o.bezeichnung,
-      zeilen: daten.auswahl.vertragszeilen.filter((v) => v.objektId === o.id),
+      zeilen: zeilen.filter((v) => v.objektId === o.id),
     })),
     {
       schluessel: '__ohne_objekt',
       name: 'Ohne Objektbezug — gilt für den ganzen Auftrag',
-      zeilen: daten.auswahl.vertragszeilen.filter(
-        (v) => v.objektId === null || !objektName.has(v.objektId)),
+      zeilen: zeilen.filter((v) => v.objektId === null || !objektName.has(v.objektId)),
     },
   ].filter((g) => g.zeilen.length > 0);
+  const darfVertragszeilen = daten.auswahl.geprueft['auftrag.lesen'] === true;
 
   const feld = 'min-h-11 w-full rounded-md border border-line bg-surface-3 px-s3 text-sm text-text';
   const kleinfeld = 'min-h-11 rounded-md border border-line bg-surface-3 px-s2 text-sm text-text';
@@ -507,6 +514,54 @@ export default async function Sonderleistungen(
                           Setzen
                         </Button>
                       </form>
+                      {/*
+                        V-325 (O-708): die Vertragszeile bis zur Abrechnung
+                        nachtragen, ändern oder lösen — ohne sie kommt der
+                        Abruf in keine Rechnung. Ohne `auftrag.lesen` fehlt
+                        das Feld: ein Speichern löste sonst die Zeile, die
+                        jemand anderes gesetzt hat. MIT dem Recht steht es
+                        auch, wenn am Tag des Abrufs keine Zeile gilt — dann
+                        lässt sich eine falsche Zuordnung wenigstens lösen.
+                      */}
+                      {darfVertragszeilen && (() => {
+                        const passende = zeilenAmTag(
+                          daten.auswahl.vertragszeilen, a.ausfuehrungVon ?? a.beauftragtAm);
+                        return (
+                        <form
+                          method="post"
+                          action="/api/reinigung/sonderleistungen"
+                          className="flex flex-wrap items-end gap-s2"
+                          data-cse="abruf-zuordnung-formular"
+                        >
+                          <input type="hidden" name="art" value="zuordnung" />
+                          <input type="hidden" name="abruf" value={a.id} />
+                          <select
+                            name="auftrag_leistung"
+                            className={`${kleinfeld} w-36`}
+                            defaultValue={a.auftragLeistungId ?? ''}
+                            aria-label={`Vertragszeile für ${a.bezeichnung}`}
+                          >
+                            <option value="">— ohne Vertragszeile —</option>
+                            {a.auftragLeistungId !== null
+                              && !passende.some((v) => v.id === a.auftragLeistungId) && (
+                              <option value={a.auftragLeistungId}>bisherige Vertragszeile</option>
+                            )}
+                            {jeObjekt(passende).map((g) => (
+                              <optgroup key={g.schluessel} label={g.name}>
+                                {g.zeilen.map((v) => (
+                                  <option key={v.id} value={v.id}>
+                                    {v.auftragNummer} · Pos. {v.positionNr} · {v.bezeichnung}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          <Button type="submit" variante="ghost" className="px-s3">
+                            Zuordnen
+                          </Button>
+                        </form>
+                        );
+                      })()}
                       <form
                         method="post"
                         action="/api/reinigung/sonderleistungen"
@@ -617,7 +672,7 @@ export default async function Sonderleistungen(
               <span className="mb-s1 block text-sm text-text">Vertragszeile</span>
               <select name="auftrag_leistung" className={feld} data-cse="abruf-vertragszeile">
                 <option value="">— noch keine, Abruf bleibt nicht abrechenbar —</option>
-                {vertragszeilenJeObjekt.map((g) => (
+                {jeObjekt(zeilenNichtBeendet(daten.auswahl.vertragszeilen, heute)).map((g) => (
                   <optgroup key={g.schluessel} label={g.name}>
                     {g.zeilen.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -634,8 +689,8 @@ export default async function Sonderleistungen(
                 </strong>{' '}
                 Die Auswahl bleibt trotzdem freiwillig: ein Abruf entsteht oft
                 vor dem Nachtrag. Die Liste oben führt solche Zeilen dann als
-                offen — nachtragen lässt sich die Zuordnung noch nicht (Voreinstellung
-                O-708: bis zur Abrechnung nachtragbar, der Weg fehlt, V-325).
+                offen, und dort lässt sich die Zuordnung bis zur Abrechnung
+                nachtragen (Voreinstellung O-708).
               </span>
             </label>
             <label className="block">

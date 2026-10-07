@@ -7,7 +7,7 @@ import { withKundeScope, KeinKundenzugangFehler } from '@/server/kontext/index';
 import { rechtepruefer } from '@/server/auth/zugang';
 import { authorize } from '@/server/auth/authorize';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
-import { mandantZurRechnung } from '@/server/services/kundenportal/rechnung';
+import { mandantZurRechnung, vermerkeKundenabruf } from '@/server/services/kundenportal/rechnung';
 import {
   KeinSnapshotFehler, pdfDateiname, zugferdZurRechnung,
 } from '@/server/services/finanz/xrechnung/dienst';
@@ -96,6 +96,9 @@ export async function GET(
             { recht: 'finanzen.herunterladen', mandantId },
             rechtepruefer(kontext.abfrage.bind(kontext)),
           );
+          // V-347 (D-835): die Spur VOR der Datei, in derselben Transaktion —
+          // scheitert die Erzeugung, fällt die Spur mit ihr.
+          await vermerkeKundenabruf(kontext, id, 'zugferd');
           return zugferdZurRechnung(kontext, id);
         })) as Promise<{ pdf: Uint8Array; nummer: string } | null>);
 

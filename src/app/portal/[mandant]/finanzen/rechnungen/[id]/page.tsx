@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
+import { Button } from '@/components/ui/Button';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill, type PillZustand } from '@/components/ui/StatusPill';
 import { formatiereGeld, cent } from '@/server/services/finanz/geld';
@@ -124,6 +125,12 @@ interface Pos {
   readonly netto_cent: string | null;
   readonly gruppe: string;
   readonly satz_bp: number;
+  readonly positionsart: string;
+  /* V-356: im Entwurf entfernt — mit Zeit, Person und Grund. */
+  readonly entfernt: boolean;
+  readonly entfernt_lokal: string | null;
+  readonly entfernt_von: string | null;
+  readonly entfernt_grund: string | null;
 }
 
 interface Steuer {
@@ -236,10 +243,15 @@ export default async function Rechnungsblatt(
       positionen: await kontext.abfrage<Pos>(
         `select p.id, p.position_nr, p.bezeichnung, p.menge::text, p.einheit,
                 e.unece_code, p.einzelpreis_cent::text, p.netto_cent::text,
-                g.schluessel as gruppe, p.satz_bp
+                g.schluessel as gruppe, p.satz_bp, p.positionsart::text as positionsart,
+                p.entfernt_am is not null as entfernt,
+                to_char(p.entfernt_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+                  as entfernt_lokal,
+                bv.name as entfernt_von, p.entfernt_grund
            from rechnungsposition p
            join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
            left join masseinheit e on e.id = p.masseinheit_id
+           left join benutzer bv on bv.id = p.entfernt_von
           where p.rechnung_id = $1 order by p.position_nr`, [id]),
       /**
        * Die abgezogenen Abschlaege — nur die WIRKSAMEN. Eine unwirksam
@@ -383,6 +395,12 @@ export default async function Rechnungsblatt(
   const k = daten.kopf;
   if (k === null) notFound();
   const entwurf = k.status === 'entwurf';
+  /*
+   * Auf dem Beleg stehen nur die lebenden Zeilen; was im Entwurf entfernt
+   * wurde, steht darunter mit Grund (V-356, D-831).
+   */
+  const positionen = daten.positionen.filter((p) => !p.entfernt);
+  const entfernte = daten.positionen.filter((p) => p.entfernt);
   const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
     + 'p-s3 text-sm text-text';
 
@@ -464,6 +482,7 @@ export default async function Rechnungsblatt(
     </Hinweis>
   );
   const fehlerImAbschnitt = entwurf && ent !== null && (maske === 'kopf'
+    || maske === 'position-entfernen'
     || maske === 'aus-abrechnungsart' || maske === 'position'
     || (maske === 'aus-zeiten' && daten.leistungen.length > 0));
   const fehlerOben = fehler !== null && !fehlerImAbschnitt;
@@ -854,7 +873,7 @@ export default async function Rechnungsblatt(
       )}
 
       <h2 id="positionen" className="mb-s3 text-h3 text-text">{t.positionen}</h2>
-      {daten.positionen.length === 0 ? (
+      {positionen.length === 0 ? (
         <p className="mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           {t.keinePosition}
         </p>
@@ -862,7 +881,7 @@ export default async function Rechnungsblatt(
         <div className="mb-s5">
           <DataTable
             beschriftung={t.tabellePositionen}
-            zeilen={daten.positionen}
+            zeilen={positionen}
             schluessel={(p) => p.id}
             spalten={[
               { schluessel: 'nr', kopf: t.nr, numerisch: true,
@@ -891,6 +910,76 @@ export default async function Rechnungsblatt(
       )}
 
       {/*
+        * **Eine Position verlässt den Entwurf** (V-356, O-212, D-831) — eine
+        * Maske für alle Zeilen statt eines Knopfes je Zeile: wer entfernt,
+        * wählt die Zeile und nennt den Grund. Gelöscht wird nichts.
+        */}
+      {entwurf && ent !== null && positionen.length > 0 && (
+        <section id="position-entfernen" data-cse="position-entfernen"
+                 className="mb-s5 max-w-prose rounded-lg border border-line bg-surface p-s5">
+          <h3 className="mb-s2 mt-0 text-base font-semibold text-text">
+            {t.positionEntfernenTitel}
+          </h3>
+          {maske === 'position-entfernen' && fehlerHinweis}
+          <p className="mb-s4 mt-0 text-sm text-text-muted">{t.positionEntfernenErklaerung}</p>
+          <form method="post" action={`/api/rechnungen?mandant=${mandant}`}>
+            <input type="hidden" name="aktion" value="position-entfernen" />
+            <input type="hidden" name="rechnungId" value={k.id} />
+            <input type="hidden" name="zurueck" value={rueckweg} />
+            <label className="block text-sm text-text" htmlFor="entfernen-position">
+              {t.positionWaehlen}
+            </label>
+            <select id="entfernen-position" name="positionId" required className={feld}
+                    defaultValue={maske === 'position-entfernen'
+                      ? (vorbelegt(suche, 'positionId') ?? '') : ''}>
+              <option value="" disabled>—</option>
+              {positionen.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {`${String(p.position_nr)} · ${p.bezeichnung}`}
+                  {p.netto_cent === null ? '' : ` · ${formatiereGeld(cent(BigInt(p.netto_cent)))}`}
+                </option>
+              ))}
+            </select>
+            <label className="mt-s4 block text-sm text-text" htmlFor="entfernen-grund">
+              {t.entfernenGrund}
+            </label>
+            <input id="entfernen-grund" name="grund" type="text" required minLength={3}
+                   className={feld} placeholder={t.entfernenGrundBeispiel}
+                   defaultValue={maske === 'position-entfernen'
+                     ? (vorbelegt(suche, 'grund') ?? '') : ''} />
+            <div className="mt-s4">
+              <Button type="submit" variante="secondary" data-cse="position-entfernen-knopf">
+                {t.entfernenKnopf}
+              </Button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {entfernte.length > 0 && (
+        <section data-cse="entfernte-positionen" className="mb-s5">
+          <h3 className="mb-s2 mt-0 text-base font-semibold text-text">{t.entfernteTitel}</h3>
+          <p className="mb-s3 mt-0 max-w-prose text-sm text-text-muted">{t.entfernteErklaerung}</p>
+          <DataTable
+            beschriftung={t.tabelleEntfernte}
+            zeilen={entfernte}
+            schluessel={(p) => p.id}
+            spalten={[
+              { schluessel: 'nr', kopf: t.nr, numerisch: true,
+                zelle: (p) => String(p.position_nr) },
+              { schluessel: 'bez', kopf: g.bezeichnung, zelle: (p) => p.bezeichnung },
+              { schluessel: 'netto', kopf: t.netto, numerisch: true,
+                zelle: (p) => p.netto_cent === null ? '—'
+                  : formatiereGeld(cent(BigInt(p.netto_cent))) },
+              { schluessel: 'am', kopf: t.entferntAm, zelle: (p) => p.entfernt_lokal ?? '—' },
+              { schluessel: 'von', kopf: t.entferntVon, zelle: (p) => p.entfernt_von ?? '—' },
+              { schluessel: 'grund', kopf: t.entferntGrund, zelle: (p) => p.entfernt_grund ?? '—' },
+            ]}
+          />
+        </section>
+      )}
+
+      {/*
         * **Die Herkunft jeder Zeile** (FIN-07, DSH-04, Abnahme 2).
         *
         * Sie steht als eigener Abschnitt und nicht als achte Spalte der
@@ -907,7 +996,7 @@ export default async function Rechnungsblatt(
         <>
           <h2 className="mb-s3 text-h3 text-text">{t.herkunftTitel}</h2>
           <div className="mb-s5 rounded-lg border border-line bg-surface p-s5">
-            {daten.positionen.map((p) => {
+            {positionen.map((p) => {
               const belege = daten.quellen.filter((q) => q.positionId === p.id);
               if (belege.length === 0) return null;
               const summe = belege.reduce((a, q) => a + q.anteilCent, 0n);
@@ -1753,7 +1842,7 @@ export default async function Rechnungsblatt(
 
               <button
                 type="submit"
-                disabled={daten.positionen.length === 0}
+                disabled={positionen.length === 0}
                 className="mt-s4 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {t.rechnungFestschreiben}

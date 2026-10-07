@@ -34,6 +34,7 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { EmailNichtVerbundenFehler, type EmailDienst } from '../../versand/email.js';
 import { jcsDigest } from '../freigabe/kette.js';
 import { legeFreigabeVor } from '../freigabe/vorlegen.js';
+import { schlussMitSignatur } from '../mandant/signatur.js';
 import { RecruitingFehler } from './dienst.js';
 
 export type AntwortArt = 'eingangsbestaetigung' | 'einladung' | 'absage' | 'rueckfrage';
@@ -69,8 +70,10 @@ export interface Antwort {
 /**
  * Die Vorlagen.
  *
- * `{name}` und `{stelle}` sind die einzigen Platzhalter, und sie kommen aus
- * der Bewerbung — nicht aus einem Modell. Ein Modell darf diesen Text später
+ * `{name}` und `{stelle}` kommen aus der Bewerbung — nicht aus einem Modell.
+ * `{schluss}` ist Gruss und Signatur der Gesellschaft aus Einstellungen ›
+ * Identität, ohne Signatur Gruss und Name der Gesellschaft (V-391, O-115,
+ * `schlussMitSignatur`). Ein Modell darf diesen Text später
  * verbessern (das ist Formulieren, nicht Rechnen, Invariante 6); die Vorlage
  * bleibt der Rückfallweg, damit ein nicht erreichbares Modell keinen leeren
  * Brief erzeugt.
@@ -86,7 +89,7 @@ const VORLAGE: Readonly<Record<AntwortArt, { betreff: string; text: string }>> =
       + 'und wird gerade gesichtet.\n\n'
       + 'Wir melden uns, sobald wir sie durchgesehen haben. Bis dahin brauchen '
       + 'Sie nichts weiter zu tun.\n\n'
-      + 'Freundliche Grüße\n{gesellschaft}',
+      + '{schluss}',
   },
   einladung: {
     betreff: 'Einladung zum Gespräch — {stelle}',
@@ -95,7 +98,7 @@ const VORLAGE: Readonly<Record<AntwortArt, { betreff: string; text: string }>> =
       + 'kennenlernen.\n\n'
       + 'Bitte sagen Sie uns, wann es Ihnen passt — wir richten uns nach Ihnen. '
       + 'Das Gespräch dauert etwa eine Stunde.\n\n'
-      + 'Freundliche Grüße\n{gesellschaft}',
+      + '{schluss}',
   },
   absage: {
     betreff: 'Ihre Bewerbung als {stelle}',
@@ -112,7 +115,7 @@ const VORLAGE: Readonly<Record<AntwortArt, { betreff: string; text: string }>> =
       + 'Wir haben uns für eine andere Bewerbung entschieden.\n\n'
       + 'Ihre Unterlagen löschen wir nach Ablauf der Aufbewahrungsfrist. Wir '
       + 'wünschen Ihnen für Ihren weiteren Weg alles Gute.\n\n'
-      + 'Freundliche Grüße\n{gesellschaft}',
+      + '{schluss}',
   },
   rueckfrage: {
     betreff: 'Rückfrage zu Ihrer Bewerbung als {stelle}',
@@ -120,7 +123,7 @@ const VORLAGE: Readonly<Record<AntwortArt, { betreff: string; text: string }>> =
       + 'vielen Dank für Ihre Bewerbung als {stelle}. Für die weitere Prüfung '
       + 'fehlen uns noch Unterlagen.\n\n'
       + 'Bitte senden Sie uns: {offen}\n\n'
-      + 'Freundliche Grüße\n{gesellschaft}',
+      + '{schluss}',
   },
 };
 
@@ -133,7 +136,7 @@ export interface EntwurfEingabe {
 
 interface BewerbungKopf {
   name: string; email: string; stelle_titel: string | null; gesellschaft: string;
-  status: string; geloescht_am: Date | null;
+  signatur: string | null; status: string; geloescht_am: Date | null;
 }
 
 async function kopf(
@@ -141,9 +144,11 @@ async function kopf(
 ): Promise<BewerbungKopf> {
   const [b] = await kontext.abfrage<BewerbungKopf>(
     `select b.name, b.email, s.titel as stelle_titel, m.name as gesellschaft,
+            mi.email_signatur as signatur,
             b.status::text as status, b.geloescht_am
        from bewerbung b
        join mandant m on m.id = b.mandant_id
+       left join mandant_identitaet mi on mi.mandant_id = b.mandant_id
        left join stelle s on s.id = b.stelle_id
       where b.id = $1::uuid and b.mandant_id = app.aktiver_mandant()`,
     [bewerbungId]);
@@ -193,7 +198,7 @@ export async function entwirf(
   const werte: Record<string, string> = {
     name: b.name,
     stelle: b.stelle_titel ?? 'Initiativbewerbung',
-    gesellschaft: b.gesellschaft,
+    schluss: schlussMitSignatur('Freundliche Grüße', b.gesellschaft, b.signatur),
   };
   if (eingabe.art === 'rueckfrage') {
     const offen = eingabe.offen?.trim() ?? '';

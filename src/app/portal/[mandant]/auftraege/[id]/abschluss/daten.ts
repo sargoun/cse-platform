@@ -17,6 +17,8 @@ export interface AbschlussKopf {
   readonly abnahme_am_iso: string | null;
   readonly abnahme_am: string | null;
   readonly gewaehrleistung_bis: string | null;
+  /** ISO der eigenen Frist — Vorbelegung des Feldes (V-341). */
+  readonly gewaehrleistung_bis_iso: string | null;
   readonly sicherheitseinbehalt_bp: number | null;
   readonly sicherheitseinbehalt_cent: string | null;
   readonly abgeschlossen_am: string | null;
@@ -32,6 +34,10 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   storniert: 'Ein stornierter Auftrag wird nicht abgeschlossen.',
   gewaehrleistung_ohne_abnahme:
     'Eine Gewährleistungsfrist braucht ein Abnahmedatum — von ihm läuft sie.',
+  frist_andere_abnahme:
+    'Die Gewährleistungsfrist des Bauprojekts läuft von einer anderen Abnahme als der, die '
+    + 'der Auftrag nennt. Sie wird nicht still übernommen — bitte die Frist in der Maske '
+    + 'eintragen (V-341).',
   einbehalt_doppelt:
     'Der Sicherheitseinbehalt ist ein Satz ODER ein Betrag, nicht beides (O-20).',
   zahl_unlesbar:

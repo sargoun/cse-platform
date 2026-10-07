@@ -143,7 +143,7 @@ export async function ermittleSteuerfall(
   const kategorien = await db.abfrage<{ kategorie: string; n: string }>(
     `select p.kategorie::text as kategorie, count(*)::text as n
        from rechnungsposition p
-      where p.rechnung_id = $1 and p.positionsart = 'leistung'
+      where p.rechnung_id = $1 and p.positionsart = 'leistung' and p.entfernt_am is null
       group by p.kategorie`,
     [rechnungId],
   );

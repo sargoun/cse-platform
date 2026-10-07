@@ -338,9 +338,8 @@ export default async function Vorgangsakte(
             vertraglich notwendige Post laufen (eine Rechnung etwa).
             Terminbestätigung, Leistungsnachweis und Mahnung sind als transaktionale
             Nachrichten geführt; nach der Voreinstellung (O-65) sind sie vertraglich
-            notwendig und laufen weiter — die Prüfung, die jede Nachricht vor dem
-            Versand bestehen muss, weist sie aber noch ab, bis sie umgestellt ist
-            (V-339): der restriktive Zweig.
+            notwendig, und die Prüfung, die jede Nachricht vor dem Versand bestehen
+            muss, lässt sie nach einem Werbewiderspruch durch (V-339).
           </Hinweis>
 
           {extra.stand.length === 0 ? (

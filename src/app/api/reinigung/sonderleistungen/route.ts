@@ -9,7 +9,8 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant } from '@/server/kontext/index';
 import {
-  erfasseAbruf, setzeStatus, setzeZeitwert, storniereAbruf, SONDERLEISTUNG_STATUS,
+  erfasseAbruf, ordneVertragszeileZu, setzeStatus, setzeZeitwert, storniereAbruf,
+  SONDERLEISTUNG_STATUS, ZuordnungAbgewiesen,
   type AbrufFormularGrund, type SonderleistungErfolg, type SonderleistungStatus,
 } from '@/server/services/reinigung/sonderleistung';
 
@@ -17,8 +18,9 @@ import {
  * `POST /api/reinigung/sonderleistungen` — Abruf erfassen, Zustand setzen,
  * stornieren, Zeitwert pflegen (CLN-05, OPS-06).
  *
- * **Vier Vorgänge, EINE Adresse, ZWEI Rechte.** Die drei Vorgänge auf
- * `sonderleistung` autorisieren auf `reinigung.schreiben` (so steht es in der
+ * **Fünf Vorgänge, EINE Adresse, ZWEI Rechte.** Die vier Vorgänge auf
+ * `sonderleistung` (erfassen, Zustand, Storno und — seit V-325 — die
+ * Vertragszeile nachtragen) autorisieren auf `reinigung.schreiben` (so steht es in der
  * RLS dieser Tabelle), der Zeitwert einer Katalogzeile auf `katalog.schreiben`
  * (RLS von `leistungskatalog_position`, und das Recht, das das Routenmanifest
  * für diese Seite als Schreibrecht führt). Vier Adressen wären vier Stellen,
@@ -55,7 +57,8 @@ class Unvollstaendig extends Error {
   }
 }
 
-const ARTEN = ['abruf', 'status', 'storno', 'zeitwert'] as const;
+const ARTEN = ['abruf', 'status', 'storno', 'zeitwert', 'zuordnung'] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 type Art = (typeof ARTEN)[number];
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -138,6 +141,25 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
            */
           await setzeStatus(kontext, { id: abruf, status });
           return 'status_gesetzt';
+        }
+
+        if (art === 'zuordnung') {
+          /*
+           * V-325 (O-708): die Vertragszeile nachtragen, ändern oder — leer —
+           * lösen, bis zur Abrechnung. Ein Wert, der keine Kennung ist, wird
+           * abgewiesen, nicht still zu „lösen" (V-192).
+           */
+          const abruf = text(daten, 'abruf');
+          const zeile = text(daten, 'auftrag_leistung');
+          if (abruf === null || !UUID.test(abruf)) {
+            throw new ZuordnungAbgewiesen('Der Abruf fehlt.', 'zuordnung_unvollstaendig');
+          }
+          if (zeile !== null && !UUID.test(zeile)) {
+            throw new ZuordnungAbgewiesen(
+              'Diese Vertragszeile gibt es nicht.', 'vertragszeile_unbekannt');
+          }
+          await ordneVertragszeileZu(kontext, { id: abruf, auftragLeistungId: zeile });
+          return 'vertragszeile_gesetzt';
         }
 
         if (art === 'storno') {

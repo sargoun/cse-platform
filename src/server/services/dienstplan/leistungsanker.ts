@@ -55,7 +55,7 @@ export type AuftragStatus = 'angelegt' | 'aktiv' | 'pausiert' | 'abgeschlossen' 
  * (die Zeile nahm auch `angelegt` und `abgeschlossen`). Die Antwort ersetzt
  * nur diese Liste.
  *
- * TODO(client, O-927): Voreinstellung — (1) Zeit ohne Leistungszeile wird nachträglich zugeordnet, solange der Monat offen und die Zeit nicht abgerechnet ist, als Korrekturfassung (V-351); (2) ein Turnus ohne eigene Zeile übernimmt die seines Reviers, sind beide gesetzt, gilt die des Turnus (V-352); (3) der Auftrag darf einem anderen Kunden gehören als das Objekt; (4) neue Zeit nehmen `aktiv` und `pausiert` an, `angelegt`, `abgeschlossen` und `storniert` nicht. (3) und (4) wie gebaut. D-795.
+ * TODO(client, O-927): Voreinstellung — (1) Zeit ohne Leistungszeile wird nachträglich zugeordnet, solange der Monat offen und die Zeit nicht abgerechnet ist, als Korrekturfassung (V-351, D-827); (2) ein Turnus ohne eigene Zeile übernimmt die seines Reviers, sind beide gesetzt, gilt die des Turnus (V-352, D-826); (3) der Auftrag darf einem anderen Kunden gehören als das Objekt; (4) neue Zeit nehmen `aktiv` und `pausiert` an, `angelegt`, `abgeschlossen` und `storniert` nicht. Alle vier wie gebaut. D-795.
  */
 export const ANKERBARE_AUFTRAGSZUSTAENDE: readonly AuftragStatus[] = ['aktiv', 'pausiert'];
 
@@ -158,6 +158,47 @@ export async function listeAnkerbareLeistungen(
     kunde: z.kunde,
     objekt: z.objekt,
     lebt: z.lebt,
+  }));
+}
+
+/**
+ * Die Leistungszeilen, die an einem TAG gelten — für die Korrektur einer
+ * vergangenen Zeit (V-351, D-827). Eine Zeile, die seither beendet ist, war
+ * an diesem Tag vereinbart und gehört angeboten; eine, die erst danach
+ * beginnt, nicht. Der Auftrag muss neue Zeit annehmen
+ * (`ANKERBARE_AUFTRAGSZUSTAENDE`), dieselbe Regel wie für jeden Anker.
+ */
+export async function listeLeistungenAmTag(
+  kontext: LeseKontext, tag: string,
+  hoechstens: number = ANKERBARE_LEISTUNGEN_HOECHSTENS,
+): Promise<readonly AnkerbareLeistung[]> {
+  const zeilen = await kontext.abfrage<{
+    id: string; auftrag_id: string; auftragsnummer: string; position_nr: number;
+    bezeichnung: string; kunde: string | null; objekt: string | null;
+  }>(
+    `select al.id, al.auftrag_id, a.auftragsnummer, al.position_nr, al.bezeichnung,
+            k.name as kunde, coalesce(ol.bezeichnung, oa.bezeichnung) as objekt
+       from auftrag_leistung al
+       join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
+       left join kunde k on k.mandant_id = a.mandant_id and k.id = a.kunde_id
+       left join objekt ol on ol.mandant_id = al.mandant_id and ol.id = al.objekt_id
+       left join objekt oa on oa.mandant_id = a.mandant_id and oa.id = a.objekt_id
+      where a.status::text = any($3::text[])
+        and al.gueltig_ab <= $1::date
+        and (al.gueltig_bis is null or al.gueltig_bis >= $1::date)
+      order by a.auftragsnummer desc, al.position_nr
+      limit $2::int`,
+    [tag, Math.max(0, Math.trunc(hoechstens)), [...ANKERBARE_AUFTRAGSZUSTAENDE]],
+  );
+  return zeilen.map((z) => ({
+    id: z.id,
+    auftragId: z.auftrag_id,
+    auftragsnummer: z.auftragsnummer,
+    positionNr: Number(z.position_nr),
+    bezeichnung: z.bezeichnung,
+    kunde: z.kunde,
+    objekt: z.objekt,
+    lebt: true,
   }));
 }
 

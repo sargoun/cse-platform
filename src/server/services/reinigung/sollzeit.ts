@@ -256,3 +256,90 @@ export function berechneRevierSollzeit(raeume: readonly RaumEingabe[]): RevierSo
 export function summeDerRaeume(zeit: RevierSollzeit): bigint {
   return zeit.raeume.reduce((s, r) => s + r.hundertstelMinuten, 0n);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Die Bezugsgrösse einer Zone (V-358, O-349, D-830).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Unterhaltsreinigung und Glasreinigung sind zwei Reviere über denselben
+ * Räumen (CLN-05). Die eine rechnet auf den Boden, die andere auf das Glas —
+ * bis D-830 rechneten beide auf den Boden, und die Glasfläche reiste nur als
+ * Schnappschuss mit. Die Rechnung oben bleibt dieselbe; was sich mit der
+ * Bezugsgrösse ändert, ist ihre EINGABE: Fläche und Leistungswert je Raum.
+ */
+
+export type Bezugsgroesse = 'boden' | 'glas';
+
+export const BEZUGSGROESSEN: readonly Bezugsgroesse[] = ['boden', 'glas'];
+
+/**
+ * Der Code der Katalogzeile, mit der eine Glaszone rechnet.
+ *
+ * // TODO(client, O-349): Voreinstellung — ein Glasreinigungsrevier rechnet auf
+ * die Glasfläche mit dem Leistungswert der Belagsart GLAS (50 m²/h, nicht
+ * bestätigt, O-17); D-796, D-830.
+ */
+export const GLAS_CODE = 'GLAS';
+
+/** Ein Raum, wie ihn der Dienst aus Raumbuch und Katalog liest. */
+export interface RaumGrundlage {
+  readonly raumId: string;
+  readonly belagsartId: string | null;
+  readonly belagsartBezeichnung: string | null;
+  /** Bodenfläche in Milli-m². */
+  readonly flaeche: MilliMenge;
+  /** Glasfläche in Milli-m²; ohne Angabe null m². */
+  readonly fensterFlaeche: MilliMenge;
+  /** Leistungswert der Belagsart des Raums — `null` ohne geltenden Wert. */
+  readonly leistungswert: MilliMenge | null;
+  readonly reihenfolge: number;
+}
+
+/** Die Katalogzeile „Glas", wie sie am Stichtag gilt. */
+export interface Glaswert {
+  readonly belagsartId: string;
+  readonly bezeichnung: string;
+  readonly leistungswert: MilliMenge;
+}
+
+/**
+ * Die Eingabe der Rechnung für eine Zone.
+ *
+ *  · `boden`: Bodenfläche und Leistungswert der Belagsart jedes Raums. Ein
+ *    Raum ohne Belagsart oder ohne geltenden Wert fehlt — der Dienst benennt
+ *    ihn, statt ihn mit null Minuten zu verrechnen.
+ *  · `glas`: die Glasfläche jedes Raums und der EINE Leistungswert der
+ *    Katalogzeile „Glas". Die Belagsart des Raums spielt keine Rolle. Ein
+ *    Raum ohne Glas fehlt: er hat in dieser Zone nichts zu reinigen, und
+ *    `revier_raum_sollzeit_positiv` (0065) kennt keinen Anteil von null
+ *    Minuten. Fehlt die Katalogzeile am Stichtag, lässt sich kein Raum
+ *    rechnen — dann fehlen alle, und der Dienst sagt es.
+ */
+export function eingabeNachBezug(
+  raeume: readonly RaumGrundlage[], bezug: Bezugsgroesse, glas: Glaswert | null,
+): readonly RaumEingabe[] {
+  if (bezug === 'glas') {
+    if (glas === null || glas.leistungswert <= 0n) return [];
+    return raeume.filter((r) => r.fensterFlaeche > 0n).map((r) => ({
+      raumId: r.raumId,
+      belagsartId: glas.belagsartId,
+      belagsartBezeichnung: glas.bezeichnung,
+      flaeche: r.fensterFlaeche,
+      leistungswert: glas.leistungswert,
+      fensterFlaeche: r.fensterFlaeche,
+      reihenfolge: r.reihenfolge,
+    }));
+  }
+  return raeume
+    .filter((r): r is RaumGrundlage & { belagsartId: string; leistungswert: MilliMenge } =>
+      r.belagsartId !== null && r.leistungswert !== null && r.leistungswert > 0n)
+    .map((r) => ({
+      raumId: r.raumId,
+      belagsartId: r.belagsartId,
+      belagsartBezeichnung: r.belagsartBezeichnung ?? r.belagsartId,
+      flaeche: r.flaeche,
+      leistungswert: r.leistungswert,
+      fensterFlaeche: r.fensterFlaeche,
+      reihenfolge: r.reihenfolge,
+    }));
+}

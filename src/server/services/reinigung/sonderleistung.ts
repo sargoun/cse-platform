@@ -173,18 +173,29 @@ export const ABRUF_EINGABE_GRUENDE = [
 export const STATUS_NICHT_ERLAUBT_GRUENDE = [
   ...STATUS_ABWEISUNGEN, 'status_beim_erfassen', 'bereits_storniert', 'abgerechnet_kein_storno',
 ] as const;
+/**
+ * Warum eine Vertragszeile NICHT nachgetragen oder geändert wurde (V-325,
+ * O-708, D-826) — `ordneVertragszeileZu`; der erste stellt die Route fest.
+ */
+export const ZUORDNUNG_GRUENDE = [
+  'zuordnung_unvollstaendig', 'zuordnung_abgerechnet', 'zuordnung_storniert',
+  'zuordnung_in_rechnung', 'vertragszeile_unbekannt', 'vertragszeile_ausserhalb',
+  'vertragszeile_auftrag_storniert',
+] as const;
 export const SONDERLEISTUNG_GRUENDE = [
   ...ABRUF_FORMULAR_GRUENDE, ...ABRUF_EINGABE_GRUENDE, ...STATUS_NICHT_ERLAUBT_GRUENDE,
-  'abruf_unbekannt', 'katalogzeile_unbekannt',
+  ...ZUORDNUNG_GRUENDE, 'abruf_unbekannt', 'katalogzeile_unbekannt',
 ] as const;
 export type AbrufFormularGrund = (typeof ABRUF_FORMULAR_GRUENDE)[number];
 export type AbrufEingabeGrund = (typeof ABRUF_EINGABE_GRUENDE)[number];
 export type StatusNichtErlaubtGrund = (typeof STATUS_NICHT_ERLAUBT_GRUENDE)[number];
 export type SonderleistungGrund = (typeof SONDERLEISTUNG_GRUENDE)[number];
+export type ZuordnungGrund = (typeof ZUORDNUNG_GRUENDE)[number];
 
 /** Was nach einem gespeicherten Vorgang als `?erfolg=` zurückkommt (V-275) — nie ein Satz. */
 export const SONDERLEISTUNG_ERFOLGE = [
   'abruf_erfasst', 'status_gesetzt', 'abruf_storniert', 'zeitwert_gesetzt',
+  'vertragszeile_gesetzt',
 ] as const;
 export type SonderleistungErfolg = (typeof SONDERLEISTUNG_ERFOLGE)[number];
 
@@ -211,6 +222,15 @@ export class StatusNichtErlaubt extends Error {
   constructor(nachricht: string, readonly grund: StatusNichtErlaubtGrund) {
     super(nachricht);
     this.name = 'StatusNichtErlaubt';
+  }
+}
+
+export class ZuordnungAbgewiesen extends Error {
+  readonly code = 'ungueltige_eingabe';
+  readonly status = 422;
+  constructor(nachricht: string, readonly grund: ZuordnungGrund) {
+    super(nachricht);
+    this.name = 'ZuordnungAbgewiesen';
   }
 }
 
@@ -252,6 +272,8 @@ export interface AbrufZeile {
   readonly storniertAmLokal: string | null;
   readonly stornoGrund: string | null;
   readonly hatVertragszeile: boolean;
+  /** Die Vertragszeile selbst — vorgewählt im Feld „Vertragszeile" (V-325). */
+  readonly auftragLeistungId: string | null;
 }
 
 interface AbrufRoh {
@@ -275,6 +297,7 @@ interface AbrufRoh {
   storniert_lokal: string | null;
   storno_grund: string | null;
   hat_vertragszeile: boolean;
+  auftrag_leistung_id: string | null;
 }
 
 /**
@@ -313,7 +336,8 @@ const ABRUF_SPALTEN = `
   to_char(s.storniert_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
                                             as storniert_lokal,
   s.storno_grund,
-  (s.auftrag_leistung_id is not null)       as hat_vertragszeile`;
+  (s.auftrag_leistung_id is not null)       as hat_vertragszeile,
+  s.auftrag_leistung_id::text               as auftrag_leistung_id`;
 
 function alsAbruf(z: AbrufRoh): AbrufZeile {
   return {
@@ -337,6 +361,7 @@ function alsAbruf(z: AbrufRoh): AbrufZeile {
     storniertAmLokal: z.storniert_lokal,
     stornoGrund: z.storno_grund,
     hatVertragszeile: z.hat_vertragszeile,
+    auftragLeistungId: z.auftrag_leistung_id,
   };
 }
 
@@ -381,12 +406,13 @@ export interface AbrufEingabe {
    * aber die Voraussetzung dafuer, dass der Abruf ueberhaupt in eine Rechnung
    * kommt (INNER JOIN in `finanz/abrechnungsart/einzelabruf.ts`).
    *
-   * Ein Abruf entsteht oft VOR dem Nachtrag, der die Zeile schafft. Ob und bis
-   * wann sich die Zuordnung nachtragen laesst, ist nicht entschieden — und
-   * eine still gewaehlte Antwort hiesse, einen bereits abgerechneten Abruf
-   * einer anderen Vertragszeile zuzuschlagen.
+   * Ein Abruf entsteht oft VOR dem Nachtrag, der die Zeile schafft. Die
+   * Zuordnung laesst sich deshalb bis zur Abrechnung nachtragen und aendern
+   * (`ordneVertragszeileZu`, Voreinstellung O-708) — danach nicht mehr: ein
+   * abgerechneter Abruf einer anderen Vertragszeile zugeschlagen, aenderte
+   * eine festgeschriebene Rechnung im Nachhinein.
    */
-  // TODO(client, O-708): Voreinstellung — die Vertragszeile eines Abrufs laesst sich bis zur Abrechnung nachtragen oder aendern, danach nicht mehr; der Nachtragsweg fehlt (V-325). D-789.
+  // TODO(client, O-708): Voreinstellung — die Vertragszeile eines Abrufs laesst sich bis zur Abrechnung nachtragen oder aendern, danach nicht mehr; nachgetragen wird ueber `ordneVertragszeileZu` (V-325, D-826). D-789.
   readonly auftragLeistungId?: string | null;
   readonly beauftragtDurch?: string | null;
   readonly ausfuehrungVon?: string | null;
@@ -722,12 +748,41 @@ export interface AbrufAuswahl {
    * Gruppe — sie wegzulassen hiesse, genau die Zeilen zu verstecken, unter
    * denen ein Abruf ueblicherweise laeuft.
    */
-  readonly vertragszeilen: readonly {
-    readonly id: string; readonly auftragNummer: string; readonly positionNr: number;
-    readonly bezeichnung: string; readonly einheit: string | null;
-    readonly objektId: string | null;
-  }[];
+  readonly vertragszeilen: readonly Vertragszeile[];
   readonly geprueft: Readonly<Record<string, boolean>>;
+}
+
+/** Eine Vertragszeile zur Auswahl — mit ihrem Zeitraum, auch beendet. */
+export interface Vertragszeile {
+  readonly id: string; readonly auftragNummer: string; readonly positionNr: number;
+  readonly bezeichnung: string; readonly einheit: string | null;
+  readonly objektId: string | null;
+  readonly gueltigAb: string;
+  readonly gueltigBis: string | null;
+}
+
+/**
+ * Die Zeilen, die am Tag eines Abrufs gelten — derselbe Massstab wie
+ * `ordneVertragszeileZu`: Ausführung, sonst Beauftragung. Beendete Zeilen
+ * zählen, wenn sie an diesem Tag liefen: nach einer Preisanpassung ist das für
+ * einen älteren Abruf die Vorgängerin, nicht die Nachfolgerin (Copilot-Runde
+ * PR #44).
+ */
+export function zeilenAmTag<Z extends Pick<Vertragszeile, 'gueltigAb' | 'gueltigBis'>>(
+  zeilen: readonly Z[], tag: string,
+): readonly Z[] {
+  return zeilen.filter((z) => z.gueltigAb <= tag && (z.gueltigBis === null || z.gueltigBis >= tag));
+}
+
+/**
+ * Die Zeilen, die an `tag` noch nicht beendet sind — für einen NEUEN Abruf,
+ * dessen Tag erst im Formular steht: laufende und kommende, wie bisher, und
+ * jetzt auch befristete, die noch laufen.
+ */
+export function zeilenNichtBeendet<Z extends Pick<Vertragszeile, 'gueltigBis'>>(
+  zeilen: readonly Z[], tag: string,
+): readonly Z[] {
+  return zeilen.filter((z) => z.gueltigBis === null || z.gueltigBis >= tag);
 }
 
 /**
@@ -782,23 +837,107 @@ export async function ladeAbrufAuswahl(kontext: LeseKontext): Promise<AbrufAuswa
    * Bedienende legte weiter Abrufe an, die niemand abrechnen kann. Deshalb
    * traegt `geprueft` das Recht mit, und die Seite sagt „nicht geprueft".
    */
+  /*
+   * Auch beendete Zeilen — ein Abruf gehört zu der Zeile, die an SEINEM Tag
+   * galt, und das ist nach einer Preisanpassung die Vorgängerin
+   * (`zeilenAmTag`). Ein stornierter Auftrag nimmt keinen Abruf.
+   */
   const vertragszeilen = geprueft['auftrag.lesen'] === true
-    ? await kontext.abfrage<{
-      id: string; auftragNummer: string; positionNr: number;
-      bezeichnung: string; einheit: string | null; objektId: string | null;
-    }>(
+    ? await kontext.abfrage<Vertragszeile>(
       `select al.id,
               a.auftragsnummer             as "auftragNummer",
               al.position_nr::int          as "positionNr",
               al.bezeichnung,
               al.einheit,
-              al.objekt_id                 as "objektId"
+              al.objekt_id                 as "objektId",
+              al.gueltig_ab::text          as "gueltigAb",
+              al.gueltig_bis::text         as "gueltigBis"
          from auftrag_leistung al
          join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
-        where al.gueltig_bis is null
+        where a.status <> 'storniert'
         order by a.auftragsnummer, al.position_nr
         limit 500`,
     )
     : [];
   return { objekte, reviere, katalog, vertragszeilen, geprueft };
+}
+
+/**
+ * **Die Vertragszeile eines Abrufs nachtragen, ändern oder lösen** (V-325,
+ * Voreinstellung O-708, D-789, D-826).
+ *
+ * Ohne Vertragszeile kommt ein Abruf in keine Rechnung (INNER JOIN in
+ * `finanz/abrechnungsart/einzelabruf.ts`), und er entsteht oft vor dem
+ * Nachtrag, der die Zeile schafft. Bis zur Abrechnung lässt sie sich deshalb
+ * setzen und ändern; danach nicht mehr:
+ *
+ *  - `abgerechnet` steht in einer festgeschriebenen Rechnung — eine andere
+ *    Zeile änderte den Beleg im Nachhinein;
+ *  - `storniert` kommt in keine Rechnung mehr;
+ *  - steht der Abruf in einem Rechnungsentwurf, führt der den Preis der
+ *    bisherigen Zeile — erst der Entwurf, dann die Zuordnung. Gefragt wird
+ *    `app.abruf_in_rechnung` (0519), weil die Reinigung die Rechnungsherkunft
+ *    sonst nicht sieht.
+ *
+ * Die neue Zeile muss am Tag des Abrufs gelten (Ausführung, sonst
+ * Beauftragung) — der Preis einer Zeile, die an diesem Tag nicht vereinbart
+ * war, wäre der falsche; nach einer Preisanpassung ist es die Nachfolgerin.
+ * Ein stornierter Auftrag nimmt keinen Abruf. Der Kunde des Auftrags darf ein
+ * anderer sein als der des Objekts (Voreinstellung O-927 (3)); das Feld nennt
+ * beide. Leer heisst lösen.
+ */
+export async function ordneVertragszeileZu(
+  kontext: SchreibKontext,
+  e: { readonly id: string; readonly auftragLeistungId: string | null },
+): Promise<void> {
+  const [abruf] = await kontext.schreibe<{ status: string; tag: string; bisher: string | null }>(
+    `select status::text as status,
+            coalesce(ausfuehrung_von, beauftragt_am)::text as tag,
+            auftrag_leistung_id::text as bisher
+       from sonderleistung where id = $1::uuid for update`, [e.id]);
+  if (abruf === undefined) throw new AbrufNichtGefunden(e.id);
+  if (abruf.status === 'abgerechnet') {
+    throw new ZuordnungAbgewiesen(
+      'Ein abgerechneter Abruf behält seine Vertragszeile.', 'zuordnung_abgerechnet');
+  }
+  if (abruf.status === 'storniert') {
+    throw new ZuordnungAbgewiesen(
+      'Ein stornierter Abruf kommt in keine Rechnung mehr.', 'zuordnung_storniert');
+  }
+  if (e.auftragLeistungId === abruf.bisher) return;
+  const [inRechnung] = await kontext.abfrage<{ ja: boolean }>(
+    `select app.abruf_in_rechnung($1::uuid) as ja`, [e.id]);
+  if (inRechnung?.ja === true) {
+    throw new ZuordnungAbgewiesen(
+      'Der Abruf steht in einem Rechnungsentwurf.', 'zuordnung_in_rechnung');
+  }
+  if (e.auftragLeistungId !== null) {
+    const [zeile] = await kontext.abfrage<{ gilt: boolean; storniert: boolean }>(
+      `select (al.gueltig_ab <= $2::date
+               and (al.gueltig_bis is null or al.gueltig_bis >= $2::date)) as gilt,
+              (a.status = 'storniert') as storniert
+         from auftrag_leistung al
+         join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
+        where al.id = $1::uuid and al.mandant_id = app.aktiver_mandant()`,
+      [e.auftragLeistungId, abruf.tag]);
+    if (zeile === undefined) {
+      throw new ZuordnungAbgewiesen(
+        'Diese Vertragszeile gibt es nicht, oder sie ist nicht sichtbar.',
+        'vertragszeile_unbekannt');
+    }
+    if (zeile.storniert) {
+      throw new ZuordnungAbgewiesen(
+        'Der Auftrag dieser Vertragszeile ist storniert.', 'vertragszeile_auftrag_storniert');
+    }
+    if (!zeile.gilt) {
+      throw new ZuordnungAbgewiesen(
+        'Diese Vertragszeile gilt am Tag des Abrufs nicht.', 'vertragszeile_ausserhalb');
+    }
+  }
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update sonderleistung
+        set auftrag_leistung_id = $2::uuid
+      where id = $1::uuid and status not in ('abgerechnet', 'storniert')
+     returning id`, [e.id, e.auftragLeistungId]);
+  if (zeilen.length === 0) throw new AbrufNichtGefunden(e.id);
 }

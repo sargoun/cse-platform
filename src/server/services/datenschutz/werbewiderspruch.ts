@@ -9,12 +9,11 @@
  *    Rechnungen (FIN-11) und alles andere mit `zweck = 'vertraglich'` laufen
  *    weiter: Kommunikation zur Durchführung des Vertrags ruht auf Art. 6
  *    Abs. 1 lit. b und lässt sich nicht wegwidersprechen. Leistungsnachweis
- *    (CLN-04), Terminbestätigung und Mahnung (FIN-15) sind dagegen als
+ *    (CLN-04), Terminbestätigung und Mahnung (FIN-15) sind als
  *    `zweck = 'transaktional'` geführt; nach der Voreinstellung (O-65, D-792)
- *    sind sie vertraglich notwendig und laufen weiter — aber
- *    `app.darf_kontaktiert_werden` weist sie noch ab, bis die Funktion
- *    umgestellt ist (V-339): der restriktive Zweig, nachgemessen im
- *    Funktionsrumpf und nicht angenommen.
+ *    sind sie vertraglich notwendig und laufen weiter —
+ *    `app.darf_kontaktiert_werden` lässt sie seit 0524 wie die vertragliche
+ *    Post durch (V-339, D-833), nachgemessen in `tests/isolation/uwg.test.ts`.
  *  - **Widerspruch nach Art. 21** (`widerspruch_am`) zwingt über
  *    `kern.erzwinge_widerspruch()` `rechtsgrundlage = 'keine'` — der seltenere,
  *    stärkere Fall.
@@ -78,23 +77,21 @@ export const ART_TEXT: Readonly<Record<WiderspruchArt, string>> = {
 
 export const ART_WIRKUNG: Readonly<Record<WiderspruchArt, string>> = {
   /*
-   * **Der Satz sagt jetzt, was die Datenbank tut — nicht, was naheliegt.**
+   * **Der Satz sagt, was die Datenbank tut — nicht, was naheliegt.**
    *
-   * Hier stand, Leistungsnachweise, Terminbestätigungen und Mahnungen liefen
-   * weiter. Das gilt für `zweck = 'vertraglich'`. Genau diese drei sind aber
-   * als `zweck = 'transaktional'` geführt (0020), und
-   * `app.darf_kontaktiert_werden` weist `transaktional` bei gesetztem
-   * `werbewiderspruch_am` ab — bewusst, als restriktiver Zweig zu O-65. Drei
-   * Abschnitte tiefer sagte derselbe Bildschirm im O-65-Punkt das Gegenteil.
+   * Leistungsnachweis, Terminbestätigung und Mahnung sind als
+   * `zweck = 'transaktional'` geführt (0020). Bis 0524 wies
+   * `app.darf_kontaktiert_werden` sie bei gesetztem `werbewiderspruch_am`
+   * ab — der restriktive Zweig zu O-65, und dieser Satz sagte es. Seit 0524
+   * laufen sie wie die vertragliche Post (V-339, D-833).
    */
   werbung:
     'Sperrt jede Nachricht mit zweck = „werbung“. Rechnungen und andere '
     + 'vertraglich notwendige Post (zweck = „vertraglich“) laufen weiter — sie '
-    + 'ruhen auf Art. 6 Abs. 1 lit. b und sind nicht widersprechlich. '
-    + 'Terminbestätigung, Leistungsnachweis und Mahnung sind als '
+    + 'ruhen auf Art. 6 Abs. 1 lit. b und sind nicht widersprechlich. Ebenso '
+    + 'Terminbestätigung, Leistungsnachweis und Mahnung: sie sind als '
     + '„transaktional“ geführt und nach der Voreinstellung (O-65) vertraglich '
-    + 'notwendig; die Prüfung vor dem Versand weist sie aber noch ab, bis sie '
-    + 'umgestellt ist (V-339): der restriktive Zweig, sichtbar statt still.',
+    + 'notwendig, und die Prüfung vor dem Versand lässt sie durch.',
   verarbeitung:
     'Zwingt rechtsgrundlage = „keine“ und löscht Quelle, Erfassungszeitpunkt '
     + 'und Einwilligungskanäle. Damit endet jede werbliche Verarbeitung; '

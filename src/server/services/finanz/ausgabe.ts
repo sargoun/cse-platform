@@ -477,6 +477,8 @@ export interface Weiterberechnung {
   readonly positionNr: number;
   readonly positionBezeichnung: string;
   readonly wirksam: boolean;
+  /** Die Zeile hat den Entwurf verlassen (V-356) — darum ist sie unwirksam. */
+  readonly positionEntfernt: boolean;
 }
 
 /**
@@ -493,10 +495,11 @@ export async function weiterberechnungen(
 ): Promise<readonly Weiterberechnung[]> {
   const zeilen = await db.abfrage<{
     rechnung_id: string; nummer: string | null; status: string;
-    position_nr: number; bezeichnung: string; wirksam: boolean;
+    position_nr: number; bezeichnung: string; wirksam: boolean; position_entfernt: boolean;
   }>(
     `select q.rechnung_id, r.nummer, r.status::text as status,
-            p.position_nr, p.bezeichnung, q.wirksam
+            p.position_nr, p.bezeichnung, q.wirksam,
+            p.entfernt_am is not null as position_entfernt
        from rechnungsposition_quelle q
        join rechnung r on r.mandant_id = q.mandant_id and r.id = q.rechnung_id
        join rechnungsposition p
@@ -511,6 +514,7 @@ export async function weiterberechnungen(
     positionNr: z.position_nr,
     positionBezeichnung: z.bezeichnung,
     wirksam: z.wirksam,
+    positionEntfernt: z.position_entfernt,
   }));
 }
 

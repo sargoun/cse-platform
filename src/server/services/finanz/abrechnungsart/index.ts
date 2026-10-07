@@ -444,6 +444,8 @@ export async function ladeBisherigeAnsprueche(
        from rechnungsposition p
        join rechnung r on r.mandant_id = p.mandant_id and r.id = p.rechnung_id
       where p.vertrag_abrechnung_id = $1::uuid
+        -- Eine entfernte Zeile beansprucht nichts mehr (V-356).
+        and p.entfernt_am is null
         and exists (select 1 from rechnungsposition_quelle q
                      where q.rechnungsposition_id = p.id and q.wirksam)
         and not exists (

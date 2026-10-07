@@ -1252,6 +1252,13 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   },
   {
     tabelle: 'rechnungsposition',
+    /*
+     * Bleibt `append`, obwohl 0522 `entfernt_am` bringt (V-356, D-831): die
+     * Zeile endet nie — sie verlässt nur einen ENTWURF, mit Grund, und bleibt
+     * stehen; nach der Festschreibung ändert sich an ihr nichts mehr
+     * (`fin.kind_unveraenderlich`). Ein Wechsel auf `archiv` schriebe
+     * ausserdem den erzeugten Block der angewandten Migration 0075 um.
+     */
     art: 'append',
     migration: '0075',
     grund:
@@ -1582,6 +1589,15 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
       + 'Loeschbar waere sie genau das Werkzeug dessen, den APR-08 finden '
       + 'soll: wer zu schnell entscheidet, raeumte die Messung hinter sich '
       + 'weg, und die Auswertung meldete danach nur noch die Sorgfaeltigen.',
+  },
+  {
+    tabelle: 'verfahrensdokumentation_zeichnung',
+    art: 'append',
+    migration: '0526',
+    grund:
+      'V-316, O-188, ACC-10, GoBD Rz. 151 ff. Wer die Verfahrensdokumentation in '
+      + 'welcher Fassung gezeichnet hat. Loeschbar waere sie die Zeichnung, die es '
+      + 'nicht gegeben haben soll — und eine Pruefung, deren Datum niemand belegt.',
   },
   {
     tabelle: 'dokument_zugriff',

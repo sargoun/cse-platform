@@ -34,9 +34,11 @@ import { Recht } from '@/components/ui/Recht';
  * hinterlassen null Lücken" —, und sie gilt baulich, nicht aus Vorsicht.
  *
  * **Die Quellen werden frei.** `verwerfe()` ruft `gibQuellenFrei()`: die
- * abgerechneten Zeiteinträge und Aufmasse dieses Entwurfs sind danach wieder
- * abrechenbar. Diese Seite zeigt sie vorher, denn wer verwirft, soll wissen,
- * welche Leistung damit wieder unabgerechnet ist.
+ * Zeiteinträge, Aufmasse, Abrufe und Ausgaben, die dieser Entwurf
+ * beansprucht, sind danach wieder abrechenbar — ebenso der Monat einer
+ * Pauschale oder das Los, das eine Zeile aus einer Abrechnungsvereinbarung
+ * hält (V-395). Diese Seite zeigt sie vorher, denn wer verwirft, soll
+ * wissen, welche Leistung damit wieder unabgerechnet ist.
  */
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +100,8 @@ export default async function Verwerfenblatt(
                 to_char(r.leistung_bis, 'DD.MM.YYYY') as leistung_bis,
                 r.netto_gesamt_cent::text, r.brutto_cent::text,
                 (select count(*) from rechnungsposition p
-                  where p.mandant_id = r.mandant_id and p.rechnung_id = r.id)::int
+                  where p.mandant_id = r.mandant_id and p.rechnung_id = r.id
+                    and p.entfernt_am is null)::int
                   as positionen,
                 to_char(r.verworfen_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as verworfen_am,
@@ -116,12 +119,15 @@ export default async function Verwerfenblatt(
 
   const entwurf = k.status === 'entwurf';
   /*
-   * Freigegeben werden nur die WIRKSAMEN Quellen mit einer eigenen Kennung:
-   * eine Zeile „von Hand" hält nichts fest, was wieder frei werden könnte,
-   * und eine unwirksame war schon freigegeben.
+   * Frei werden die WIRKSAMEN Quellen — eine unwirksame war schon
+   * freigegeben. Darunter jede mit eigener Kennung (Stunde, Abruf, Ausgabe …)
+   * und jede Zeile aus einer Abrechnungsvereinbarung: sie steht „von Hand",
+   * beansprucht aber den Monat ihrer Pauschale oder ihr Los (V-207), und
+   * nach dem Verwerfen lässt sich dieser Zeitraum wieder berechnen (V-395).
+   * Eine Zeile „von Hand" ohne Vereinbarung hält nichts fest.
    */
   const freiwerdend = daten.quellen.filter(
-    (q) => q.wirksam && q.typ !== 'manuell' && q.quelleId !== null);
+    (q) => q.wirksam && (q.quelleId !== null || q.ausVereinbarung));
 
   const feld = 'mt-s2 block min-h-11 w-full max-w-prose rounded-md border '
     + 'border-line bg-surface-3 p-s3 text-sm text-text';
@@ -212,8 +218,9 @@ export default async function Verwerfenblatt(
               },
               {
                 schluessel: 'typ', kopf: t.herkunft,
-                zelle: (q) => t.herkunftNamen[q.typ as keyof typeof t.herkunftNamen]
-                  ?? q.typ,
+                zelle: (q) => (q.typ === 'manuell' && q.ausVereinbarung
+                  ? t.herkunftVereinbarung
+                  : t.herkunftNamen[q.typ as keyof typeof t.herkunftNamen] ?? q.typ),
               },
               {
                 schluessel: 'bezeichnung', kopf: t.beleg,

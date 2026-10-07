@@ -2313,6 +2313,15 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Die Regel zum Leistungsort einer Rechnung setzen (V-373, O-933, D-836):
+     * frei oder gleich, je Gesellschaft. Die Policy auf `mandant_einstellung`
+     * (0033) prüft dasselbe Recht ein zweites Mal.
+     */
+    pfad: 'api/einstellungen/rechnungen',
+    recht: 'system.einstellung_verwalten',
+  },
+  {
+    /**
      * Ein Dokument samt Datei entfernen (V-026, DOC-07, LEG-01).
      *
      * **`dokument.archivieren` und nicht `dokument.schreiben`.** Wer ablegen
@@ -2636,6 +2645,16 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/buchhaltung/verfahrensdokumentation',
     recht: 'buchhaltung_konfiguration.lesen',
+  },
+  {
+    /**
+     * Die Verfahrensdokumentation zeichnen (V-316, O-188, D-837) — unter
+     * `buchhaltung_konfiguration.verwalten`, mit zweitem Faktor: wer die
+     * Konfiguration aendern darf, bezeugt auch ihre Beschreibung. Die Policy
+     * `t_vdz_zeichnen` (0526) prueft dasselbe Recht ein zweites Mal.
+     */
+    pfad: 'api/buchhaltung/verfahrensdokumentation/zeichnung',
+    recht: 'buchhaltung_konfiguration.verwalten',
   },
   {
     /**

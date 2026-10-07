@@ -32,6 +32,11 @@ import { mengeAusPostgres, mengeNachPostgres, milliMenge, type MilliMenge } from
 import { berechneSteuer, type SteuerZeile } from './steuer/satz.js';
 import { zahlungsmittelCode } from './zahlungsmittel.js';
 import { waehleRechnungsLogo } from './rechnungslogo.js';
+import { steuerzeileAufDemBeleg } from './steuerzeile.js';
+import {
+  OBJEKT_KUNDE_REGEL as VOREINSTELLUNG_LEISTUNGSORT, objektKundeRegel,
+  type ObjektKundeRegel as LeistungsortRegel,
+} from './leistungsort-regel.js';
 import {
   buildKanonischePayload, SCHEMA_VERSION,
   type Position, type Quelle, type RechnungVollstaendig, type Steuerzeile, type Zuschlag,
@@ -84,7 +89,14 @@ export class RechnungFehler extends Error {
        */
       | 'zeitraum_gebunden'
       /* V-209 (D-702): ein Leistungsort, den dieser Mensch nicht sieht. */
-      | 'objekt_passt_nicht',
+      | 'objekt_passt_nicht'
+      /*
+       * V-356 (D-831): eine Position verlässt den Entwurf — nur mit Grund,
+       * nur einmal, und nie die letzte Leistungszeile.
+       */
+      | 'grund_zu_kurz'
+      | 'schon_entfernt'
+      | 'letzte_position',
   ) {
     super(nachricht);
     this.name = 'RechnungFehler';
@@ -283,15 +295,13 @@ export async function pruefeAuftragZuordnung(
  *
  * `pruefeObjektZuordnung` liest die Regel (Prüfstand PR #36): `gleich` wiese
  * ein Objekt ab, das einem anderen Kunden als dem der Rechnung zugeordnet ist.
- * Eine Einstellung je Gesellschaft gibt es noch nicht — die Regel ist heute
- * diese eine Zeile (V-373).
+ * Seit V-373 (D-836) ist sie eine Einstellung je Gesellschaft
+ * (`leistungsort-regel.ts`, Einstellungen › Rechnungen); `legeEntwurfAn` und
+ * `aendereEntwurf` lesen sie dort.
  */
-export interface ObjektKundeRegel {
-  readonly art: 'frei' | 'gleich';
-  readonly frage: 'O-933';
-}
-
-export const OBJEKT_KUNDE_REGEL: ObjektKundeRegel = { art: 'frei', frage: 'O-933' };
+export {
+  OBJEKT_KUNDE_REGEL, type ObjektKundeRegel,
+} from './leistungsort-regel.js';
 
 /**
  * **Ein Leistungsort, den dieser Mensch sehen darf** (V-209, D-702).
@@ -306,7 +316,7 @@ export const OBJEKT_KUNDE_REGEL: ObjektKundeRegel = { art: 'frei', frage: 'O-933
  */
 export async function pruefeObjektZuordnung(
   db: Abfrage, objektId: string, kundeId: string,
-  regel: ObjektKundeRegel = OBJEKT_KUNDE_REGEL,
+  regel: LeistungsortRegel = VOREINSTELLUNG_LEISTUNGSORT,
 ): Promise<void> {
   const [o] = await db.abfrage<{ id: string; kunde_id: string | null }>(
     `select id::text as id, kunde_id::text as kunde_id from objekt where id = $1::uuid`,
@@ -352,7 +362,9 @@ export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promi
   if (auftragId !== null) await pruefeAuftragZuordnung(db, eingabe.kundeId, auftragId);
   /* V-209: ein Leistungsort, den dieser Mensch sehen darf. */
   const objektId = eingabe.objektId ?? null;
-  if (objektId !== null) await pruefeObjektZuordnung(db, objektId, eingabe.kundeId);
+  if (objektId !== null) {
+    await pruefeObjektZuordnung(db, objektId, eingabe.kundeId, await objektKundeRegel(db));
+  }
   const ziel = eingabe.zahlungszielTage ?? await ermittleZahlungsziel(db, eingabe.kundeId);
 
   const [zeile] = await db.abfrage<{ id: string }>(
@@ -542,6 +554,8 @@ export async function fuegePositionHinzu(
         auftrag_leistung_id, lv_position_id, leistung_von, leistung_bis,
         erstellt_von_art, erstellt_von)
      select app.aktiver_mandant(), $1,
+            -- Ueber alle Zeilen, auch die entfernten (entfernt_am, V-356): eine
+            -- Nummer wird auf einem Beleg nie zweimal vergeben.
             coalesce((select max(p.position_nr) from rechnungsposition p
                        where p.rechnung_id = $1), 0) + 1,
             $2, $3, $4::numeric, $5, $6::uuid, $7::numeric, $8::bigint, $9, $10::bigint,
@@ -802,6 +816,8 @@ export async function schreibeSummen(db: Abfrage, rechnungId: string): Promise<v
        from rechnungsposition p
        join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
       where p.rechnung_id = $1 and p.positionsart = 'leistung'
+        -- Eine entfernte Position steht nicht mehr auf dem Beleg (V-356).
+        and p.entfernt_am is null
       group by g.id, g.schluessel, p.satz_bp, p.kategorie,
                g.befreiungsgrund_code, g.befreiungsgrund_text`,
     [rechnungId],
@@ -1211,6 +1227,9 @@ export async function ladeRechnungVollstaendig(
        join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
        left join masseinheit e on e.id = p.masseinheit_id
       where p.rechnung_id = $1
+        -- Nur, was auf dem Beleg steht: eine entfernte Position fehlt in
+        -- Nutzlast, Hash, PDF und XRechnung (V-356).
+        and p.entfernt_am is null
       order by p.position_nr`,
     [rechnungId],
   );
@@ -1232,12 +1251,17 @@ export async function ladeRechnungVollstaendig(
     position_nr: number; typ: string; quelle_id: string | null; menge_anteil: string | null;
   }>(
     `select p.position_nr, q.quelle_typ::text as typ,
+            -- Mit dem Abruf (V-395): bis D-832 stand eine Abrufherkunft hier
+            -- ohne Kennung. Festgeschriebene Belege behalten ihre Nutzlast —
+            -- der Kettenlauf hasht die gespeicherten Bytes und baut sie nie
+            -- neu (kanonisch.ts).
             coalesce(q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
-                     q.leistungsnachweis_id, q.nachtrag_id)::text as quelle_id,
+                     q.sonderleistung_id, q.leistungsnachweis_id, q.nachtrag_id)::text
+              as quelle_id,
             q.menge_anteil::text
        from rechnungsposition_quelle q
        join rechnungsposition p on p.mandant_id = q.mandant_id and p.id = q.rechnungsposition_id
-      where q.rechnung_id = $1
+      where q.rechnung_id = $1 and p.entfernt_am is null
       order by p.position_nr, q.quelle_typ, q.id`,
     [rechnungId],
   );
@@ -1279,7 +1303,7 @@ export async function ladeRechnungVollstaendig(
             s.befreiungsgrund_code, s.befreiungsgrund_text
        from rechnung_steuer s
        join steuersatz_gruppe g on g.id = s.steuersatz_gruppe_id
-      where s.rechnung_id = $1`,
+      where s.rechnung_id = $1 and ${steuerzeileAufDemBeleg('s')}`,
     [rechnungId],
   );
 
@@ -1518,7 +1542,7 @@ export async function finalisiere(
 
   const [anzahl] = await db.abfrage<{ n: string }>(
     `select count(*)::text as n from rechnungsposition
-      where rechnung_id = $1 and positionsart = 'leistung'`,
+      where rechnung_id = $1 and positionsart = 'leistung' and entfernt_am is null`,
     [rechnungId],
   );
   if (Number(anzahl?.n ?? '0') === 0) {
@@ -1784,6 +1808,12 @@ export interface StornoErgebnis {
  * Der Anteil wird mit der Menge gespiegelt: eine Stornozeile traegt eine
  * negative Menge (siehe unten), und ein positiver Anteil daneben liesse die
  * Summenpruefung des Aufmasses den Verbrauch verdoppeln statt ihn aufzuheben.
+ *
+ * **Die Spaltenliste ist die von `rpq_genau_eine_quelle` (0112)** — jede
+ * Kennung, die eine Herkunft tragen kann. `sonderleistung_id` fehlte hier
+ * (V-395, D-832): die Stornozeile einer Abrufzeile trug den Typ ohne den
+ * Abruf, die Einschraenkung wies sie ab, und eine Rechnung mit einem
+ * Einzelabruf liess sich nicht stornieren.
  */
 async function uebernimmQuellen(
   db: Abfrage, vonRechnung: string, nachRechnung: string,
@@ -1793,16 +1823,17 @@ async function uebernimmQuellen(
     `insert into rechnungsposition_quelle
        (mandant_id, rechnungsposition_id, rechnung_id, quelle_typ,
         zeiteintrag_id, aufmass_id, auftrag_leistung_id, ausgabe_id,
-        leistungsnachweis_id, nachtrag_id, menge_anteil, notiz, wirksam,
-        erstellt_von_art, erstellt_von)
+        sonderleistung_id, leistungsnachweis_id, nachtrag_id, menge_anteil, notiz,
+        wirksam, erstellt_von_art, erstellt_von)
      select q.mandant_id, np.id, $2::uuid, q.quelle_typ,
             q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
-            q.leistungsnachweis_id, q.nachtrag_id,
+            q.sonderleistung_id, q.leistungsnachweis_id, q.nachtrag_id,
             case when $4::boolean then -q.menge_anteil else q.menge_anteil end,
             q.notiz, $3::boolean, 'mensch', app.aktueller_benutzer()
        from rechnungsposition_quelle q
        join rechnungsposition ap
          on ap.mandant_id = q.mandant_id and ap.id = q.rechnungsposition_id
+        and ap.entfernt_am is null
        join rechnungsposition np
          on np.mandant_id = q.mandant_id and np.rechnung_id = $2::uuid
         and np.position_nr = ap.position_nr
@@ -1825,11 +1856,12 @@ export async function storniere(
   const [original] = await db.abfrage<{
     id: string; status: string; kunde_id: string; objekt_id: string | null;
     auftrag_id: string | null; zahlungsziel_tage: number | null;
+    zahlungsmittel_code: string | null;
     leistung_von: string | null; leistung_bis: string | null; nummer: string;
   } & KopfMerkmale>(
     `select id, status::text as status, kunde_id::text as kunde_id,
             objekt_id::text as objekt_id, auftrag_id::text as auftrag_id,
-            zahlungsziel_tage,
+            zahlungsziel_tage, zahlungsmittel_code,
             to_char(leistung_von, 'YYYY-MM-DD') as leistung_von,
             to_char(leistung_bis, 'YYYY-MM-DD') as leistung_bis, nummer,
             ${KOPF_MERKMALE_SQL}
@@ -1886,16 +1918,22 @@ export async function storniere(
                            vereinnahmung_geplant_am, reverse_charge,
                            reverse_charge_grundlage, steuerhinweis, ist_kleinbetrag,
                            bauabzugsteuer_pflichtig, bauabzugsteuer_satz_bp,
+                           zahlungsmittel_code,
                            erstellt_von_art, erstellt_von)
      values (app.aktiver_mandant(), $1::uuid, $2::uuid, $3::uuid, 'storno',
              $4::date, $5::date, $6, $7,
              $8::date, $9, $10::bauleistungsart, $11, $12, $13, $14,
+             $15,
              'mensch', app.aktueller_benutzer())
      returning id`,
+    /*
+     * Die Zahlungsart (BT-81) kommt mit: ohne sie wies BR-DE-1 jedes Storno
+     * an einen Kunden mit XRechnungspflicht in `finalisiere` ab (D-831).
+     */
     [original.kunde_id, original.objekt_id, original.auftrag_id,
      original.leistung_von, original.leistung_bis, original.zahlungsziel_tage,
      `Storno zu Rechnung ${original.nummer}`,
-     ...kopfMerkmalWerte(original)],
+     ...kopfMerkmalWerte(original), original.zahlungsmittel_code],
   );
   if (entwurf === undefined) {
     throw new RechnungFehler('Der Stornoentwurf wurde nicht angelegt', 'nicht_gefunden');
@@ -1920,7 +1958,7 @@ export async function storniere(
             p.satz_bp, p.kategorie, p.abrechnungsart, p.leistung_von, p.leistung_bis,
             'mensch', app.aktueller_benutzer()
        from rechnungsposition p
-      where p.rechnung_id = $1 and p.positionsart = 'leistung'`,
+      where p.rechnung_id = $1 and p.positionsart = 'leistung' and p.entfernt_am is null`,
     [rechnungId, entwurf.id],
   );
 
@@ -2062,7 +2100,7 @@ export async function korrigiere(
             p.satz_bp, p.kategorie, p.abrechnungsart, p.leistung_von, p.leistung_bis,
             'mensch', app.aktueller_benutzer()
        from rechnungsposition p
-      where p.rechnung_id = $1 and p.positionsart = 'leistung'`,
+      where p.rechnung_id = $1 and p.positionsart = 'leistung' and p.entfernt_am is null`,
     [rechnungId, neu.id],
   );
 
