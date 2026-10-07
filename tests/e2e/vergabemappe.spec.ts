@@ -13,6 +13,8 @@
  *  5. Die leere Prüfliste nennt die Voreinstellung (O-194, D-784) und
  *     übernimmt sie nur auf Knopfdruck — keine Vorlage, die ungefragt
  *     vollständig aussieht.
+ *  6. Der interne Vorlauf steht am Blatt: fünf Werktage vor der Abgabe
+ *     (V-307, O-112, D-839).
  */
 import { expect, test, type Page } from '@playwright/test';
 import postgres from 'postgres';
@@ -103,6 +105,13 @@ test.describe('Vergabemappe (Phase 8, PR 70)', () => {
 
     /* Was fehlt, steht im Klartext — das ist der eigentliche Zweck der Mappe. */
     await expect(page.locator('[data-cse="mappe-luecken"]')).toContainText('Formblatt 124');
+
+    /* V-307: der interne Vorlauf, fünf Werktage vor der Abgabe (O-112). */
+    const vorlauf = page.locator('[data-cse="mappe-intern-faellig"]');
+    await expect(vorlauf).toContainText('Werktage vor der Abgabe');
+    expect(await vorlauf.getAttribute('data-tag')).toMatch(/^\d{4}-\d{2}-\d{2}$/u);
+    await expect(vorlauf).toHaveAttribute('data-stand', 'offen');
+    await expect(vorlauf).toContainText('O-112');
 
     /* Jede Zeile traegt ihren Stand als Attribut, nicht nur als Farbe. */
     const zeilen = page.locator('[data-cse="mappe-position"]');

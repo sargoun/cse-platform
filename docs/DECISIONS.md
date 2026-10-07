@@ -24950,7 +24950,7 @@ Voreinstellung nicht gebaut ist, steht es dabei, mit V-Zeile.
 | O-109 | Routine ist nur, was gegenüber der Vorperiode unverändert ist: `diffLeer && hatVergleich` bei Monatsrechnung und Anfrageantwort → `niedrig`; Toleranz 0 € und 0 %, jede Abweichung ist `mittel`, ein Fall ohne Vergleich `hoch`. Die Stapelmappe zeigt jeden Fall einzeln. Wie gebaut. | `freigabe/posteingang.ts`, `freigabe/stapel-mappe.ts` |
 | O-110 | Aus: kein Foto verlässt das System, eine Prüfung `motiv_plausibel` gibt es nicht; geprüft werden Typ und Metadaten der Datei selbst (`storage/mime.ts`, `storage/exif.ts`). Ein EU-Bildendpunkt wird erst angebunden, wenn der Betreiber ihn bestellt und der AV-Vertrag ihn deckt. | `dokument/upload.ts`, `zeit/medien.ts` |
 | O-111 | Ein Muster liegt vor, wenn in einer Woche mindestens 20 Entscheidungen fallen und mehr als die Hälfte unter drei Sekunden dauert (der erste Eimer der Verteilung); eine Warteschlange ab 50 offenen Fällen je Rolle oder mehr als 100 neuen Freigaben am Tag warnt; Empfänger sind Leitung und Administration der Gesellschaft, nie die Person (O-06). Gebaut ist die Verteilung ohne Schwelle und Meldung (V-308). | `freigabe/pruefdauer.ts` |
-| O-112 | Fünf Werktage interner Vorlauf vor der amtlichen Frist — dieselbe Zahl wie die Fristwarnung des Radars (`FRIST_KNAPP_TAGE`, RAD-06). Die Mappe rechnet den Vorlauf nicht (V-307). | `radar/gewichte.platzhalter.ts`, `vergabe/mappe.ts` |
+| O-112 | Fünf Werktage interner Vorlauf vor der amtlichen Frist — dieselbe Zahl wie die Fristwarnung des Radars (`FRIST_KNAPP_TAGE`, RAD-06). Seit V-307 (D-839) gerechnet: `vergabe/vorlauf.ts` (Werktag = Montag bis Freitag ohne gesetzlichen Feiertag in Berlin), angezeigt am Blatt der Vergabemappe mit Warnung am Tag selbst und danach. | `radar/gewichte.platzhalter.ts`, `vergabe/vorlauf.ts`, `lib/datum/werktage.ts` |
 | O-121 | Aus lassen: ohne Modell mit EU-Verarbeitung und Nullspeicherung wirft `fordereModell` `RESIDENCY_BLOCKED`, die Aufgabe steht auf `fehlgeschlagen`, kein Anbieter ausserhalb der EU springt ein. Wie gebaut. | `agent/modell/auswahl.ts` |
 | O-125 | Systemnachrichten (Einladung, Kennwort, Check-in-Link) laufen nicht über den Agentenpfad und nicht über `policy.ts`; ihr Wortlaut steht im Code und gilt damit als vorab freigegeben. Versendet wird heute nichts: der Postausgang ist nicht verbunden (`EmailNichtVerbundenFehler`), Links werden von Hand weitergegeben (D-618, V-302). | `versand/email.ts` |
 | O-191 | Ein Negativ-Stichwort zieht ab (`ABZUG_PLATZHALTER.stichwort`), ausgeschlossen wird nur, was ein Mensch je CPV-Zeile auf „schliesst aus" stellt; nicht mehr machbar ist eine Bekanntmachung unter `frist_min_tage` des Profils, knapp heisst unter fünf Tagen (RAD-06). Wie gebaut. | `radar/gewichte.platzhalter.ts`, `radar/bewertung.ts`, Profilblatt |
@@ -28097,4 +28097,46 @@ im Modus den ganzen Monat. Dazu `tests/kern` komplett, `pnpm guards`,
 `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-337, O-54, O-190, D-792, D-787, V-207; `src/server/services/finanz/abrechnungsart/{typen,monatspauschale,stunden,festpreis-los,einzelabruf,einheitspreis-aufmass}.ts`, `src/server/services/finanz/positionsquelle.ts`, `tests/isolation/leistungszeitraum-nachweis.test.ts`, `tests/kern/abrechnungsart.test.ts` |
+|---|---|
+
+### D-839 · Bauwelle 36: Die Vergabemappe kennt ihren internen Vorlauf (V-307, O-112)
+
+**Der Anlass.** `vergabe/mappe.ts` führte die Prüfliste, rechnete aber keinen
+internen Abgabetag; nur der Radar warnte ab fünf Tagen Restfrist
+(`FRIST_KNAPP_TAGE`, RAD-06). Voreinstellung (O-112, D-786): fünf Werktage
+vor der amtlichen Frist muss die Mappe vollständig sein.
+
+**Was gebaut ist.**
+- **`lib/datum/werktage.ts`:** `isoWochentag`, `istWerktag` (Montag bis
+  Freitag ohne gesetzlichen Feiertag in Berlin, `istFeiertag`) und
+  `werktageVor` (der Tag selbst zählt nicht). Werktag heißt hier der Tag, an
+  dem jemand an der Mappe arbeiten kann — nicht der Werktag des § 193 BGB, der
+  den Samstag mitzählt. Heiligabend und Silvester sind keine gesetzlichen
+  Feiertage und zählen deshalb mit.
+- **`vergabe/vorlauf.ts`:** `internerVorlauf(fristTag, heute, mappenstand)` →
+  der interne Tag und sein Stand (`offen`, `heute`, `ueberschritten`,
+  `erledigt` ab `vollstaendig`), `null` ohne Frist oder für eine verworfene
+  Mappe. `VORLAUF_WERKTAGE = 5` mit `TODO(client, O-112)`; ein Kern-Test
+  hält die Zahl gleich der Fristwarnung des Radars.
+- **Gerechnet, nicht gespeichert** — abweichend vom Wortlaut der V-Zeile
+  („`intern_faellig_am` an der Mappe"): die Frist kann sich ändern (eine
+  Bieterfrage verlängert sie), ein gespeicherter Tag liefe ihr nicht nach. Der
+  Lader der Seite rechnet ihn bei jedem Lesen aus dem Berliner Kalendertag der
+  Frist und `app.berlin_heute()`.
+- **Am Blatt der Vergabemappe** steht unter dem Zähler „Intern fertig bis …
+  — 5 Werktage vor der Abgabe." mit der Voreinstellung; am Tag selbst und
+  danach (Mappe noch nicht vollständig) eine Warnung oben. Die Sätze sind
+  zweisprachig (`i18n/verwaltung/vergabe-vorlauf.ts`), die Seite um sie bleibt
+  auf der Ausnahmeliste der Übersetzungswache.
+
+**Prüfung.** `tests/kern/vergabe-vorlauf.test.ts` (Wochentag; Wochenende,
+Karfreitag, Ostermontag, Himmelfahrt, Pfingstmontag, Frauentag als
+Nicht-Werktage, Heiligabend und Silvester als Werktage; fünf Werktage vor
+einem Donnerstag, über Ostern, über den Jahreswechsel, von einem Sonntag aus;
+falsche Eingaben; die vier Stände; kein Vorlauf ohne Frist und für eine
+verworfene Mappe; die Sätze in beiden Sprachen).
+`tests/e2e/vergabemappe.spec.ts` (das Blatt nennt den Tag, Stand `offen`).
+Dazu `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-307, O-112, D-786, RAD-06; `src/lib/datum/werktage.ts`, `src/server/services/vergabe/vorlauf.ts`, `src/server/registry/dienste.ts`, `src/app/portal/[mandant]/radar/[id]/mappe/{daten.ts,page.tsx}`, `src/lib/i18n/verwaltung/vergabe-vorlauf.ts`, `tests/kern/vergabe-vorlauf.test.ts`, `tests/e2e/vergabemappe.spec.ts` |
 |---|---|

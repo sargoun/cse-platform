@@ -86,6 +86,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * dass jemand hochgeladen hat.
    */
   { modul: 'vergabe', pfad: 'vergabe/mappe', schreibend: true, schreibRecht: 'vergabe.schreiben' },
+  /* V-307, O-112, D-839 — der interne Vorlauf vor der amtlichen Frist, gerechnet. */
+  { modul: 'vergabe', pfad: 'vergabe/vorlauf', schreibend: false },
   {
     modul: 'vergabe', pfad: 'vergabe/einreichung',
     schreibend: true, schreibRecht: 'vergabe.einreichung_erfassen',

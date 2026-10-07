@@ -15,6 +15,9 @@ import { eigenerEintrag } from '@/lib/nachschlagen';
 import { beschriftung } from '@/lib/i18n/beschriftung/basis';
 import { MAPPE_STATUS_TEXT } from '@/lib/i18n/beschriftung/radar';
 import { Recht } from '@/components/ui/Recht';
+import { nachSprache } from '@/lib/i18n/verwaltung/basis';
+import { VORLAUF_TEXTE } from '@/lib/i18n/verwaltung/vergabe-vorlauf';
+import { tagInSprache } from '@/lib/datum/kalendertag';
 
 /**
  * `/portal/[mandant]/radar/[id]/mappe` — die Vergabemappe (RAD-07, D-07).
@@ -145,6 +148,7 @@ export default async function Vergabemappe(
   const { mappe: m, darfSchreiben, darfEinreichen, darfRadar, darfPlattformen } = daten;
   const offenePflicht = m.pflichtGesamt - m.pflichtErledigt;
   const gesperrt = m.status === 'eingereicht' || m.status === 'verworfen';
+  const vt = nachSprache(VORLAUF_TEXTE, zugang.sprache);
 
   return (
     <PortalRahmen
@@ -209,6 +213,12 @@ export default async function Vergabemappe(
         </Hinweis>
       ) : null}
 
+      {m.vorlauf !== null && (m.vorlauf.stand === 'heute' || m.vorlauf.stand === 'ueberschritten') ? (
+        <Hinweis art="warnung" cse="mappe-vorlauf-warnung" className="mb-s5 max-w-prose">
+          {m.vorlauf.stand === 'heute' ? vt.warnungHeute : vt.warnungUeberschritten}
+        </Hinweis>
+      ) : null}
+
       {m.plattformName !== null && m.freigeschaltet === false ? (
         <Hinweis art="warnung" cse="mappe-plattform" className="mb-s5 max-w-prose">
           <strong>Auf {m.plattformName} ist diese Gesellschaft nicht freigeschaltet.</strong>{' '}
@@ -230,6 +240,17 @@ export default async function Vergabemappe(
           <h2 className="text-h2 text-text">Stand: {beschriftung(MAPPE_STATUS_TEXT, m.status)}</h2>
           <Zaehler m={m} />
         </div>
+        {m.vorlauf !== null ? (
+          <p className="mt-s3 max-w-prose text-sm text-text" data-cse="mappe-intern-faellig"
+             data-tag={m.vorlauf.internFaelligAm} data-stand={m.vorlauf.stand}>
+            {vt.zeile(tagInSprache(m.vorlauf.internFaelligAm, zugang.sprache), m.vorlauf.werktage)}
+            {m.vorlauf.stand === 'offen' ? null : (
+              <>{' '}{m.vorlauf.stand === 'heute' ? vt.heute
+                : m.vorlauf.stand === 'ueberschritten' ? vt.ueberschritten : vt.erledigt}</>
+            )}
+            <span className="block text-xs text-text-muted">{vt.voreinstellung}</span>
+          </p>
+        ) : null}
         {m.freigegebenAm !== null ? (
           <p className="mt-s3 text-sm text-text-muted" data-cse="mappe-freigabe">
             Freigegeben von {m.freigegebenVon ?? 'unbekannt'} am {BERLIN.format(m.freigegebenAm)}.

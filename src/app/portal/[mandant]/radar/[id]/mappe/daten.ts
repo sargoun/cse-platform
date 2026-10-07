@@ -1,6 +1,7 @@
 import 'server-only';
 import type { LeseKontext } from '@/server/kontext/index';
 import { freischaltungSql } from '@/server/services/radar/plattform';
+import { internerVorlauf, type InternerVorlauf } from '@/server/services/vergabe/vorlauf';
 
 /**
  * Was die Vergabemappe zeigt (RAD-07, D-07).
@@ -41,6 +42,8 @@ export interface MappenBlick {
   readonly vergabestelle: string | null;
   readonly fristAngebot: Date | null;
   readonly restTage: number | null;
+  /** Der interne Vorlauf vor der Frist (V-307, O-112) — `null` ohne Frist. */
+  readonly vorlauf: InternerVorlauf | null;
   readonly vorgangStatus: string;
   readonly entschiedenAm: string | null;
   readonly zuschlagswertCent: bigint | null;
@@ -68,6 +71,8 @@ const BLICK_SQL = `
          a.titel, a.vergabestelle_name, a.frist_angebot,
          case when a.frist_angebot is null then null
               else floor(extract(epoch from (a.frist_angebot - now())) / 86400)::int end as rest_tage,
+         to_char(a.frist_angebot at time zone 'Europe/Berlin', 'YYYY-MM-DD') as frist_tag,
+         app.berlin_heute()::text as heute,
          v.status::text as vorgang_status, v.entschieden_am::text as entschieden_am,
          v.zuschlagswert_cent::text as zuschlagswert,
          m.status::text as status,
@@ -124,6 +129,8 @@ export async function leseMappe(
     vergabestelle: (z['vergabestelle_name'] as string | null) ?? null,
     fristAngebot: (z['frist_angebot'] as Date | null) ?? null,
     restTage: z['rest_tage'] === null ? null : Number(z['rest_tage']),
+    vorlauf: internerVorlauf(
+      (z['frist_tag'] as string | null) ?? null, String(z['heute']), String(z['status'])),
     vorgangStatus: String(z['vorgang_status']),
     entschiedenAm: (z['entschieden_am'] as string | null) ?? null,
     zuschlagswertCent: typeof z['zuschlagswert'] === 'string' ? BigInt(z['zuschlagswert']) : null,
