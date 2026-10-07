@@ -27608,3 +27608,77 @@ Mahnung, Kundenportal, Seed und Definer, `tests/kern` komplett,
 
 | Betrifft | V-356, O-212, D-796; `drizzle/0522_rechnungsposition_entfernen.sql`, `src/server/services/finanz/{entwurf,rechnung,positionsquelle,steuerzeile,steuerfall,ustg14,vorabpruefung,ausgabe}.ts`, `src/server/services/finanz/abrechnungsart/index.ts`, `src/server/services/buchhaltung/{buchungssatz,z3}.ts`, `src/server/services/kundenportal/rechnung.ts`, `src/server/registry/dienste.ts`, `src/server/db/schema/rls.ts`, `src/app/api/rechnungen/route.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/{page,festschreiben/page,verwerfen/page,storno/page}.tsx`, `src/app/portal/[mandant]/finanzen/ausgaben/[id]/page.tsx`, `src/app/portal/[mandant]/zeiten/[id]/korrektur/page.tsx`, `src/lib/i18n/verwaltung/{finanzen/rechnung-entwurf,finanzen/rechnung-akte,finanzen/belege,reinigung}.ts`, `src/server/db/seed/{rechnung,index}.ts`, `tests/isolation/rechnungsposition-entfernen.test.ts`, `tests/kern/{rechnungsposition-lebend,rechnung-entwurf}.test.ts` |
 |---|---|
+
+### D-832 · Bauwelle 29: Eine Abrufherkunft übersteht das Storno (V-395)
+
+**Der Anlass** (gefunden beim Bau von V-356, D-831). Eine Rechnung mit einer
+Zeile aus einem Einzelabruf ließ sich nicht stornieren: `uebernimmQuellen`
+kopierte `sonderleistung_id` nicht, die Stornozeile trug den Typ
+`sonderleistung` ohne den Abruf, und `rpq_genau_eine_quelle` (0112) wies sie
+ab — Storno und Korrektur brachen ab. Dahinter drei weitere Lücken: die
+Nutzlast führte die Kennung einer Abrufherkunft leer (`id: ''`), der Abruf
+blieb nach einem Storno `abgerechnet` (und `einzelabruf.ts` liest nur
+`erbracht`, die Neuausstellung fände ihn nicht), und die Verwerfen-Seite
+nannte die Zeilen „von Hand" aus einer Abrechnungsvereinbarung nicht, obwohl
+sie den Monat ihrer Pauschale oder ihr Los beanspruchen (V-207).
+
+**Was gebaut ist.**
+- **`uebernimmQuellen`** kopiert jede Kennung, die `rpq_genau_eine_quelle`
+  kennt — `sonderleistung_id` eingeschlossen. Storno (unwirksam) und
+  Neuausstellung (wirksam) tragen den Abruf damit wie jede andere Herkunft.
+- **Die Nutzlast** nennt den Abruf (`coalesce` mit `sonderleistung_id` in
+  `ladeRechnungVollstaendig`) — für jeden Beleg, der ab jetzt festgeschrieben
+  wird. Festgeschriebene Belege behalten ihre Bytes: der Kettenlauf hasht
+  `rechnung_snapshot.nutzlast_bytes`, wie sie gespeichert sind, und baut die
+  Nutzlast nie neu (`kanonisch.ts`). Die Gestalt bleibt dieselbe (`typ`, `id`,
+  `menge_anteil`), deshalb keine neue `SCHEMA_VERSION`.
+- **0523, `fin.abrufstatus_nachziehen(p_rechnung)`:** der Status der
+  Einzelabrufe einer Rechnung folgt ihrer Herkunft — `abgerechnet`, solange
+  eine WIRKSAME Herkunft auf einem festgeschriebenen Beleg den Abruf nennt,
+  sonst `erbracht`. Nur zwischen diesen beiden Werten; der Dienst reicht
+  keinen Status hinein. Gerufen von `markiereQuellenAbgerechnet`
+  (Festschreibung) und `gibQuellenFrei` (Storno, Verwerfen) — beim Verwerfen
+  ändert sich nichts, ein Entwurf hat nie abgerechnet. Ein Definer
+  (`cse_definer`, mit Lese- und Status-Policy auf `sonderleistung`, beide auf
+  den aktiven Mandanten begrenzt), weil der Status hinter
+  `reinigung.schreiben` liegt und wer festschreiben oder stornieren darf,
+  dieses Recht nicht zwingend hält. Für eine solche Rolle traf das frühere
+  UPDATE unter FORCE RLS null Zeilen — und die Zählung daneben unterlag
+  denselben Policies, sah also ebenfalls null: der Abruf blieb nach der
+  Rechnung `erbracht`, und nur `quelle_sonderleistung_uk` stand noch vor der
+  zweiten Abrechnung. Die Funktion verlangt `finanzen.festschreiben`,
+  `finanzen.stornieren` oder `finanzen.entwurf_verwerfen` und eine Rechnung
+  der aktiven Gesellschaft. Die Nachholung in 0523 setzt jeden Abruf mit
+  wirksamer Herkunft auf einem festgeschriebenen Beleg auf `abgerechnet`;
+  die Gegenrichtung braucht keine — ein Storno über einen Abruf ist bis
+  hierher nie gelungen.
+- **Verwerfen-Seite:** sie nennt jetzt auch die Zeilen „von Hand" aus einer
+  Abrechnungsvereinbarung (Herkunft „Abrechnungsvereinbarung"), weil das
+  Verwerfen ihren Monat oder ihr Los wieder frei gibt. `ladeQuellen` liefert
+  dafür `ausVereinbarung` (die Position trägt `vertrag_abrechnung_id`). Der
+  erklärende Satz sagt „beansprucht" statt „als abgerechnet markiert" — ein
+  Entwurf stempelt keine Stunde und keinen Abruf, das tut erst die
+  Festschreibung.
+- **Seed:** keiner. Der Seed legt keine Abrechnungsvereinbarung an und damit
+  keinen Einzelabruf-Beleg; der Weg ist durch den Isolationstest belegt.
+
+**Prüfung.** `tests/isolation/abruf-storno.test.ts`: Storno über einen
+Einzelabruf gelingt, die Stornozeile nennt den Abruf unwirksam, das Original
+gibt ihn frei, der Abruf ist wieder `erbracht` und ein neuer Entwurf nimmt
+ihn; die Korrektur beansprucht ihn neu und rechnet ihn ab; die Nutzlast eines
+neuen Belegs nennt ihn; eine Rolle mit den Rechten der Administration ohne
+die Reinigung (sie sieht den Abruf nicht) schreibt fest und storniert, und
+der Status folgt trotzdem; wer nur liest, zieht keinen Status nach; eine
+Rechnung einer anderen Gesellschaft bleibt unberührt; eine Zeile „von Hand"
+aus einer Pauschale ist als solche erkennbar, eine ohne Vereinbarung nicht.
+Gegenprobe: ohne die Spalte in `uebernimmQuellen` scheitern drei Fälle
+(Storno, Korrektur, Rolle ohne Reinigungsrechte); mit dem alten UPDATE statt
+des Definers bleibt der Abruf nach dem Storno `abgerechnet` und für die Rolle
+ohne Reinigungsrechte nach der Festschreibung `erbracht`. Dazu die Isolationsdateien um
+Abrechnungsart, Abschlag, Ausgangsbuch, Buchhaltung, Mahnung, Rechnung
+(Entwurf, Herkunft, Pflichtfelder, Versand, entfernte Position), Zahlung,
+Berechtigung, Spaltenrechte und Definer-Eigentum, `tests/kern` komplett,
+`pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-395, V-207, D-831; `drizzle/0523_abrufherkunft_storno.sql`, `src/server/services/finanz/{rechnung,positionsquelle}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/verwerfen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-akte.ts`, `tests/isolation/abruf-storno.test.ts` |
+|---|---|

@@ -1247,8 +1247,13 @@ export async function ladeRechnungVollstaendig(
     position_nr: number; typ: string; quelle_id: string | null; menge_anteil: string | null;
   }>(
     `select p.position_nr, q.quelle_typ::text as typ,
+            -- Mit dem Abruf (V-395): bis D-832 stand eine Abrufherkunft hier
+            -- ohne Kennung. Festgeschriebene Belege behalten ihre Nutzlast —
+            -- der Kettenlauf hasht die gespeicherten Bytes und baut sie nie
+            -- neu (kanonisch.ts).
             coalesce(q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
-                     q.leistungsnachweis_id, q.nachtrag_id)::text as quelle_id,
+                     q.sonderleistung_id, q.leistungsnachweis_id, q.nachtrag_id)::text
+              as quelle_id,
             q.menge_anteil::text
        from rechnungsposition_quelle q
        join rechnungsposition p on p.mandant_id = q.mandant_id and p.id = q.rechnungsposition_id
@@ -1799,6 +1804,12 @@ export interface StornoErgebnis {
  * Der Anteil wird mit der Menge gespiegelt: eine Stornozeile traegt eine
  * negative Menge (siehe unten), und ein positiver Anteil daneben liesse die
  * Summenpruefung des Aufmasses den Verbrauch verdoppeln statt ihn aufzuheben.
+ *
+ * **Die Spaltenliste ist die von `rpq_genau_eine_quelle` (0112)** — jede
+ * Kennung, die eine Herkunft tragen kann. `sonderleistung_id` fehlte hier
+ * (V-395, D-832): die Stornozeile einer Abrufzeile trug den Typ ohne den
+ * Abruf, die Einschraenkung wies sie ab, und eine Rechnung mit einem
+ * Einzelabruf liess sich nicht stornieren.
  */
 async function uebernimmQuellen(
   db: Abfrage, vonRechnung: string, nachRechnung: string,
@@ -1808,11 +1819,11 @@ async function uebernimmQuellen(
     `insert into rechnungsposition_quelle
        (mandant_id, rechnungsposition_id, rechnung_id, quelle_typ,
         zeiteintrag_id, aufmass_id, auftrag_leistung_id, ausgabe_id,
-        leistungsnachweis_id, nachtrag_id, menge_anteil, notiz, wirksam,
-        erstellt_von_art, erstellt_von)
+        sonderleistung_id, leistungsnachweis_id, nachtrag_id, menge_anteil, notiz,
+        wirksam, erstellt_von_art, erstellt_von)
      select q.mandant_id, np.id, $2::uuid, q.quelle_typ,
             q.zeiteintrag_id, q.aufmass_id, q.auftrag_leistung_id, q.ausgabe_id,
-            q.leistungsnachweis_id, q.nachtrag_id,
+            q.sonderleistung_id, q.leistungsnachweis_id, q.nachtrag_id,
             case when $4::boolean then -q.menge_anteil else q.menge_anteil end,
             q.notiz, $3::boolean, 'mensch', app.aktueller_benutzer()
        from rechnungsposition_quelle q

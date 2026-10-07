@@ -329,6 +329,8 @@ export interface RechnungAkteTexte {
   readonly herkunftNamen: Readonly<Record<
     'zeiteintrag' | 'aufmass' | 'vertrag' | 'material' | 'leistungsnachweis'
     | 'nachtrag' | 'sonderleistung' | 'manuell', string>>;
+  /** Eine Zeile „von Hand" aus einer Abrechnungsvereinbarung (V-395). */
+  readonly herkunftVereinbarung: string;
 }
 
 export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTexte>> = {
@@ -689,7 +691,8 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'wieder abrechenbar — entweder stehen die Positionen „von Hand", oder '
       + 'der Entwurf hat noch keine.',
     quellenErklaerung:
-      'Diese Quellen sind heute als abgerechnet markiert. Nach dem Verwerfen '
+      'Diese Quellen beansprucht heute dieser Entwurf — eine Zeile aus einer '
+      + 'Abrechnungsvereinbarung ihren Monat oder ihr Los. Nach dem Verwerfen '
       + 'sind sie wieder abrechenbar und erscheinen bei der nächsten Rechnung zu '
       + 'diesem Auftrag erneut.',
     tabelleQuellen: 'Quellen, die durch das Verwerfen wieder abrechenbar werden',
@@ -725,6 +728,7 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       material: 'Material (Ausgabe)', leistungsnachweis: 'Leistungsnachweis',
       nachtrag: 'Nachtrag', sonderleistung: 'Sonderleistung', manuell: 'von Hand',
     },
+    herkunftVereinbarung: 'Abrechnungsvereinbarung',
   },
 
   en: {
@@ -1100,9 +1104,9 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       + 'again — either the line items stand "by hand", or the draft has none '
       + 'yet.',
     quellenErklaerung:
-      'These sources are marked as invoiced today. After discarding they are '
-      + 'invoiceable again and will reappear on the next invoice for this '
-      + 'Auftrag.',
+      'This draft claims these sources today — a line from a billing agreement '
+      + 'claims its month or its lot. After discarding they are invoiceable '
+      + 'again and will reappear on the next invoice for this Auftrag.',
     tabelleQuellen: 'Sources that become invoiceable again through discarding',
     herkunft: 'Origin',
     anteil: 'Share',
@@ -1137,5 +1141,6 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
       nachtrag: 'Nachtrag (variation order)', sonderleistung: 'Special supply',
       manuell: 'by hand',
     },
+    herkunftVereinbarung: 'Billing agreement',
   },
 };
