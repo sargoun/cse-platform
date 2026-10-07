@@ -1491,6 +1491,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'system.module_zuweisen',
   },
   /**
+   * V-298 — die gebuchten Gewerke einer Gesellschaft (O-355). Schreibt ueber
+   * `app.mandant_module_buchen` (0502), das dazu eine Super-Administration
+   * verlangt.
+   */
+  {
+    modul: 'system', pfad: 'system/mandant-module',
+    schreibend: true, schreibRecht: 'system.module_zuweisen',
+  },
+  /**
    * V-165 — was der Bereichsumschalter ueber eine Anmeldung weiss (TEN-06,
    * TEN-10, DESIGN §6). Lesend: `app.umschalter_bereiche`,
    * `app.darf_gruppenansicht` und `app.mandant_kennzahlen` (0417, 0418) —
@@ -1696,6 +1705,15 @@ export const DIENSTE: readonly DienstEintrag[] = [
     schreibend: true, schreibRecht: 'mahnung.schreiben',
   },
   /**
+   * V-299 — der Basiszinssatz nach § 247 BGB (O-358). Schreibt
+   * `basiszinssatz` unter den Policies aus 0125: Super-Administration mit
+   * `system.referenzdaten_verwalten`. Eine Referenzzahl, keine Mahnung.
+   */
+  {
+    modul: 'system', pfad: 'finanz/mahnung/basiszinssatz',
+    schreibend: true, schreibRecht: 'system.referenzdaten_verwalten',
+  },
+  /**
    * ZUGFeRD (PR 53, FIN-12).
    *
    * Alle drei LESEN nur: `cii` setzt XML aus einem Schnappschuss zusammen,
@@ -1875,6 +1893,16 @@ export const DIENSTE: readonly DienstEintrag[] = [
    * Handler.
    */
   { modul: 'inhalt', pfad: 'inhalt/sicherheit-txt', schreibend: false },
+  /**
+   * V-392 — der Sicherheitskontakt der Plattform (O-35). Schreibt ueber
+   * `app.sicherheitskontakt_setzen` (0503), das dazu eine
+   * Super-Administration verlangt; die Policy laesst den Definer an genau
+   * zwei Zeilen von `plattform_einstellung`.
+   */
+  {
+    modul: 'system', pfad: 'inhalt/sicherheitskontakt',
+    schreibend: true, schreibRecht: 'system.einstellung_verwalten',
+  },
 
   /**
    * **Die Abnahme (§ 12 VOB/B, 0210/0211).**

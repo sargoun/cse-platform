@@ -20,10 +20,11 @@
  * ist, ist nicht entschieden. Ein fehlgeschlagener Lauf steht sichtbar im
  * Laufprotokoll und erfindet niemanden.
  *
- * // TODO(client, O-358): Wer pflegt den Basiszinssatz nach § 247 BGB — die
- * Buchhaltung je Gesellschaft oder die Gruppe zentral —, und soll der Waechter
- * zusaetzlich eine Person benachrichtigen statt nur den Lauf scheitern zu
- * lassen?
+ * // TODO(client, O-358): Voreinstellung — die Gruppe pflegt den Satz
+ * zentral, je Halbjahr nach der Bekanntmachung der Bundesbank, eingetragen
+ * von der Super-Administration unter Einstellungen › Mahnwesen (V-299,
+ * `finanz/mahnung/basiszinssatz.ts`); der Waechter laesst den Lauf scheitern
+ * und benachrichtigt niemanden eigens. D-784, D-809.
  */
 import { registriere, type JobDefinition } from './registry.js';
 

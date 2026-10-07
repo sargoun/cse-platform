@@ -2192,6 +2192,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Den Basiszinssatz nach § 247 BGB je Halbjahr eintragen (V-299, O-358,
+     * FIN-15, D-809).
+     *
+     * **`system.referenzdaten_verwalten`** — das Recht der Policies von
+     * `basiszinssatz` (0125), die dazu eine Super-Administration verlangen:
+     * der Satz gehoert keiner Gesellschaft. Nicht `mahnung.schreiben`: wer
+     * Mahnungen schreibt, bestimmt damit nicht den Zins aller Gesellschaften.
+     */
+    pfad: 'api/finanzen/basiszinssatz',
+    recht: 'system.referenzdaten_verwalten',
+  },
+  {
+    /**
      * Eingangsrechnungen erfassen und weiterschieben (PR 54.3, FIN-14,
      * ACC-03, ACC-05).
      *
@@ -2262,6 +2275,32 @@ export const ROUTEN: readonly RouteEintrag[] = [
      */
     pfad: 'api/einstellungen/mitgliedschaft-module',
     recht: 'system.module_zuweisen',
+  },
+  {
+    /**
+     * Die gebuchten Gewerke einer Gesellschaft eintragen (V-298, O-355,
+     * D-809).
+     *
+     * **`system.module_zuweisen`, und die Datenbank verlangt dazu eine
+     * Super-Administration** (`app.mandant_module_buchen`, 0502): das Recht
+     * ist an eine Administration bindbar, die Buchung traegt aber die
+     * Super-Administration beim Vertragsschluss ein — eine Gesellschaft bucht
+     * ihre Gewerke nicht selbst.
+     */
+    pfad: 'api/einstellungen/module',
+    recht: 'system.module_zuweisen',
+  },
+  {
+    /**
+     * Den Sicherheitskontakt der Plattform eintragen — `Contact` und `Policy`
+     * von `/.well-known/security.txt` (V-392, O-35, D-809).
+     *
+     * **`system.einstellung_verwalten`, und die Datenbank verlangt dazu eine
+     * Super-Administration** (`app.sicherheitskontakt_setzen`, 0503): eine
+     * Plattformangabe, keine Gesellschaftsangabe.
+     */
+    pfad: 'api/einstellungen/sicherheitskontakt',
+    recht: 'system.einstellung_verwalten',
   },
   {
     /**

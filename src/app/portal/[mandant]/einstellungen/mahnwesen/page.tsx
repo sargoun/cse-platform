@@ -4,6 +4,7 @@ import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { withTenant } from '@/server/kontext/index';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { Recht } from '@/components/ui/Recht';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { formatiereGeld } from '@/server/services/finanz/geld';
@@ -19,7 +20,12 @@ import { vorbelegt } from '@/lib/formular/maske';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { tagDeutsch } from '@/lib/datum/kalendertag';
 import { MAHNTEXT_HOECHSTENS } from '@/server/services/finanz/mahnung/stufen';
+import {
+  BASISZINS_AB_JAHR, QUELLE_VOREINSTELLUNG, basispunkteAlsProzent, leseBasiszinssaetze,
+  leseDeckung, type BasiszinsZeile, type Deckung,
+} from '@/server/services/finanz/mahnung/basiszinssatz';
 import { gelesenerHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { haeltRechte } from '@/app/portal/rechte';
 
 /**
  * `/portal/[mandant]/einstellungen/mahnwesen` — der Ort, an dem O-19
@@ -63,6 +69,29 @@ const ZINSART: Readonly<Record<Zinsberechnung, string>> = {
   vertraglich: 'vertraglich vereinbart',
 };
 
+/**
+ * Der Rückweg des Basiszinssatzes (`?basiszins=`, V-299) — ein Schlüssel,
+ * nachgeschlagen über `eigenerEintrag()`, nie roh angezeigt (D-728).
+ */
+const BASISZINS_MELDUNG: Readonly<Record<string, {
+  readonly art: 'erfolg' | 'hinweis' | 'warnung'; readonly text: string;
+}>> = {
+  eingetragen: { art: 'erfolg', text: 'Der Basiszinssatz ist eingetragen.' },
+  korrigiert: { art: 'erfolg', text: 'Der Basiszinssatz ist korrigiert — alter und neuer Wert stehen im Protokoll.' },
+  unveraendert: { art: 'hinweis', text: 'Dieser Satz war für das Halbjahr schon so eingetragen — nichts geändert.' },
+  halbjahr_ungueltig: { art: 'warnung', text: `Nicht eingetragen: das Halbjahr ist kein Kalenderhalbjahr ab ${String(BASISZINS_AB_JAHR)} bis zum nächsten Jahr.` },
+  satz_ungueltig: { art: 'warnung', text: 'Nicht eingetragen: der Satz ist eine Prozentzahl mit höchstens zwei Nachkommastellen, etwa 1,27.' },
+  satz_unplausibel: { art: 'warnung', text: 'Nicht eingetragen: der Satz liegt außerhalb von −10 % bis +20 % — bitte die Einheit prüfen.' },
+  quelle_fehlt: { art: 'warnung', text: 'Nicht eingetragen: die Quelle fehlt.' },
+  nur_super_admin: { art: 'warnung', text: 'Nicht eingetragen: den Basiszinssatz trägt die Super-Administration ein.' },
+  ueberlappt: { art: 'warnung', text: 'Nicht eingetragen: für einen Tag dieses Halbjahres gilt schon ein anderer Satz.' },
+};
+
+/** „2027-01-01" → „1. Halbjahr 2027"; „2026-07-01" → „2. Halbjahr 2026". */
+function halbjahrName(von: string): string {
+  return `${von.slice(5, 7) === '01' ? '1.' : '2.'} Halbjahr ${von.slice(0, 4)}`;
+}
+
 export default async function Mahnwesen(
   { params, searchParams }: {
     params: Promise<{ mandant: string }>;
@@ -96,17 +125,31 @@ export default async function Mahnwesen(
    * Node-Prozesses liest UTC und böte am 31.12. um 23:30 Berliner Zeit den
    * falschen Tag an (K-11, Invariante 2).
    */
+  const darf = await haeltRechte(sitzung, 'system.referenzdaten_verwalten');
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => ({
       stufen: await mahnstufen(kontext),
       tage: await kontext.abfrage<{ heute: string; morgen: string }>(
         `select app.berlin_heute()::text as heute,
                 (app.berlin_heute() + 1)::text as morgen`),
+      basiszins: await leseBasiszinssaetze(kontext),
+      deckung: await leseDeckung(kontext),
+      /* Dieselbe Frage, die die Policies von `basiszinssatz` stellen (0125). */
+      superAdmin: (await kontext.abfrage<{ ja: boolean }>(
+        `select app.ist_super_admin() as ja`))[0]?.ja === true,
     }))) as Promise<{
       stufen: Awaited<ReturnType<typeof mahnstufen>>;
       tage: readonly { heute: string; morgen: string }[];
+      basiszins: readonly BasiszinsZeile[];
+      deckung: Deckung;
+      superAdmin: boolean;
     }>);
   const stufen = daten.stufen;
+  const darfBasiszins = darf['system.referenzdaten_verwalten'] === true && daten.superAdmin;
+  const basiszinsMeldung = eigenerEintrag(BASISZINS_MELDUNG, suche['basiszins']) ?? null;
+  /* Vorgeschlagen wird die kommende Hälfte — die, nach der der Wächter fragt. */
+  const vorschlagJahr = daten.deckung.naechsteAb.slice(0, 4);
+  const vorschlagHaelfte = daten.deckung.naechsteAb.slice(5, 7) === '01' ? '1' : '2';
   const heute = daten.tage[0]?.heute ?? '';
   const morgen = daten.tage[0]?.morgen ?? '';
 
@@ -359,13 +402,10 @@ export default async function Mahnwesen(
           </label>
 
           <p className="mt-s4 text-xs text-text-muted">
-            Der Basiszinssatz nach § 247 BGB wird nicht hier gepflegt: er ist eine
-            halbjährliche Bekanntmachung der Deutschen Bundesbank und gilt für
-            alle Gesellschaften. Voreinstellung (O-358): die Buchhaltung der CSE Operations
-            trägt ihn zentral für die Gruppe ein, zum 1. Januar und 1. Juli; der Wächter
-            meldet am 15. Juni und 15. Dezember einen fehlenden Satz als gescheiterten Lauf
-            und benachrichtigt niemanden eigens. Einen Eingabeweg dafür gibt es noch nicht
-            (V-299). Fehlt der Satz, fordert eine Mahnung keinen Zins und sagt es.
+            Der Basiszinssatz nach § 247 BGB wird nicht in der Stufe gepflegt: er ist
+            eine halbjährliche Bekanntmachung der Deutschen Bundesbank und gilt für alle
+            Gesellschaften — eingetragen unten im Abschnitt „Basiszinssatz“. Fehlt der
+            Satz, fordert eine Mahnung keinen Zins und sagt es.
           </p>
 
           <button
@@ -375,6 +415,99 @@ export default async function Mahnwesen(
             Stufe bestätigen
           </button>
         </form>
+      </section>
+
+      <section id="basiszins" aria-labelledby="basiszins-titel" data-cse="basiszins" className="mt-s7">
+        <h2 id="basiszins-titel" className="mb-s3 text-h2 text-text">Basiszinssatz (§ 247 BGB)</h2>
+        {basiszinsMeldung !== null ? (
+          <Hinweis art={basiszinsMeldung.art} rolle={basiszinsMeldung.art === 'warnung' ? 'alert' : 'status'}
+                   cse="basiszins-meldung" className="mb-s4">
+            {basiszinsMeldung.text}
+          </Hinweis>
+        ) : null}
+        <p className="mb-s4 max-w-prose text-sm text-text-muted">
+          Er ändert sich zum 1. Januar und zum 1. Juli und gilt für alle Gesellschaften.
+          Voreinstellung (O-358): zentral für die Gruppe eingetragen von der
+          Super-Administration, je Halbjahr nach der Bekanntmachung der Deutschen
+          Bundesbank. Der Wächter lässt am 15. Juni und 15. Dezember seinen Lauf
+          scheitern, wenn die kommende Hälfte fehlt, und benachrichtigt niemanden eigens.
+        </p>
+        <ul data-cse="basiszins-deckung" className="mb-s4 grid max-w-prose gap-s2 text-sm text-text">
+          <li data-gedeckt={String(daten.deckung.heute !== null)}>
+            Heute:{' '}
+            {daten.deckung.heute === null
+              ? 'kein Satz — eine Mahnung fordert keinen Verzugszins und sagt es.'
+              : basispunkteAlsProzent(daten.deckung.heute)}
+          </li>
+          <li data-gedeckt={String(daten.deckung.naechste !== null)}>
+            Ab {tagDeutsch(daten.deckung.naechsteAb)}:{' '}
+            {daten.deckung.naechste === null
+              ? 'noch kein Satz eingetragen.'
+              : basispunkteAlsProzent(daten.deckung.naechste)}
+          </li>
+        </ul>
+        {daten.basiszins.length > 0 ? (
+          <div data-cse="basiszins-liste" className="mb-s5">
+            <DataTable
+              beschriftung="Eingetragene Basiszinssätze"
+              zeilen={daten.basiszins}
+              schluessel={(z) => z.id}
+              spalten={[
+                { schluessel: 'halbjahr', kopf: 'Halbjahr', zelle: (z) => (
+                  z.bis === null ? `ab ${tagDeutsch(z.von)}` : halbjahrName(z.von)) },
+                { schluessel: 'satz', kopf: 'Satz', zelle: (z) => basispunkteAlsProzent(z.satzBp) },
+                { schluessel: 'quelle', kopf: 'Quelle', zelle: (z) => z.quelle },
+              ]}
+            />
+          </div>
+        ) : null}
+        {darfBasiszins ? (
+          <form method="post" action="/api/finanzen/basiszinssatz" data-cse="basiszins-formular"
+                className="max-w-prose rounded-lg border border-line bg-surface p-s5">
+            <div className="grid grid-cols-1 gap-s4 md:grid-cols-2">
+              <label className="block text-sm text-text" htmlFor="basiszins-jahr">
+                Jahr
+                <input id="basiszins-jahr" name="jahr" inputMode="numeric" required
+                  pattern="[0-9]{4}" defaultValue={vorschlagJahr} className={feld} />
+              </label>
+              <label className="block text-sm text-text" htmlFor="basiszins-haelfte">
+                Halbjahr
+                <select id="basiszins-haelfte" name="haelfte" defaultValue={vorschlagHaelfte}
+                  className={feld}>
+                  <option value="1">1. Halbjahr (ab 1. Januar)</option>
+                  <option value="2">2. Halbjahr (ab 1. Juli)</option>
+                </select>
+              </label>
+              <label className="block text-sm text-text" htmlFor="basiszins-satz">
+                Satz in Prozent
+                <input id="basiszins-satz" name="satz" required inputMode="decimal"
+                  placeholder="z. B. 1,27" className={feld} />
+              </label>
+              <label className="block text-sm text-text" htmlFor="basiszins-quelle">
+                Quelle
+                <input id="basiszins-quelle" name="quelle" required maxLength={200}
+                  defaultValue={QUELLE_VOREINSTELLUNG} className={feld} />
+              </label>
+            </div>
+            <p className="mt-s3 text-xs text-text-muted">
+              Wie bekanntgegeben, mit höchstens zwei Nachkommastellen; ein negativer Satz
+              wird mit Minus eingetragen. Ein schon eingetragenes Halbjahr wird korrigiert,
+              und das Protokoll nennt alten und neuen Wert.
+            </p>
+            <button
+              type="submit"
+              className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
+            >
+              Basiszinssatz eintragen
+            </button>
+          </form>
+        ) : (
+          <p data-cse="basiszins-nur-lesen" className="max-w-prose text-sm text-text-muted">
+            Eingetragen wird er von der Super-Administration (Recht{' '}
+            <Recht schluessel="system.referenzdaten_verwalten" />, mit zweitem Faktor);
+            hier steht, was gilt.
+          </p>
+        )}
       </section>
     </PortalRahmen>
   );
