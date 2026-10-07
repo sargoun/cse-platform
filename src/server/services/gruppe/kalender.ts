@@ -209,6 +209,7 @@ function teile(): readonly Abfrageteil[] {
                      select 1 from einsatz_zuordnung z
                        join team_mitglied tm
                          on tm.mandant_id = z.mandant_id and tm.anstellung_id = z.anstellung_id
+                        and tm.beendet_am is null
                       where z.einsatz_id = e.id and z.mandant_id = e.mandant_id
                         and z.status in ('geplant', 'zugesagt')
                         and tm.team_id = $4::uuid))

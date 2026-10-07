@@ -25666,7 +25666,7 @@ Voreinstellung tragen — der Wortlaut folgt jetzt.
 | O-510 | Die Bestätigung nach dem Widerruf eines Kalenderzugangs sagt in vier Sprachen, dass eine noch sichtbare Zeile veraltet ist und ein Neuladen den Stand zeigt; der Feed antwortet sofort 404. Die Ursache der veralteten Anzeige wird nicht weiter verfolgt, solange der Zugang nachweislich geschlossen ist. Wie gebaut. | `lib/i18n/konto.ts`, `api/kalender-feed/widerrufen`, `tests/e2e/kalender.spec.ts` |
 | O-511 | Bevor der erste Kanal echt verbunden wird (O-10), bekommt der Versand einen Ausgangskorb mit Idempotenzschlüssel, Zustellung ausserhalb der Geschäftstransaktion und Abgleich danach. Heute ohne Wirkung (alle Kanäle `nicht_verbunden`); nicht gebaut (V-377). | `social/dienst.ts` (`sendeKanaele`) |
 | O-513 | Wie O-369: das Vorlegen trägt das fachliche Recht des Vorgangs — `social.schreiben`, das Recht der Stellenpflege, das Erfassen der Eingangsrechnung, beim Agenten sein Dienstkonto —, das Entscheiden `freigabe.entscheiden`. Nicht gebaut (V-376). | `drizzle/0136`, die vier vorlegenden Dienste |
-| O-650 | Rollen im Team: Leitung, Stellvertretung, Mitglied, Springer, als Vorschlagsliste; `team_mitglied.rolle` bleibt Text (0230). Teams und Mitglieder haben ausser im Seed keinen Schreibweg (V-378). | `db/seed/kern.ts`, `drizzle/0230` |
+| O-650 | Rollen im Team: Leitung, Stellvertretung, Mitglied, Springer, als Vorschlagsliste; `team_mitglied.rolle` bleibt Text (0230). Gebaut mit V-378 (D-813): Kalender › Teams legt Teams an, ordnet Beschäftigungen zu und beendet Mitgliedschaften (`kalender.schreiben`); eine beendete Mitgliedschaft bleibt mit Ende und Namen stehen (0509). | `kern/team.ts`, `db/seed/kern.ts`, `drizzle/0230`, `drizzle/0509` |
 | O-651 | Die Gruppenleitung liest keine Nachrichtenfäden der Gesellschaften (TEN-05: Zahlen statt Inhalt, wie O-910). Die Policy `t_nachricht_gruppe` (0011) bleibt bis zur Migration, die sie deckelt (V-379); eine Seite dafür gibt es nicht. | `registry/navigation.ts`, `drizzle/0011` |
 | O-871 | Ein Termin gehört einer Person, nicht einem Team; der Teamfilter des Gruppenkalenders greift auf Schichten, die Seite sagt „nur Schichten (Voreinstellung O-871)". Wie gebaut. | Gruppe › Kalender |
 | O-888 | Die Tausenderstelle der Objektnummer kodiert die Gesellschaft nicht: die Nummer ist je Gesellschaft eindeutig (`objekt_nummer_uk`), die Gesellschaft steht am Objekt. Die Plattform zählt im Bestand weiter, die erste Nummer einer leeren Gesellschaft ist `OBJ-1001`, das Feld ist überschreibbar. Wie gebaut. | `objekt/anlegen.ts` |
@@ -26530,4 +26530,44 @@ schliessen mit Protokoll und Karriereseite), `tests/kern/recruiting-stand.test.t
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-363; O-200; `drizzle/0508_bewerbung_stand_und_rueckzug.sql`, `src/server/services/recruiting/dienst.ts`, `src/server/jobs/bewerberLoeschung.ts`, `src/app/api/recruiting/stellen/[id]/schliessen/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/rueckzug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `src/lib/i18n/verwaltung/recruiting-rueckzug.ts`, `src/lib/i18n/verwaltung/recruiting-rueckmeldung.ts` |
+|---|---|
+
+### D-813 · Bauwelle 9: Teams haben einen Schreibweg (V-378)
+
+**Der Anlass.** `team` und `team_mitglied` (0230) füllte nur der Seed; Kalender
+(CAL-02) und Aufgaben lesen sie. Eine Gesellschaft konnte kein Team anlegen und
+niemanden zuordnen. Voreinstellung zu O-650 (D-799): Rollen Leitung,
+Stellvertretung, Mitglied, Springer als Vorschlagsliste, die Spalte bleibt Text.
+
+**Was gebaut ist.**
+- **Kalender › Teams** (`/portal/[mandant]/kalender/teams`, Seitenkarte §5.17):
+  die Teams der Gesellschaft mit Leitung, Bereich, laufenden und beendeten
+  Mitgliedschaften; mit `kalender.schreiben` ein Team anlegen (Name, Bereich),
+  eine aktive Beschäftigung zuordnen (Rolle mit Vorschlagsliste, jede andere
+  Bezeichnung geht) und eine Mitgliedschaft beenden. Ohne das Recht steht ein
+  Satz statt der Formulare. Der Kalender verweist auf die Teams. Sätze in de/en.
+- **`POST /api/kalender/teams`** (`kalender.schreiben`, wie die Policies aus 0230):
+  `anlegen`, `zuordnen`, `beenden`; zurück gehen nur Schlüssel. Die Leitung eines
+  Teams muss Mitglied der Gesellschaft sein (`app.ist_mitglied` am Berliner Tag).
+- **0509: eine Mitgliedschaft endet, statt zu verschwinden.** `beendet_am` und
+  `beendet_von` halten fest, wer bis wann im Team war; eindeutig ist nur die
+  laufende Mitgliedschaft je Team und Beschäftigung (`tm_laufend_uk`), danach darf
+  dieselbe Beschäftigung wieder hinein. `t_aufgabe_eigene` und `p_zustaendig`
+  (0230) fragen nur noch laufende Mitgliedschaften: wer ausgetreten ist, sieht die
+  Aufgaben des Teams nicht mehr. Dasselbe in `kern/aufgabe.ts` („nur meine") und
+  im Teamfilter des Gruppenkalenders. Der Seed nimmt den neuen Index als Ziel.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-650 | Rollen Leitung, Stellvertretung, Mitglied, Springer als Vorschlagsliste, die Spalte bleibt Text — wie D-799, jetzt mit Schreibweg. | `kern/team.ts`, Kalender › Teams |
+
+**Prüfung.** `tests/isolation/team-pflege.test.ts` (anlegen, zuordnen, doppelt,
+beenden, wieder zuordnen; Aufgabe nach dem Ende unsichtbar; Leitung aus der
+Gesellschaft; ohne Recht nichts), `tests/isolation/aufgabe.test.ts`,
+`tests/isolation/seed.test.ts`, `tests/kern/team-pflege.test.ts`, `tests/kern`
+komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-378; O-650; `drizzle/0509_team_pflege.sql`, `src/server/services/kern/team.ts`, `src/app/api/kalender/teams/route.ts`, `src/app/portal/[mandant]/kalender/teams/page.tsx`, `src/app/portal/[mandant]/kalender/teams/felder.ts`, `src/app/portal/[mandant]/kalender/page.tsx`, `src/lib/i18n/verwaltung/kalender-teams.ts`, `src/server/services/kern/aufgabe.ts`, `src/server/services/gruppe/kalender.ts`, `src/server/db/seed/kern.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `docs/architecture/04-SEITENKARTE.md`, `src/server/registry/routen.generiert.ts` |
 |---|---|

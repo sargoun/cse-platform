@@ -143,7 +143,7 @@ export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
         insert into team_mitglied (mandant_id, team_id, anstellung_id, person_id,
                                    rolle, erstellt_von)
         values (${a.mandant_id}, ${teamId}, ${a.id}, ${a.person_id}, null, ${konto.id})
-        on conflict (team_id, anstellung_id) do nothing
+        on conflict (team_id, anstellung_id) where beendet_am is null do nothing
         returning id`;
       mitglieder += eingefuegt.length;
     }
