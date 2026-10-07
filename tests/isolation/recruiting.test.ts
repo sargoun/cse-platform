@@ -893,3 +893,71 @@ describe('wer zwischendurch eingestellt wird, wird nicht geloescht (O-376)', () 
     expect(Number(e!.n), 'die Entscheidung steht noch').toBe(1);
   });
 });
+
+/**
+ * **Die Frist läuft ab der Absage** (V-365, O-373, D-797, D-807, 0498).
+ *
+ * Gesetzt wurde `aufbewahrung_bis` nur beim Eingang. Eine späte Absage
+ * verkürzte damit die Zeit, in der sich das Verfahren belegen lässt — § 15
+ * Abs. 4 AGG gibt der Bewerberin zwei Monate ab Zugang der Ablehnung. Jetzt
+ * stellt der Nachzug die Uhr bei einer Absage neu: Berliner Entscheidungstag
+ * plus dieselbe Frist wie beim Eingang, nie früher als der Eingangswert.
+ */
+describe('die Frist läuft ab der Absage (V-365)', () => {
+  async function entscheide(
+    bewerbungId: string, konto: string, ergebnis: 'abgelehnt' | 'eingestellt',
+  ): Promise<void> {
+    await alsApp({
+      scope: 'mandant', mandantId: f.reinigung, benutzerId: konto,
+      portal: 'intern', readonly: false,
+    }, (tx) => tx.unsafe(
+      `insert into einstellungsentscheidung
+         (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
+       values ($1::uuid, $2::uuid, $3::bewerbung_status, 'Probe', $4::uuid)`,
+      [f.reinigung, bewerbungId, ergebnis, konto]));
+  }
+
+  async function frist(bewerbungId: string): Promise<string> {
+    const [z] = (await alsRolle('', (tx) => tx.unsafe(
+      `select aufbewahrung_bis::text as bis from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as { bis: string }[];
+    return z!.bis;
+  }
+
+  async function inTagen(tage: number): Promise<string> {
+    const [z] = (await alsRolle('', (tx) => tx.unsafe(
+      `select (app.berlin_heute() + $1::int)::text as tag`, [tage]))) as unknown as { tag: string }[];
+    return z!.tag;
+  }
+
+  async function eingangsfrist(): Promise<number> {
+    const [z] = (await alsRolle('', (tx) => tx.unsafe(
+      `select (app.plattform_einstellung('recruiting.aufbewahrung_tage') #>> '{}')::int as tage`,
+    ))) as unknown as { tage: number }[];
+    return z!.tage;
+  }
+
+  it('eine Absage stellt die Uhr neu: Entscheidungstag plus dieselbe Frist wie beim Eingang', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const tage = await eingangsfrist();
+    // Der Eingang liegt lange zurück: nur noch 10 Tage bis zur Löschung.
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 10);
+    await entscheide(bewerbungId, konto, 'abgelehnt');
+    expect(await frist(bewerbungId)).toBe(await inTagen(tage));
+  });
+
+  it('nie kürzer als ab Eingang — eine Absage verlängert, sie verkürzt nicht', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const tage = await eingangsfrist();
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, tage + 40);
+    await entscheide(bewerbungId, konto, 'abgelehnt');
+    expect(await frist(bewerbungId)).toBe(await inTagen(tage + 40));
+  });
+
+  it('eine Einstellung lässt die Frist, wie sie ist', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 10);
+    await entscheide(bewerbungId, konto, 'eingestellt');
+    expect(await frist(bewerbungId)).toBe(await inTagen(10));
+  });
+});

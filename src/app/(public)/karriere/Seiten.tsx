@@ -314,7 +314,7 @@ export async function dankeBlatt(sprache: Sprache) {
           <>
             {t.aufbewahrungVor}{' '}
             <strong className="font-medium text-text">{t.aufbewahrungTage(tage)}</strong>{' '}
-            {t.aufbewahrungNach}
+            {t.aufbewahrungNach(tage)}
           </>
         )}{' '}
         {t.frueherLoeschen}{' '}

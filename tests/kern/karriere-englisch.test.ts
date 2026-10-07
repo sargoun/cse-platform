@@ -148,6 +148,8 @@ describe('die englische Seite bleibt englisch', () => {
   it('die Dankesseite nennt die Frist englisch', async () => {
     const html = renderToStaticMarkup(await EnglishThankYou());
     expect(html).toContain('Your application has arrived.');
+    // V-365: die Absage zählt, ohne Entscheidung der Eingang.
+    expect(html).toContain('180 days after a rejection');
     expect(html).toContain('180 days after receipt');
     expect(html).toContain('href="/en/datenschutz"');
   });

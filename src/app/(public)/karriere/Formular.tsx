@@ -132,7 +132,7 @@ export function Bewerbungsformular(
       <p className="m-0 max-w-prose text-sm text-text-muted" data-cse="datenschutz-hinweis">
         {t.datenschutzVor}{' '}
         <strong className="text-text">{t.datenschutzTage(aufbewahrungTage)}</strong>{' '}
-        {t.datenschutzNach}{' '}
+        {t.datenschutzNach(aufbewahrungTage)}{' '}
         <Link href={mitSprache('/datenschutz', sprache) as Route}
               className="underline underline-offset-2">
           {t.datenschutzLink}

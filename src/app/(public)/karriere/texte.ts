@@ -58,7 +58,8 @@ export interface KarriereTexte {
   readonly uploadText: string;
   readonly datenschutzVor: string;
   readonly datenschutzTage: (tage: number) => string;
-  readonly datenschutzNach: string;
+  /** Nach der Zahl: die Absage zählt, ohne Entscheidung der Eingang (V-365). */
+  readonly datenschutzNach: (tage: number) => string;
   readonly datenschutzLink: string;
   readonly absenden: string;
 
@@ -68,7 +69,7 @@ export interface KarriereTexte {
   readonly aufbewahrungOhneZahl: string;
   readonly aufbewahrungVor: string;
   readonly aufbewahrungTage: (tage: number) => string;
-  readonly aufbewahrungNach: string;
+  readonly aufbewahrungNach: (tage: number) => string;
   readonly frueherLoeschen: string;
   readonly zurueckZuStellen: string;
 }
@@ -133,12 +134,12 @@ export const KARRIERE_TEXTE: Readonly<Record<Sprache, KarriereTexte>> = {
       + 'und sie nirgends ablegt, wäre schlimmer als keines. Schreiben Sie uns '
       + 'Ihren Werdegang bitte in das Feld oben — wir fragen nach Unterlagen, '
       + 'wenn es passt.',
-    datenschutzVor: 'Ihre Angaben werden für dieses Bewerbungsverfahren verarbeitet und nach',
-    datenschutzTage: (t) => `${String(t)} Tagen`,
-    datenschutzNach:
-      'gelöscht, sofern kein Arbeitsverhältnis zustande kommt. Über Einladung oder Absage '
-      + 'entscheidet ein Mensch; eine automatische Auswahl findet nicht statt. '
-      + 'Mehr dazu in der',
+    datenschutzVor: 'Ihre Angaben werden für dieses Bewerbungsverfahren verarbeitet und',
+    datenschutzTage: (t) => `${String(t)} Tage nach einer Absage`,
+    datenschutzNach: (t) =>
+      `gelöscht — ohne Entscheidung ${String(t)} Tage nach Eingang —, sofern kein `
+      + 'Arbeitsverhältnis zustande kommt. Über Einladung oder Absage entscheidet ein '
+      + 'Mensch; eine automatische Auswahl findet nicht statt. Mehr dazu in der',
     datenschutzLink: 'Datenschutzerklärung',
     absenden: 'Bewerbung absenden',
 
@@ -152,10 +153,10 @@ export const KARRIERE_TEXTE: Readonly<Record<Sprache, KarriereTexte>> = {
       + 'dessen Abschluss gelöscht, sofern kein Arbeitsverhältnis zustande '
       + 'kommt.',
     aufbewahrungVor: 'Ihre Angaben werden für dieses Verfahren verarbeitet und',
-    aufbewahrungTage: (t) => `${String(t)} Tage nach Eingang`,
-    aufbewahrungNach:
-      'gelöscht, sofern kein Arbeitsverhältnis zustande kommt — auch '
-      + 'dann, wenn wir uns nicht mehr melden.',
+    aufbewahrungTage: (t) => `${String(t)} Tage nach einer Absage`,
+    aufbewahrungNach: (t) =>
+      `gelöscht — melden wir uns nicht, ${String(t)} Tage nach Eingang —, sofern kein `
+      + 'Arbeitsverhältnis zustande kommt.',
     frueherLoeschen:
       'Wenn Sie möchten, dass wir sie früher löschen, schreiben Sie uns — die '
       + 'Adresse steht in der',
@@ -219,11 +220,12 @@ export const KARRIERE_TEXTE: Readonly<Record<Sprache, KarriereTexte>> = {
       'The document store is not connected; a field that accepts a file and stores '
       + 'it nowhere would be worse than none. Please describe your background in the '
       + 'field above — we will ask for documents when it fits.',
-    datenschutzVor: 'Your details are processed for this application procedure and deleted after',
-    datenschutzTage: (t) => `${String(t)} days`,
-    datenschutzNach:
-      'unless an employment relationship is established. A person decides on '
-      + 'invitation or rejection; there is no automated selection. More in the',
+    datenschutzVor: 'Your details are processed for this application procedure and deleted',
+    datenschutzTage: (t) => `${String(t)} days after a rejection`,
+    datenschutzNach: (t) =>
+      `— without a decision, ${String(t)} days after receipt — unless an employment `
+      + 'relationship is established. A person decides on invitation or rejection; there '
+      + 'is no automated selection. More in the',
     datenschutzLink: 'privacy policy',
     absenden: 'Submit application',
 
@@ -236,10 +238,10 @@ export const KARRIERE_TEXTE: Readonly<Record<Sprache, KarriereTexte>> = {
       'Your details are processed for this procedure and deleted once it is '
       + 'concluded, unless an employment relationship is established.',
     aufbewahrungVor: 'Your details are processed for this procedure and deleted',
-    aufbewahrungTage: (t) => `${String(t)} days after receipt`,
-    aufbewahrungNach:
-      'unless an employment relationship is established — even if we do not get '
-      + 'back to you.',
+    aufbewahrungTage: (t) => `${String(t)} days after a rejection`,
+    aufbewahrungNach: (t) =>
+      `— if we do not get back to you, ${String(t)} days after receipt — unless an `
+      + 'employment relationship is established.',
     frueherLoeschen:
       'If you would like us to delete them earlier, write to us — the address is in the',
     zurueckZuStellen: 'Back to the open positions',
