@@ -13,6 +13,7 @@ import {
 } from '@/server/services/stammdaten/belagsart';
 import { StammdatenFehler, pflichttext } from '@/server/services/stammdaten/katalog';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/stammdaten/belagsarten?was=datieren|richtigstellen` — den
@@ -31,10 +32,9 @@ export const dynamic = 'force-dynamic';
 
 const AKTIONEN: ReadonlySet<string> = new Set(['datieren', 'richtigstellen']);
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/stammdaten/belagsarten`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/stammdaten/belagsarten`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -46,6 +46,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
   const was = anfrage.nextUrl.searchParams.get('was') ?? '';
   if (!AKTIONEN.has(was)) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
@@ -78,14 +79,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             quelle: pflichttext(text('quelle'), 'Quelle'),
             bestaetigt: text('bestaetigt') === 'ja',
           });
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             'Die Angaben sind richtiggestellt. Der Leistungswert und sein Zeitraum '
             + 'sind unverändert — dafür gibt es die neue Fassung.');
         }
 
         const eingabe = pruefeBelagsartEingabe(text);
         await datiereBelagsartUm(kontext, eingabe);
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           `„${eingabe.code}" rechnet ab ${eingabe.gueltigAb} mit `
           + `${eingabe.leistungswert} m²/h. Kalkulationen von davor bleiben, wie sie `
           + 'sind: sie berufen sich auf die Fassung, die damals galt.'
@@ -95,7 +96,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
               + 'nennt ihn so.'));
       }))) as NextResponse;
   } catch (fehler: unknown) {
-    if (fehler instanceof StammdatenFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof StammdatenFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

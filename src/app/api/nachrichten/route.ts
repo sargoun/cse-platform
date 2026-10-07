@@ -12,6 +12,7 @@ import { istKennung } from '@/app/portal/kennung';
 import {
   antworte, eroeffneFaden, markiereGelesen, oeffneFaden, schliesseFaden,
 } from '@/server/services/kern/nachricht';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/nachrichten` — Faden eröffnen, antworten, stempeln, schliessen
@@ -42,6 +43,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -55,7 +57,6 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
   }
 
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
 
   try {
     const ergebnis = await (db().begin(async (tx: postgres.TransactionSql) =>
@@ -143,8 +144,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
                                { status: ergebnis.code === 'unbekannt' ? 404 : 400 });
     }
     const ziel = ergebnis.art === 'neu'
-      ? `/portal/${slug}/nachrichten/${ergebnis.id}`
-      : `/portal/${slug}/nachrichten/${ergebnis.ziel}?getan=${ergebnis.was}`;
+      ? portalPfad(slug, `/nachrichten/${ergebnis.id}`)
+      : portalPfad(slug, `/nachrichten/${ergebnis.ziel}?getan=${ergebnis.was}`);
     return NextResponse.redirect(new URL(ziel, erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     const anmeldung = anmeldungsAntwort(fehler, anfrage);

@@ -13,6 +13,7 @@ import {
   setzeArbeitszeitmodell, setzeTarifvereinbarung, type Gewerk,
 } from '@/server/services/zeit/arbeitszeitmodell';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/arbeitszeit?was=modell|tarif` — ein
@@ -29,10 +30,9 @@ import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/einstellungen/arbeitszeit`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/einstellungen/arbeitszeit`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -44,6 +44,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
   const was = anfrage.nextUrl.searchParams.get('was') ?? '';
   if (was !== 'modell' && was !== 'tarif') {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
@@ -116,7 +117,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             gueltigAb,
             bestaetigt: text('bestaetigt') === 'ja',
           });
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             `Das Modell „${schluessel}" gilt ab ${gueltigAb}. Solange die `
             + 'Sollzeitregel offen ist, führt das Stundenkonto soll_minuten = 0 — und '
             + 'das heisst „nicht hinterlegt", nicht „nichts geschuldet" (O-18).');
@@ -140,13 +141,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           giltAb,
           bestaetigt: text('bestaetigt') === 'ja',
         });
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           `Die Tarifregel für ${gewerk} gilt ab ${giltAb}. Die Prüfung nach § 4 und `
           + '§ 5 ArbZG nimmt ab dann den strengeren der beiden Werte.');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /* Der Aufrufer ist ein Formular, also bekommt er eine SEITE mit dem Satz. */
-    if (fehler instanceof ArbeitszeitFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof ArbeitszeitFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

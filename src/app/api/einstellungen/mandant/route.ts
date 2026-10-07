@@ -11,6 +11,7 @@ import {
   AngabenFehler, bestaetigeAngaben, pruefeAngaben, setzeAngaben,
 } from '@/server/services/mandant/angaben';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/mandant` — die Angaben einer Gesellschaft pflegen
@@ -27,9 +28,8 @@ import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
-  const url = new URL(`/portal/${slug}/einstellungen/mandant`, erwarteterUrsprung(anfrage));
+function zurueck(anfrage: NextRequest, slug: string, hinweis: string): NextResponse {
+  const url = new URL(portalPfad(slug, `/einstellungen/mandant`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -41,6 +41,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const lies = (feld: string): string | null => {
@@ -59,12 +60,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
         if (bestaetigen) {
           await bestaetigeAngaben(kontext);
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             'Die Angaben sind bestätigt. Impressum, Profil und Rechnungen führen sie '
             + 'jetzt ohne den Hinweis „nicht bestätigt".');
         }
         const geaendert = await setzeAngaben(kontext, pruefeAngaben(lies));
-        return zurueck(anfrage, geaendert
+        return zurueck(anfrage, slug, geaendert
           ? 'Die Angaben sind gespeichert und stehen im Protokoll. Sie gelten als nicht '
             + 'bestätigt, bis sie jemand bestätigt; festgeschriebene Rechnungen ändern sich nicht.'
           : 'Unverändert — es gab nichts zu speichern.');
@@ -75,7 +76,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       if (fehler.grund === 'nicht_erlaubt' || fehler.grund === 'nicht_gefunden') {
         return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
       }
-      return zurueck(anfrage, fehler.message);
+      return zurueck(anfrage, slug, fehler.message);
     }
     const autorisierung = autorisierungsAntwort(fehler, anfrage);
     if (autorisierung !== null) return autorisierung;

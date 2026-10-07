@@ -42,6 +42,11 @@ vi.mock('@/server/auth/anfrage-sitzung', () => ({
 vi.mock('@/server/db/pool', () => ({
   db: () => ({ begin: <T,>(fn: (tx: unknown) => Promise<T>) => fn({}) }),
 }));
+/* Der Slug der Umleitung kommt aus der Sitzung, nicht aus `?mandant=` (V-278). */
+vi.mock('@/server/auth/aktiver-slug', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  slugDesAktivenMandanten: () => Promise.resolve('reinigung'),
+}));
 vi.mock('@/server/kontext/index', () => ({
   withTenant: <T,>(_tx: unknown, _s: unknown, fn: (k: unknown) => Promise<T>) => fn({
     aktiverMandantId: '00000000-0000-4000-8000-000000000002',

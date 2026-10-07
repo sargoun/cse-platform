@@ -10,6 +10,7 @@ import { NichtGefundenFehler } from '@/server/auth/fehler';
 import { withTenant, type SchreibKontext } from '@/server/kontext/index';
 import { AbschlagFehler, schreibeVerrechnung }
   from '@/server/services/finanz/abschlag/index';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/rechnungen/abschlaege` — die Abschläge eines Auftrags in einer
@@ -45,6 +46,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const rechnungId = daten.get('rechnungId');
@@ -63,9 +65,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return schreibeVerrechnung(kontext, rechnungId);
       })));
 
-    const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
     return NextResponse.redirect(
-      new URL(`/portal/${slug}/finanzen/rechnungen/${rechnungId}`, erwarteterUrsprung(anfrage)), 303);
+      new URL(portalPfad(slug, `/finanzen/rechnungen/${rechnungId}`), erwarteterUrsprung(anfrage)), 303);
   } catch (fehler) {
     const anmeldung = anmeldungsAntwort(fehler, anfrage);
     if (anmeldung !== null) return anmeldung;

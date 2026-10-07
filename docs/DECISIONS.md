@@ -27120,3 +27120,40 @@ benutzt diesen Alarm), `tests/kern` komplett, `pnpm guards`,
 
 | Betrifft | V-374; O-354, O-116, O-501; `src/server/jobs/alarm.ts`, `src/app/api/jobs/[schluessel]/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `.env.example`, `tests/kern/job-alarm.test.ts` |
 |---|---|
+
+### D-824 · Bauwelle 21: Der Rückweg einer Route nimmt die Gesellschaft aus der Sitzung (V-278)
+
+**Der Anlass.** 24 Routen (25 Dateien) nahmen den Slug ihrer Umleitung aus
+`?mandant=` der Formularadresse. Gehandelt haben sie immer im aktiven
+Mandanten der Sitzung (Invariante 3 hielt), aber das ZIEL konnte
+auseinanderlaufen: nannten Formularadresse und Sitzung verschiedene
+Gesellschaften, wurde in der einen gespeichert und auf das Blatt der anderen
+zurückgeführt. Kein Leck — dieselbe Sitzung, derselbe Ursprung, die Zielseite
+prüft ihr Tor selbst —, aber eine zweite Quelle für eine Angabe, die die
+Sitzung schon hat.
+
+**Was gebaut ist.**
+- **Ein Helfer** (`src/server/auth/aktiver-slug.ts`):
+  `slugDesAktivenMandanten(sitzung)` liest den Slug in einer eigenen, lesenden
+  Transaktion VOR der eigentlichen — damit auch eine Abweisung, die vor jeder
+  Datenbankarbeit zurückführt (unvollständige Eingabe), das richtige Blatt
+  trifft. Ohne aktiven Mandanten ist er leer, und `portalPfad` führt dann auf
+  `/portal` statt auf `/portal//…`.
+- **Alle 25 Dateien** (Stammdaten, Einstellungen, Finanzen, Rechnungen,
+  Angebot, Lead, Nachrichten, Aufgaben, Abrechnung) lesen den Slug nur noch
+  so; ihre Rückweghelfer nehmen ihn als Parameter. Keine Route unter
+  `src/app/api` fragt dafür noch die Adresse.
+- **Die Formulare** tragen `?mandant=` weiterhin in ihrer Adresse; gelesen
+  wird es nirgends mehr. Es aus 81 Formularadressen zu streichen, änderte
+  nichts am Verhalten.
+
+**Prüfung.** `tests/kern/slug-aus-sitzung.test.ts` (keine Route fragt
+`?mandant=`, alle Rückwege lesen die Sitzung, `portalPfad` ohne Slug),
+`tests/kern/lead-route.test.ts` (die echte Route führt auf das Blatt der
+Sitzung, auch wenn die Adresse eine andere Gesellschaft nennt oder keine), die
+Routentests der Eingangsrechnung, des Zahlungsausgangs und der
+Agentenrichtlinien mit dem Slug der Sitzung, `tests/kern` komplett,
+`pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-278; `src/server/auth/aktiver-slug.ts`, `src/app/api/{stammdaten/*,einstellungen/{arbeitszeit,mahnwesen,agent-richtlinien,vorlagen,identitaet,identitaet/bild,mandant},lead,finanzen/{eingangsrechnungen,zahlungen,mahnungen},abrechnung,angebot,nachrichten,rechnungen/*,aufgaben}/route.ts`, `tests/kern/slug-aus-sitzung.test.ts`, `tests/kern/lead-route.test.ts` |
+|---|---|

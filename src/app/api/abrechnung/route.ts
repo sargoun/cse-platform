@@ -12,6 +12,7 @@ import { cent } from '@/server/services/finanz/geld';
 import {
   AbrechnungFehler, beendeKonfiguration, legeKonfigurationAn,
 } from '@/server/services/finanz/abrechnungsart/index';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/abrechnung` — die Abrechnungsart eines Auftrags festlegen oder
@@ -46,11 +47,10 @@ export const dynamic = 'force-dynamic';
  * Gruende eine Satztabelle.
  */
 function zurueck(
-  anfrage: NextRequest, auftragId: string, grund?: string,
+  anfrage: NextRequest, slug: string, auftragId: string, grund?: string,
 ): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
   const ziel = new URL(
-    `/portal/${slug}/auftraege/${auftragId}/abrechnung`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/auftraege/${auftragId}/abrechnung`), erwarteterUrsprung(anfrage));
   if (grund !== undefined) ziel.searchParams.set('fehler', grund);
   return NextResponse.redirect(ziel, 303);
 }
@@ -90,6 +90,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const text = (name: string): string | null => {
@@ -194,7 +195,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         });
       })));
 
-    return zurueck(anfrage, auftragId);
+    return zurueck(anfrage, slug, auftragId);
   } catch (fehler) {
     const anmeldung = anmeldungsAntwort(fehler, anfrage);
     if (anmeldung !== null) return anmeldung;
@@ -207,7 +208,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * nennt — und nicht 500.
      */
     if (fehler instanceof AbrechnungFehler) {
-      return zurueck(anfrage, auftragId, fehler.grund);
+      return zurueck(anfrage, slug, auftragId, fehler.grund);
     }
     throw fehler;
   }

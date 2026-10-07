@@ -13,6 +13,7 @@ import {
   MarkenbildFehler, entferneMarkenbild, istMarkenbildArt, setzeMarkenbild,
 } from '@/server/services/mandant/markenbild';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/einstellungen/identitaet/bild` — Logo, Avatar oder Titelbild
@@ -25,10 +26,9 @@ import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
  */
 export const dynamic = 'force-dynamic';
 
-function zurueck(anfrage: NextRequest, hinweis: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/einstellungen/identitaet`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/einstellungen/identitaet`), erwarteterUrsprung(anfrage));
   url.hash = 'bilder';
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
@@ -41,12 +41,13 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
 
   const daten = await anfrage.formData();
   const art = String(daten.get('art') ?? '');
   const aktion = String(daten.get('aktion') ?? 'setzen');
   if (!istMarkenbildArt(art) || (aktion !== 'setzen' && aktion !== 'entfernen')) {
-    return zurueck(anfrage, 'Diese Bildart oder Handlung gibt es nicht.');
+    return zurueck(anfrage, slug, 'Diese Bildart oder Handlung gibt es nicht.');
   }
   const datei = daten.get('datei');
   const alt = daten.get('alt');
@@ -61,7 +62,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         );
         if (aktion === 'entfernen') {
           await entferneMarkenbild(kontext, art);
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             'Die Zuordnung ist entfernt. Die Datei selbst bleibt abgelegt — nichts wird gelöscht.');
         }
         if (!(datei instanceof File)) {
@@ -72,11 +73,11 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           daten: new Uint8Array(await datei.arrayBuffer()),
           alt: typeof alt === 'string' ? alt : null,
         });
-        return zurueck(anfrage, 'Das Bild ist gespeichert.');
+        return zurueck(anfrage, slug, 'Das Bild ist gespeichert.');
       }))) as NextResponse;
   } catch (fehler: unknown) {
     /* Der Aufrufer ist ein Formular, also bekommt er eine SEITE mit dem Satz. */
-    if (fehler instanceof MarkenbildFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof MarkenbildFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

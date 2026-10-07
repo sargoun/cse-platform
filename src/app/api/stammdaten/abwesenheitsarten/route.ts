@@ -14,6 +14,7 @@ import {
 } from '@/server/services/stammdaten/abwesenheitsart';
 import { StammdatenFehler } from '@/server/services/stammdaten/katalog';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/stammdaten/abwesenheitsarten?was=anlegen|aendern|archivieren` —
@@ -35,10 +36,9 @@ export const dynamic = 'force-dynamic';
 
 const AKTIONEN: ReadonlySet<string> = new Set(['anlegen', 'aendern', 'archivieren']);
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/stammdaten/abwesenheitsarten`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/stammdaten/abwesenheitsarten`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -50,6 +50,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
   const was = anfrage.nextUrl.searchParams.get('was') ?? '';
   if (!AKTIONEN.has(was)) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
@@ -76,7 +77,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             throw new StammdatenFehler('ungueltig', 'Ohne Art gibt es nichts zu tun.');
           }
           await archiviereAbwesenheitsart(kontext, id);
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             'Die Art ist archiviert. Sie steht in keinem Antragsformular mehr und '
             + 'bleibt in jedem bestehenden Nachweis lesbar — gelöscht wird sie nie.');
         }
@@ -85,7 +86,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
         if (was === 'anlegen') {
           await legeAbwesenheitsartAn(kontext, eingabe);
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             `Die Art „${eingabe.bezeichnung}" ist angelegt`
             + `${eingabe.plattform ? ' und gilt für alle vier Gesellschaften' : ''}.`
             + (eingabe.bezahlt === null
@@ -99,7 +100,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           throw new StammdatenFehler('ungueltig', 'Ohne Art gibt es nichts zu tun.');
         }
         await aendereAbwesenheitsart(kontext, id, eingabe);
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           `„${eingabe.bezeichnung}" ist gespeichert.`
           + (eingabe.bezahlt === null
             ? ' „Bezahlt" bleibt nicht eingeordnet (O-139) — die Art ist damit nicht verwendbar.'
@@ -112,7 +113,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
      * `{"fehler":"kollision"}` steht — der Mensch hat dann seine Eingabe
      * verloren und weiss nicht, was er tun soll.
      */
-    if (fehler instanceof StammdatenFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof StammdatenFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }

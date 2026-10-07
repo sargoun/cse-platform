@@ -14,6 +14,7 @@ import {
 } from '@/server/services/stammdaten/qualifikation';
 import { StammdatenFehler } from '@/server/services/stammdaten/katalog';
 import { mitHinweis } from '@/server/rueckmeldung/hinweis-keks';
+import { portalPfad, slugDesAktivenMandanten } from '@/server/auth/aktiver-slug';
 
 /**
  * `POST /api/stammdaten/qualifikationen?was=anlegen|aendern|archivieren` — den
@@ -32,10 +33,9 @@ export const dynamic = 'force-dynamic';
 
 const AKTIONEN: ReadonlySet<string> = new Set(['anlegen', 'aendern', 'archivieren']);
 
-function zurueck(anfrage: NextRequest, hinweis?: string): NextResponse {
-  const slug = anfrage.nextUrl.searchParams.get('mandant') ?? '';
+function zurueck(anfrage: NextRequest, slug: string, hinweis?: string): NextResponse {
   const url = new URL(
-    `/portal/${slug}/stammdaten/qualifikationen`, erwarteterUrsprung(anfrage));
+    portalPfad(slug, `/stammdaten/qualifikationen`), erwarteterUrsprung(anfrage));
   return mitHinweis(NextResponse.redirect(url, 303), url, hinweis);
 }
 
@@ -47,6 +47,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   if (sitzung === null || sitzung.aktiverMandantId === null) {
     return ohneSitzungAntwort(anfrage, sitzung);
   }
+  const slug = await slugDesAktivenMandanten(sitzung);
   const was = anfrage.nextUrl.searchParams.get('was') ?? '';
   if (!AKTIONEN.has(was)) {
     return NextResponse.json({ fehler: 'unvollstaendig' }, { status: 400 });
@@ -74,7 +75,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
               'Ohne Qualifikation gibt es nichts zu tun.');
           }
           await archiviereQualifikation(kontext, id);
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             'Die Qualifikation ist archiviert. Die erfassten Nachweise bleiben — ein '
             + 'abgelaufener Nachweis von vorletztem Jahr ist die Zeile, mit der eine '
             + 'Aufsicht einen vergangenen Einsatz prüft.');
@@ -84,7 +85,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
         if (was === 'anlegen') {
           await legeQualifikationAn(kontext, eingabe);
-          return zurueck(anfrage,
+          return zurueck(anfrage, slug,
             `„${eingabe.bezeichnung}" ist angelegt`
             + `${eingabe.plattform ? ' und gilt für alle vier Gesellschaften' : ''}.`
             + (eingabe.blockiertEinsatz
@@ -99,7 +100,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             'Ohne Qualifikation gibt es nichts zu tun.');
         }
         await aendereQualifikation(kontext, id, eingabe);
-        return zurueck(anfrage,
+        return zurueck(anfrage, slug,
           `„${eingabe.bezeichnung}" ist gespeichert.`
           + (eingabe.blockiertEinsatz
             ? ' Die Einsatzsperre gilt ab sofort, auch für bereits geplante Schichten '
@@ -107,7 +108,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
             : ''));
       }))) as NextResponse;
   } catch (fehler: unknown) {
-    if (fehler instanceof StammdatenFehler) return zurueck(anfrage, fehler.message);
+    if (fehler instanceof StammdatenFehler) return zurueck(anfrage, slug, fehler.message);
     if (fehler instanceof NichtGefundenFehler) {
       return NextResponse.json({ fehler: 'nicht_gefunden' }, { status: 404 });
     }
