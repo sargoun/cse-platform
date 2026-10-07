@@ -7,7 +7,7 @@ import { StatusPill } from '@/components/ui/StatusPill';
 import { Hinweis } from '@/components/ui/Hinweis';
 import { Button } from '@/components/ui/Button';
 import {
-  UNTERGRENZE, liesAufbewahrung, type AufbewahrungZeile,
+  SPERRE_PFLICHT, UNTERGRENZE, liesAufbewahrung, type AufbewahrungZeile,
 } from '@/server/services/dokument/aufbewahrung';
 import { liesWirtschaftsjahr, type Wirtschaftsjahr } from '@/server/services/buchhaltung/wirtschaftsjahr';
 import type { BereichSchluessel } from '@/lib/design/theme';
@@ -118,7 +118,7 @@ export default async function Aufbewahrung(
       <ul data-cse="aufbewahrung-regeln" className="flex flex-col gap-s4">
         {daten.regeln.map((r) => {
           const min = UNTERGRENZE[r.kategorie];
-          const gesetzlichGesperrt = min !== null && min >= 10;
+          const gesetzlichGesperrt = SPERRE_PFLICHT.has(r.kategorie);
           return (
             <li key={r.kategorie} data-cse="aufbewahrung-regel" data-kategorie={r.kategorie}
                 className="rounded-lg border border-line bg-surface p-s5">

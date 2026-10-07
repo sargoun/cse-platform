@@ -108,7 +108,6 @@ const ALTLAST: readonly string[] = [
   'app.qualifikationsanforderung(p_einsatz uuid)',
   'app.raum_notizen_lesen(p_objekt uuid)',
   'app.rechte_mandanten(p_recht text)',
-  'app.rechtsgrundlage_lesen(p_ansprechpartner uuid)',
   'app.rechtsgrundlage_von(p_ansprechpartner uuid, p_mandant uuid)',
   'app.sichtbare_mandanten()',
   'app.sitzung_aufloesen(p_token_hash text)',

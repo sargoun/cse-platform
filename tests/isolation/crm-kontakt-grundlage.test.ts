@@ -226,6 +226,23 @@ describe('0247 · das ENGERE Recht trägt den Block (O-661)', () => {
       .rejects.toThrow(/crm\.rechtsgrundlage_lesen fehlt/u);
   });
 
+  /*
+   * V-343, D-818: die alte Einzelabfrage aus 0020 verlangte nur `crm.lesen`
+   * und stand mit Ausführungsrecht für `cse_app` in der Datenbank. 0513
+   * entfernt sie — kein Weg mehr, auf dem `crm.lesen` allein den Block öffnet.
+   */
+  it('die alte Einzelabfrage gibt es nicht mehr — `crm.lesen` allein öffnet nichts (V-343)', async () => {
+    const [z] = await sql.unsafe<{ da: string | null }[]>(
+      `select to_regprocedure('app.rechtsgrundlage_lesen(uuid)')::text as da`);
+    expect(z!.da).toBeNull();
+    await entziehe('admin', 'crm.rechtsgrundlage_lesen', f.reinigung);
+    const k = await kunde(f.reinigung);
+    const a = await kontakt(f.reinigung, k);
+    await expect(alsIntern(f.reinigung, async (tx) =>
+      tx.unsafe(`select * from app.rechtsgrundlage_lesen($1)`, [a])))
+      .rejects.toThrow(/does not exist/u);
+  });
+
   it('im Kundenportal ist der Block gesperrt (K-04)', async () => {
     const k = await kunde(f.reinigung);
     await kontakt(f.reinigung, k);

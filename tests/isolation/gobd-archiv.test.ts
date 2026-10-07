@@ -293,19 +293,45 @@ describe('(3) Regeln je Gesellschaft — mit gesetzlicher Untergrenze', () => {
       grundlage: e.grundlage ?? 'Beschluss der Geschäftsführung vom 01.09.2026',
     }));
 
+  /*
+   * Die Untergrenzen nach dem BEG IV (V-372, D-818): Rechnung und Beleg acht,
+   * Buchhaltung zehn, Angebot sechs Jahre. Die Voreinstellung (zehn) ist davon
+   * getrennt und steht in den Plattformzeilen.
+   */
   it('unter der Untergrenze: der Dienst sagt es, und der Ausloeser haelt es auch ohne Dienst', async () => {
-    await expect(setze({ kategorie: 'rechnung', jahre: 9 }))
+    await expect(setze({ kategorie: 'rechnung', jahre: 7 }))
+      .rejects.toSatisfy((e: unknown) => e instanceof AufbewahrungFehler && e.grund === 'untergrenze');
+    await expect(setze({ kategorie: 'buchhaltung', jahre: 9 }))
       .rejects.toSatisfy((e: unknown) => e instanceof AufbewahrungFehler && e.grund === 'untergrenze');
     await expect(setze({ kategorie: 'angebot', jahre: 5 }))
       .rejects.toSatisfy((e: unknown) => e instanceof AufbewahrungFehler && e.grund === 'untergrenze');
     await expect(sql.unsafe(
       `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
-       values ($1, 'beleg', 9, true, 'Test', false)`, [f.reinigung]))
+       values ($1, 'beleg', 7, true, 'Test', false)`, [f.reinigung]))
+      .rejects.toThrow(/Mindestfrist/u);
+    await expect(sql.unsafe(
+      `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
+       values ($1, 'buchhaltung', 9, true, 'Test', false)`, [f.reinigung]))
       .rejects.toThrow(/Mindestfrist/u);
     await expect(sql.unsafe(
       `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
        values ($1, 'rechnung', 12, false, 'Test', false)`, [f.reinigung]))
       .rejects.toThrow(/Loeschsperre/u);
+  });
+
+  it('acht Jahre gehen für Beleg und Rechnung (BEG IV) — die Sperre bleibt Pflicht (V-372)', async () => {
+    const z = await setze({ kategorie: 'beleg', jahre: 8, loeschsperre: false });
+    expect(z.jahre).toBe(8);
+    // Abgewählt wurde die Sperre im Formular; der Dienst setzt sie trotzdem.
+    expect(z.loeschsperre).toBe(true);
+    await expect(sql.unsafe(
+      `insert into dokument_aufbewahrung (mandant_id, kategorie, jahre, loeschsperre, grundlage, ist_platzhalter)
+       values ($1, 'rechnung', 8, false, 'Test', false)`, [f.security]))
+      .rejects.toThrow(/Loeschsperre/u);
+    // Die Voreinstellung der Plattform bleibt zehn Jahre.
+    const [p] = await sql.unsafe<{ jahre: number }[]>(
+      `select jahre from dokument_aufbewahrung where mandant_id is null and kategorie = 'beleg'`);
+    expect(p!.jahre).toBe(10);
   });
 
   it('laenger geht: die Regel der Gesellschaft gilt fuer neue Dokumente — mit Spur', async () => {

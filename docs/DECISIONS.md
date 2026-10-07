@@ -25361,7 +25361,7 @@ was fehlt (V-342 bis V-345).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-660 | Das Tor wird auf die Matrix des § 7 UWG umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail mit festgestellter ähnlicher Leistung und Abmeldezeile (§ 7 Abs. 3 UWG), an `einwilligung` auf den eingewilligten Kanälen; die Ebene des Kunden prüft das Tor weiter mit. Die Umstellung ist eine Migration von `app.darf_kontaktiert_werden` mit Isolationstest (V-342, in einem Zug mit V-339 aus O-65); bis dahin gilt das heutige Tor (`rechtsgrundlage <> 'keine'` plus Widersprüche), und das Kontaktblatt zeigt beide Antworten mit Nummer. | `crm/uwg-matrix.ts` (`abweichungenVomTor`), CRM › Kontakt, `db/seed/{crm,index}.ts` |
-| O-661 | Das ENGERE Recht `crm.rechtsgrundlage_lesen` trägt den Rechtsgrundlagen-Block — Liste und Blatt (`app.kontakt_rechtsgrundlage_liste`, `…_blatt`, 0247) und der Widerspruchskatalog (0222) prüfen es; `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen` (0020, `crm.lesen`) hat keinen Aufrufer mehr; sie per Migration auf das engere Recht zu stellen oder zu entfernen ist V-343. Die beiden Hinweise der Kontaktseiten nennen jetzt die Voreinstellung; `tests/kern/katalog-unbenutzt.ts` führt den Schlüssel nicht mehr als unbenutzt. | CRM › Kontakte, Kontaktblatt; `drizzle/0247`, `0222` |
+| O-661 | Das ENGERE Recht `crm.rechtsgrundlage_lesen` trägt den Rechtsgrundlagen-Block — Liste und Blatt (`app.kontakt_rechtsgrundlage_liste`, `…_blatt`, 0247) und der Widerspruchskatalog (0222) prüfen es; `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen` (0020, `crm.lesen`) hatte keinen Aufrufer mehr; 0513 entfernt sie (V-343, D-818). Die beiden Hinweise der Kontaktseiten nennen jetzt die Voreinstellung; `tests/kern/katalog-unbenutzt.ts` führt den Schlüssel nicht mehr als unbenutzt. | CRM › Kontakte, Kontaktblatt; `drizzle/0247`, `0222` |
 | O-662 | Bis Supabase Auth verbunden ist (O-501, Betreiberdatum), legt `app.kundenzugang_ausstellen` (0249) das Konto selbst an — `benutzer` im Status `eingeladen`, eine Zeile in der zweispaltigen `auth.users`-Attrappe, den Einladungstoken (`kern.kennwort_token`); das Kennwort setzt die Person über den Link, angemeldet wird gegen `kern.zugangsdaten` — und der Einladungslink wird einmal gezeigt, weil kein Postausgang verbunden ist. Danach entsteht das Konto über die Admin-API, und der Auftragsverarbeitungsvertrag mit Supabase (EU-Region) deckt auch die Konten externer Ansprechpartner; Verantwortliche nach Art. 4 Nr. 7 bleibt die Gesellschaft, die den Zugang ausstellt. Wie gebaut. | `crm/kundenzugang.ts`, `drizzle/0249`, CRM › Kunde › Zugang |
 | O-663 | Eine Wiedervorlage ist zugleich Aufgabe und Kalendereintrag (04-SEITENKARTE §5.2): `legeWiedervorlageAn` schreibt alle drei Zeilen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Seite nennt, was nicht entstand. Erledigen und Verschieben fassen die gespiegelte Aufgabe und den Kalendereintrag mit an, soweit dieselben Rechte reichen (Kalender gebaut mit V-344, D-806); die Listenseite sagte ausserdem, auf dem Leadblatt fehle das Formular, das es seit V-137 gibt. | `crm/wiedervorlage.ts`, CRM › Kontakt, CRM › Wiedervorlagen, `auth/route-manifest.ts` |
 | O-908 | Ein Widerspruch bindet den MENSCHEN, nicht den Datensatz: Werbewiderspruch und Art.-21-Widerspruch gelten für jeden Kontaktdatensatz derselben E-Mail-Adresse in der Gesellschaft, auch über Kunden hinweg. Gebaut ist das nur für den tokenlosen Weg (`app.werbewiderspruch_formular` stempelt alle Zeilen der Adresse); Token-Einlösung, manueller Werbewiderspruch und Art. 21 stempeln einen Datensatz, und `nimmKontaktMit` hält den Zwilling nur bei Art. 21 zurück, weil das Tor für `vertraglich` den Werbewiderspruch nicht liest (V-345). | `crm/lead-kette.ts`, `drizzle/0222`, `0248` |
@@ -25515,7 +25515,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-894 | Die Sperre der vier GoBD-Klassen endet mit der Frist nicht von selbst: nach Ablauf schlägt der Aufbewahrungslauf die Löschung vor, ein Mensch gibt sie frei, nachdem er die Ablaufhemmung geprüft hat (§ 147 Abs. 3 Satz 5 AO: offene Festsetzungsfrist, laufende Prüfung) — Art. 5 Abs. 1 lit. e DSGVO verlangt die Obergrenze, die AO die Prüfung davor. Nicht gebaut: die Sperre ist heute dauerhaft (V-354). | `jobs/dokumentAufbewahrung.ts`, `datenschutz/loeschkonzept.ts` |
-| O-906 | Rechnungen und Buchungsbelege bleiben zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts, eine zu kurze ist nicht nachholbar. Die zehn Jahre sind zugleich die Untergrenze (`UNTERGRENZE`, `kern.aufbewahrung_untergrenze` in 0141): kürzer lässt sich keine dieser Klassen stellen, auch wo der Steuerberater acht Jahre zuliesse; Voreinstellung und Untergrenze je Klasse zu trennen ist eine Migration. Berichtigt im Prüfstand PR #36: hier stand, der Steuerberater entscheide — eintragen könnte er es nicht. | `dokument/aufbewahrung.ts` (`UNTERGRENZE`) |
+| O-906 | Rechnungen und Buchungsbelege bleiben zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts, eine zu kurze ist nicht nachholbar. Die Untergrenze ist davon getrennt (V-372, D-818): Rechnung und Beleg acht, Buchhaltung zehn Jahre (`UNTERGRENZE`, `kern.aufbewahrung_untergrenze` in 0514) — wo der Steuerberater acht Jahre zulässt, trägt eine Gesellschaft sie ein; die Löschsperre der drei Finanzklassen bleibt Pflicht. Berichtigt im Prüfstand PR #36: hier stand, der Steuerberater entscheide — eintragen könnte er es nicht. | `dokument/aufbewahrung.ts` (`UNTERGRENZE`) |
 | O-933 | Der Leistungsort einer Rechnung darf einem anderen Kunden gehören als dem Empfänger (Hausverwaltung, Generalunternehmer, Muttergesellschaft): `OBJEKT_KUNDE_REGEL` heisst jetzt `frei` statt `offen`; geprüft wird die Sichtbarkeit, die Masken ordnen die Objekte des Kunden zuerst, der Beleg nennt den Ort mit Bezeichnung und Anschrift (BG-13). Wie gebaut — und seit dem Prüfstand PR #36 austauschbar: `pruefeObjektZuordnung` liest die Regel, `gleich` wiese ein Objekt eines anderen Kunden ab (Kern-Test). Eine Einstellung je Gesellschaft gibt es nicht; die Regel ist eine Zeile. | `finanz/rechnung.ts`, `finanz/entwurf.ts`, Rechnung › Neu, Entwurf; `tests/kern/rechnung-entwurf.test.ts` |
 | O-934 | Keine Sperre bei fehlenden Briefkopfangaben: wer eine Mahnung freigibt, sieht vorher, was fehlt, und entscheidet (die Folge eines Verstosses gegen § 35a GmbHG ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung); eine Gesellschaft ohne Registereintrag führt die Angaben ihrer Rechtsform, die Angaben selbst sind Betreiberdaten (O-24, O-353). Wie gebaut. | `finanz/mahnung/index.ts` (`fehlendeBriefkopfangaben`) |
 | O-129 | Ein DATEV-Export sperrt keine Periode: exportierte Buchungen tragen den Stapel (`datev_export_id`) und gehen in keinen zweiten Export, ein später Beleg fällt in den nächsten; gesperrt wird eine Periode nur durch den Periodenabschluss (vorläufig, endgültig). Wie gebaut. | `buchhaltung/datev/export.ts`, `buchhaltung/periodenschluss.ts` |
@@ -25892,7 +25892,7 @@ es verbunden.
 | O-09 | Datenmengen für die Migration. Die Plattform legt keine Mengen fest; die Übernahme aus dem Altsystem wartet auf dessen Exportformat (O-128). | im Gespräch zur Migration |
 | O-10 | Plattformkonten für Social Media und Jobbörsen: jeder Kanal nicht verbunden, ein Beitrag bleibt Entwurf. | Konto, Administrator und AV-Vertrag je Plattform; Zugang über Umgebungsvariablen |
 | O-12 | Exaktes CSE-Rot und SVG-Logos: angenommenes Rot `#E30613` (`annahmen.ts`), Platzhalter-Logos, sichtbar gekennzeichnet. | Logos unter Einstellungen › Identität (braucht den Speicher); das Rot in DESIGN §1 |
-| O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Die Sperre vor dem Livegang ist nicht verdrahtet (V-389). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
+| O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Vor dem Livegang hält der Build an, solange Platzhalter im Register stehen — mit `CSE_LIVEGANG=1` (V-389, D-818). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
 | O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | Einstellungen › Unternehmensdaten (seit D-804, V-390); Bankkonten für den Kontoauszug unter Finanzen › Bankkonten |
 | O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
 | O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | Einstellungen › Betrieb › Sicherheitskontakt (Super-Administration, seit D-809, V-392) — Postfach, wer es liest, Antwortfrist |
@@ -26813,4 +26813,54 @@ Schreibweisen, „Str" im Wort, Rücktransport), `tests/isolation/objekt-anlegen
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-361; O-70; `src/server/services/objekt/anschrift.ts`, `src/server/services/objekt/anlegen.ts`, `src/app/api/objekt/route.ts`, `src/app/portal/[mandant]/objekte/neu/page.tsx`, `src/app/portal/[mandant]/objekte/ObjektFormular.tsx`, `src/lib/i18n/verwaltung/objekte.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-818 · Bauwelle 15: alte Einzelabfrage entfernt, Livegang-Sperre verdrahtet, Untergrenze der Aufbewahrung getrennt (V-343, V-389, V-372)
+
+**Der Anlass.** Drei kleinere Befunde, in denen eine Regel beschlossen und an
+einer Stelle nicht durchgesetzt war.
+
+**Was gebaut ist.**
+- **V-343 — die alte Einzelabfrage des Rechtsgrundlagen-Blocks.**
+  `app.rechtsgrundlage_lesen` (0020) verlangte `crm.lesen`; seit 0247 tragen
+  Liste und Blatt den Block mit dem engeren `crm.rechtsgrundlage_lesen`
+  (O-661). Die Funktion hatte keinen Aufrufer, stand aber mit
+  Ausführungsrecht für `cse_app` in der Datenbank. 0513 entfernt sie —
+  entfernt statt umgestellt: eine zweite Tür mit demselben Schloss wäre die,
+  die beim nächsten Umbau vergessen wird. Die K-01-Altlastliste verliert
+  ihren Eintrag.
+- **V-389 — die Platzhaltersperre vor dem Livegang.** `assertKeinePlatzhalter`
+  hatte keinen Aufrufer. Jetzt ruft `next.config.ts` sie mit `istLivegang`:
+  nur `CSE_LIVEGANG=1` macht einen Build zum Livegang, nicht
+  `NODE_ENV=production` — auch die Vorführung ist ein Produktionsbuild, und
+  dort stehen die gekennzeichneten Platzhalter zu Recht. Im Livegang hält
+  `next build` an und nennt jeden Platzhalter des Registers. `.env.example`
+  führt den Schalter, leer.
+- **V-372 — Untergrenze und Voreinstellung der Aufbewahrung.** Seit dem BEG IV
+  gelten für Buchungsbelege, Rechnungen eingeschlossen, acht Jahre (§ 147
+  Abs. 3 AO, § 257 Abs. 4 HGB, § 14b Abs. 1 UStG); Bücher und Abschlüsse
+  bleiben bei zehn. `UNTERGRENZE` und `kern.aufbewahrung_untergrenze` (0514)
+  nennen jetzt acht für Rechnung und Beleg; die Voreinstellung bleibt zehn
+  Jahre in den Plattformzeilen. Die Löschsperre der drei Finanzklassen hängt
+  an der Klasse (`SPERRE_PFLICHT`), nicht mehr an „ab zehn Jahren" — sonst
+  hätte die kürzere Untergrenze Rechnung und Beleg still aus der Sperre
+  entlassen.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-906 | Zehn Jahre für Rechnung und Beleg bleiben die Voreinstellung; die gesetzliche Untergrenze ist acht Jahre (BEG IV), eintragbar je Gesellschaft. | `dokument/aufbewahrung.ts`, `drizzle/0514` |
+| O-12, O-13 | Der Livegang-Schalter ist aus, bis der Betreiber ihn für den Livegang-Build setzt; dann hält jeder Platzhalter im Register den Build an. | `lib/placeholder-assets.ts`, `next.config.ts`, `.env.example` |
+| O-661 | Den Rechtsgrundlagen-Block trägt nur das engere Recht — die alte Einzelabfrage gibt es nicht mehr. | `drizzle/0513` |
+
+**Prüfung.** `tests/isolation/crm-kontakt-grundlage.test.ts` (V-343: die
+Funktion gibt es nicht, `crm.lesen` allein öffnet nichts),
+`tests/isolation/definer-eigentum.test.ts`, `tests/kern/livegang-platzhalter.test.ts`,
+`tests/isolation/gobd-archiv.test.ts` (3) (Untergrenzen nach BEG IV, acht Jahre
+mit Pflichtsperre, Voreinstellung zehn), `tests/isolation/aufbewahrung-lauf.test.ts`,
+`tests/isolation/datenschutz-dienste.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-343, V-389, V-372; O-661, O-12, O-13, O-906; `drizzle/0513_rechtsgrundlage_einzelabfrage_entfernt.sql`, `drizzle/0514_aufbewahrung_untergrenze_beg4.sql`, `src/lib/placeholder-assets.ts`, `next.config.ts`, `.env.example`, `src/server/services/dokument/aufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `tests/isolation/definer-eigentum.test.ts` |
 |---|---|
