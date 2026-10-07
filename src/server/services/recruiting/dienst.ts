@@ -28,6 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { jcsDigest } from '../freigabe/kette.js';
+import { legeFreigabeVor } from '../freigabe/vorlegen.js';
 import { rangfolge, type Kriterium, type Rangzeile } from './rangfolge.js';
 import type { Beschaeftigungsart } from './beschaeftigungsart.js';
 
@@ -231,21 +232,23 @@ export async function legeStelleVor(
     wochenstunden: s.wochenstunden,
     beschaeftigungsart: s.beschaeftigungsart,
   };
-  const [f] = await kontext.schreibe<{ id: string }>(
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-        diff, vorschau_payload, payload_hash, bezug_typ, bezug_id, erstellt_von,
-        erforderliches_recht)
-     values ($1::uuid, 'stelle_veroeffentlichen', 'offen', 'stellenanzeige_entwurf',
-             $2, $3, 'mittel'::risiko_stufe, '[]'::jsonb, $4::jsonb, $5,
-             'stelle', $6::uuid, $7::uuid, 'recruiting.stelle_veroeffentlichen')
-     returning id`,
-    [kontext.aktiverMandantId, `Stellenanzeige: ${s.titel}`, stellenSatz(s),
-      nutzlast, jcsDigest(nutzlast), s.id, kontext.benutzerId]);
-  if (f === undefined) {
-    throw new RecruitingFehler(
-      'Die Freigabe wurde nicht angelegt.', 'kein_schreibrecht', 403);
-  }
+  /*
+   * Vorgelegt über `app.freigabe_vorlegen` (V-376, D-819): vorlegen darf,
+   * wer im Modul `recruiting` ein schreibendes Recht hält — die Stellenpflege
+   * —, entschieden wird mit `recruiting.stelle_veroeffentlichen`.
+   */
+  const freigabeId = await legeFreigabeVor(kontext, {
+    aktion: 'stelle_veroeffentlichen',
+    vorgangTyp: 'stellenanzeige_entwurf',
+    titel: `Stellenanzeige: ${s.titel}`,
+    zusammenfassung: stellenSatz(s),
+    risiko: 'mittel',
+    vorschauPayload: nutzlast,
+    payloadHash: jcsDigest(nutzlast),
+    bezugTyp: 'stelle',
+    bezugId: s.id,
+    erforderlichesRecht: 'recruiting.stelle_veroeffentlichen',
+  });
 
   /*
    * **Nur die Kennung, nicht der Status.** `stelle.status` bleibt `entwurf`,
@@ -258,13 +261,13 @@ export async function legeStelleVor(
     `update stelle set freigabe_id = $2::uuid, geaendert_am = now(), geaendert_von = $3::uuid
       where id = $1::uuid and mandant_id = app.aktiver_mandant() and status = 'entwurf'
       returning id`,
-    [id, f.id, kontext.benutzerId]);
+    [id, freigabeId, kontext.benutzerId]);
   if (geaendert.length === 0) {
     throw new RecruitingFehler(
       'Die Stelle hat sich inzwischen geändert — jemand anderes war schneller. '
       + 'Bitte die Seite neu laden.', 'gleichzeitig', 409);
   }
-  return f.id;
+  return freigabeId;
 }
 
 /** Der Satz, den ein Mensch im Freigabe-Posteingang liest. */

@@ -13,6 +13,7 @@ import {
   risikoPunkte, stufeRisikoEin, type RisikoLage, type VorgangTyp,
 } from '../../services/freigabe/posteingang.js';
 import { konfidenzText } from '../../services/freigabe/konfidenz.js';
+import { legeFreigabeVor } from '../../services/freigabe/vorlegen.js';
 
 /**
  * Der Freigabe-Posteingang im Seed — wartende Vorschlaege, die es zu pruefen
@@ -286,39 +287,47 @@ export async function seedFreigaben(
       const payloadHash = createHash('sha256').update(nutzlastBytes).digest('hex');
       const diffJson = v.diff === null ? [] : diffZuJson(v.diff);
 
+      /*
+       * Über denselben Weg wie im Betrieb (V-376, D-819): `app.freigabe_vorlegen`
+       * legt die offene Bitte samt Feldern an und setzt Status und Urheber
+       * selbst — eine offene Bitte schreibt `cse_app` nicht mehr direkt.
+       */
       await alsPortalSitzung(sql, mandantId, entscheider.id, async (kontext) => {
-        const [neu] = await kontext.schreibe<{ id: string }>(
-          `insert into freigabe
-             (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-              risiko_punkte, diff, vorschau_payload, payload_hash, betrag_cent, frist,
-              erstellt_von, externe_ref, stapel_faehig, stapel_sperre_grund)
-           values ($1, $2, 'offen', $3::agent_vorgang_typ, $4, $5, $6::risiko_stufe, $7,
-                   $8::jsonb, $9::jsonb, $10, $11, $12::timestamptz, $13, $14, $15, $16)
-           returning id`,
-          [mandantId, v.aktion, v.vorgangTyp, v.titel, v.zusammenfassung, urteil.risiko,
-            risikoPunkte(urteil.risiko), fuerJsonb(diffJson), fuerJsonb(v.nutzlast),
-            payloadHash, v.betragCent === null ? null : v.betragCent.toString(),
-            v.fristStunden === null
-              ? null : new Date(Date.now() + v.fristStunden * 3_600_000).toISOString(),
-            entscheider.id, v.externeRef,
-            /* `freigabe_stapel_ohne_sperrgrund`: stapelfähig UND Sperrgrund
-               schliessen einander aus — eine Zeile sagt entweder „Routine"
-               oder warum nicht. */
-            v.stapelFaehig === true, v.stapelFaehig === true ? null : (v.stapelSperre ?? null)]);
-        if (neu === undefined) return;
+        await legeFreigabeVor(kontext, {
+          aktion: v.aktion,
+          vorgangTyp: v.vorgangTyp,
+          titel: v.titel,
+          zusammenfassung: v.zusammenfassung,
+          risiko: urteil.risiko,
+          risikoPunkte: risikoPunkte(urteil.risiko),
+          diff: fuerJsonb(diffJson),
+          vorschauPayload: fuerJsonb(v.nutzlast),
+          payloadHash,
+          betragCent: v.betragCent,
+          frist: v.fristStunden === null
+            ? null : new Date(Date.now() + v.fristStunden * 3_600_000).toISOString(),
+          externeRef: v.externeRef,
+          /* `freigabe_stapel_ohne_sperrgrund`: stapelfähig UND Sperrgrund
+             schliessen einander aus — eine Zeile sagt entweder „Routine"
+             oder warum nicht. */
+          stapelFaehig: v.stapelFaehig === true,
+          stapelSperreGrund: v.stapelFaehig === true ? null : (v.stapelSperre ?? null),
+          felder: v.felder.map((f) => ({
+            feldPfad: f.pfad,
+            bezeichnung: f.bezeichnung,
+            wertVorher: f.vorher,
+            wertNachher: f.nachher,
+            konfidenz: konfidenzText(f.konfidenz),
+            unsicher: f.unsicher,
+            grund: f.grund,
+            quelleTabelle: f.tabelle ?? null,
+            quelleZelle: f.zelle ?? null,
+            quelleZitat: f.zitat,
+            extraktionModell: 'demo:seed (kein Modell)',
+          })),
+        });
         vorschlaege += 1;
-        for (const f of v.felder) {
-          await kontext.schreibe(
-            `insert into freigabe_feld
-               (mandant_id, freigabe_id, feld_pfad, bezeichnung, wert_vorher, wert_nachher,
-                konfidenz, unsicher, grund, quelle_zitat, quelle_tabelle, quelle_zelle,
-                extraktion_modell, erstellt_von)
-             values ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9, $10, $11, $12, $13, $14)`,
-            [mandantId, neu.id, f.pfad, f.bezeichnung, f.vorher, f.nachher,
-              konfidenzText(f.konfidenz), f.unsicher, f.grund, f.zitat, f.tabelle ?? null,
-              f.zelle ?? null, 'demo:seed (kein Modell)', entscheider.id]);
-          felder += 1;
-        }
+        felder += v.felder.length;
       });
     }
   }

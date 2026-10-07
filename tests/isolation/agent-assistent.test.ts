@@ -22,8 +22,8 @@ import { vermerkeAnsicht } from '../../src/server/services/freigabe/laden.js';
  *  6. „Ergebnis nur mit Freigabe" wirkt (V-270, D-763): die Antwort wartet im
  *     Posteingang, erscheint erst nach Genehmigung — durch das Tor in
  *     `policy.ts` —, nie nach einer Ablehnung und nie, wenn sie nach der
- *     Freigabe eine andere ist; wer keine Freigabe vorlegen darf, bekommt
- *     eine abgewiesene Frage.
+ *     Freigabe eine andere ist; wer Freigaben nicht entscheidet, legt die
+ *     Antwort trotzdem vor (V-376) — entscheiden muss ein anderer.
  *
  * **`schalte` setzt die Freigabepflicht ausdrücklich.** Bis V-270 legten die
  * Fälle 1, 2 und 5 das Werkzeug MIT `erfordert_freigabe` an und erwarteten
@@ -318,7 +318,14 @@ describe('(6) „Ergebnis nur mit Freigabe" wirkt — die Antwort geht über den
     expect(gelesen!.antwort?.abfrageId).toBe('offene_rechnungen_anzahl');
   });
 
-  it('wer keine Freigabe vorlegen darf, bekommt eine abgewiesene Frage — keine Zeile, die an RLS scheitert', async () => {
+  /*
+   * **Vorlegen und Entscheiden sind zwei Rechte** (V-376, D-819). Bis 0515
+   * bekam, wer `freigabe.entscheiden` nicht hielt, eine abgewiesene Frage:
+   * die Antwort konnte nicht in den Posteingang. Jetzt legt der Lauf sie vor
+   * (sein Recht ist `agent.aufgabe_starten`), und entscheiden muss sie
+   * jemand, der Freigaben entscheidet — der Fragende selbst kann es nicht.
+   */
+  it('wer Freigaben nicht entscheidet, legt die Antwort trotzdem vor — entscheiden muss ein anderer', async () => {
     await schalte(f.reinigung, true, true);
     const leitung = await konto(f.reinigung, 'leitung');
     await sql.unsafe(
@@ -331,13 +338,19 @@ describe('(6) „Ergebnis nur mit Freigabe" wirkt — die Antwort geht über den
       [f.reinigung]);
     try {
       const aufgabeId = await frage(leitung);
-      expect(await freigabeZu(aufgabeId)).toBeUndefined();
+      const fz = await freigabeZu(aufgabeId);
+      expect(fz).toMatchObject({ aktion: 'werkzeug_ergebnis', status: 'offen' });
       const [s] = await schritte(aufgabeId);
-      expect(s).toMatchObject({ status: 'abgelehnt_richtlinie' });
-      expect(s!.ausgabe).toEqual({ abgelehnt: 'freigabe_nicht_vorlegbar' });
-      const gelesen = await imKontext((k) => leseFrage(k, aufgabeId), leitung);
-      expect(gelesen).toMatchObject({ status: 'abgebrochen', antwort: null });
-      expect(gelesen!.fehlerText).toContain('nur mit Freigabe');
+      expect(s).toMatchObject({ status: 'erfolg' });
+      expect(s!.ausgabe).toEqual({ zurueckgehalten: 'erfordert_freigabe', freigabe_id: fz!.id });
+      expect(await imKontext((k) => leseFrage(k, aufgabeId), leitung))
+        .toMatchObject({ antwort: null, freigabe: 'wartet' });
+
+      await expect(entscheide(fz!.id, 'genehmigt', leitung))
+        .rejects.toThrow(/freigabe\.entscheiden fehlt/u);
+      await entscheide(fz!.id, 'genehmigt');
+      expect(await imKontext((k) => leseFrage(k, aufgabeId), leitung))
+        .toMatchObject({ status: 'abgeschlossen', freigabe: 'geliefert' });
     } finally {
       await sql.unsafe(
         `delete from rolle_berechtigung

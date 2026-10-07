@@ -1595,6 +1595,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'freigabe', pfad: 'freigabe/erteilen',
     schreibend: true, schreibRecht: 'freigabe.entscheiden',
   },
+  /*
+   * Eine offene Bitte vorlegen und zurücknehmen (V-376, D-819) — über
+   * `app.freigabe_vorlegen` und `app.freigabe_zurueckziehen`. Das Vorlegerecht
+   * ist kein einzelner Schlüssel: der Definer leitet es aus dem Modul des
+   * Entscheidungsrechts ab (`social.freigeben` → ein schreibendes
+   * Social-Recht), beim Agentenlauf `agent.aufgabe_starten`. Das Register
+   * nennt eines davon; in der Gruppenansicht trägt keines, und die Definer
+   * weisen sie ohnehin ab (Invariante 10).
+   */
+  {
+    modul: 'freigabe', pfad: 'freigabe/vorlegen',
+    schreibend: true, schreibRecht: 'social.schreiben',
+  },
   /**
    * **Der Posteingang (PR 62, APR-01/02/03/07) — und alles daran LIEST.**
    *

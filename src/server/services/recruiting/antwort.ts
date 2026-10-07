@@ -33,6 +33,7 @@
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { EmailNichtVerbundenFehler, type EmailDienst } from '../../versand/email.js';
 import { jcsDigest } from '../freigabe/kette.js';
+import { legeFreigabeVor } from '../freigabe/vorlegen.js';
 import { RecruitingFehler } from './dienst.js';
 
 export type AntwortArt = 'eingangsbestaetigung' | 'einladung' | 'absage' | 'rueckfrage';
@@ -287,29 +288,30 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
     text: a.text,
   };
 
-  const [f] = await kontext.schreibe<{ id: string }>(
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-        diff, vorschau_payload, payload_hash, bezug_typ, bezug_id, erstellt_von,
-        erforderliches_recht)
-     values (app.aktiver_mandant(), 'bewerbung_antworten', 'offen',
-             'bewerbung_antwort_entwurf', $1, $2, 'mittel'::risiko_stufe,
-             '[]'::jsonb, $3::jsonb, $4, 'bewerbung', $5::uuid, $6::uuid,
-             'recruiting.entscheiden')
-     returning id`,
-    [`${ART_TEXT[a.art]}: ${b.name}`,
-      `${ART_TEXT[a.art]} an ${b.name} (${b.email}). Der Text geht erst nach `
+  /*
+   * Vorgelegt über `app.freigabe_vorlegen` (V-376, D-819): vorlegen darf,
+   * wer im Modul `recruiting` ein schreibendes Recht hält; entschieden wird
+   * mit `recruiting.entscheiden`.
+   */
+  const freigabeId = await legeFreigabeVor(kontext, {
+    aktion: 'bewerbung_antworten',
+    vorgangTyp: 'bewerbung_antwort_entwurf',
+    titel: `${ART_TEXT[a.art]}: ${b.name}`,
+    zusammenfassung: `${ART_TEXT[a.art]} an ${b.name} (${b.email}). Der Text geht erst nach `
       + 'dieser Freigabe hinaus — und nur, wenn ein Postausgang verbunden ist.',
-      nutzlast, jcsDigest(nutzlast), a.bewerbung_id, kontext.benutzerId]);
-  if (f === undefined) {
-    throw new RecruitingFehler('Die Freigabe wurde nicht angelegt.', 'kein_schreibrecht', 403);
-  }
+    risiko: 'mittel',
+    vorschauPayload: nutzlast,
+    payloadHash: jcsDigest(nutzlast),
+    bezugTyp: 'bewerbung',
+    bezugId: a.bewerbung_id,
+    erforderlichesRecht: 'recruiting.entscheiden',
+  });
 
   await kontext.schreibe(
     `update bewerbung_antwort set stand = 'wartet_auf_freigabe', freigabe_id = $2::uuid
       where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
-    [id, f.id]);
-  return f.id;
+    [id, freigabeId]);
+  return freigabeId;
 }
 
 export async function liste(

@@ -25661,11 +25661,11 @@ Voreinstellung tragen — der Wortlaut folgt jetzt.
 | O-360 | Keine Karte in der Gruppenansicht, bis ein Kartendienst in der EU mit Auftragsverarbeitungsvertrag eingetragen ist (O-132, Betreiberdaten); bis dahin die Anschriftenliste (D-475). Wie gebaut. | Gruppe › Objekte |
 | O-361 | Der Menüpunkt „Einstellungen" folgt dem Manifest (`system.mandant_lesen`): die Administration sieht ihn, die Karten darunter bleiben einzeln bewacht. Wie gebaut — das Register sagte noch, sie erreiche die Einstellungen nur über die Adresse. | `registry/navigation.ts`, `tests/kern/navigation-rechte.test.ts` |
 | O-368 | Keine Handlung ist umkehrbar (`app.freigabe_umkehrbar` antwortet für jede Vorgangsart nein); eine Korrektur ist eine neue Freigabe oder ein Storno. Wer eine Rückholung baut, trägt ihre Vorgangsart dort ein. Wie gebaut; die Prüfseiten sagen „Voreinstellung" statt „offene Frage". | `freigabe/fenster.platzhalter.ts`, Freigaben › Rückgängig |
-| O-369 | Ja — Vorlegen und Entscheiden sind zwei Rechte (Invariante 7): ein Definer `app.freigabe_vorlegen` legt die offene Bitte an, prüft das fachliche Recht des Vorgangs und setzt Status und Entscheidungsfelder selbst. Nicht gebaut (V-376); bis dahin hält `social-job.test.ts` die Kopplung fest. | `social/dienst.ts` (`legeVor`) |
+| O-369 | Ja — Vorlegen und Entscheiden sind zwei Rechte (Invariante 7): ein Definer `app.freigabe_vorlegen` legt die offene Bitte an, prüft das fachliche Recht des Vorgangs und setzt Status und Entscheidungsfelder selbst. Gebaut mit V-376 (D-819): `app.freigabe_vorlegen` (0515) ist der eine Weg für eine offene Bitte, `app.freigabe_zurueckziehen` nimmt sie zurück; `social-job.test.ts` hält jetzt die Trennung fest statt der Kopplung. | `social/dienst.ts` (`legeVor`), `freigabe/vorlegen.ts`, `drizzle/0515` |
 | O-372 | Keine lesende Social-Übersicht in der Gruppenansicht — die Seitenkarte führt sie in §6 nicht, jede Gesellschaft pflegt ihre Kanäle selbst. Wie gebaut. | `registry/navigation.ts` |
 | O-510 | Die Bestätigung nach dem Widerruf eines Kalenderzugangs sagt in vier Sprachen, dass eine noch sichtbare Zeile veraltet ist und ein Neuladen den Stand zeigt; der Feed antwortet sofort 404. Die Ursache der veralteten Anzeige wird nicht weiter verfolgt, solange der Zugang nachweislich geschlossen ist. Wie gebaut. | `lib/i18n/konto.ts`, `api/kalender-feed/widerrufen`, `tests/e2e/kalender.spec.ts` |
 | O-511 | Bevor der erste Kanal echt verbunden wird (O-10), bekommt der Versand einen Ausgangskorb mit Idempotenzschlüssel, Zustellung ausserhalb der Geschäftstransaktion und Abgleich danach. Heute ohne Wirkung (alle Kanäle `nicht_verbunden`); nicht gebaut (V-377). | `social/dienst.ts` (`sendeKanaele`) |
-| O-513 | Wie O-369: das Vorlegen trägt das fachliche Recht des Vorgangs — `social.schreiben`, das Recht der Stellenpflege, das Erfassen der Eingangsrechnung, beim Agenten sein Dienstkonto —, das Entscheiden `freigabe.entscheiden`. Nicht gebaut (V-376). | `drizzle/0136`, die vier vorlegenden Dienste |
+| O-513 | Wie O-369: das Vorlegen trägt das fachliche Recht des Vorgangs — `social.schreiben`, das Recht der Stellenpflege, das Erfassen der Eingangsrechnung, beim Agenten sein Dienstkonto —, das Entscheiden `freigabe.entscheiden`. Gebaut mit V-376 (D-819) nach Antwort (b): vorlegen darf, wer im Modul des Entscheidungsrechts ein nicht lesendes Recht hält; die Bitte eines Agentenlaufs, wer Agentenaufgaben starten darf, mit laufender Aufgabe der Gesellschaft. | `drizzle/0136`, `drizzle/0515`, die sechs vorlegenden Wege |
 | O-650 | Rollen im Team: Leitung, Stellvertretung, Mitglied, Springer, als Vorschlagsliste; `team_mitglied.rolle` bleibt Text (0230). Gebaut mit V-378 (D-813): Kalender › Teams legt Teams an, ordnet Beschäftigungen zu und beendet Mitgliedschaften (`kalender.schreiben`); eine beendete Mitgliedschaft bleibt mit Ende und Namen stehen (0509). | `kern/team.ts`, `db/seed/kern.ts`, `drizzle/0230`, `drizzle/0509` |
 | O-651 | Die Gruppenleitung liest keine Nachrichtenfäden der Gesellschaften (TEN-05: Zahlen statt Inhalt, wie O-910). Die Policy `t_nachricht_gruppe` (0011) bleibt bis zur Migration, die sie deckelt (V-379); eine Seite dafür gibt es nicht. | `registry/navigation.ts`, `drizzle/0011` |
 | O-871 | Ein Termin gehört einer Person, nicht einem Team; der Teamfilter des Gruppenkalenders greift auf Schichten, die Seite sagt „nur Schichten (Voreinstellung O-871)". Wie gebaut. | Gruppe › Kalender |
@@ -26863,4 +26863,67 @@ mit Pflichtsperre, Voreinstellung zehn), `tests/isolation/aufbewahrung-lauf.test
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-343, V-389, V-372; O-661, O-12, O-13, O-906; `drizzle/0513_rechtsgrundlage_einzelabfrage_entfernt.sql`, `drizzle/0514_aufbewahrung_untergrenze_beg4.sql`, `src/lib/placeholder-assets.ts`, `next.config.ts`, `.env.example`, `src/server/services/dokument/aufbewahrung.ts`, `src/app/portal/[mandant]/dokumente/aufbewahrung/page.tsx`, `tests/isolation/definer-eigentum.test.ts` |
+|---|---|
+
+### D-819 · Bauwelle 16: Vorlegen ist nicht Entscheiden (V-376)
+
+**Der Anlass.** Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) verlangte
+`freigabe.entscheiden` für jeden Schreibvorgang, auch für das Anlegen einer
+offenen Bitte. Eine Rolle, die vorlegt und nicht entscheidet — die Trennung,
+für die Invariante 7 da ist —, scheiterte an der Policy, mit einer Meldung, die
+nach einem fehlenden Fachrecht aussah; das Zurückholen eines Beitrags zur
+Überarbeitung liess die Bitte stumm offen liegen. Voreinstellung zu O-369 und
+O-513 (D-799): ein Definer, der das fachliche Recht des Vorgangs prüft.
+
+**Was gebaut ist.**
+- **`app.freigabe_vorlegen(jsonb)` (0515)** ist der eine Weg für eine offene
+  Bitte. Gesellschaft (die aktive), Status `offen`, Urheber und
+  Entscheidungsfelder setzt er selbst; der Aufrufer gibt den Vorgang aus einer
+  festen Liste von Angaben mit — eine fremde Angabe ist ein Fehler —, die
+  extrahierten Felder eines Vorschlags im selben Aufruf (ihre Policy verlangt
+  `freigabe.lesen`, und ihr Zähler schreibt in die Freigabe). Vorlegen darf,
+  wer im Modul des erforderlichen Rechts ein nicht lesendes Recht hält
+  (`social.freigeben` → `social.schreiben`, `eingang.freigeben` →
+  `eingang.schreiben`; ohne erforderliches Recht wie bisher ein Freigaberecht).
+  Eine erfundene Rechnungsfreigabe aus dem Social-Modul geht damit nicht in
+  den Posteingang. Die Bitte eines Agentenlaufs legt vor, wer Agentenaufgaben
+  starten darf, mit einer laufenden Aufgabe dieser Gesellschaft; Agent und
+  Aufgabe kommen aus der Aufgabe, einen Urheber hat sie nicht (wie bisher, 0496
+  liest es so).
+- **`app.freigabe_zurueckziehen(uuid, text)`**: wer vorlegen dürfte, nimmt eine
+  offene Bitte zurück; eine entschiedene bleibt, wie sie ist (APR-07).
+- **Eine offene Bitte entsteht nur noch dort**: die restriktive Policy
+  `p_offen_nur_vorlegen` verbietet `cse_app` den direkten insert mit Status
+  `offen`. Eine bereits gefallene Entscheidung (`erteilen.ts`, Seed) schreibt
+  `cse_app` mit `freigabe.entscheiden` wie bisher; Lesen und Entscheiden
+  ändern sich nicht.
+- **Sechs Wege umgestellt** (`freigabe/vorlegen.ts`): der Social-Beitrag (samt
+  Zurückholen), die Stellenanzeige, die Bewerberantwort, der Vorschlag zur
+  Eingangsrechnung, der Agentenlauf und das zurückgehaltene Werkzeugergebnis des
+  Assistenten; dazu der Seed. Der Assistent fragt vor dem Werkzeug
+  `agent.aufgabe_starten` statt `freigabe.entscheiden` — wer Freigaben nicht
+  entscheidet, bekommt seine Antwort jetzt über den Posteingang, statt
+  abgewiesen zu werden.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-369 | Vorlegen und Entscheiden sind zwei Rechte — wie D-799, jetzt gebaut: `app.freigabe_vorlegen` prüft das Vorlegerecht, entschieden wird mit dem Recht der Bitte. | `drizzle/0515`, `freigabe/vorlegen.ts` |
+| O-513 | Das Vorlegerecht ist ein nicht lesendes Recht im Modul des Entscheidungsrechts (Antwort b), beim Agentenlauf `agent.aufgabe_starten` mit laufender Aufgabe — wie D-799, jetzt gebaut. | `drizzle/0515` |
+
+**Prüfung.** `tests/isolation/freigabe-vorlegen.test.ts` (11: ein Konto nur mit
+Social legt vor und holt zurück; eine entschiedene Bitte bleibt; der Köder über
+Modulgrenzen; ohne erforderliches Recht wie bisher; ein unbekanntes Recht; ohne
+schreibendes Recht nichts; fremde Angaben; direkter insert `offen` gesperrt,
+eine gefallene Entscheidung erlaubt; Felder samt Zähler; Agentenlauf mit und
+ohne laufende Aufgabe, ohne Recht, fremde Gesellschaft),
+`tests/isolation/social-job.test.ts` (die Trennung statt der Kopplung),
+`tests/isolation/agent-assistent.test.ts` (wer nicht entscheidet, legt vor;
+entscheiden muss ein anderer), `tests/isolation/pruefprotokoll-ip-agent.test.ts`,
+die Isolationsdateien von Social, Recruiting, Eingangsrechnung, Agenten,
+Freigabe, Seed und Gruppenansicht, `sql-schema`, `definer-eigentum`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-376; O-369, O-513; `drizzle/0515_freigabe_vorlegen.sql`, `src/server/services/freigabe/vorlegen.ts`, `src/server/services/social/dienst.ts`, `src/server/services/recruiting/dienst.ts`, `src/server/services/recruiting/antwort.ts`, `src/server/services/finanz/eingang/vorschlag.ts`, `src/server/agent/orchestrator.ts`, `src/server/agent/tools/ergebnis-freigabe.ts`, `src/server/db/seed/freigaben.ts`, `src/server/registry/dienste.ts` |
 |---|---|

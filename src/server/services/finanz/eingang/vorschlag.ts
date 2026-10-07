@@ -9,6 +9,7 @@ import {
   type Befund, type BewertetesFeld, type ExtrahiertesFeld,
 } from '../../freigabe/konfidenz.js';
 import { risikoPunkte, stufeRisikoEin } from '../../freigabe/posteingang.js';
+import { legeFreigabeVor } from '../../freigabe/vorlegen.js';
 import { erfasseEingangsrechnung, pruefeDublette, setzeSteuerzeile } from '../eingangsrechnung.js';
 import { extrahiereERechnung, type ERechnungExtrakt, type Rohfeld } from './erechnung.js';
 
@@ -361,45 +362,46 @@ export async function legeEingangsVorschlagAn(
   });
 
   const titel = `E-Rechnung ${n.rechnungsnummer ?? 'ohne Nummer'} · ${lieferant.treffer?.name ?? n.lieferant.name ?? 'unbekannter Lieferant'}`;
-  const [neu] = await kontext.schreibe<{ id: string }>(
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko, risiko_punkte,
-        diff, vorschau_payload, payload_hash, betrag_cent, min_konfidenz,
-        stapel_faehig, stapel_sperre_grund, erforderliches_recht, bezug_typ, bezug_id,
-        externe_ref, erstellt_von)
-     values ($1::uuid, $2, 'offen', 'buchung_uebernehmen', $3, $4, $5::risiko_stufe, $6,
-             '[]'::jsonb, $7::jsonb, $8, $9::bigint, $10::numeric,
-             false, 'Eingangsrechnungen werden einzeln geprüft (ACC-05)', 'eingang.freigeben',
-             'beleg', $11::uuid, $12, app.aktueller_benutzer())
-     returning id`,
-    [kontext.aktiverMandantId, AKTION_UEBERNEHMEN, titel,
-      zusammenfassungAus(extrakt, lieferant.treffer?.name ?? n.lieferant.name),
-      urteil.risiko, risikoPunkte(urteil.risiko), fuerJsonb(kanonisch), payloadHash,
-      n.bruttoCent === null ? null : n.bruttoCent.toString(),
-      (() => { const m = minKonfidenz(bewertet); return m === null ? null : konfidenzText(m); })(),
-      e.belegId, externeRef]);
-  if (neu === undefined) {
-    throw new VorschlagFehler('Der Vorschlag wurde nicht angelegt.', 'unvollstaendig');
-  }
+  /*
+   * Vorgelegt über `app.freigabe_vorlegen` (V-376, D-819), mit den Feldern im
+   * selben Aufruf: vorlegen darf, wer die Eingangsrechnung erfasst
+   * (`eingang.schreiben`, Modul des Entscheidungsrechts `eingang.freigeben`);
+   * das Recht, über Freigaben zu entscheiden, braucht es dafür nicht mehr.
+   */
+  const freigabeId = await legeFreigabeVor(kontext, {
+    aktion: AKTION_UEBERNEHMEN,
+    vorgangTyp: 'buchung_uebernehmen',
+    titel,
+    zusammenfassung: zusammenfassungAus(extrakt, lieferant.treffer?.name ?? n.lieferant.name),
+    risiko: urteil.risiko,
+    risikoPunkte: risikoPunkte(urteil.risiko),
+    vorschauPayload: fuerJsonb(kanonisch),
+    payloadHash,
+    betragCent: n.bruttoCent,
+    minKonfidenz: (() => { const m = minKonfidenz(bewertet); return m === null ? null : konfidenzText(m); })(),
+    stapelFaehig: false,
+    stapelSperreGrund: 'Eingangsrechnungen werden einzeln geprüft (ACC-05)',
+    erforderlichesRecht: 'eingang.freigeben',
+    bezugTyp: 'beleg',
+    bezugId: e.belegId,
+    externeRef,
+    felder: bewertet.map((f) => ({
+      feldPfad: f.feldPfad,
+      bezeichnung: f.bezeichnung,
+      wertVorher: f.wertVorher,
+      wertNachher: f.wertNachher,
+      konfidenz: konfidenzText(f.konfidenz),
+      unsicher: f.unsicher,
+      grund: f.grund,
+      quelleDokumentId: f.quelle.art === 'dokument' ? f.quelle.dokumentId : null,
+      quelleTabelle: f.quelle.art === 'dokument' ? f.quelle.tabelle : null,
+      quelleZelle: f.quelle.art === 'dokument' ? f.quelle.zelle : null,
+      quelleZitat: f.quelle.art === 'dokument' || f.quelle.art === 'zitat' ? f.quelle.zitat : null,
+      extraktionModell: f.extraktionModell,
+    })),
+  });
 
-  for (const f of bewertet) {
-    await kontext.schreibe(
-      `insert into freigabe_feld
-         (mandant_id, freigabe_id, feld_pfad, bezeichnung, wert_vorher, wert_nachher,
-          konfidenz, unsicher, grund, quelle_dokument_id, quelle_tabelle, quelle_zelle,
-          quelle_zitat, extraktion_modell, erstellt_von)
-       values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::numeric, $8, $9, $10::uuid, $11, $12,
-               $13, $14, app.aktueller_benutzer())`,
-      [kontext.aktiverMandantId, neu.id, f.feldPfad, f.bezeichnung, f.wertVorher, f.wertNachher,
-        konfidenzText(f.konfidenz), f.unsicher, f.grund,
-        f.quelle.art === 'dokument' ? f.quelle.dokumentId : null,
-        f.quelle.art === 'dokument' ? f.quelle.tabelle : null,
-        f.quelle.art === 'dokument' ? f.quelle.zelle : null,
-        f.quelle.art === 'dokument' || f.quelle.art === 'zitat' ? f.quelle.zitat : null,
-        f.extraktionModell]);
-  }
-
-  return { freigabeId: neu.id, neu: true, unsichereFelder: unsichere, risiko: urteil.risiko };
+  return { freigabeId, neu: true, unsichereFelder: unsichere, risiko: urteil.risiko };
 }
 
 // ---------------------------------------------------------------------------

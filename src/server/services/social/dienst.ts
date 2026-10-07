@@ -1,6 +1,7 @@
 import 'server-only';
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { jcsDigest } from '../freigabe/kette.js';
+import { legeFreigabeVor, zieheFreigabeZurueck } from '../freigabe/vorlegen.js';
 import type { Speicher } from '../../storage/adapter.js';
 import { type BeitragsbildEingabe, legeBeitragsbildAn } from './beitragsbild.js';
 import { plattformKanal } from '../../versand/social-plattform.js';
@@ -559,47 +560,35 @@ export async function legeVor(kontext: SchreibKontext, id: string): Promise<stri
   const abdruck = jcsDigest(nutzlast);
 
   /*
-   * **Wer hier schreibt, braucht heute `freigabe.entscheiden`** — und das ist
-   * ein Zustand, keine Absicht.
+   * **Vorlegen braucht `social.schreiben`, nicht `freigabe.entscheiden`**
+   * (V-376, D-819). Die offene Bitte legt `app.freigabe_vorlegen` an: er
+   * prüft das Recht im Modul des Entscheidungsrechts (`social.freigeben` →
+   * Modul `social`) und setzt Status und Urheber selbst. Entschieden wird im
+   * Posteingang, mit `social.freigeben`.
    *
-   * Die Schreibpolicy auf `freigabe` (`t_mandant`, 0136) unterscheidet nicht
-   * zwischen „eine Freigabe anlegen" und „eine Freigabe entscheiden". Heute
-   * faellt das nicht auf: `social.schreiben` und `freigabe.entscheiden` liegen
-   * bei denselben drei Rollen. Es faellt auf, sobald jemand eine schmale
-   * Marketingrolle anlegt, die vorlegt und nichts entscheidet — also genau
-   * das, wofuer Invariante 7 da ist.
-   *
-   * `tests/isolation/social-job.test.ts` haelt die Kopplung fest, damit sie
-   * beim Festschreiben rot wird und nicht im Betrieb.
-   *
-   * // TODO(client, O-369): Voreinstellung — ja: Vorlegen und Entscheiden sind
-   * zwei Rechte (Invariante 7). Die offene Bitte legt ein Definer
-   * `app.freigabe_vorlegen` an, der das FACHLICHE Recht des Vorgangs prueft
-   * (hier `social.schreiben`) und Status und Entscheidungsfelder selbst setzt
-   * (O-513). Nicht gebaut (V-376); bis dahin bleibt die Kopplung, und
-   * der Isolationstest haelt sie fest. D-799.
+   * TODO(client, O-369): Voreinstellung — Vorlegen und Entscheiden sind zwei
+   * Rechte (Invariante 7); vorlegen darf, wer im Modul ein nicht lesendes
+   * Recht hält. D-799, D-819.
    */
-  const [f] = await kontext.schreibe<{ id: string }>(
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-        diff, vorschau_payload, payload_hash, bezug_typ, bezug_id, erstellt_von,
-        erforderliches_recht)
-     values ($1::uuid, 'social_veroeffentlichen', 'offen', 'beitrag_veroeffentlichen',
-             $2, $3, 'mittel'::risiko_stufe, '[]'::jsonb, $4::jsonb, $5,
-             'beitrag', $6::uuid, $7::uuid, 'social.freigeben')
-     returning id`,
-    [kontext.aktiverMandantId, `Beitrag: ${b.titel}`, zusammenfassung(b, kanaele),
-      nutzlast, abdruck, b.id, kontext.benutzerId]);
-  if (f === undefined) {
-    throw new SocialFehler('Die Freigabe wurde nicht angelegt.', 'kein_schreibrecht');
-  }
+  const freigabeId = await legeFreigabeVor(kontext, {
+    aktion: 'social_veroeffentlichen',
+    vorgangTyp: 'beitrag_veroeffentlichen',
+    titel: `Beitrag: ${b.titel}`,
+    zusammenfassung: zusammenfassung(b, kanaele),
+    risiko: 'mittel',
+    vorschauPayload: nutzlast,
+    payloadHash: abdruck,
+    bezugTyp: 'beitrag',
+    bezugId: b.id,
+    erforderlichesRecht: 'social.freigeben',
+  });
 
   await schreibeWennNoch(kontext, id, b.status,
     `update beitrag set status = $2::beitrag_status, freigabe_id = $3::uuid,
                         geaendert_von = $4::uuid
       where id = $1::uuid`,
-    [id, ziel, f.id, kontext.benutzerId]);
-  return f.id;
+    [id, ziel, freigabeId, kontext.benutzerId]);
+  return freigabeId;
 }
 
 /**
@@ -655,21 +644,20 @@ export async function schrittGehen(
      * einen zurueckgezogenen Antrag. Gemeldet hat das die Copilot-Runde auf
      * PR 16.
      *
-     * `and status = 'offen'` ist der ganze Riegel: aus `abgelehnt` heraus
+     * Nur aus `offen` ist der ganze Riegel: aus `abgelehnt` heraus
      * ueberarbeiten trifft eine ENTSCHIEDENE Freigabe, und die wird nicht
      * umgeschrieben — Entscheidungen sind Tatsachen, kein Zustand (APR-07).
      * Genau deshalb steht hier `zurueckgezogen` und nicht `abgelehnt`: den
      * Antrag nimmt der Antragsteller zurueck, abgelehnt haette ihn jemand.
+     *
+     * Zurueck nimmt `app.freigabe_zurueckziehen` (V-376, D-819): wer den
+     * Beitrag vorlegen durfte, darf die Bitte auch zuruecknehmen — ohne
+     * `freigabe.entscheiden`. Vorher scheiterte das stumm an der Policy, und
+     * die Bitte blieb offen liegen.
      */
     if (b.freigabeId !== null) {
-      await kontext.schreibe(
-        `update freigabe
-          set status = 'zurueckgezogen', geaendert_am = now(),
-              begruendung = coalesce(begruendung,
-                'Der Beitrag wurde zur Überarbeitung zurückgeholt; '
-                || 'der vorgelegte Text steht nicht mehr.')
-        where id = $1::uuid and status = 'offen'`,
-        [b.freigabeId]);
+      await zieheFreigabeZurueck(kontext, b.freigabeId,
+        'Der Beitrag wurde zur Überarbeitung zurückgeholt; der vorgelegte Text steht nicht mehr.');
     }
     return;
   }

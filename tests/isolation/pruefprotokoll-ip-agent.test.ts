@@ -194,7 +194,8 @@ describe('(2) was ein Agent schreibt, steht als Agent da', () => {
         const spion = {
           ...k,
           schreibe: async <T,>(q: string, w?: readonly unknown[]): Promise<readonly T[]> => {
-            if (/insert into freigabe/u.test(q)) {
+            /* Die Freigabe entsteht seit V-376 über app.freigabe_vorlegen (0515). */
+            if (/app\.freigabe_vorlegen/u.test(q)) {
               await k.schreibe(`select app.protokolliere('probe.im_lauf', 'probe', '1')`);
               imLauf += 1;
             }

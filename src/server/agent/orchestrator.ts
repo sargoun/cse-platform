@@ -11,6 +11,7 @@ import { BudgetErschoepft, bucheKosten, gibReservierungFrei, reserviere, vermerk
 import { kostenMikrocent, type Preis } from './kosten.js';
 import { NUTZLAST_FRIST_TAGE_PLATZHALTER } from './limits.platzhalter.js';
 import { pruefeZahlenherkunft } from './zahlenherkunft.js';
+import { legeFreigabeVor } from '../services/freigabe/vorlegen.js';
 
 /**
  * Der Orchestrator — **der Weg vom Auftrag zum Vorschlag** (AGT-01, §4).
@@ -447,24 +448,29 @@ async function laufeAlsAgent(
     diffLeer: false,
   });
 
-  const [freigabe] = await kontext.schreibe<{ id: string }>(
-    /*
-     * Die Gruende stehen in der Nutzlast und nicht in einer eigenen Spalte:
-     * `freigabe` hat keine. Sie gehoeren trotzdem mit, weil „auch noch" eine
-     * andere Auskunft ist als „deshalb" -- und weil ein Mensch im Posteingang
-     * sonst eine Stufe sieht, die niemand begruendet.
-     */
-    `insert into freigabe
-       (mandant_id, aktion, status, vorgang_typ, titel, zusammenfassung, risiko,
-        risiko_punkte, diff, vorschau_payload, payload_hash, agent_id, agent_aufgabe_id,
-        externe_ref)
-     values ($1::uuid, $2, 'offen', $3::agent_vorgang_typ, $4, $5,
-             $6::risiko_stufe, $7::integer, '[]'::jsonb, $8::jsonb, $9, $10::uuid, $11::uuid, $12)
-     returning id`,
-    [kontext.aktiverMandantId, auftrag.aktion, auftrag.vorgangTyp, auftrag.titel,
-      entwurf.text, urteil.risiko, risikoPunkte(urteil.risiko),
-      { ...nutzlast, risiko_gruende: urteil.gruende }, nutzlastHash,
-      aufgabe.agentId, aufgabe.id, `agent:${aufgabe.id}`]);
+  /*
+   * Die Gruende stehen in der Nutzlast und nicht in einer eigenen Spalte:
+   * `freigabe` hat keine. Sie gehoeren trotzdem mit, weil „auch noch" eine
+   * andere Auskunft ist als „deshalb" -- und weil ein Mensch im Posteingang
+   * sonst eine Stufe sieht, die niemand begruendet.
+   *
+   * Vorgelegt über `app.freigabe_vorlegen` (V-376, D-819): bei einem
+   * Agentenlauf prüft der Definer `agent.aufgabe_starten` und die laufende
+   * Aufgabe; Agent und Aufgabe nimmt er aus ihr, einen menschlichen Urheber
+   * hat die Bitte nicht. `freigabe.entscheiden` braucht der Lauf nicht mehr.
+   */
+  const freigabeId = await legeFreigabeVor(kontext, {
+    aktion: auftrag.aktion,
+    vorgangTyp: auftrag.vorgangTyp,
+    titel: auftrag.titel,
+    zusammenfassung: entwurf.text,
+    risiko: urteil.risiko,
+    risikoPunkte: risikoPunkte(urteil.risiko),
+    vorschauPayload: { ...nutzlast, risiko_gruende: urteil.gruende },
+    payloadHash: nutzlastHash,
+    agentAufgabeId: aufgabe.id,
+    externeRef: `agent:${aufgabe.id}`,
+  });
 
   await kontext.schreibe(
     `update agent_aufgabe
@@ -472,11 +478,11 @@ async function laufeAlsAgent(
             ergebnis = jsonb_build_object(
               'freigabe_id', $2::text, 'artefakt_id', $3::text)
       where id = $1::uuid`,
-    [aufgabe.id, freigabe?.id ?? '', artefakt?.id ?? '']);
+    [aufgabe.id, freigabeId, artefakt?.id ?? '']);
 
   return {
     aufgabeId: aufgabe.id,
-    freigabeId: freigabe?.id ?? null,
+    freigabeId,
     entwurf: entwurf.text,
     modell: entwurf.verbrauch.modell,
     schritte: 1,

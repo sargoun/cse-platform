@@ -245,49 +245,49 @@ describe('Der Planlauf läuft als JOB — nicht als Portalsitzung', () => {
 });
 
 /**
- * **Wer vorlegen darf, muss heute auch entscheiden dürfen — und das ist ein
- * Zustand, kein Entwurf.**
+ * **Vorlegen und Entscheiden sind zwei Rechte** (V-376, O-369, D-819).
  *
- * `legeVor` legt eine OFFENE Freigabe an. Die Schreibpolicy auf `freigabe`
- * (`t_mandant`, 0136) verlangt dafür `freigabe.entscheiden` — sie
- * unterscheidet nicht zwischen „eine Freigabe erbitten" und „eine Freigabe
- * erteilen". Heute fällt das nicht auf: `social.schreiben` und
- * `freigabe.entscheiden` liegen bei denselben drei Rollen (`super_admin`,
- * `admin`, `leitung`, 0008).
- *
- * **Es fällt in dem Moment auf, in dem jemand es richtig machen will.** Eine
- * schmale Marketingrolle, die Beiträge schreibt und vorlegt, aber nichts
- * entscheidet, ist genau das, wofür Invariante 7 und das Vier-Augen-Prinzip
- * da sind — und sie scheitert dann an der Policy, mit einer Meldung, die nach
- * einem fehlenden `social`-Recht aussieht.
- *
- * Diese Prüfung hält die Kopplung fest, statt sie zu verschweigen. Sie wird
- * rot, sobald eine Rolle `social.schreiben` ohne `freigabe.entscheiden`
- * bekommt — dann ist die Frage aus O-369 zu beantworten und nicht vorher.
- * Die Policy hier zu weiten wäre der falsche Weg: sie gilt für JEDE Freigabe
- * dieser Plattform, nicht nur für die von Social.
+ * Hier stand bis 0515 die Kopplung: jede Rolle mit `social.schreiben` musste
+ * auch `freigabe.entscheiden` tragen, weil `legeVor` die offene Bitte selbst
+ * in `freigabe` schrieb und die Policy dafür das Entscheidungsrecht verlangte.
+ * Seit `app.freigabe_vorlegen` gilt das Gegenteil, und die Prüfung hält es
+ * fest: eine Rolle, die schreibt und vorlegt, aber nichts entscheidet, ist
+ * möglich — und genau die, für die Invariante 7 da ist. Den Weg selbst prüft
+ * `freigabe-vorlegen.test.ts`; hier steht die Rechtelage, die er braucht.
  */
-describe('Vorlegen und Entscheiden hängen heute am selben Recht (O-369)', () => {
-  it('jede Rolle mit `social.schreiben` trägt auch `freigabe.entscheiden`', async () => {
-    const offen = await sql.unsafe<{ rolle: string }[]>(
-      `select distinct r.schluessel as rolle
-         from rolle r
-         join rolle_berechtigung rb on rb.rolle_id = r.id and rb.gewaehrt
-         join berechtigung b on b.id = rb.berechtigung_id
-        where b.schluessel = 'social.schreiben'
-          and not exists (
-            select 1 from rolle_berechtigung rb2
-              join berechtigung b2 on b2.id = rb2.berechtigung_id
-             where rb2.rolle_id = r.id and rb2.gewaehrt
-               and rb2.mandant_id is not distinct from rb.mandant_id
-               and b2.schluessel = 'freigabe.entscheiden')
-        order by 1`);
-    expect(
-      offen.map((z) => z.rolle),
-      'Diese Rolle kann einen Beitrag schreiben, aber nicht vorlegen: `legeVor` '
-      + 'legt eine offene Freigabe an, und `t_mandant` auf `freigabe` verlangt '
-      + '`freigabe.entscheiden`. Siehe O-369 — die Policy zu weiten gilt für JEDE '
-      + 'Freigabe, nicht nur für Social.',
-    ).toEqual([]);
+describe('Vorlegen und Entscheiden sind zwei Rechte (V-376, O-369)', () => {
+  it('ein Konto nur mit Social darf vorlegen — und nicht entscheiden', async () => {
+    const email = `socjob-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1, $2, 'Marketing', 'aktiv')`,
+      [u!.id, email]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, module)
+       values ($1, $2, (select id from rolle where schluessel = 'admin' and mandant_id is null),
+               '{social}'::text[])`, [u!.id, f.reinigung]);
+
+    const z = await sql.begin(async (tx) => {
+      await tx.unsafe(
+        `select set_config('app.scope', 'mandant', true), set_config('app.mandant_id', $1, true),
+                set_config('app.mandant_ids', $1, true), set_config('app.benutzer_id', $2, true),
+                set_config('app.portal', 'intern', true), set_config('app.aal', 'aal2', true),
+                set_config('app.readonly', 'off', true)`, [f.reinigung, u!.id]);
+      const [r] = await tx.unsafe<{ vorlegen: boolean; entscheiden: boolean; fremd: boolean }[]>(
+        `select kern.freigabe_darf_vorlegen('social.freigeben', $1::uuid) as vorlegen,
+                app.hat_recht('freigabe.entscheiden', $1::uuid) as entscheiden,
+                kern.freigabe_darf_vorlegen('eingang.freigeben', $1::uuid) as fremd`,
+        [f.reinigung]);
+      return r;
+    });
+    expect(z).toEqual({ vorlegen: true, entscheiden: false, fremd: false });
+
+    const [riegel] = await sql.unsafe<{ ja: boolean }[]>(
+      `select exists (select 1 from pg_policy p join pg_class c on c.oid = p.polrelid
+                       where c.relname = 'freigabe' and p.polname = 'p_offen_nur_vorlegen'
+                         and not p.polpermissive) as ja`);
+    expect(riegel!.ja, 'eine offene Bitte entsteht nur über app.freigabe_vorlegen').toBe(true);
   });
 });
