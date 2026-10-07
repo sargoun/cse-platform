@@ -338,10 +338,9 @@ export default async function Widerspruechseite(
             Durchführung des Vertrags dient — Rechnung, Leistungsnachweis,
             Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist,
             was eine neue oder zusätzliche Leistung anbietet, auch an Bestandskunden.
-            Die Prüfung vor dem Versand weist „transaktional" bei Werbewiderspruch
-            heute noch ab — der restriktive Zweig; die Umstellung ist eine Migration
-            mit Isolationstest (V-339) und bis dahin sichtbar statt still.
-            {/* TODO(client, O-65): Voreinstellung — Terminbestätigung, Leistungsnachweis, Mahnung und Störungsanzeige sind vertraglich notwendig und laufen trotz Werbewiderspruch; die Versandprüfung (0020/0376) weist „transaktional" noch ab (V-339). D-792. */}
+            Die Prüfung vor dem Versand lässt „transaktional" bei Werbewiderspruch
+            durch, wie die vertragliche Post (V-339).
+            {/* TODO(client, O-65): Voreinstellung — Terminbestätigung, Leistungsnachweis, Mahnung und Störungsanzeige sind vertraglich notwendig und laufen trotz Werbewiderspruch; die Versandprüfung lässt „transaktional" seit 0524 durch (V-339). D-792, D-833. */}
           </li>
         </ul>
       </Hinweis>

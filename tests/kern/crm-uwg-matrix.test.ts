@@ -14,12 +14,13 @@
  *  5. Die Ausnahme des § 7 Abs. 3 UWG gilt nur für die ELEKTRONISCHE
  *     Postadresse — Telefon, SMS und WhatsApp trägt sie nicht.
  *  6. Eine Einwilligung gilt für die genannten Kanäle und nur für die.
- *  7. `abweichungenVomTor` nennt BEIDE Richtungen: wo das wirksame Tor mehr
- *     durchlässt als die Vorschrift (O-660) UND wo es STRENGER ist als die
- *     Matrix — die Ebene des Kunden, `archiviert_am`, `anonymisiert_am`. Die
- *     zweite Hälfte fehlte, und damit stand neben dem roten „Abgelehnt" des
- *     Tores ein grünes „Bereit" der angeblich schärferen Matrix, ohne einen
- *     Satz dazu.
+ *  7. `abweichungenVomTor` nennt BEIDE Richtungen: wo die Matrix eine
+ *     Bedingung der Nachricht verlangt, die das Tor nicht prüfen kann (den
+ *     Abmeldehinweis — seit 0524 die einzige; V-342, O-660) UND wo das Tor
+ *     STRENGER ist als die Matrix — die Ebene des Kunden, `archiviert_am`,
+ *     `anonymisiert_am`. Die zweite Hälfte fehlte einmal, und damit stand
+ *     neben dem roten „Abgelehnt" des Tores ein grünes „Bereit" der Matrix,
+ *     ohne einen Satz dazu.
  *  8. `abmeldezeileGerendert = null` („nicht feststellbar") verbietet, statt
  *     § 7 Abs. 3 Nr. 4 UWG für einen Versandweg zu bejahen, den es nicht gibt.
  *  9. Jede Antwort trägt einen Grund und eine Fundstelle; kein „false" ohne
@@ -206,28 +207,40 @@ describe('Einwilligung · sie gilt für die genannten Kanäle und nur für die',
 });
 
 describe('abweichungenVomTor · wo die MATRIX strenger ist als das Tor', () => {
-  it('`anfrage`: das Tor prüft nur, DASS eine Grundlage steht — die Matrix nicht', () => {
-    const saetze = richtung(lage('anfrage'), 'matrix_strenger');
-    expect(saetze.length).toBeGreaterThan(0);
-    expect(saetze.join(' ')).toContain('O-660');
+  /*
+   * Seit 0524 (V-342, O-660) prüft das Tor Anfrage, ähnliche Leistung und
+   * Kanal selbst — dort sperren beide, und eine Abweichung zu melden wäre
+   * falsch. `tests/isolation/uwg.test.ts` (8) misst das Tor dazu.
+   */
+  it('`anfrage`: beide sperren Werbung — keine Abweichung mehr', () => {
+    expect(richtung(lage('anfrage'), 'matrix_strenger')).toHaveLength(0);
   });
 
-  it('`bestandskunde` ohne ähnliche Leistung: dasselbe', () => {
-    const saetze = richtung(
-      lage('bestandskunde', { aehnlicheLeistung: false }), 'matrix_strenger');
-    expect(saetze.join(' ')).toContain('O-95');
+  it('`bestandskunde` ohne ähnliche Leistung: beide sperren', () => {
+    expect(richtung(lage('bestandskunde', { aehnlicheLeistung: false }), 'matrix_strenger'))
+      .toHaveLength(0);
   });
 
-  it('`bestandskunde` MIT ähnlicher Leistung: der KANAL bleibt eine Abweichung', () => {
-    /*
-     * Das Tor prüft den Kanal nur bei einer Einwilligung. Bei
-     * `bestandskunde` lässt es Telefon, SMS, Post und WhatsApp mit durch,
-     * während § 7 Abs. 3 UWG nur die elektronische Postadresse deckt. Der
-     * frühere Stand meldete hier `null` und verschwieg genau das.
-     */
-    const saetze = richtung(
-      lage('bestandskunde', { aehnlicheLeistung: true }), 'matrix_strenger');
-    expect(saetze.join(' ')).toContain('ELEKTRONISCHE');
+  it('`bestandskunde` MIT ähnlicher Leistung und Abmeldehinweis: auch der Kanal weicht nicht mehr ab', () => {
+    expect(richtung(lage('bestandskunde', { aehnlicheLeistung: true }), 'matrix_strenger'))
+      .toHaveLength(0);
+  });
+
+  it('der Abmeldehinweis ist die eine Abweichung, die bleibt — er hängt an der Nachricht', () => {
+    const nichtFeststellbar = richtung(
+      lage('bestandskunde', { aehnlicheLeistung: true, abmeldezeileGerendert: null }),
+      'matrix_strenger');
+    expect(nichtFeststellbar).toHaveLength(1);
+    expect(nichtFeststellbar[0]).toContain('nicht feststellbar');
+    expect(nichtFeststellbar[0]).toContain('Versandweg');
+    const fehlt = richtung(
+      lage('bestandskunde', { aehnlicheLeistung: true, abmeldezeileGerendert: false }),
+      'matrix_strenger');
+    expect(fehlt).toHaveLength(1);
+    expect(fehlt[0]).not.toBe(nichtFeststellbar[0]);
+    expect(abweichungenVomTor(
+      lage('bestandskunde', { aehnlicheLeistung: true, abmeldezeileGerendert: null }))
+      .find((a) => a.richtung === 'matrix_strenger')?.norm).toBe('§ 7 Abs. 3 Nr. 4 UWG');
   });
 
   it('`einwilligung` und `keine` weichen in dieser Richtung nicht ab', () => {
@@ -238,8 +251,9 @@ describe('abweichungenVomTor · wo die MATRIX strenger ist als das Tor', () => {
   it('bei einem Widerspruch am Kontakt gibt es keine — beide sperren', () => {
     expect(richtung(lage('anfrage', { widerspruch: true }), 'matrix_strenger'))
       .toHaveLength(0);
-    expect(richtung(lage('bestandskunde', { werbewiderspruch: true }), 'matrix_strenger'))
-      .toHaveLength(0);
+    expect(richtung(lage('bestandskunde', {
+      werbewiderspruch: true, aehnlicheLeistung: true, abmeldezeileGerendert: null,
+    }), 'matrix_strenger')).toHaveLength(0);
   });
 });
 

@@ -490,8 +490,7 @@ export default async function Kontaktblatt(
 
             {abweichungen.length === 0 ? null : (
               <Hinweis art="warnung" cse="grundlage-abweichung" className="mt-s4 max-w-prose">
-                <strong>Vorschrift und wirksames Tor gehen hier auseinander — in
-                beide Richtungen.</strong>
+                <strong>Matrix und wirksames Tor gehen hier auseinander.</strong>
                 <ul className="m-0 mt-s3 list-none space-y-s3 p-0">
                   {abweichungen.map((a) => (
                     <li key={a.norm + a.text.slice(0, 24)}
@@ -507,11 +506,12 @@ export default async function Kontaktblatt(
                   ))}
                 </ul>
                 <p className="m-0 mt-s3">
-                  Das Tor unten ist das WIRKSAME — es entscheidet, was hinausgeht. Ein
-                  grünes „Bereit" in der Spalte der Matrix ist deshalb keine Zusage für
-                  später: wo oben „Das Tor sperrt" steht, bleibt dieser Kontakt auch
-                  nach der Umstellung des Tors auf die Matrix (Voreinstellung O-660,
-                  V-342) gesperrt.
+                  Das Tor unten ist das WIRKSAME — es entscheidet, was hinausgeht. Es folgt
+                  auf den Fernkanälen der Matrix des § 7 UWG (Voreinstellung O-660, V-342)
+                  und fragt dazu die Firma hinter dem Kontakt; die Matrix beurteilt den
+                  Kontakt allein und verlangt den Hinweis auf das Widerspruchsrecht, den
+                  erst eine Nachricht trägt. Ein grünes „Bereit" in der Spalte der Matrix
+                  ist deshalb keine Erlaubnis, wo oben „Das Tor sperrt" steht.
                 </p>
               </Hinweis>
             )}
@@ -562,7 +562,7 @@ export default async function Kontaktblatt(
             },
             ...(stand === null ? [] : [{
               schluessel: 'vorschrift',
-              kopf: 'Nach § 7 UWG (noch nicht wirksam)',
+              kopf: 'Nach der Matrix des § 7 UWG',
               zelle: (z: TorAntwort) => {
                 const m = lage === null
                   ? { erlaubt: false, grund: '', norm: '' }

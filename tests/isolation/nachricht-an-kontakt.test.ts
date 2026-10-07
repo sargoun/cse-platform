@@ -116,8 +116,12 @@ beforeEach(async () => {
   const [a] = await sql.unsafe<{ id: string }[]>(
     `insert into ansprechpartner (mandant_id, kunde_id, nachname, email,
                                   rechtsgrundlage, rechtsgrundlage_quelle,
-                                  rechtsgrundlage_erfasst_am)
-     values ($1, $2, 'Bauer', $3, 'bestandskunde', 'Rahmenvertrag', now())
+                                  rechtsgrundlage_erfasst_am,
+                                  aehnliche_leistung, aehnliche_leistung_begruendung)
+     values ($1, $2, 'Bauer', $3, 'bestandskunde', 'Rahmenvertrag', now(),
+             -- Werbung per E-Mail an einen Bestandskunden verlangt die
+             -- festgestellte ähnliche eigene Leistung (§ 7 Abs. 3 UWG, 0524).
+             true, 'Unterhaltsreinigung im selben Objekt')
      returning id`, [f.reinigung, k!.id, `b-${zufall()}@example.test`] as never[]);
   mitGrundlage = a!.id;
 

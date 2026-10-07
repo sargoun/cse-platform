@@ -717,7 +717,7 @@ describe('§7 der Ansprechpartner der Anfrage — gewählt, angelegt, angesproch
     return { leadId: l!.id, kontaktId: a!.id };
   }
 
-  it('ein Lead von Hand bekommt einen Kontakt, und ausgehend geht er als Werbung durchs Tor', async () => {
+  it('ein Lead von Hand bekommt einen Kontakt — ausgehend Werbung, bis eine Anfrage des Kontakts festgehalten ist', async () => {
     const l = await inR((k) => legeLeadAn(k, {
       betreff: 'Anruf von Frau Ohnekunde', firmaName: 'Ohnekunde GmbH', besitzerBenutzerId: chefR }));
     // Vorher: kein Kontakt, also kein ausgehender Anruf.
@@ -746,14 +746,19 @@ describe('§7 der Ansprechpartner der Anfrage — gewählt, angelegt, angesproch
       .rejects.toMatchObject({ grund: 'uwg_werbung' });
     expect(await ausgehend(l.id)).toEqual([]);
 
-    // Mit festgestellter Grundlage (Quelle, Datum) geht er durch — als Werbung belegt.
+    /*
+     * Mit festgehaltener Anfrage DES KONTAKTS (Quelle, Datum) geht er durch —
+     * als Antwort darauf, nicht als Werbung. Werbung an eine Anfrage lässt
+     * das Tor seit 0524 nie zu (§ 7 UWG, V-342); die Antwort ist keine
+     * (O-907, `zweckGegenueber`).
+     */
     await sql.unsafe(
       `update ansprechpartner set rechtsgrundlage = 'anfrage',
               rechtsgrundlage_quelle = 'Telefonat am Empfang', rechtsgrundlage_erfasst_am = now()
         where id = $1`, [neu.id]);
     await inR((k) => halteLeadAktivitaetFest(k, l.id, { ...anruf, benutzerId: chefR }));
     expect(await ausgehend(l.id)).toEqual([
-      { zweck: 'werbung', kanal: 'telefon', ansprechpartner_id: neu.id }]);
+      { zweck: 'vertraglich', kanal: 'telefon', ansprechpartner_id: neu.id }]);
     const [uhr] = await sql.unsafe<{ erste_reaktion_am: Date | null }[]>(
       `select erste_reaktion_am from lead where id = $1`, [l.id]);
     expect(uhr!.erste_reaktion_am).not.toBeNull();

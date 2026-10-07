@@ -295,8 +295,14 @@ describe('0248 · der Werbewiderspruch von Hand', () => {
   it('er setzt das Datum, legt die Nachweiszeile an und sperrt die Werbung', async () => {
     const k = await kunde(f.reinigung);
     const a = await kontakt(f.reinigung, k);
+    await sql.unsafe(
+      `update ansprechpartner
+          set aehnliche_leistung = true,
+              aehnliche_leistung_begruendung = 'Unterhaltsreinigung im selben Objekt'
+        where id = $1`, [a]);
 
-    /* Vorher: das Tor lässt Werbung an einen Bestandskunden durch. */
+    /* Vorher: das Tor lässt Werbung per E-Mail an einen Bestandskunden mit
+       festgestellter ähnlicher Leistung durch (§ 7 Abs. 3 UWG, 0524). */
     const vorher = await alsIntern(f.reinigung, async (tx) =>
       tx.unsafe<{ ok: boolean }[]>(
         `select app.darf_kontaktiert_werden($1,'email','werbung') as ok`, [a]));

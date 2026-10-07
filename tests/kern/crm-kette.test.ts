@@ -16,7 +16,7 @@ import { AUFTRAG_TEXTE } from '../../src/lib/i18n/verwaltung/auftrag.js';
 import { eigenerEintrag } from '../../src/lib/nachschlagen.js';
 import { LEAD_TEXTE } from '../../src/lib/i18n/verwaltung/crm-lead.js';
 import {
-  betreffAus, LEAD_ZWECK_REGEL, PLATZHALTER_LEAD_ZWECK,
+  betreffAus, LEAD_ZWECK_REGEL, PLATZHALTER_LEAD_ZWECK, zweckGegenueber,
 } from '../../src/server/services/crm/lead-kontakt.js';
 import {
   MASKE_WERT_HOECHSTENS, maskeMitEingaben, vorbelegt, vorbelegteListe,
@@ -238,6 +238,23 @@ describe('der Zweck eines ausgehenden Kontakts folgt der Herkunft (O-907)', () =
 
   it('die Regel, die gilt, ist bis O-907 der Platzhalter', () => {
     expect(LEAD_ZWECK_REGEL).toBe(PLATZHALTER_LEAD_ZWECK);
+  });
+});
+
+describe('die Antwort auf eine festgehaltene Anfrage ist keine Werbung (O-907, V-342)', () => {
+  it('Werbung gegenüber einem Kontakt mit Anfrage wird zur Antwort', () => {
+    expect(zweckGegenueber('werbung', 'anfrage')).toBe('vertraglich');
+  });
+
+  it.each([null, 'keine', 'bestandskunde', 'einwilligung', 'erfunden'])(
+    'jede andere Grundlage (%s) lässt Werbung Werbung', (grundlage) => {
+      expect(zweckGegenueber('werbung', grundlage)).toBe('werbung');
+    });
+
+  it('was schon vertraglich ist, bleibt es — auch ohne Grundlage', () => {
+    for (const grundlage of [null, 'keine', 'anfrage', 'bestandskunde', 'einwilligung']) {
+      expect(zweckGegenueber('vertraglich', grundlage), String(grundlage)).toBe('vertraglich');
+    }
   });
 });
 

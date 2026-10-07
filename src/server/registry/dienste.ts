@@ -760,8 +760,9 @@ export const DIENSTE: readonly DienstEintrag[] = [
   },
   /*
    * Die Matrix des § 7 UWG (O-660). Rein — ohne Datenbank, ohne Uhr. Sie ist
-   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`. Laeuft deshalb
-   * auch in der Gruppenansicht.
+   * NICHT das Tor; das Tor ist `app.darf_kontaktiert_werden`, das ihr seit
+   * 0524 auf den Fernkanaelen folgt (V-342). Laeuft auch in der
+   * Gruppenansicht.
    */
   { modul: 'crm', pfad: 'crm/uwg-matrix', schreibend: false },
   /*

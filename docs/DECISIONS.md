@@ -2912,7 +2912,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-62 | Value lists for `gebaeudetyp`, `frequenz` and `gewerk` · **Voreinstellung → D-792** |
 | O-63 | Is the privacy notice confirmed as a notice (Art. 6(1)(b)/(f)) or as consent? · **Voreinstellung → D-792** |
 | O-64 | Does the lead score trigger any automatic decision (Art. 22 DSGVO)? · **Voreinstellung → D-792** |
-| O-65 | Which communication counts as contractually necessary rather than advertising (§7 UWG)? · **Voreinstellung → D-792** |
+| O-65 | Which communication counts as contractually necessary rather than advertising (§7 UWG)? · **Voreinstellung → D-792** · gebaut → D-833 |
 | O-66 | Standard payment term per entity, and does it also apply to public clients? · **Voreinstellung → D-779** |
 | O-67 | Is the §48b certificate held per customer, per order or per subcontractor — who records it, who checks it? · **Voreinstellung → D-780** |
 | O-68 | Which warranty period is agreed — VOB/B §13 or BGB §634a — and from which event does it run? Does it vary per order? · **Voreinstellung → D-792** · Übernahme beim Abschluss → D-828 |
@@ -3218,7 +3218,7 @@ Beantworten helfen:
 
 | # | Frage | Wirkt in |
 |---|---|---|
-| O-660 | **Soll `app.darf_kontaktiert_werden` auf die Matrix des § 7 UWG umgestellt werden — Werbung an `bestandskunde` nur mit festgestellter `aehnliche_leistung`, Werbung an `anfrage` gar nicht, und die Ausnahme des § 7 Abs. 3 UWG nur ueber die ELEKTRONISCHE Postadresse?** Das wirksame Tor prueft fuer `werbung` am Kontakt heute nur `rechtsgrundlage <> 'keine'`. 05-API-KARTE §C.7 ist strenger. Die Luecke ist gebaut, sichtbar und in BEIDE Richtungen nachpruefbar (`services/crm/uwg-matrix.ts`, `abweichungenVomTor`, `tests/kern/crm-uwg-matrix.test.ts`) — das Tor ist umgekehrt an anderen Stellen strenger als die Matrix, weil es die Firma hinter dem Kontakt mitfragt. Bis zur Antwort bleibt das Tor unveraendert (`tests/isolation/uwg.test.ts` schreibt seine heutige Bedeutung fest) und die Abweichung steht auf dem Kontaktblatt statt in einem Kommentar. Die Nummer erscheint auf dem Bildschirm. | § 7 Abs. 2 Nr. 2 und Abs. 3 UWG, `drizzle/0246`, `services/crm/uwg-matrix.ts`, `portal/[mandant]/crm/kontakte/[id]`, O-95 · **Voreinstellung → D-793** |
+| O-660 | **Soll `app.darf_kontaktiert_werden` auf die Matrix des § 7 UWG umgestellt werden — Werbung an `bestandskunde` nur mit festgestellter `aehnliche_leistung`, Werbung an `anfrage` gar nicht, und die Ausnahme des § 7 Abs. 3 UWG nur ueber die ELEKTRONISCHE Postadresse?** Das wirksame Tor prueft fuer `werbung` am Kontakt heute nur `rechtsgrundlage <> 'keine'`. 05-API-KARTE §C.7 ist strenger. Die Luecke ist gebaut, sichtbar und in BEIDE Richtungen nachpruefbar (`services/crm/uwg-matrix.ts`, `abweichungenVomTor`, `tests/kern/crm-uwg-matrix.test.ts`) — das Tor ist umgekehrt an anderen Stellen strenger als die Matrix, weil es die Firma hinter dem Kontakt mitfragt. Bis zur Antwort bleibt das Tor unveraendert (`tests/isolation/uwg.test.ts` schreibt seine heutige Bedeutung fest) und die Abweichung steht auf dem Kontaktblatt statt in einem Kommentar. Die Nummer erscheint auf dem Bildschirm. | § 7 Abs. 2 Nr. 2 und Abs. 3 UWG, `drizzle/0246`, `services/crm/uwg-matrix.ts`, `portal/[mandant]/crm/kontakte/[id]`, O-95 · **Voreinstellung → D-793** · gebaut → D-833 |
 | O-661 | **Traegt der Rechtsgrundlagen-Block eines Ansprechpartners `crm.lesen` (so `app.rechtsgrundlage_lesen`, 0020) oder das engere `crm.rechtsgrundlage_lesen` (so Katalog, 04-SEITENKARTE §5.25 und 0222)?** Die beiden Quellen widersprechen sich, und der Unterschied ist nicht akademisch: `crm.lesen` ist fuer `leitung` GEBUNDEN, `crm.rechtsgrundlage_lesen` nur BINDBAR — jede Leitung saehe im ersten Fall die Einstufung, die ihr `/datenschutz/widersprueche` vorenthaelt. Bis zur Antwort gilt in den neuen Lesern aus 0247 (`app.kontakt_rechtsgrundlage_liste`, `app.kontakt_rechtsgrundlage_blatt`) das ENGERE Recht, in der alten Einzelabfrage das weitere. Die Nummer erscheint auf dem Bildschirm. | LEG-08, `drizzle/0247`, `drizzle/0222`, `auth/katalog.generiert.ts`, `portal/[mandant]/crm/kontakte` · **Voreinstellung → D-793** |
 | O-662 | **Wird ein Kundenzugang nach dem Anschluss von Supabase Auth (O-501) ueber die Admin-API angelegt, und wer traegt den Auftragsverarbeitungsvertrag fuer die Konten externer Ansprechpartner?** Heute legen die SECURITY-DEFINER aus 0249 die Zeile in `benutzer` an (`cse_app` hat dort nur SELECT); ein Konto in `auth.users` entsteht dabei NICHT, und der Einladungslink wird EINMAL angezeigt statt versendet — es ist kein Postausgang verbunden. Ein Zugang ohne Anmeldemoeglichkeit waere schlimmer als keiner, deshalb weist der Dienst das benannt ab, statt es zu tun. | AUT-01, DOC-04, `drizzle/0249`, `services/crm/kundenzugang.ts`, O-501, Art. 28 DSGVO · **Voreinstellung → D-793** |
 | O-663 | **Soll eine Wiedervorlage immer zugleich eine `aufgabe` und einen `kalender_eintrag` erzeugen (so 04-SEITENKARTE §5.2), oder bleibt sie eine reine Vertriebsnotiz auf `lead_aktivitaet`?** Eine Wiedervorlage, die nur auf `lead_aktivitaet` steht, erscheint in `/portal/[mandant]/aufgaben` nicht — und niemand merkt es. Bis zur Antwort schreibt `legeWiedervorlageAn` in alle drei Tabellen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Oberflaeche sagt je Ziel BEIM NAMEN, was nicht entstanden ist; `erledige` und `verschiebe` fassen die gespiegelte Aufgabe mit an. Die Nummer erscheint in der Rueckmeldung des Endpunkts. | CRM-04, 04-SEITENKARTE §5.2, `drizzle/0250`, `services/crm/wiedervorlage.ts`, `tests/isolation/crm-wiedervorlage.test.ts` · **Voreinstellung → D-793** |
@@ -25312,7 +25312,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 | O-62 | Die Auswahllisten des Seeds sind die Voreinstellung: sieben Gebäudetypen (Büro, Wohnanlage, Praxis/Klinik, Einzelhandel, Industrie/Lager, Schule/Kita, Hotel/Gastronomie), acht Frequenzen (täglich bis einmalig), sechs Gewerke (Hochbau, Ausbau, Rückbau, Sanierung, Maler, Boden). Die Gebäudetypen stehen jetzt in `lib/formular/vokabular.ts`, weil zwei Formulare sie lesen. | `db/seed/formulare.ts`, `lib/formular/vokabular.ts`, `lib/annahmen.ts` |
 | O-63 | Das Pflichthäkchen `datenschutz_hinweis` bestätigt, dass die Hinweise gezeigt wurden (Art. 13); die Verarbeitung ruht auf Art. 6 Abs. 1 lit. b (vorvertragliche Massnahme auf Anfrage) — keine Einwilligung. Ohne Häkchen wird nichts gespeichert, weil der Nachweis der Hinweispflicht zur Einsendung gehört; Werbung begründet allein `einwilligung_werbung`. Wie gebaut. | `lead/annahme.ts`, `lib/annahmen.ts` |
 | O-64 | Der Lead-Score löst keine Entscheidung aus: die Annahme setzt `lead.punktzahl` nicht, die Übernahme aus der Akquise kopiert die gerechnete Zielbewertung (`akquise/uebernahme.ts`), gelesen wird sie nur zum Sortieren und Filtern durch Menschen; SLA, Eskalation und Besitzer hängen nicht an ihr. Keine Entscheidung nach Art. 22 DSGVO. Die Seed-Leads tragen eine von Hand vergebene Zahl und sagen es in der Begründung. | `lead/annahme.ts`, `db/seed/operations.ts` |
-| O-65 | Vertraglich notwendig ist, was der Durchführung des Vertrags dient — Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist, was eine neue oder zusätzliche Leistung anbietet (Zusatzleistung, Newsletter, Jahresgruss), auch an Bestandskunden. `app.darf_kontaktiert_werden` weist `transaktional` bei Werbewiderspruch heute noch ab — der restriktive Zweig bleibt in Kraft, bis die Funktion per Migration mit Isolationstest umgestellt ist (V-339); vier Bildschirme und zwei Dienste sagen Voreinstellung und Stand. | Datenschutz › Widersprüche, Vorgang, `/werbewiderspruch/[token]`, `datenschutz/werbewiderspruch.ts`, `crm/uwg-matrix.ts`, `bau/behinderung.ts` |
+| O-65 | Vertraglich notwendig ist, was der Durchführung des Vertrags dient — Rechnung, Leistungsnachweis, Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist, was eine neue oder zusätzliche Leistung anbietet (Zusatzleistung, Newsletter, Jahresgruss), auch an Bestandskunden. Gebaut mit V-339 (D-833, 0524): `app.darf_kontaktiert_werden` lässt `transaktional` wie `vertraglich` durch; vier Bildschirme und zwei Dienste sagen es. | Datenschutz › Widersprüche, Vorgang, `/werbewiderspruch/[token]`, `datenschutz/werbewiderspruch.ts`, `crm/uwg-matrix.ts`, `bau/behinderung.ts` |
 | O-68 | Wie O-154 (D-782): vier Jahre ab Abnahme bei VOB/B (§ 13 Abs. 4 Nr. 1), fünf bei BGB (§ 634a Abs. 1 Nr. 2), gerechnet von der Gesamtabnahme am Projekt und je Auftrag überschreibbar; Dienstleistungsaufträge (Reinigung, Sicherheit) führen keine. `auftrag.gewaehrleistung_bis` trägt der Abschluss von Hand ein; die am Projekt gerechnete Frist kommt noch nicht an den Auftrag (V-341), und das Kundenportal zeigt die Auftragsspalte. | `kundenportal/auftrag.ts`, `auftrag/abschluss.ts`, `db/seed/bau.ts` |
 | O-69 | Kontrolliertes Vokabular UND Freitext: die sieben Gebäudetypen des Anfrageformulars sind die Vorschläge des Objektformulars (`<datalist>`), `objekt.gebaeudetyp` bleibt `text` (0021), damit ein Flughafen oder eine Baustelle erfassbar bleibt. Gespeichert wird der deutsche Klartext; die englische Oberfläche zeigt die englische Bezeichnung aus `FORMULAR_EN` (Prüfstand PR #35). Gebaut: `lib/formular/vokabular.ts`, Vorschlagsliste und Hinweis (de/en) im Objektformular. | `objekte/ObjektFormular.tsx`, `lib/i18n/verwaltung/objekte.ts` |
 | O-70 | Ein Gebäude ist EIN Objekt, auch wenn zwei Kunden derselben Gesellschaft darin beauftragen; `kunde_id` bleibt leer oder nennt den Hauptauftraggeber, die Zuordnung je Kunde hängt am Auftrag (`auftrag.objekt_id`). Eine Konvention, keine Sperre, aber eine Rückfrage: `kunde_id` ist nullbar; findet sich unter derselben Anschrift (Postleitzahl, Strasse, Hausnummer, normalisiert) schon ein lebendes Objekt der Gesellschaft, legt `legeObjektAn` erst nach einer bewussten Bestätigung an — gebaut mit V-361 (D-817). | `objekt/anlegen.ts` |
@@ -25360,7 +25360,7 @@ was fehlt (V-342 bis V-345).
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-660 | Das Tor wird auf die Matrix des § 7 UWG umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail mit festgestellter ähnlicher Leistung und Abmeldezeile (§ 7 Abs. 3 UWG), an `einwilligung` auf den eingewilligten Kanälen; die Ebene des Kunden prüft das Tor weiter mit. Die Umstellung ist eine Migration von `app.darf_kontaktiert_werden` mit Isolationstest (V-342, in einem Zug mit V-339 aus O-65); bis dahin gilt das heutige Tor (`rechtsgrundlage <> 'keine'` plus Widersprüche), und das Kontaktblatt zeigt beide Antworten mit Nummer. | `crm/uwg-matrix.ts` (`abweichungenVomTor`), CRM › Kontakt, `db/seed/{crm,index}.ts` |
+| O-660 | Das Tor wird auf die Matrix des § 7 UWG umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail mit festgestellter ähnlicher Leistung und Abmeldezeile (§ 7 Abs. 3 UWG), an `einwilligung` auf den eingewilligten Kanälen; die Ebene des Kunden prüft das Tor weiter mit. Gebaut mit V-342 (D-833, 0524) in einem Zug mit V-339: das Tor folgt auf den Fernkanälen der Matrix, den Abmeldehinweis hängt der Versandweg an jede Werbenachricht, und das Kontaktblatt zeigt die verbleibenden Abweichungen (Abmeldehinweis, Ebene des Kunden). | `crm/uwg-matrix.ts` (`abweichungenVomTor`), CRM › Kontakt, `db/seed/{crm,index}.ts` |
 | O-661 | Das ENGERE Recht `crm.rechtsgrundlage_lesen` trägt den Rechtsgrundlagen-Block — Liste und Blatt (`app.kontakt_rechtsgrundlage_liste`, `…_blatt`, 0247) und der Widerspruchskatalog (0222) prüfen es; `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen` (0020, `crm.lesen`) hatte keinen Aufrufer mehr; 0513 entfernt sie (V-343, D-818). Die beiden Hinweise der Kontaktseiten nennen jetzt die Voreinstellung; `tests/kern/katalog-unbenutzt.ts` führt den Schlüssel nicht mehr als unbenutzt. | CRM › Kontakte, Kontaktblatt; `drizzle/0247`, `0222` |
 | O-662 | Bis Supabase Auth verbunden ist (O-501, Betreiberdatum), legt `app.kundenzugang_ausstellen` (0249) das Konto selbst an — `benutzer` im Status `eingeladen`, eine Zeile in der zweispaltigen `auth.users`-Attrappe, den Einladungstoken (`kern.kennwort_token`); das Kennwort setzt die Person über den Link, angemeldet wird gegen `kern.zugangsdaten` — und der Einladungslink wird einmal gezeigt, weil kein Postausgang verbunden ist. Danach entsteht das Konto über die Admin-API, und der Auftragsverarbeitungsvertrag mit Supabase (EU-Region) deckt auch die Konten externer Ansprechpartner; Verantwortliche nach Art. 4 Nr. 7 bleibt die Gesellschaft, die den Zugang ausstellt. Wie gebaut. | `crm/kundenzugang.ts`, `drizzle/0249`, CRM › Kunde › Zugang |
 | O-663 | Eine Wiedervorlage ist zugleich Aufgabe und Kalendereintrag (04-SEITENKARTE §5.2): `legeWiedervorlageAn` schreibt alle drei Zeilen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Seite nennt, was nicht entstand. Erledigen und Verschieben fassen die gespiegelte Aufgabe und den Kalendereintrag mit an, soweit dieselben Rechte reichen (Kalender gebaut mit V-344, D-806); die Listenseite sagte ausserdem, auf dem Leadblatt fehle das Formular, das es seit V-137 gibt. | `crm/wiedervorlage.ts`, CRM › Kontakt, CRM › Wiedervorlagen, `auth/route-manifest.ts` |
@@ -27681,4 +27681,78 @@ Berechtigung, Spaltenrechte und Definer-Eigentum, `tests/kern` komplett,
 `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
 
 | Betrifft | V-395, V-207, D-831; `drizzle/0523_abrufherkunft_storno.sql`, `src/server/services/finanz/{rechnung,positionsquelle}.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/verwerfen/page.tsx`, `src/lib/i18n/verwaltung/finanzen/rechnung-akte.ts`, `tests/isolation/abruf-storno.test.ts` |
+|---|---|
+
+### D-833 · Bauwelle 30: Das Tor folgt der Matrix des § 7 UWG, die transaktionale Post läuft (V-339, V-342, O-65, O-660)
+
+**Der Anlass.** Zwei Voreinstellungen standen seit D-792 und D-793 fest und
+waren nur auf dem Bildschirm angekündigt: Terminbestätigung, Leistungsnachweis
+und Mahnung (`zweck = 'transaktional'`) sind vertraglich notwendig und laufen
+trotz Werbewiderspruch (O-65) — `app.darf_kontaktiert_werden` wies sie ab,
+weil `transaktional` in den Werbezweig fiel. Und die Matrix des § 7 UWG wird
+Tor (O-660) — das Tor ließ Werbung an `anfrage` und an `bestandskunde` auf
+jedem Kanal durch, sobald überhaupt eine Grundlage stand. Beide Umstellungen
+sollten „in einem Zug" kommen, weil sie dieselbe Funktion ersetzen.
+
+**Was gebaut ist.**
+- **0524** ersetzt `app.darf_kontaktiert_werden` (0020, zuletzt 0376; der Rest
+  steht Wort für Wort wieder da):
+  - `transaktional` läuft wie `vertraglich` — Widerspruch nach Art. 21 DSGVO,
+    archiviert, anonymisiert und ausgeschieden halten es auf, der
+    Werbewiderspruch nicht.
+  - `werbung` auf den fünf Fernkanälen: `keine` und `anfrage` nie,
+    `bestandskunde` nur per E-Mail mit festgestellter `aehnliche_leistung`
+    (0246, § 7 Abs. 3 Nr. 1 und 2 UWG), `einwilligung` auf den eingewilligten
+    Kanälen. Außerhalb der Fernkanäle (vor Ort) bleibt es wie bisher. Die
+    Ebene des Kunden prüft das Tor weiter mit.
+  - Ein unbekannter Zweck fällt zu — bis hierher landete er im Werbezweig.
+  - Den Hinweis auf das Widerspruchsrecht (§ 7 Abs. 3 Nr. 4 UWG) prüft das
+    Tor nicht: er hängt an der Nachricht, nicht am Kontakt, und der
+    Versandweg hängt ihn an jede Werbenachricht (V-101).
+- **Leads** (`crm/lead-kontakt.ts`, `zweckGegenueber`): steht am
+  Ansprechpartner eine Anfrage DES KONTAKTS mit Quelle und Datum
+  (`rechtsgrundlage = 'anfrage'`), ist der ausgehende Anruf oder die
+  ausgehende E-Mail die Antwort darauf und geht als `vertraglich` durch das
+  Tor — wie die Antwort auf ein Webformular (D-631). Ohne diese Regel wäre
+  ein von Hand erfasster Lead nach der Umstellung nie mehr anrufbar gewesen,
+  obwohl der Kontakt selbst angefragt hat (Voreinstellung O-907: eine
+  Anfrage begründet, was der Kontakt selbst an die Gesellschaft richtet).
+  Jede andere Grundlage lässt Werbung Werbung. Das Leadblatt sagt beides.
+- **`crm/uwg-matrix.ts`:** `abweichungenVomTor` schrumpft auf das, was wirklich
+  auseinandergeht — der Abmeldehinweis (Matrix strenger, er hängt an der
+  Nachricht) und die Ebene des Kunden mit den Sperrmerkmalen des Kontakts
+  (Tor strenger). Das Kontaktblatt nennt die Spalte „Nach der Matrix des § 7
+  UWG" statt „noch nicht wirksam".
+- **Wortlaut:** der Widerspruchslink (`/werbewiderspruch/[token]`), der
+  Datenschutzvorgang, Datenschutz › Widersprüche (O-65-Punkt),
+  `ART_WIRKUNG.werbung` und der Kommentar an der Behinderungsanzeige sagen
+  jetzt, dass Terminbestätigung, Leistungsnachweis und Mahnung weiterlaufen;
+  Seedausgabe und Seedkommentar sagen, dass die Wertung „ähnliche Leistung"
+  ins Tor eingeht.
+- **Seed:** keine ausgehende Werbung im Seed; der eine gewertete Kontakt der
+  Reinigung ist jetzt per E-Mail bewerbbar, der ungewertete nicht — das
+  Kontaktblatt zeigt beide.
+
+**Prüfung.** `tests/isolation/uwg.test.ts` (7) und (8): transaktional nach
+Werbewiderspruch per E-Mail und Post erlaubt, nach Art.-21-Widerspruch und
+für einen Ausgeschiedenen nicht, das Sendetor auf `lead_aktivitaet` lässt sie
+durch; ein unbekannter Zweck fällt zu; Werbung an eine Anfrage auf keinem
+Fernkanal (die Antwort schon), an einen Bestandskunden nur mit ähnlicher
+Leistung und nur per E-Mail, die Einwilligung auf jedem eingewilligten Kanal
+auch per Post, vor Ort wie bisher, das Sendetor weist die Werbemail an einen
+Bestandskunden ohne Wertung ab. Gegenprobe gegen die 0376-Fassung: sieben
+dieser Fälle scheitern. Die Kontakte der bisherigen Fälle, die Werbung
+erlaubt erwarten (fremder Bereich, Kontakt ohne Kunden, Sendetor beim
+Bestandskunden, Werbewiderspruch von Hand, Widerspruchslink, Versandweg ohne
+Versender), tragen jetzt die festgestellte ähnliche Leistung; die Fälle, die
+an der Ebene des Kunden sperren, ebenso — sonst bestünden sie schon am
+Kontakt. `tests/isolation/crm-kette.test.ts`: der von Hand erfasste Lead ist
+ohne Grundlage abgewiesen und geht nach festgehaltener Anfrage als Antwort
+durch. `tests/kern/crm-kette.test.ts` (`zweckGegenueber`),
+`tests/kern/crm-uwg-matrix.test.ts` (die verbleibende Abweichung). Dazu die
+Isolationsdateien um CRM, Akquise, Lead, Nachricht, Datenschutz, Recruiting,
+Behinderung, Seed und Definer, `tests/kern` komplett, `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-339, V-342, O-65, O-660, O-907, D-792, D-793; `drizzle/0524_tor_nach_uwg_matrix.sql`, `src/server/services/crm/{lead-kontakt,uwg-matrix}.ts`, `src/server/services/datenschutz/werbewiderspruch.ts`, `src/server/services/bau/behinderung.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/{crm,index}.ts`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/app/(public)/werbewiderspruch/[token]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/datenschutz/{[id],widersprueche}/page.tsx`, `tests/isolation/{uwg,crm-kette,crm-kontakt-grundlage,nachricht-an-kontakt,uwg-widerspruchslink}.test.ts`, `tests/kern/{crm-kette,crm-uwg-matrix}.test.ts` |
 |---|---|

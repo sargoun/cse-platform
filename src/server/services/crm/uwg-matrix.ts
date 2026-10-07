@@ -11,45 +11,34 @@
  * Regel wären zwei Wahrheiten, und die zweite gewinnt immer dort, wo niemand
  * hinsieht.
  *
- * Warum sie dann existiert: **das Tor und die Vorschrift gehen heute
- * auseinander**, und diese Datei macht die Lücke sichtbar und nachprüfbar,
- * statt sie in einem Kommentar zu behaupten. 05-API-KARTE.md §C.7 führt eine
- * Matrix aus vier Grundlagen und drei Nachrichtenarten; `app.darf_kontaktiert_
- * werden` prüft für `werbung` am KONTAKT nur `rechtsgrundlage <> 'keine'`.
+ * Warum sie dann existiert: **sie beurteilt den Kontakt allein, und sie
+ * kennt eine Bedingung, die das Tor nicht prüfen kann.** Seit 0524 (V-342,
+ * O-660, D-833) folgt das Tor auf den fünf Fernkanälen derselben Matrix:
+ * Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail und nur mit
+ * festgestellter ähnlicher eigener Leistung, an `einwilligung` auf den
+ * eingewilligten Kanälen. Was zwischen beiden bleibt, zeigt
+ * `abweichungenVomTor` — in beide Richtungen:
  *
- * **Die Lücke geht in BEIDE Richtungen**, und lange stand hier nur eine.
- *
- * Die Matrix ist strenger, wo das Tor an der Grundlage vorbeilässt:
- *
- *  1. `bestandskunde` OHNE `aehnliche_leistung` — § 7 Abs. 3 Nr. 2 UWG
- *     verlangt eigene ÄHNLICHE Waren oder Dienstleistungen (O-95, O-660).
- *  2. `anfrage` — wer angefragt hat, bekommt eine ANTWORT; Werbung ist davon
- *     nicht gedeckt. In der Matrix steht dort ein unbedingtes ✗.
- *  3. Der Abmeldehinweis (§ 7 Abs. 3 Nr. 4 UWG) und die Beschränkung der
- *     Ausnahme auf die ELEKTRONISCHE Postadresse — beides prüft das Tor bei
- *     `bestandskunde` nicht.
+ * Die Matrix ist strenger beim Hinweis auf das Widerspruchsrecht (§ 7 Abs. 3
+ * Nr. 4 UWG). Er hängt an der NACHRICHT, nicht am Kontakt; das Tor prüft ihn
+ * nicht, der Versandweg hängt ihn an jede Werbenachricht
+ * (`nachricht-an-kontakt.ts`). Auf einem Kontaktblatt ist er nicht
+ * feststellbar, und die Matrix antwortet dann „nein".
  *
  * Das TOR ist strenger, wo es Dinge mitfragt, die in der Matrix gar nicht
  * vorkommen: die Firma hinter dem Kontakt (Grundlage, beide Widersprüche,
  * `status = 'gesperrt'`, archiviert) und der Kontakt selbst auf
  * `archiviert_am` / `anonymisiert_am`. Wer diese Hälfte weglässt, zeigt neben
- * dem roten „Abgelehnt" des Tores ein grünes „Bereit" der angeblich
- * SCHÄRFEREN Matrix — und der Mensch davor liest daraus eine Erlaubnis für
- * später, die es nicht gibt. `abweichungenVomTor` nennt deshalb beide
- * Richtungen.
+ * dem roten „Abgelehnt" des Tores ein grünes „Bereit" der Matrix — und der
+ * Mensch davor liest daraus eine Erlaubnis, die es nicht gibt.
  *
  * Die Oberfläche stellt beide Antworten nebeneinander: die des Tores
- * (**wirksam**) und die dieser Matrix (**noch nicht wirksam**), mit der
- * offenen Nummer daneben. Eine Abweichung, die auf dem Bildschirm steht,
- * wird entschieden; eine, die nur im Quelltext steht, bleibt.
+ * (**wirksam**) und die dieser Matrix, mit der Fundstelle daneben.
  *
- * // TODO(client, O-660): Voreinstellung — das Tor wird auf diese Matrix
- * umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail
- * mit festgestellter `aehnliche_leistung` und Abmeldezeile (§ 7 Abs. 3 UWG),
- * an `einwilligung` auf den eingewilligten Kanälen. Die Umstellung ist eine
- * Migration von `app.darf_kontaktiert_werden` mit Isolationstest (V-342,
- * zusammen mit V-339); bis dahin gilt das heutige Tor, und das Kontaktblatt
- * zeigt beide Antworten. D-793.
+ * // TODO(client, O-660): Voreinstellung — wie gebaut (0524, V-342): Werbung an
+ * `anfrage` nie, an `bestandskunde` nur per E-Mail mit festgestellter
+ * `aehnliche_leistung`, an `einwilligung` auf den eingewilligten Kanälen; den
+ * Abmeldehinweis hängt der Versandweg an jede Werbenachricht. D-793, D-833.
  */
 
 /** Die vier Grundlagen des Enums `rechtsgrundlage`. */
@@ -64,9 +53,10 @@ export type Grundlage = (typeof GRUNDLAGEN)[number];
  * Matrix der API-Karte führt `antwort_auf_anfrage`, `vertragskommunikation`,
  * `werbung`. Die Abbildung ist nicht eindeutig — `transaktional`
  * (Terminbestätigung, Mahnung) steht in keiner der drei Spalten; nach der
- * Voreinstellung (O-65, D-792) gilt es als vertraglich notwendig, das Tor
- * weist es aber noch ab (V-339). Deshalb hat diese Datei ihr eigenes
- * Vokabular und behauptet keine Gleichsetzung, die niemand getroffen hat.
+ * Voreinstellung (O-65, D-792) ist es vertraglich notwendig, und das Tor lässt
+ * es seit 0524 wie die vertragliche Post durch (V-339). Diese Datei behält
+ * trotzdem ihr eigenes Vokabular: die Antwort auf eine Anfrage geht am Tor
+ * ebenfalls als `vertraglich`, und eine Gleichsetzung hier verwischte das.
  */
 export const ARTEN = ['antwort_auf_anfrage', 'vertragskommunikation', 'werbung'] as const;
 export type Nachrichtenart = (typeof ARTEN)[number];
@@ -120,7 +110,8 @@ export interface KontaktLage {
    * **`null` heisst NICHT FESTSTELLBAR — und das ist heute der Normalfall.**
    * ═════════════════════════════════════════════════════════════════════════
    *
-   * Geprüft wird ein KONTAKT, keine Nachricht. Der Versandweg ist gebaut
+   * Geprüft wird ein KONTAKT, keine Nachricht — vom Tor ebenso wie hier;
+   * deshalb prüft das Tor diese Bedingung gar nicht. Der Versandweg ist gebaut
    * (`POST /api/crm/nachrichten`, V-101) und hängt an jede Werbenachricht den
    * Hinweis nach § 7 Abs. 3 Nr. 4 UWG (`mitPflichthinweis`); ein Versender ist
    * aber nicht verbunden, also geht keine hinaus. Der frühere Vorgabewert
@@ -299,6 +290,10 @@ export function matrixAntwort(
 /**
  * Wo laufen Matrix und wirksames Tor auseinander — in BEIDE Richtungen?
  *
+ * Seit 0524 (V-342) nur noch an zwei Stellen: am Abmeldehinweis, den das Tor
+ * nicht prüfen kann (Matrix strenger), und an der Ebene des Kunden und den
+ * Sperrmerkmalen des Kontakts, die die Matrix nicht kennt (Tor strenger).
+ *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der frühere Stand nannte nur eine Richtung, und das war die gefährliche
  * Hälfte.**
@@ -324,8 +319,8 @@ export interface Abweichung {
   /**
    * `tor_strenger`   — das wirksame Tor sperrt aus einem Grund, den die
    *                    Matrix der API-Karte gar nicht kennt.
-   * `matrix_strenger`— die Matrix verbietet, was das Tor an der Grundlage
-   *                    vorbeilässt (O-660).
+   * `matrix_strenger`— die Matrix verbietet, was das Tor nicht prüfen kann:
+   *                    den Abmeldehinweis einer Nachricht (§ 7 Abs. 3 Nr. 4).
    */
   readonly richtung: Abweichungsrichtung;
   readonly text: string;
@@ -404,51 +399,25 @@ export function abweichungenVomTor(lage: KontaktLage): readonly Abweichung[] {
   /* --------------------------------------- Die MATRIX ist strenger als das Tor */
 
   /*
-   * Ein Widerspruch am Kontakt sperrt in BEIDEN — dann gibt es hier nichts zu
-   * melden, und ein Satz „das Tor lässt durch" wäre schlicht falsch.
+   * Seit 0524 (V-342) prüft das Tor die Matrix selbst — Anfrage, ähnliche
+   * Leistung und Kanal stehen dort. Es bleibt die eine Bedingung, die an der
+   * NACHRICHT hängt: der Hinweis auf das Widerspruchsrecht. Ein Widerspruch
+   * am Kontakt sperrt in BEIDEN — dann gibt es hier nichts zu melden.
    */
-  if (!lage.widerspruch && !lage.werbewiderspruch) {
-    if (lage.grundlage === 'anfrage') {
-      liste.push({
-        richtung: 'matrix_strenger',
-        text: 'Das wirksame Tor prüft für Werbung nur, DASS eine Grundlage '
-          + 'aufgezeichnet ist — „Anfrage" genügt ihm. Die Matrix des § 7 Abs. 2 UWG '
-          + 'nicht: eine Anfrage deckt die Antwort darauf, nicht Werbung '
-          + '(Voreinstellung O-660: die Matrix wird Tor, V-342).',
-        norm: '§ 7 Abs. 2 Nr. 2 UWG',
-      });
-    }
-    if (lage.grundlage === 'bestandskunde') {
-      if (!lage.aehnlicheLeistung) {
-        liste.push({
-          richtung: 'matrix_strenger',
-          text: 'Das wirksame Tor prüft die ähnliche eigene Leistung nicht; § 7 Abs. 3 '
-            + 'Nr. 2 UWG verlangt sie. Ohne die festgestellte Ähnlichkeit trägt die '
-            + 'Ausnahme nicht (Voreinstellung O-660, V-342; O-95).',
-          norm: '§ 7 Abs. 3 Nr. 2 UWG',
-        });
-      } else if (lage.abmeldezeileGerendert !== true) {
-        liste.push({
-          richtung: 'matrix_strenger',
-          text: lage.abmeldezeileGerendert === null
-            ? 'Ob eine Nachricht den Abmeldehinweis trüge, ist hier nicht feststellbar — '
-              + 'geprüft wird ein Kontakt, keine Nachricht. Die Matrix antwortet deshalb '
-              + '„nein"; das wirksame Tor prüft diesen Hinweis gar nicht, der Versandweg '
-              + 'hängt ihn an jede Werbenachricht.'
-            : 'Die Nachricht trägt keinen Abmeldehinweis. Die Matrix verbietet sie '
-              + 'deshalb; das wirksame Tor prüft diesen Hinweis gar nicht.',
-          norm: '§ 7 Abs. 3 Nr. 4 UWG',
-        });
-      }
-      liste.push({
-        richtung: 'matrix_strenger',
-        text: 'Die Ausnahme des § 7 Abs. 3 UWG gilt nur für die ELEKTRONISCHE '
-          + 'Postadresse. Das wirksame Tor prüft den Kanal nur bei einer Einwilligung '
-          + '— bei „Bestandskunde" lässt es Telefon, SMS, Post und WhatsApp gleich '
-          + 'mit durch (Voreinstellung O-660: die Matrix wird Tor, V-342).',
-        norm: '§ 7 Abs. 3 UWG',
-      });
-    }
+  if (!lage.widerspruch && !lage.werbewiderspruch && lage.grundlage === 'bestandskunde'
+      && lage.aehnlicheLeistung && lage.abmeldezeileGerendert !== true) {
+    liste.push({
+      richtung: 'matrix_strenger',
+      text: lage.abmeldezeileGerendert === null
+        ? 'Ob eine Nachricht den Hinweis auf das Widerspruchsrecht trüge, ist hier nicht '
+          + 'feststellbar — geprüft wird ein Kontakt, keine Nachricht. Die Matrix antwortet '
+          + 'deshalb „nein"; das Tor prüft den Hinweis nicht, weil der Versandweg ihn an jede '
+          + 'Werbenachricht hängt.'
+        : 'Die Nachricht trägt keinen Hinweis auf das Widerspruchsrecht. Die Matrix verbietet '
+          + 'sie deshalb; das Tor prüft diesen Hinweis nicht — er hängt an der Nachricht, '
+          + 'nicht am Kontakt.',
+      norm: '§ 7 Abs. 3 Nr. 4 UWG',
+    });
   }
 
   return liste;

@@ -97,6 +97,29 @@ export const PLATZHALTER_LEAD_ZWECK: LeadZweckRegel = {
 /** Die Regel, die gilt. Heute der Platzhalter — siehe O-907. */
 export const LEAD_ZWECK_REGEL: LeadZweckRegel = PLATZHALTER_LEAD_ZWECK;
 
+/**
+ * **Die Antwort auf eine festgehaltene Anfrage ist keine Werbung** (O-907,
+ * V-342, D-833).
+ *
+ * Nach der Voreinstellung zu O-907 begründet eine Anfrage nur, was der
+ * Kontakt SELBST an die Gesellschaft gerichtet hat — Formular, E-Mail, Anruf
+ * mit Datum und Quelle. Genau das hält `rechtsgrundlage = 'anfrage'` am
+ * Ansprechpartner fest, mit Quelle und Datum (`grundlage_belegt`, 0020).
+ * Seit das Tor der Matrix des § 7 UWG folgt (0524), ist Werbung an eine
+ * Anfrage nie erlaubt; der Rückruf auf diese Anfrage ist aber keine Werbung,
+ * sondern die Antwort darauf — und die geht als `vertraglich` durch das Tor,
+ * wie die Antwort auf ein Webformular (D-631).
+ *
+ * Jede andere Grundlage lässt den Zweck der Herkunft stehen: eine
+ * Einwilligung oder ein Bestandskunde macht aus Werbung keine Antwort.
+ */
+export function zweckGegenueber(
+  zweckDerHerkunft: AusgehenderZweck, grundlageDesKontakts: string | null,
+): AusgehenderZweck {
+  return zweckDerHerkunft === 'werbung' && grundlageDesKontakts === 'anfrage'
+    ? 'vertraglich' : zweckDerHerkunft;
+}
+
 // ---------------------------------------------------------------------------
 // 2. Den Ansprechpartner setzen.
 // ---------------------------------------------------------------------------
@@ -360,7 +383,9 @@ export function betreffAus(inhalt: string, betreff?: string | null): string {
  *
  * Ein ausgehender Anruf oder eine ausgehende E-Mail geht an den
  * Ansprechpartner der Anfrage und durch das UWG-Tor (0020), mit dem Zweck,
- * den `LEAD_ZWECK_REGEL` für ihre Herkunft nennt. Die erste ausgehende
+ * den `LEAD_ZWECK_REGEL` für ihre Herkunft nennt — es sei denn, am Kontakt
+ * ist eine Anfrage festgehalten: dann ist er die Antwort darauf
+ * (`zweckGegenueber`). Die erste ausgehende
  * Aktivität hält die Reaktionsuhr an (0017, REQ-05). Eingehendes geht am Tor
  * vorbei — es verlässt das Haus nicht — und bleibt `vertraglich` wie bisher.
  */
@@ -383,10 +408,21 @@ export async function halteLeadAktivitaetFest(
 
   const kanal = KANAL[eingabe.typ] ?? null;
   const richtung = kanal === null ? 'intern' : eingabe.richtung;
-  const zweck = richtung === 'intern' ? 'intern'
-    : richtung === 'ausgehend' ? LEAD_ZWECK_REGEL.zweckAusgehend(lead.quelle).zweck
-      : 'vertraglich';
   const ansprechpartner = richtung === 'intern' ? null : lead.ansprechpartner_id;
+  /*
+   * Die Grundlage des Kontakts liest die Definerfunktion — die Spalte ist
+   * `cse_app` entzogen (K-05). Gefragt wird nur, wo sie den Zweck ändern kann.
+   */
+  const herkunft = richtung === 'ausgehend'
+    ? LEAD_ZWECK_REGEL.zweckAusgehend(lead.quelle).zweck : null;
+  const grundlage = herkunft === 'werbung' && ansprechpartner !== null
+    ? (await kontext.abfrage<{ grundlage: string | null }>(
+      `select app.rechtsgrundlage_von($1::uuid, app.aktiver_mandant())::text as grundlage`,
+      [ansprechpartner]))[0]?.grundlage ?? null
+    : null;
+  const zweck = richtung === 'intern' ? 'intern'
+    : herkunft !== null ? zweckGegenueber(herkunft, grundlage)
+      : 'vertraglich';
   if (richtung === 'ausgehend' && ansprechpartner === null
       && (eingabe.typ === 'anruf' || eingabe.typ === 'email')) {
     throw new CrmFehler(

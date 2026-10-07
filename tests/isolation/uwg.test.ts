@@ -56,23 +56,29 @@ async function kunde(mandantId: string, felder: Partial<{
 async function kontakt(mandantId: string, kundeId: string | null, felder: Partial<{
   rechtsgrundlage: string; kanaele: readonly string[] | null;
   werbewiderspruch: boolean; widerspruch: boolean; archiviert: boolean;
+  /** § 7 Abs. 3 Nr. 2 UWG — die festgestellte ähnliche eigene Leistung (0246). */
+  aehnlich: boolean; ausgeschieden: boolean;
 }> = {}): Promise<string> {
   const grundlage = felder.rechtsgrundlage ?? 'bestandskunde';
   const [z] = await sql.unsafe<{ id: string }[]>(
     `insert into ansprechpartner (mandant_id, kunde_id, nachname, email, rechtsgrundlage,
                                   rechtsgrundlage_quelle, rechtsgrundlage_erfasst_am,
                                   einwilligung_kanaele, werbewiderspruch_am, widerspruch_am,
-                                  archiviert_am)
+                                  archiviert_am, aehnliche_leistung,
+                                  aehnliche_leistung_begruendung, ausgeschieden_am)
      values ($1, $2, 'Muster', $3, $4::rechtsgrundlage,
              $5, case when $4 = 'keine' then null else now() end,
-             $6, $7, $8, $9)
+             $6, $7, $8, $9, $10, $11, $12)
      returning id`,
     [mandantId, kundeId, `k${String(Math.random()).slice(2, 10)}@example.test`,
      grundlage, grundlage === 'keine' ? null : 'Vertrag 2026-01',
      felder.kanaele ?? null,
      felder.werbewiderspruch === true ? new Date() : null,
      felder.widerspruch === true ? new Date() : null,
-     felder.archiviert === true ? new Date() : null],
+     felder.archiviert === true ? new Date() : null,
+     felder.aehnlich === true,
+     felder.aehnlich === true ? 'Unterhaltsreinigung im selben Objekt' : null,
+     felder.ausgeschieden === true ? new Date() : null],
   );
   return z!.id;
 }
@@ -123,7 +129,7 @@ describe('(1) fail closed — was unklar ist, ist verboten', () => {
     // Als Definer erbt die Funktion die RLS des Aufrufers nicht. Ohne die
     // ausgeschriebene Mandantenpruefung koennte jemand aus der Reinigung eine
     // Security-id durchprobieren und aus der Antwort lernen, dass es sie gibt.
-    const fremd = await kontakt(f.security, await kunde(f.security));
+    const fremd = await kontakt(f.security, await kunde(f.security), { aehnlich: true });
     expect(await darf(f.reinigung, fremd)).toBe(false);
     // Und im eigenen Bereich waere derselbe Kontakt erlaubt — sonst bestuende
     // dieser Test auch dann, wenn das Tor grundsaetzlich false saegt.
@@ -142,7 +148,11 @@ describe('(1) fail closed — was unklar ist, ist verboten', () => {
 describe('(2) die beiden Widersprueche sind NICHT dasselbe (§5.1)', () => {
   it('Werbewiderspruch beendet die Werbung', async () => {
     const k = await kunde(f.reinigung);
-    const a = await kontakt(f.reinigung, k, { werbewiderspruch: true });
+    // Ohne den Widerspruch wäre die Werbung hier erlaubt (§ 7 Abs. 3 UWG) —
+    // sonst bestünde der Test auch ohne ihn.
+    const ohne = await kontakt(f.reinigung, k, { aehnlich: true });
+    expect(await darf(f.reinigung, ohne, 'email', 'werbung')).toBe(true);
+    const a = await kontakt(f.reinigung, k, { werbewiderspruch: true, aehnlich: true });
     expect(await darf(f.reinigung, a, 'email', 'werbung')).toBe(false);
   });
 
@@ -211,22 +221,26 @@ describe('(3) Einwilligung ist KANALBEZOGEN (§7 UWG)', () => {
 });
 
 describe('(4) der KUNDE sperrt seine Kontakte mit', () => {
+  /*
+   * Die Kontakte hier tragen die festgestellte ähnliche Leistung: am Kontakt
+   * selbst wäre die Werbung erlaubt, gesperrt wird sie vom KUNDEN.
+   */
   it('ein gesperrter Kunde macht jeden seiner Kontakte unansprechbar', async () => {
     const k = await kunde(f.reinigung, { status: 'gesperrt' });
-    const a = await kontakt(f.reinigung, k);
+    const a = await kontakt(f.reinigung, k, { aehnlich: true });
     expect(await darf(f.reinigung, a)).toBe(false);
   });
 
   it('ein Werbewiderspruch des KUNDEN wirkt auf seine Kontakte', async () => {
     const k = await kunde(f.reinigung, { werbewiderspruch: true });
-    const a = await kontakt(f.reinigung, k);
+    const a = await kontakt(f.reinigung, k, { aehnlich: true });
     expect(await darf(f.reinigung, a)).toBe(false);
   });
 
   it('ein Kontakt OHNE Kunden haengt nur an sich selbst', async () => {
     // Vor der Umwandlung eines Leads gibt es keinen Kunden, an dem er haengen
     // koennte — und das darf ihn nicht blockieren.
-    const a = await kontakt(f.reinigung, null);
+    const a = await kontakt(f.reinigung, null, { aehnlich: true });
     expect(await darf(f.reinigung, a)).toBe(true);
   });
 });
@@ -277,7 +291,8 @@ describe('(6) Das Sendetor haengt WIRKLICH an lead_aktivitaet', () => {
 
   it('dieselbe Mail an einen Bestandskunden geht — und traegt die Grundlage', async () => {
     const kd = await kunde(f.reinigung);
-    const ap = await kontakt(f.reinigung, kd, { rechtsgrundlage: 'bestandskunde' });
+    const ap = await kontakt(f.reinigung, kd,
+      { rechtsgrundlage: 'bestandskunde', aehnlich: true });
     const [z] = await schreibe(f.reinigung, kd, { ansprechpartnerId: ap });
     // Der Beleg wird vom Ausloeser gezogen, nicht vom Aufrufer behauptet.
     expect(z!.rechtsgrundlage_snapshot).toBe('bestandskunde');
@@ -338,5 +353,107 @@ describe('(6) Das Sendetor haengt WIRKLICH an lead_aktivitaet', () => {
     await schreibe(f.reinigung, kd, {
       ansprechpartnerId: ap, typ: 'termin', zweck: 'vertraglich', kanal: null,
     });
+  });
+});
+
+describe('(7) transaktional laeuft wie vertraglich (V-339, O-65, 0524)', () => {
+  it('ein Werbewiderspruch haelt Terminbestaetigung und Mahnung nicht auf', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await kontakt(f.reinigung, k, { werbewiderspruch: true });
+    expect(await darf(f.reinigung, a, 'email', 'transaktional')).toBe(true);
+    expect(await darf(f.reinigung, a, 'post', 'transaktional')).toBe(true);
+    // … die Werbung schon.
+    expect(await darf(f.reinigung, a, 'email', 'werbung')).toBe(false);
+  });
+
+  it('der Widerspruch nach Art. 21 DSGVO und ein ausgeschiedener Kontakt halten sie auf', async () => {
+    const k = await kunde(f.reinigung);
+    const widersprochen = await kontakt(f.reinigung, k,
+      { rechtsgrundlage: 'keine', widerspruch: true });
+    expect(await darf(f.reinigung, widersprochen, 'email', 'transaktional')).toBe(false);
+    const weg = await kontakt(f.reinigung, k, { ausgeschieden: true });
+    expect(await darf(f.reinigung, weg, 'email', 'transaktional')).toBe(false);
+  });
+
+  it('das Sendetor laesst eine transaktionale Mail an einen Kontakt mit Werbewiderspruch', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd, { werbewiderspruch: true });
+    const [z] = await alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: chef, portal: 'intern',
+        readonly: false },
+      async (tx) => tx.unsafe<{ zweck: string }[]>(
+        `insert into lead_aktivitaet
+           (mandant_id, kunde_id, ansprechpartner_id, typ, richtung, zweck, kanal, betreff)
+         values ($1, $2, $3, 'email', 'ausgehend', 'transaktional', 'email',
+                 'Terminbestätigung Grundreinigung')
+         returning zweck::text`, [f.reinigung, kd, ap]));
+    expect(z!.zweck).toBe('transaktional');
+  });
+
+  it('ein unbekannter Zweck faellt zu', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await kontakt(f.reinigung, k,
+      { rechtsgrundlage: 'einwilligung', kanaele: ['email'] });
+    expect(await darf(f.reinigung, a, 'email', 'werbung')).toBe(true);
+    expect(await darf(f.reinigung, a, 'email', 'irgendwas')).toBe(false);
+  });
+});
+
+describe('(8) Werbung folgt der Matrix des § 7 UWG (V-342, O-660, 0524)', () => {
+  it('an eine Anfrage nie — die Antwort darauf schon', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await kontakt(f.reinigung, k, { rechtsgrundlage: 'anfrage' });
+    for (const kanal of ['email', 'telefon', 'sms', 'post', 'whatsapp']) {
+      expect(await darf(f.reinigung, a, kanal, 'werbung'), kanal).toBe(false);
+    }
+    expect(await darf(f.reinigung, a, 'email', 'vertraglich')).toBe(true);
+  });
+
+  it('an einen Bestandskunden nur mit festgestellter aehnlicher Leistung', async () => {
+    const k = await kunde(f.reinigung);
+    const ohne = await kontakt(f.reinigung, k);
+    expect(await darf(f.reinigung, ohne, 'email', 'werbung')).toBe(false);
+    const mit = await kontakt(f.reinigung, k, { aehnlich: true });
+    expect(await darf(f.reinigung, mit, 'email', 'werbung')).toBe(true);
+  });
+
+  it('und auch dann nur per E-Mail — Post, Telefon, SMS und WhatsApp nicht', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await kontakt(f.reinigung, k, { aehnlich: true });
+    for (const kanal of ['post', 'telefon', 'sms', 'whatsapp']) {
+      expect(await darf(f.reinigung, a, kanal, 'werbung'), kanal).toBe(false);
+    }
+  });
+
+  it('die Einwilligung gilt auf jedem eingewilligten Kanal, auch per Post', async () => {
+    const k = await kunde(f.reinigung);
+    const a = await kontakt(f.reinigung, k,
+      { rechtsgrundlage: 'einwilligung', kanaele: ['post', 'telefon'] });
+    expect(await darf(f.reinigung, a, 'post', 'werbung')).toBe(true);
+    expect(await darf(f.reinigung, a, 'telefon', 'werbung')).toBe(true);
+    expect(await darf(f.reinigung, a, 'email', 'werbung')).toBe(false);
+  });
+
+  it('vor Ort bleibt es beim Bisherigen: eine aufgezeichnete Grundlage genuegt', async () => {
+    const k = await kunde(f.reinigung);
+    const anfrage = await kontakt(f.reinigung, k, { rechtsgrundlage: 'anfrage' });
+    const bestand = await kontakt(f.reinigung, k);
+    const keine = await kontakt(f.reinigung, k, { rechtsgrundlage: 'keine' });
+    expect(await darf(f.reinigung, anfrage, 'vor_ort', 'werbung')).toBe(true);
+    expect(await darf(f.reinigung, bestand, 'vor_ort', 'werbung')).toBe(true);
+    expect(await darf(f.reinigung, keine, 'vor_ort', 'werbung')).toBe(false);
+  });
+
+  it('das Sendetor weist eine Werbemail an einen Bestandskunden ohne aehnliche Leistung ab', async () => {
+    const kd = await kunde(f.reinigung);
+    const ap = await kontakt(f.reinigung, kd);
+    await expect(alsApp(
+      { scope: 'mandant', mandantId: f.reinigung, benutzerId: chef, portal: 'intern',
+        readonly: false },
+      async (tx) => tx.unsafe(
+        `insert into lead_aktivitaet
+           (mandant_id, kunde_id, ansprechpartner_id, typ, richtung, zweck, kanal, betreff)
+         values ($1, $2, $3, 'email', 'ausgehend', 'werbung', 'email', 'Neue Leistung')`,
+        [f.reinigung, kd, ap]))).rejects.toThrow(/§ ?7 UWG/u);
   });
 });
