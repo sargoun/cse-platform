@@ -27,6 +27,7 @@ import {
   type LeseKontext, type SchreibKontext, type Sitzung,
 } from '../../src/server/kontext/index.js';
 import { findeSchichtBezug } from '../../src/server/services/mitarbeiter/schicht-zugang.js';
+import { findeEigeneSchicht } from '../../src/server/services/mitarbeiter/schichten.js';
 import { leseSchichtbuch } from '../../src/server/services/mitarbeiter/schichtbuch.js';
 import { listeSchichtMedien } from '../../src/server/services/mitarbeiter/medien.js';
 import { legeSchichtMediumAb } from '../../src/server/services/zeit/medien.js';
@@ -889,5 +890,102 @@ describe('V-063 — Korrektur und Tagesfoto auf der eigenen Schicht', () => {
       return leseTagesfotos(c, tag!.id);
     });
     expect(fotos.map((x) => x.id)).toContain(medienId);
+  });
+});
+
+/**
+ * **V-326 — die Schicht trägt bis Schichtende plus Ausstempeltoleranz**
+ * (O-740, D-789, D-808, 0499).
+ *
+ * Bis 0499 fiel das Objekt mit der Minute des Schichtendes aus dem M1-Scope —
+ * die Unterschrift des Kunden am Ende der Schicht (CLN-04) lief damit ins
+ * Leere. Jetzt gilt dieselbe Toleranz wie beim Ausstempeln
+ * (`zeit.checkout_toleranz_minuten`, ausgeliefert 60).
+ *
+ * Die Seite rechnet dieselbe Grenze ein zweites Mal (`erfassungGeschlossen`
+ * in `mitarbeiter/schichten.ts`) — deshalb steht sie hier neben der Policy:
+ * zwei Fassungen derselben Regel, die auseinanderlaufen, böten ein Formular
+ * an, das die Datenbank abweist, oder verschwiegen eines, das sie annähme.
+ */
+describe('V-326 — Schichtende plus Ausstempeltoleranz', () => {
+  /** Eine Schicht, die vor `minuten` Minuten zu Ende gegangen ist — ihre Zuordnung. */
+  async function schichtVorbei(minuten: number, o: string): Promise<string> {
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz (mandant_id, objekt_id, quelle, plan_datum,
+                            beginn_zeitpunkt, ende_zeitpunkt,
+                            beginn_lokal, ende_lokal, endet_am_folgetag, erstellt_von_art)
+       values ($1, $2::uuid, 'manuell', (now() - make_interval(mins => $3::int + 480))::date,
+               now() - make_interval(mins => $3::int + 480), now() - make_interval(mins => $3::int),
+               '06:00', '14:00', false, 'system')
+       returning id`,
+      [f.reinigung, o, minuten] as never[]);
+    const [z] = await sql.unsafe<{ id: string }[]>(
+      `insert into einsatz_zuordnung (mandant_id, einsatz_id, anstellung_id, person_id,
+                                      beginn_zeitpunkt, ende_zeitpunkt, erstellt_von_art)
+       select $1, e.id, $3, $4, e.beginn_zeitpunkt, e.ende_zeitpunkt, 'system'
+         from einsatz e where e.id = $2
+       returning id`,
+      [f.reinigung, e!.id, f.fatimaReinigung, f.fatima] as never[]);
+    return z!.id;
+  }
+
+  async function eingesetzt(o: string): Promise<boolean> {
+    return imPersonenScope(fatimaKonto, f.fatima, async (k) =>
+      (await k.abfrage<{ ja: boolean }>(
+        `select app.ist_eingesetzt_auf_objekt($1::uuid) as ja`, [o]))[0]?.ja === true);
+  }
+
+  /** Was die Schichtseite daraus macht — im selben Personen-Scope. */
+  async function seite(zuordnung: string): Promise<{
+    beendet: boolean; geschlossen: boolean; bis: string;
+  }> {
+    const s = await imPersonenScope(fatimaKonto, f.fatima, (k) =>
+      findeEigeneSchicht(k, zuordnung));
+    if (s === null) throw new Error('Schicht nicht gefunden');
+    return { beendet: s.beendet, geschlossen: s.erfassungGeschlossen, bis: s.erfassungBisLokal };
+  }
+
+  it('eine halbe Stunde nach Schichtende trägt die Schicht noch — zwei Stunden danach nicht', async () => {
+    const kurz = await objekt(f.reinigung, 'Gerade fertig');
+    const lang = await objekt(f.reinigung, 'Lange her');
+    const zKurz = await schichtVorbei(30, kurz);
+    const zLang = await schichtVorbei(120, lang);
+    expect(await eingesetzt(kurz), 'innerhalb der 60 Minuten').toBe(true);
+    expect(await eingesetzt(lang), 'ausserhalb der 60 Minuten').toBe(false);
+
+    // Die Seite sagt dasselbe: vorbei, aber noch offen — und bis wann.
+    const offen = await seite(zKurz);
+    expect(offen.beendet).toBe(true);
+    expect(offen.geschlossen).toBe(false);
+    const [soll] = await sql.unsafe<{ bis: string }[]>(
+      `select to_char((z.ende_zeitpunkt + interval '60 minutes') at time zone 'Europe/Berlin',
+                      'DD.MM.YYYY HH24:MI') as bis
+         from einsatz_zuordnung z where z.id = $1::uuid`, [zKurz]);
+    expect(offen.bis).toBe(soll!.bis);
+    expect((await seite(zLang)).geschlossen).toBe(true);
+  });
+
+  it('die Toleranz ist die Einstellung der Gesellschaft — auch null Minuten', async () => {
+    await sql.unsafe(
+      `insert into mandant_einstellung (mandant_id, schluessel, wert)
+       values ($1, 'zeit.checkout_toleranz_minuten', '0'::jsonb)
+       on conflict (mandant_id, schluessel) do update set wert = excluded.wert`,
+      [f.reinigung] as never[]);
+    const o = await objekt(f.reinigung, 'Ohne Toleranz');
+    const z = await schichtVorbei(30, o);
+    expect(await eingesetzt(o)).toBe(false);
+    expect((await seite(z)).geschlossen).toBe(true);
+  });
+
+  it('ein verstellter Wert lässt die Voreinstellung gelten, statt die Policy zu brechen', async () => {
+    await sql.unsafe(
+      `insert into mandant_einstellung (mandant_id, schluessel, wert)
+       values ($1, 'zeit.checkout_toleranz_minuten', '"eine Stunde"'::jsonb)
+       on conflict (mandant_id, schluessel) do update set wert = excluded.wert`,
+      [f.reinigung] as never[]);
+    const o = await objekt(f.reinigung, 'Verstellt');
+    const z = await schichtVorbei(30, o);
+    expect(await eingesetzt(o)).toBe(true);
+    expect((await seite(z)).geschlossen).toBe(false);
   });
 });

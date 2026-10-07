@@ -222,10 +222,7 @@ export async function legeBautagAn(
        * TODO(client, O-157): Voreinstellung — ein Bautagebuch je Projekt
        * (Baustelle), ein lebender Tag je Kalendertag; Bauabschnitte stehen im
        * Text des Tages, nicht als eigenes Buch. D-789.
-       * TODO(client, O-158): Voreinstellung — keine Schwelle: ob Witterung
-       * arbeitsbehindernd war, entscheidet die Bauleitung am Tag
-       * (`arbeitsbehindernde_witterung`, 0083), die DWD-Werte stehen daneben;
-       * ein Eingabeweg fuer das Kennzeichen fehlt (V-328). D-789.
+       * Die Witterung des Tages kennzeichnet `setzeWitterung` (O-158, V-328).
        *
        * Ein LEBENDER Tag je Projekt und Kalendertag (0082). Der zweite
        * Versuch ist fast immer ein zweiter Browsertab, kein Fehler des
@@ -293,6 +290,109 @@ export async function schliesseBautag(
       'tag_abgeschlossen', 'Dieser Bautag wurde inzwischen von jemand anderem geschlossen.',
     );
   }
+}
+
+/**
+ * Das Witterungskennzeichen des Tages setzen (V-328, O-158, BAU-06).
+ *
+ * `arbeitsbehindernde_witterung` steht seit 0083 und wurde nie geschrieben —
+ * der Index fuer die Behinderungsanzeige (`bautagebuch_witterung_idx`) blieb
+ * leer. Drei Werte, nicht zwei: `true` (behindernd), `false` (nicht
+ * behindernd) und `null` (nicht beurteilt). Ein `false` an einem Regentag ist
+ * eine Aussage der Bauleitung, ein leeres Feld ist keine.
+ *
+ * TODO(client, O-158): Voreinstellung — keine Schwelle: ob Witterung
+ * arbeitsbehindernd war, entscheidet die Bauleitung am Tag, die DWD-Werte
+ * stehen daneben; gebaut mit V-328 (D-808). D-789.
+ *
+ * **Nur am offenen Tag.** Ab dem Abschluss steht das Kennzeichen fest wie der
+ * uebrige Tag (0501 nimmt es ins Einfrieren auf); korrigiert wird durch Storno
+ * und Ersatztag (BAU-07, LEG-01).
+ */
+export async function setzeWitterung(
+  kontext: SchreibKontext,
+  eingabe: { readonly bautagebuchId: string; readonly behindernd: boolean | null },
+): Promise<void> {
+  await offenerKopf(kontext, eingabe.bautagebuchId);
+  const zeilen = await kontext.schreibe<{ id: string }>(
+    `update bautagebuch
+        set arbeitsbehindernde_witterung = $3::boolean,
+            geaendert_von = app.aktueller_benutzer(), geaendert_von_art = 'mensch'
+      where id = $1::uuid and mandant_id = $2::uuid
+        and abgeschlossen_am is null and storniert_am is null
+      returning id`,
+    [eingabe.bautagebuchId, kontext.aktiverMandantId, eingabe.behindernd],
+  );
+  if (zeilen.length === 0) {
+    throw new BautagebuchFehler(
+      'tag_abgeschlossen', 'Dieser Bautag wurde inzwischen geschlossen oder storniert.',
+    );
+  }
+}
+
+/** Ein Tag mit arbeitsbehindernder Witterung — ein Beleg fuer die Behinderungsanzeige. */
+export interface WitterungsBeleg {
+  readonly bautagebuchId: string;
+  /** Berliner Kalendertag `JJJJ-MM-TT`. */
+  readonly datum: string;
+  readonly wetterQuelle: string;
+  /** `numeric`-Text oder `null` — nie eine Gleitkommazahl (§1.1). */
+  readonly temperaturMinC: string | null;
+  readonly temperaturMaxC: string | null;
+  readonly niederschlagMm: string | null;
+  readonly wetterNotiz: string | null;
+  readonly abgeschlossen: boolean;
+}
+
+/**
+ * Die Witterungsbelege einer Behinderung (V-328, BAU-06).
+ *
+ * Was die Behinderungsanzeige uebernimmt: die lebenden Bautage ihres
+ * Projekts von ihrem Beginn bis zu ihrem Ende (ohne Ende: bis heute), an
+ * denen die Bauleitung die Witterung als arbeitsbehindernd gekennzeichnet hat
+ * — mit den DWD-Werten, wie sie angeheftet wurden, und der Notiz des
+ * Menschen. Gelesen ueber `bautagebuch_witterung_idx`; ein stornierter Tag
+ * belegt nichts, sein Ersatztag tritt an seine Stelle.
+ *
+ * Die Daten kommen aus der Zeile der Behinderung selbst, nicht aus dem
+ * Aufrufer: eine Seite, die einen Zeitraum mitschickt, koennte einen anderen
+ * belegen als den angezeigten.
+ */
+export async function ladeWitterungsbelege(
+  kontext: LeseKontext, behinderungId: string,
+): Promise<readonly WitterungsBeleg[]> {
+  const zeilen = await kontext.abfrage<{
+    id: string; datum: string; wetter_quelle: string;
+    temperatur_min_c: string | null; temperatur_max_c: string | null;
+    niederschlag_mm: string | null; wetter_notiz: string | null; abgeschlossen: boolean;
+  }>(
+    `select b.id, to_char(b.datum, 'YYYY-MM-DD') as datum,
+            b.wetter_quelle::text as wetter_quelle,
+            b.temperatur_min_c::text as temperatur_min_c,
+            b.temperatur_max_c::text as temperatur_max_c,
+            b.niederschlag_mm::text as niederschlag_mm,
+            b.wetter_notiz,
+            (b.abgeschlossen_am is not null) as abgeschlossen
+       from behinderung h
+       join bautagebuch b on b.mandant_id = h.mandant_id and b.projekt_id = h.projekt_id
+      where h.id = $1::uuid
+        and b.arbeitsbehindernde_witterung
+        and b.storniert_am is null
+        and b.datum >= h.beginn_am
+        and b.datum <= coalesce(h.ende_am, app.berlin_heute())
+      order by b.datum`,
+    [behinderungId],
+  );
+  return zeilen.map((z) => ({
+    bautagebuchId: z.id,
+    datum: z.datum,
+    wetterQuelle: z.wetter_quelle,
+    temperaturMinC: z.temperatur_min_c,
+    temperaturMaxC: z.temperatur_max_c,
+    niederschlagMm: z.niederschlag_mm,
+    wetterNotiz: z.wetter_notiz,
+    abgeschlossen: z.abgeschlossen,
+  }));
 }
 
 /**
@@ -1084,6 +1184,8 @@ export interface BautagKopfZeile {
   readonly ersetzt_durch_id: string | null;
   readonly ersetzt_id: string | null;
   readonly wetter_quelle: 'dwd' | 'manuell' | 'keine';
+  /** `true` behindernd, `false` nicht, `null` nicht beurteilt (V-328, O-158). */
+  readonly arbeitsbehindernde_witterung: boolean | null;
   readonly mannstunden_zeilen: number;
   readonly positionen: number;
   readonly fotos: number;
@@ -1113,6 +1215,7 @@ const KOPF_FELDER = `
   (select v.id from bautagebuch v where v.ersetzt_durch_id = b.id
     order by v.erstellt_am limit 1) as ersetzt_id,
   b.wetter_quelle::text as wetter_quelle,
+  b.arbeitsbehindernde_witterung,
   (select count(*) from bautagebuch_mannstunden m
     where m.bautagebuch_id = b.id and m.storniert_am is null)::int as mannstunden_zeilen,
   (select count(*) from bautagebuch_position q

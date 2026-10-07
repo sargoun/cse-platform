@@ -29,6 +29,10 @@ import {
 } from '../../src/server/services/bau/nachtrag.js';
 import { ladeAusserhalbLv, warnungsText }
   from '../../src/server/services/bau/ausserhalb-lv.js';
+import {
+  ERSATZ_RECHT_OHNE_BAULEITUNG, meldeUeberfaelligeNachtraege,
+} from '../../src/server/jobs/nachtragWache.js';
+import { registriereWaechterArten } from '../../src/server/services/waechter/benachrichtigung.js';
 
 let f: Fixtur;
 const zufall = (): string => String(Math.random()).slice(2, 10);
@@ -606,4 +610,151 @@ describe('der Nachtrag steht unter Invariante 3 und Invariante 8', () => {
     await expect(sql.unsafe(`delete from nachtrag where id = $1`, [kopf.id]))
       .rejects.toThrow(/gesperrt|Invariante 8|Löschen|Loeschen/iu);
   });
+});
+
+/* ===========================================================================
+ * V-381 — ohne Bauleitung meldet die Wache an die Leitung der Gesellschaft
+ * (O-30, D-800, D-808)
+ * ======================================================================== */
+describe('V-381 — der überfällige Nachtrag ohne Bauleitung erreicht die Leitung', () => {
+  /*
+   * Der Lauf fährt wie in der Produktion auf der Verbindung aus
+   * `DATABASE_URL` (bootstrap.ts, D-378) — hier die des Prüfstands. Die
+   * Meldestunde prüft der Job davor; `meldeUeberfaelligeNachtraege` ist der
+   * Lauf ohne Uhr.
+   */
+  const db = {
+    unsafe: (a: string, w?: readonly unknown[]) =>
+      sql.unsafe(a, (w ?? []) as never[]) as Promise<readonly unknown[]>,
+  };
+
+  beforeEach(() => { registriereWaechterArten(); });
+
+  async function ueberfaellig(bau: Aufbau): Promise<string> {
+    const g = await grundlage(bau.mandant);
+    const kopf = await alsBauleitung(bau, async (k) => meldeNachtragAn(k, {
+      projektId: bau.projekt, titel: 'Wasserhaltung', grundlageId: g,
+      begruendung: 'B', angemeldetAm: null,
+    }));
+    await sql.unsafe(
+      `update nachtrag set angemeldet_am = app.berlin_heute() - $2::int where id = $1`,
+      [kopf.id, NACHTRAG_WACHFRIST_TAGE + 6] as never[]);
+    return kopf.id;
+  }
+
+  /**
+   * Eine zweite Leitung derselben Gesellschaft — sie hält `bau.nachtrag_einreichen`.
+   *
+   * `gueltig_ab` auf GESTERN: der Vorgabewert ist `app.berlin_heute()`, die
+   * Rechteauflösung vergleicht mit `current_date` — zwischen 22:00 UTC und
+   * Mitternacht gälte die Mitgliedschaft sonst erst morgen (siehe
+   * `bau-seiten-abfragen.test.ts`).
+   */
+  async function zweiteLeitung(mandant: string): Promise<string> {
+    const id = await konto(`leitung-${zufall()}@cse.test`);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1,$2,$3, current_date - 1)`,
+      [id, mandant, await rolleId('leitung')]);
+    return id;
+  }
+
+  /** Dieselbe Vorsicht für die Leitung aus `baueProjekt`. */
+  async function seitGestern(benutzer: string): Promise<void> {
+    await sql.unsafe(
+      `update benutzer_mandant set gueltig_ab = current_date - 1 where benutzer_id = $1`,
+      [benutzer]);
+  }
+
+  async function posteingang(benutzer: string): Promise<readonly { art: string; text: string }[]> {
+    return sql.unsafe<{ art: string; text: string }[]>(
+      `select art, text from benachrichtigung where empfaenger_id = $1`, [benutzer]);
+  }
+
+  it('fehlt die Bauleitung, bekommen alle die Meldung, die einreichen dürfen — mit dem Grund',
+    async () => {
+      const bau = await baueProjekt(f.bau);
+      await seitGestern(bau.benutzer);
+      const zweite = await zweiteLeitung(f.bau);
+      const id = await ueberfaellig(bau);
+      await sql.unsafe(
+        `update projekt set verantwortlich_benutzer_id = null where id = $1`, [bau.projekt]);
+
+      const bericht = await meldeUeberfaelligeNachtraege(db);
+      expect(bericht).toMatchObject({
+        ueberfaellig: 1, ohne_bauleitung: 1, an_leitung: 1, ohne_empfaenger: 0,
+        markiert: 1, zugestellt: 2,
+      });
+      for (const empfaenger of [bau.benutzer, zweite]) {
+        const meldungen = await posteingang(empfaenger);
+        expect(meldungen.map((m) => m.art)).toEqual(['bau.nachtrag_ueberfaellig']);
+        expect(meldungen[0]!.text).toMatch(/keine Bauleitung/u);
+      }
+      const [n] = await sql.unsafe<{ gemeldet: boolean }[]>(
+        `select ueberfaellig_gemeldet_am is not null as gemeldet from nachtrag where id = $1`,
+        [id]);
+      expect(n!.gemeldet).toBe(true);
+
+      // Und einmal: der Lauf von morgen meldet denselben Nachtrag nicht noch einmal.
+      expect(await meldeUeberfaelligeNachtraege(db)).toMatchObject({ ueberfaellig: 0 });
+    });
+
+  it('mit Bauleitung bleibt es bei ihr — die übrige Leitung hört nichts', async () => {
+    const bau = await baueProjekt(f.bau);
+    await seitGestern(bau.benutzer);
+    const zweite = await zweiteLeitung(f.bau);
+    await ueberfaellig(bau);
+
+    const bericht = await meldeUeberfaelligeNachtraege(db);
+    expect(bericht).toMatchObject({ ohne_bauleitung: 0, an_leitung: 0, zugestellt: 1 });
+    const meldungen = await posteingang(bau.benutzer);
+    expect(meldungen).toHaveLength(1);
+    expect(meldungen[0]!.text).not.toMatch(/keine Bauleitung/u);
+    expect(await posteingang(zweite)).toEqual([]);
+  });
+
+  it('wer einreichen, aber nicht lesen darf, bekommt nichts — das Ziel bliebe ihm zu', async () => {
+    const bau = await baueProjekt(f.bau);
+    await seitGestern(bau.benutzer);
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into rolle (mandant_id, schluessel, bezeichnung, geltungsbereich, portal)
+       values ($1, $2, $2, 'mandant', 'intern') returning id`,
+      [f.bau, `nur_einreichen_${zufall()}`]);
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, true from berechtigung b where b.schluessel = $3`,
+      [r!.id, f.bau, ERSATZ_RECHT_OHNE_BAULEITUNG]);
+    const ohneLesen = await konto(`einreichen-${zufall()}@cse.test`);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1,$2,$3, current_date - 1)`, [ohneLesen, f.bau, r!.id]);
+    await ueberfaellig(bau);
+    await sql.unsafe(
+      `update projekt set verantwortlich_benutzer_id = null where id = $1`, [bau.projekt]);
+
+    const bericht = await meldeUeberfaelligeNachtraege(db);
+    expect(bericht).toMatchObject({ ohne_bauleitung: 1, an_leitung: 1, zugestellt: 1 });
+    expect(await posteingang(ohneLesen)).toEqual([]);
+    expect((await posteingang(bau.benutzer)).map((m) => m.art))
+      .toEqual(['bau.nachtrag_ueberfaellig']);
+  });
+
+  it('hält niemand das Recht, bleibt der Nachtrag offen und kommt beim nächsten Lauf wieder',
+    async () => {
+      const bau = await baueProjekt(f.bau);
+      await seitGestern(bau.benutzer);
+      const id = await ueberfaellig(bau);
+      await sql.unsafe(
+        `update projekt set verantwortlich_benutzer_id = null where id = $1`, [bau.projekt]);
+      await sql.unsafe(
+        `update benutzer_mandant set rolle_id = $2 where benutzer_id = $1`,
+        [bau.benutzer, await rolleId('mitarbeiter')]);
+
+      const bericht = await meldeUeberfaelligeNachtraege(db);
+      expect(bericht).toMatchObject({ ohne_bauleitung: 1, an_leitung: 0, ohne_empfaenger: 1 });
+      const [n] = await sql.unsafe<{ gemeldet: boolean }[]>(
+        `select ueberfaellig_gemeldet_am is not null as gemeldet from nachtrag where id = $1`,
+        [id]);
+      expect(n!.gemeldet).toBe(false);
+    });
 });

@@ -204,6 +204,27 @@ export function Hinweis(
 }
 
 /**
+ * Die Schicht ist vorbei, die Erfassung noch offen (V-326, O-740).
+ *
+ * Zwischen Schichtende und Schichtende plus Ausstempeltoleranz tragen die
+ * vier Schichtseiten weiter (0499). Wer das Formular dann noch sieht, soll
+ * lesen, BIS WANN — sonst schliesst es mitten im Ausfüllen, ohne dass vorher
+ * ein Wort dazu fiel. Ausserhalb dieses Fensters steht hier nichts: vor dem
+ * Ende ist es die laufende Schicht, danach sagt `Hinweis` den Grund.
+ */
+export function ErfassungsNachlauf(
+  { schicht, texte }: { readonly schicht: EigeneSchicht; readonly texte: MeinTexte },
+) {
+  if (!schicht.beendet || schicht.erfassungGeschlossen || schicht.entfernt) return null;
+  return (
+    <p data-cse="erfassung-nachlauf" className="m-0 mb-s4 max-w-prose text-base text-text-muted">
+      {texte.erfassungNachlauf}{' '}
+      <span className="cse-zahl">{schicht.erfassungBisLokal}</span>
+    </p>
+  );
+}
+
+/**
  * Die eigenen Einwände und was aus ihnen wurde (V-051, V-189, EMP-07).
  *
  * Steht hier, weil ZWEI Seiten sie zeigen: der Einwand zu einem Eintrag

@@ -1117,8 +1117,9 @@ export interface MeinTexte {
   readonly uebergabe: string;
   /**
    * Das Uebergabefenster ist GAR NICHT eingestellt (`uebergabeFenster ===
-   * null`) — Voreinstellung (O-151, D-789): zwoelf Stunden, zu setzen je
-   * Gesellschaft (V-323).
+   * null`) — Voreinstellung (O-151, D-789): zwoelf Stunden, gesetzt je
+   * Gesellschaft auf Security › Wachbuch (`system.einstellung_verwalten`,
+   * V-323).
    *
    * Getrennt von `uebergabeAus`, weil `Schichtbuch.uebergabeFenster` die zwei
    * Faelle mit Absicht unterscheidet: `null` heisst „nie eingerichtet",
@@ -1219,15 +1220,21 @@ export interface MeinTexte {
   /** Beschriftung ueber der Wetterquelle — nicht „Status" (die Pille daneben). */
   readonly wetterQuelle: string;
   /**
-   * Die Schicht ist vorbei — erfasst wird nichts mehr.
+   * Die Schicht ist vorbei, und die Zeit danach auch — erfasst wird nichts mehr.
    *
-   * `app.ist_eingesetzt_auf_objekt`/`…_projekt` verlangen
-   * `ende_zeitpunkt >= now()`; mit der Minute des Schichtendes schliessen
-   * Wachbuch, Fotos, Leistungsnachweis und Bautagebuch. Voreinstellung (O-740,
-   * D-789): Schichtende plus Ausstempeltoleranz — gebaut ist das Schichtende
-   * (V-326), und es steht auf dem Bildschirm, statt dass ein Formular scheitert.
+   * `app.ist_eingesetzt_auf_objekt`/`…_projekt` tragen die eigene Schicht bis
+   * Schichtende plus Ausstempeltoleranz (O-740, D-789; gebaut mit V-326, 0499,
+   * D-808); danach schliessen Wachbuch, Fotos, Leistungsnachweis und
+   * Bautagebuch, und das steht auf dem Bildschirm, statt dass ein Formular
+   * scheitert.
    */
   readonly schichtBeendet: string;
+  /**
+   * Die Schicht ist vorbei, die Erfassung noch offen — davor steht, bis wann
+   * (`ErfassungsNachlauf`, V-326). Der Satz endet mit einem Doppelpunkt, die
+   * Uhrzeit folgt: so passt er in alle vier Satzstellungen.
+   */
+  readonly erfassungNachlauf: string;
   /** Die Einteilung wurde aus dem Plan genommen (`entfernt_am`). */
   readonly schichtEntfernt: string;
   /**
@@ -1572,7 +1579,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'Übergabe',
     uebergabeNichtEingestellt:
       'Das Übergabefenster ist nicht eingestellt — Voreinstellung (O-151): die Einträge '
-      + 'der letzten zwölf Stunden der Vorschicht, gesetzt von der Sicherheitsleitung je '
+      + 'der letzten zwölf Stunden der Vorschicht, eingestellt von der Verwaltung je '
       + 'Gesellschaft. Bis dahin stehen hier nur die eigenen Einträge.',
     uebergabeAus:
       'Das Übergabefenster steht auf null — die Einträge der Vorschicht bleiben verdeckt. '
@@ -1655,8 +1662,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       + 'deshalb kein Befund gezeigt.',
     wetterQuelle: 'Wetterquelle',
     schichtBeendet:
-      'Diese Schicht ist beendet. Erfasst wird hier nichts mehr; was fehlt, meldet '
-      + 'die Einsatzleitung nach.',
+      'Diese Schicht ist beendet, und die Zeit zum Nacherfassen ist abgelaufen. Erfasst '
+      + 'wird hier nichts mehr; was fehlt, meldet die Einsatzleitung nach.',
+    erfassungNachlauf:
+      'Diese Schicht ist beendet. Erfassen können Sie hier noch bis:',
     schichtEntfernt:
       'Diese Einteilung wurde aus dem Plan genommen. Sie bleibt lesbar, aber es kann '
       + 'nichts mehr dazu erfasst werden.',
@@ -1966,7 +1975,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'Handover',
     uebergabeNichtEingestellt:
       'The handover window is not configured — default (O-151): the previous shift\u2019s '
-      + 'entries of the last twelve hours, set by the security management per entity. '
+      + 'entries of the last twelve hours, set by the administration per entity. '
       + 'Until then only your own entries appear here.',
     uebergabeAus:
       'The handover window is set to zero — the previous shift\u2019s entries stay hidden. '
@@ -2048,8 +2057,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'This account cannot compare against time tracking — no finding is shown.',
     wetterQuelle: 'Weather source',
     schichtBeendet:
-      'This shift has ended. Nothing more is recorded here; anything missing is filed '
-      + 'by the dispatcher.',
+      'This shift has ended, and the time to record afterwards has run out. Nothing more '
+      + 'is recorded here; anything missing is filed by the dispatcher.',
+    erfassungNachlauf:
+      'This shift has ended. You can still record here until:',
     schichtEntfernt:
       'This assignment was removed from the plan. It stays readable, but nothing can '
       + 'be recorded against it any more.',
@@ -2347,7 +2358,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'التسليم',
     uebergabeNichtEingestellt:
       'فترة التسليم غير مضبوطة — الإعداد الافتراضي (O-151): قيود الوردية السابقة خلال آخر اثنتي عشرة '
-      + 'ساعة، تضبطها إدارة الأمن لكل شركة. حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
+      + 'ساعة، تضبطها الإدارة لكل شركة. حتى ذلك الحين تظهر هنا قيودك أنت فقط.',
     uebergabeAus:
       'فترة التسليم مضبوطة على صفر — تبقى قيود الوردية السابقة مخفية. الإعداد الافتراضي (O-151) '
       + 'هو اثنتا عشرة ساعة؛ تُضبط الفترة لكل شركة. تظهر هنا قيودك أنت فقط.',
@@ -2425,7 +2436,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'لا يمكن لهذا الحساب المقارنة مع تسجيل الوقت — لذلك لا تُعرض أي نتيجة.',
     wetterQuelle: 'مصدر بيانات الطقس',
     schichtBeendet:
-      'انتهت هذه الوردية. لم يعد بالإمكان التسجيل هنا؛ وما ينقص تستدركه إدارة العمليات.',
+      'انتهت هذه الوردية وانقضت المهلة المتاحة للتسجيل بعدها. لم يعد بالإمكان التسجيل '
+      + 'هنا؛ وما ينقص تستدركه إدارة العمليات.',
+    erfassungNachlauf:
+      'انتهت هذه الوردية. لا يزال بإمكانك التسجيل هنا حتى:',
     schichtEntfernt:
       'أُزيل هذا التكليف من الخطة. يبقى قابلاً للقراءة، لكن لا يمكن تسجيل أي شيء عليه بعد الآن.',
     nummerOffen:
@@ -2722,7 +2736,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     uebergabe: 'Devir teslim',
     uebergabeNichtEingestellt:
       'Devir teslim penceresi ayarlanmadı — varsayılan (O-151): önceki vardiyanın son on iki '
-      + 'saatteki kayıtları; pencereyi güvenlik yönetimi şirket başına ayarlar. O zamana kadar '
+      + 'saatteki kayıtları; pencereyi yönetim şirket başına ayarlar. O zamana kadar '
       + 'burada yalnızca kendi kayıtlarınız görünür.',
     uebergabeAus:
       'Devir teslim penceresi sıfırda — önceki vardiyanın kayıtları gizli kalır. Varsayılan '
@@ -2803,8 +2817,10 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'Bu hesap zaman kaydıyla karşılaştırma yapamıyor — bu nedenle bir bulgu gösterilmiyor.',
     wetterQuelle: 'Hava durumu kaynağı',
     schichtBeendet:
-      'Bu vardiya sona erdi. Burada artık kayıt yapılmaz; eksik kalanı operasyon '
-      + 'yönetimi sonradan bildirir.',
+      'Bu vardiya sona erdi ve sonrasında kayıt için tanınan süre de doldu. Burada artık '
+      + 'kayıt yapılmaz; eksik kalanı operasyon yönetimi sonradan bildirir.',
+    erfassungNachlauf:
+      'Bu vardiya sona erdi. Burada hâlâ şu saate kadar kayıt yapabilirsiniz:',
     schichtEntfernt:
       'Bu görevlendirme plandan çıkarıldı. Okunabilir kalır, ancak buna artık hiçbir '
       + 'şey kaydedilemez.',

@@ -27,7 +27,8 @@ import { Feld, Felder, Gesellschaft, Hinweis, Leer, SchichtKarte } from '../../b
  *     app.mein_objekt_zugang(objekt)          (0360)
  *       → app.ist_eingesetzt_auf_objekt(o)    (0069)
  *       → eigene, lebende Zuordnung auf einem Einsatz,
- *         der noch nicht zu Ende ist
+ *         der noch nicht zu Ende ist — samt Ausstempeltoleranz
+ *         danach (0499, V-326)
  *
  * Dieselbe Funktion traegt `objekt.t_selbst_m1` (0300) und
  * `leistungsnachweis.p_portal_decke`. Eine zweite Bedingung in dieser Datei —

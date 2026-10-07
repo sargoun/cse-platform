@@ -1330,6 +1330,19 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * Das Uebergabefenster des Wachbuchs einstellen (V-323, O-151, SEC-05).
+     *
+     * `system.einstellung_verwalten` — dasselbe Recht, das die `WITH
+     * CHECK`-Haelfte von `mandant_einstellung.t_mandant` verlangt (0033). Das
+     * Fenster oeffnet fremde Eintraege fuer eine ganze Belegschaft; es ist
+     * eine Betriebsregel (O-06), keine Ansicht, und gehoert deshalb nicht
+     * `wachbuch.schreiben`.
+     */
+    pfad: 'api/security/uebergabefenster',
+    recht: 'system.einstellung_verwalten',
+  },
+  {
+    /**
      * EMP-09, SEC-06 — die Wache bestaetigt eine Dienstanweisung mit einem
      * Tipp.
      *

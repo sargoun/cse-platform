@@ -100,7 +100,15 @@ function nachtragOffen(): ArtDefinition {
       + `${String(k.daten['projekt'] ?? 'unbekannt')} ist seit `
       + `${String(k.daten['angemeldet'] ?? '')} angemeldet und nicht eingereicht. `
       + 'Nach § 2 Abs. 6 VOB/B gehört die Ankündigung VOR der Ausführung; eine Forderung, '
-      + 'die erst nach der Leistung eingereicht wird, ist schwer durchzusetzen.',
+      + 'die erst nach der Leistung eingereicht wird, ist schwer durchzusetzen.'
+      /*
+       * Ohne Bauleitung geht die Meldung an die Leitung der Gesellschaft
+       * (V-381) — und sagt, warum: sonst liest sie sich wie ein Irrläufer.
+       */
+      + (k.daten['ohneBauleitung'] === true
+        ? ' Das Projekt hat keine Bauleitung; deshalb geht diese Meldung an die Leitung '
+          + 'der Gesellschaft. Bitte eine Bauleitung eintragen.'
+        : ''),
     /* Das Ziel liefert der Dienst als fertigen Pfad — es enthaelt Projekt UND Nachtrag. */
     ziel: (k) => (typeof k.daten['ziel'] === 'string' && k.daten['ziel'] !== ''
       ? String(k.daten['ziel']) : null),

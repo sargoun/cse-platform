@@ -18,7 +18,7 @@ import { findeEigeneSchicht, type EigeneSchicht }
 import { findeSchichtBezug } from '@/server/services/mitarbeiter/schicht-zugang';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { ErfassungsNachlauf, Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 import { FormularFehler } from '../../../FormularAntwort';
 
 /**
@@ -176,14 +176,14 @@ export default async function MeinBautagebuch(
     zeit_nicht_lesbar: t.abgleichZeitNichtLesbar,
   };
   /*
-   * Nach Schichtende und nach dem Herausnehmen aus dem Plan traegt die Schicht
-   * nichts mehr: `app.ist_eingesetzt_auf_projekt` verlangt
-   * `ende_zeitpunkt >= now()` (0004), `einsatz_zuordnung.t_selbst_m1` verlangt
+   * Nach Schichtende plus Ausstempeltoleranz und nach dem Herausnehmen aus dem
+   * Plan traegt die Schicht nichts mehr: `app.ist_eingesetzt_auf_projekt`
+   * endet dort (0499, V-326), `einsatz_zuordnung.t_selbst_m1` verlangt
    * `entfernt_am is null` (0300). Der Grund steht als Satz da, statt dass ein
    * Formular in ein nacktes 404 laeuft (O-740).
    */
   const sperre = schicht.entfernt ? t.schichtEntfernt
-    : schicht.beendet ? t.schichtBeendet : null;
+    : schicht.erfassungGeschlossen ? t.schichtBeendet : null;
 
   return (
     <MeinRahmen basis={basis} titel={t.bautagebuch} aktiverTab="schichten"
@@ -196,6 +196,7 @@ export default async function MeinBautagebuch(
       </p>
 
       <FormularFehler sprache={basis.sprache} grund={fehler} />
+      <ErfassungsNachlauf schicht={schicht} texte={t} />
 
       {schicht.projektId === null ? (
         /*

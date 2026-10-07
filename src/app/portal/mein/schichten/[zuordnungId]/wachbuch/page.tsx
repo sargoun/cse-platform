@@ -16,7 +16,7 @@ import { signierteAdressen } from '@/server/services/zeit/medien';
 import { waehleSpeicher } from '@/server/storage/waehle';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { ErfassungsNachlauf, Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 import { FormularFehler } from '../../../FormularAntwort';
 
 /**
@@ -132,13 +132,14 @@ export default async function MeinWachbuch(
    * Warum hier kein Formular mehr steht — und nicht: warum es scheitert.
    *
    * `einsatz_zuordnung.t_selbst_m1` (0300) verlangt `entfernt_am is null`, und
-   * `app.ist_eingesetzt_auf_objekt` verlangt `ende_zeitpunkt >= now()` (0004).
-   * Nach Schichtende und nach dem Herausnehmen aus dem Plan endet jeder
-   * Schreibweg mit `404 nicht_gefunden` — eine Seite, die trotzdem zum
-   * Ausfuellen einlaedt, behandelt den Menschen danach wie einen Fremden.
+   * `app.ist_eingesetzt_auf_objekt` traegt die Schicht bis Schichtende plus
+   * Ausstempeltoleranz (0499, V-326). Danach und nach dem Herausnehmen aus dem
+   * Plan endet jeder Schreibweg mit `404 nicht_gefunden` — eine Seite, die
+   * trotzdem zum Ausfuellen einlaedt, behandelt den Menschen danach wie einen
+   * Fremden.
    */
   const sperre = schicht.entfernt ? t.schichtEntfernt
-    : schicht.beendet ? t.schichtBeendet : null;
+    : schicht.erfassungGeschlossen ? t.schichtBeendet : null;
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -155,6 +156,7 @@ export default async function MeinWachbuch(
 
       <FormularFehler sprache={basis.sprache} grund={fehler}
         maske={wachbuchSchichtMaske(basis.sprache)} />
+      <ErfassungsNachlauf schicht={schicht} texte={t} />
 
       {schicht.objektId === null ? (
         <Leer text={t.keineEintraege} />

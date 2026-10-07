@@ -9,6 +9,7 @@ import { withPersonScope, withTenant, type Sitzung } from '@/server/kontext/inde
 import {
   AbwesenheitNichtGefunden, findeAbwesenheit, storniereAbwesenheit,
 } from '@/server/services/abwesenheit/index';
+import { meldeRuecknahme } from '@/server/services/abwesenheit/benachrichtigung';
 import { KeineAnstellungFehler, mandantDerAnstellung }
   from '@/server/services/zeit/einwand';
 
@@ -34,8 +35,8 @@ import { KeineAnstellungFehler, mandantDerAnstellung }
  * möglich, solange die Abwesenheit unentschieden ist (`erfasst`, `beantragt`),
  * auch wenn ihre Tage schon in einem Lohnexport standen: der Export ist ein
  * Lesevorgang ohne gespeicherten Lauf, und die Personalstelle korrigiert den
- * Monat im Lohnsystem. Dafür meldet sich jede Selbstrücknahme bei ihr — die
- * Meldung fehlt noch, heute steht sie nur im Protokoll (V-353). D-795.
+ * Monat im Lohnsystem. Dafür meldet sich jede Selbstrücknahme bei ihr
+ * (`meldeRuecknahme`, 0500 — gebaut mit V-353, D-808). D-795.
  *
  * **303 und kein JSON.** Das Formular ist ein echtes `<form method="post">`,
  * damit es auf einem alten Diensttelefon ohne JavaScript funktioniert.
@@ -96,7 +97,16 @@ export async function POST(
       const imMandanten: Sitzung = {
         ...sitzung, ansicht: 'mandant', aktiverMandantId: mandantId, portal: 'mitarbeiter',
       };
-      return withTenant(tx, imMandanten, async (k) => storniereAbwesenheit(k, id, grund));
+      /*
+       * Rücknahme und Meldung in EINER Transaktion: scheitert die Meldung,
+       * bleibt auch die Rücknahme aus — eine Rücknahme, von der die
+       * Personalstelle nichts erfährt, ist genau der Fall, gegen den V-353
+       * gebaut ist.
+       */
+      return withTenant(tx, imMandanten, async (k) => {
+        await storniereAbwesenheit(k, id, grund);
+        await meldeRuecknahme(k, id);
+      });
     });
   } catch (fehler: unknown) {
     if (fehler instanceof AbwesenheitNichtGefunden && gefunden) {

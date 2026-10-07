@@ -8,6 +8,7 @@ import { registriereNachweisArten } from '../services/nachweis/benachrichtigung.
 import { registriereRadarArten } from '../services/radar/benachrichtigung.js';
 import { registriereZeitArten } from '../services/zeit/benachrichtigung.js';
 import { registriereAgentArten } from '../agent/benachrichtigung.js';
+import { registriereAbwesenheitArten } from '../services/abwesenheit/benachrichtigung.js';
 
 /**
  * Alle Benachrichtigungsarten an EINER Stelle anmelden.
@@ -38,6 +39,8 @@ export function alleArten(): readonly ArtDefinition[] {
   registriereRadarArten();
   registriereZeitArten();
   registriereAgentArten();
+  /* V-353 — die Selbstrücknahme einer Abwesenheit meldet sich bei der Personalstelle. */
+  registriereAbwesenheitArten();
   return arten();
 }
 
