@@ -26328,8 +26328,8 @@ sie vom Seed oder per SQL.
 | O-35 | Betreiberdaten: das Postfach trägt der Betreiber ein — jetzt unter Einstellungen › Betrieb; ohne Eintrag bleibt die Datei ein 404. | `drizzle/0503`, `inhalt/sicherheitskontakt.ts` |
 
 **Prüfung.** `tests/isolation/mandant-module-buchen.test.ts`,
-`tests/isolation/basiszinssatz-eingabe.test.ts`, `tests/isolation/sicherheitskontakt.test.ts`
-(in der CI), `tests/kern/modulbuchung-route.test.ts`,
+`tests/isolation/basiszinssatz-eingabe.test.ts`, `tests/isolation/sicherheitskontakt.test.ts`,
+`tests/isolation/seed.test.ts` (eine eingetragene Buchung übersteht den zweiten Lauf; in der CI), `tests/kern/modulbuchung-route.test.ts`,
 `tests/kern/basiszinssatz-eingabe.test.ts`, `tests/kern/sicherheitskontakt-route.test.ts`,
 `tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
