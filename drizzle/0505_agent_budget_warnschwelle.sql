@@ -16,6 +16,11 @@
 -- agent.budget_verwalten in der Gesellschaft. Null Empfaenger ist ein Befund
 -- und kein Fehler.
 --
+-- Als Ziel nimmt er nur das Budgetblatt der Gesellschaft an
+-- (/portal/<slug>/agenten/budget): /api/benachrichtigungen/[id]/oeffnen
+-- leitet auf das Ziel weiter, und ein frei gewaehltes Ziel schickte die
+-- Empfaenger auf eine beliebige Adresse.
+--
 -- Der Status wird nur von 'aktiv' auf 'gewarnt' gesetzt: ein gestopptes
 -- Budget bleibt gestoppt, und das Urteil (app.agent_budget_pruefen) fragt
 -- ohnehin nur nach 'gestoppt'.
@@ -29,7 +34,14 @@ language plpgsql security definer set search_path = pg_catalog, public, app as $
 declare
   v_zeilen integer;
   v_empfaenger integer := 0;
+  v_ziel text;
 begin
+  select '/portal/' || m.slug || '/agenten/budget' into v_ziel
+    from public.mandant m where m.id = p_mandant;
+  if p_ziel is distinct from v_ziel then
+    raise exception 'Das Ziel ist das Budgetblatt dieser Gesellschaft' using errcode = '22023';
+  end if;
+
   update public.agent_budget
      set gewarnt_am = now(),
          status = case when status = 'aktiv' then 'gewarnt'::budget_status else status end

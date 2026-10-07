@@ -26372,7 +26372,9 @@ Arbeitstag (O-165, D-788).
 - **Nachweisablauf (V-380).** Ab der 30-Tage-Stufe erfährt es zusätzlich die
   Personalstelle — wer in der erfassenden Gesellschaft
   `personal.nachweis_lesen` hält —, ab der 7-Tage-Stufe die Leitung (Rolle
-  `leitung`). Zwei neue Arten (`nachweis.ablauf_personalstelle`,
+  `leitung`, ebenfalls mit `personal.nachweis_lesen`: die Meldung nennt Mensch
+  und Nachweis und zeigt auf das Register, das dieses Recht verlangt). Zwei
+  neue Arten (`nachweis.ablauf_personalstelle`,
   `nachweis.ablauf_leitung`, deutsch, Ziel: das Nachweisregister); jedes
   Konto bekommt je Stufe genau eine Meldung, nie das der Person selbst. Die
   Auswahl macht `kern.nachweis_ablauf_empfaenger` (0504) als Definer: der
@@ -26384,14 +26386,16 @@ Arbeitstag (O-165, D-788).
   Buchung Verbrauch und Grenze mal Schwelle (`app.agent_warnung_vermerken`,
   0505 — Mikrocent, numeric gerechnet) und meldet beim Erreichen einmal je
   Budgetzeile an alle mit `agent.budget_verwalten`: Status `gewarnt`,
-  `gewarnt_am`, Art `agent.budget_warnschwelle` mit der Budgetseite als Ziel.
+  `gewarnt_am`, Art `agent.budget_warnschwelle` mit der Budgetseite als Ziel —
+  der Definer nimmt kein anderes an.
   Ändert jemand die Grenze, setzt die Budgetpflege die Warnung zurück, und
   die neue Grenze darf wieder warnen. Der Hartstopp bei 100 % bleibt.
 - **Späte Nacherfassung (V-321).** Liegt eine Nacherfassung mehr als sieben
   Kalendertage nach dem Arbeitstag (Berliner Tage, aus der Datenbank), meldet
   `app.nacherfassung_spaet_melden` (0506) es einmal an die Leitung der
-  Gesellschaft, ohne den Erfassenden. Der Definer prüft Korrektur, Art,
-  Urheber und Abstand selbst. Kein Verbot — die Nacherfassung ist schon
+  Gesellschaft, die Zeiten lesen darf (`zeit.lesen`, das Recht hinter dem
+  Ziel), ohne den Erfassenden. Der Definer prüft Korrektur, Art, Urheber,
+  Abstand und Ziel — nur die neue Fassung — selbst. Kein Verbot — die Nacherfassung ist schon
   geschrieben; die Seite der neuen Fassung sagt dem Erfassenden, dass die
   Leitung informiert ist.
 
@@ -26399,14 +26403,24 @@ Arbeitstag (O-165, D-788).
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-31 | Ab 30 Tagen die Personalstelle (`personal.nachweis_lesen`), ab 7 Tagen die Leitung (Rolle `leitung`) — wie D-800, jetzt gebaut. | `drizzle/0504`, `nachweis/ablauf.ts`, `nachweis/benachrichtigung.ts` |
+| O-31 | Ab 30 Tagen die Personalstelle (`personal.nachweis_lesen`), ab 7 Tagen die Leitung (Rolle `leitung`, mit `personal.nachweis_lesen`) — wie D-800, jetzt gebaut. | `drizzle/0504`, `nachweis/ablauf.ts`, `nachweis/benachrichtigung.ts` |
 | O-195 | Warnung bei 80 %, einmal je Budgetzeile, an alle mit `agent.budget_verwalten` — wie D-784, jetzt mit Auslöser. | `drizzle/0505`, `agent/budget.ts` |
-| O-165 | Sieben Kalendertage nach dem Arbeitstag, danach Hinweis an die Leitung, kein Verbot — wie D-788, jetzt gebaut. | `drizzle/0506`, `zeit/korrektur.ts` |
+| O-165 | Sieben Kalendertage nach dem Arbeitstag, danach Hinweis an die Leitung (mit `zeit.lesen`), kein Verbot — wie D-788, jetzt gebaut. | `drizzle/0506`, `zeit/korrektur.ts` |
 
 **Beim Prüfen berichtigt.** Die volle Isolationssuite fand, dass 0504 und 0506
 das Fenster der Mitgliedschaft gegen `current_date` prüften — den Tag der
 Sitzungszeitzone (`berechtigungsfenster.test.ts`, 0169). Beide fragen jetzt
 `app.berlin_heute()`, wie `app.hat_recht_fuer`.
+
+**Nach der Durchsicht von PR #40 nachgezogen.** Dieselben zwei Befunde wie
+dort: ein Definer, der sein Ziel vom Aufrufer nimmt, und Empfänger, die das
+Ziel nicht öffnen können. 0505 und 0506 nehmen als Ziel nur das Blatt an,
+auf das ihre Art zeigt (Budgetseite der Gesellschaft, neue Fassung des
+Zeiteintrags) — `/api/benachrichtigungen/[id]/oeffnen` leitet auf das Ziel
+weiter. Die Leitung bekommt den Nachweisablauf nur mit
+`personal.nachweis_lesen`, die späte Nacherfassung nur mit `zeit.lesen`;
+nach der Rechtematrix hält sie beides, nimmt eine Gesellschaft es ihr,
+bekommt sie die Meldung nicht.
 
 **Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (4),
 `tests/isolation/nacherfassung-frist.test.ts`, `tests/isolation/berechtigungsfenster.test.ts`,

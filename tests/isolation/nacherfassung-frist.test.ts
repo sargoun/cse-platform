@@ -148,4 +148,39 @@ describe('V-321 — Nacherfassung nach mehr als sieben Tagen', () => {
       [k!.id]))) as unknown as { n: number }[];
     expect(n!.n).toBe(0);
   });
+
+  it('der Definer nimmt als Ziel nur die neue Fassung an — nie eine fremde Adresse', async () => {
+    const id = await eintrag(15);
+    const e = await als(planer, (tx) => korrigiereZeiteintrag(kontextAus(tx, planer), {
+      zeiteintragId: id.id, art: 'nacherfassung', grundKategorie: 'sonstiges',
+      begruendung: 'Nachgetragen.', durchgefuehrtVon: planer,
+      endeZeitpunkt: id.neuesEnde,
+    }));
+    const [k] = await sql.unsafe<{ id: string }[]>(
+      `select id from zeiteintrag_korrektur where ersatz_zeiteintrag_id = $1`, [e.neueFassungId]);
+    for (const ziel of [
+      '//boese.example/x', 'https://boese.example/x', `/portal/reinigung/zeiten/${id.id}`,
+    ]) {
+      await expect(als(planer, (tx) => tx.unsafe(
+        `select app.nacherfassung_spaet_melden($1::uuid, 7, 'T', 'X', $2) as n`,
+        [k!.id, ziel]))).rejects.toThrow(/neue Fassung/u);
+    }
+  });
+
+  it('nimmt die Gesellschaft der Leitung zeit.lesen, bekommt sie den Hinweis nicht', async () => {
+    // Das Ziel — die neue Fassung — liest sich nur mit `zeit.lesen` (0034).
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select r.id, b.id, $1, false from rolle r, berechtigung b
+        where r.schluessel = 'leitung' and r.mandant_id is null and b.schluessel = 'zeit.lesen'`,
+      [f.reinigung]);
+    const id = await eintrag(10);
+    const ergebnis = await als(planer, (tx) => korrigiereZeiteintrag(kontextAus(tx, planer), {
+      zeiteintragId: id.id, art: 'nacherfassung', grundKategorie: 'vergessen_auszustempeln',
+      begruendung: 'Ende nachgetragen.', durchgefuehrtVon: planer,
+      endeZeitpunkt: id.neuesEnde,
+    }));
+    expect(ergebnis.spaetTage).toBe(10);
+    expect((await meldungen()).map((z) => z.empfaenger_id)).not.toContain(leitung);
+  });
 });

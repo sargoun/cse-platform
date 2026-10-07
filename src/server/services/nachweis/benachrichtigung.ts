@@ -34,8 +34,8 @@ import { setze, texteFuer } from '../../../lib/i18n/benachrichtigung.js';
  * (je Qualifikation aenderbar, `warnung_tage`); die Meldung geht an die
  * Beschaeftigte selbst, ab 30 Tagen zusaetzlich an die Personalstelle
  * (`personal.nachweis_lesen` in der erfassenden Gesellschaft), ab 7 Tagen an
- * die Leitung der Gesellschaft (Rolle `leitung`). Gebaut mit V-380. D-800,
- * D-810.
+ * die Leitung der Gesellschaft (Rolle `leitung`, mit `personal.nachweis_lesen`).
+ * Gebaut mit V-380. D-800, D-810.
  */
 export const WARNSTUFEN = [60, 30, 7] as const;
 
@@ -46,7 +46,8 @@ export const LEITUNG_AB_TAGE = 7;
 /*
  * Wer Personalstelle und wer Leitung ist, entscheidet
  * `kern.nachweis_ablauf_empfaenger` (0504): `personal.nachweis_lesen` in der
- * erfassenden Gesellschaft bzw. die Systemrolle `leitung` (03-AUTH §12).
+ * erfassenden Gesellschaft bzw. die Systemrolle `leitung` (03-AUTH §12) — auch
+ * sie nur mit `personal.nachweis_lesen`, dem Recht hinter dem Ziel (NOT-03).
  */
 
 const NACHWEIS = 'nachweis';

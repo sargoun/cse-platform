@@ -486,6 +486,18 @@ describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () 
     await buche(budgetId, agent, 65_000_000n);
     expect((await stand(budgetId)).meldungen).toBe(2 * erste);
   });
+
+  it('der Schreiber nimmt als Ziel nur das Budgetblatt der Gesellschaft an', async () => {
+    await schalteEin('finanzen');
+    const budgetId = await legeBudgetAn('mandant', 100);
+    for (const ziel of [
+      '//boese.example/x', 'https://boese.example/x', '/portal/security/agenten/budget',
+    ]) {
+      await expect(alsApp(sitzung(), (tx) => tx.unsafe(
+        `select neu from app.agent_warnung_vermerken($1, $2, 'T', 'X', $3)`,
+        [f.reinigung, budgetId, ziel]))).rejects.toThrow(/Budgetblatt/u);
+    }
+  });
 });
 
 describe('(5) die Nutzlast ist ein eigenes Tor (0129, SEC-A9)', () => {

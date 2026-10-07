@@ -13,7 +13,12 @@
 -- Datenbank gerechnet — Berliner Tag der Korrektur gegen Berliner Tag des
 -- Arbeitsbeginns der neuen Fassung (Invariante 2). Empfaenger ist die Leitung
 -- der Gesellschaft (Systemrolle leitung, gueltige Mitgliedschaft am Berliner
--- Tag, app.berlin_heute(), 0169), ohne den Aufrufer. Je Korrektur hoechstens einmal.
+-- Tag, app.berlin_heute(), 0169), ohne den Aufrufer, und nur, wer
+-- zeit.lesen haelt — das Ziel der Meldung, die neue Fassung des
+-- Zeiteintrags, liest sich nur damit (0034, NOT-03). Je Korrektur hoechstens
+-- einmal. Als Ziel nimmt er nur genau diese Fassung an
+-- (/portal/<slug>/zeiten/<id>): /api/benachrichtigungen/[id]/oeffnen leitet
+-- auf das Ziel weiter.
 --
 -- Nur Kommentare mit Doppelstrich.
 
@@ -29,6 +34,7 @@ declare
   v_mandant uuid := app.aktiver_mandant();
   v_benutzer uuid := app.aktueller_benutzer();
   v_tage integer;
+  v_ziel text;
   v_zahl integer;
 begin
   if v_mandant is null or v_benutzer is null then
@@ -59,6 +65,16 @@ begin
     return 0;
   end if;
 
+  select '/portal/' || m.slug || '/zeiten/' || k.ersatz_zeiteintrag_id::text
+    into v_ziel
+    from public.zeiteintrag_korrektur k
+    join public.mandant m on m.id = k.mandant_id
+   where k.id = p_korrektur;
+  if p_ziel is distinct from v_ziel then
+    raise exception 'Das Ziel ist die neue Fassung genau dieses Zeiteintrags'
+      using errcode = '22023';
+  end if;
+
   insert into public.benachrichtigung
     (mandant_id, empfaenger_id, art, titel, text, ziel, objekt_typ, objekt_id, sammelbar)
   select distinct v_mandant, bm.benutzer_id, 'zeit.nacherfassung_spaet', p_titel, p_text,
@@ -73,6 +89,7 @@ begin
      and (bm.gueltig_bis is null or bm.gueltig_bis >= app.berlin_heute())
      and b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
      and b.id <> v_benutzer
+     and b.id = any (kern.traeger_des_rechts(v_mandant, 'zeit.lesen'))
      and not exists (
        select 1 from public.benachrichtigung x
         where x.art = 'zeit.nacherfassung_spaet'
@@ -84,7 +101,8 @@ end $$;
 
 comment on function app.nacherfassung_spaet_melden(uuid, integer, text, text, text) is
   'V-321, O-165, D-810: meldet eine Nacherfassung, die mehr als p_frist_tage nach dem '
-  'Arbeitstag erfolgt, einmal an die Leitung der aktiven Gesellschaft (ohne den Aufrufer). '
+  'Arbeitstag erfolgt, einmal an die Leitung der aktiven Gesellschaft mit zeit.lesen (ohne '
+  'den Aufrufer), mit der neuen Fassung als einzigem Ziel. '
   'Nur fuer die eigene, frische Nacherfassung des Aufrufers. Gibt die Zahl der Empfaenger '
   'zurueck; 0, wenn die Frist eingehalten ist.';
 

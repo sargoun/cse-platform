@@ -49,7 +49,7 @@ export class KeinNachrichtenRechtFehler extends Error {
 /**
  * TODO(client, O-165): Voreinstellung — Nacherfassung bis sieben Kalendertage
  * nach dem Arbeitstag (die Obergrenze des § 17 Abs. 1 MiLoG), danach Hinweis an
- * die Leitung (Rolle `leitung`), kein Verbot. Gebaut mit V-321
+ * die Leitung (Rolle `leitung`, mit `zeit.lesen`), kein Verbot. Gebaut mit V-321
  * (`meldeSpaeteNacherfassung`, 0506). D-788, D-810.
  * TODO(client, O-173): Voreinstellung — die sechs Korrekturgruende aus 0036
  * (`korrektur_grund`): vergessen auszustempeln, Geraet defekt, falsches Objekt,
@@ -410,9 +410,9 @@ export async function korrigiereZeiteintrag(
  * Der Abstand kommt aus der Datenbank: Berliner Tag heute gegen Berliner Tag
  * des Arbeitsbeginns der neuen Fassung (Invariante 2, K-11). Liegt er über
  * der Frist, meldet `app.nacherfassung_spaet_melden` (0506) es der Leitung —
- * der Definer prüft Korrektur, Art, Urheber und Abstand noch einmal und
- * meldet je Korrektur höchstens einmal. Kein Verbot: die Nacherfassung ist
- * geschrieben, bevor diese Funktion läuft.
+ * der Definer prüft Korrektur, Art, Urheber und Abstand noch einmal, nimmt als
+ * Ziel nur die neue Fassung an und meldet je Korrektur höchstens einmal. Kein
+ * Verbot: die Nacherfassung ist geschrieben, bevor diese Funktion läuft.
  */
 async function meldeSpaeteNacherfassung(
   kontext: SchreibKontext,

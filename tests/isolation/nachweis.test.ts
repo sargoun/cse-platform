@@ -664,6 +664,27 @@ describe('(6) V-380 — Personalstelle ab 30, Leitung ab 7 Tagen (O-31, D-810)',
     expect((await lauf('2026-02-25')).team).toEqual([]);
   });
 
+  it('nimmt die Gesellschaft der Leitung das Register, bekommt sie auch die Meldung nicht', async () => {
+    // Die Meldung nennt Mensch und Nachweis und zeigt auf das Register, das
+    // `personal.nachweis_lesen` verlangt — ohne das Recht kein Empfang.
+    const chefin = await kontoMit(f.security, 'leitung');
+    const admin = await kontoMit(f.security, 'admin');
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select $1, b.id, $2, false from berechtigung b where b.schluessel = 'personal.nachweis_lesen'`,
+      [await rolleId('leitung'), f.security]);
+    const q = await qualifikation();
+    await nachweis({ person: f.fatima, qualifikation: q, mandant: f.security,
+                     ab: '2025-01-01', bis: '2026-03-03' });
+    // Gerufen unter der Administration: die Planung dieser Datei ist selbst
+    // Leitung und läse das Register jetzt nicht mehr.
+    const b = await alsPlaner(admin, f.security, async (db) =>
+      meldeAblaufwarnungen(db, '2026-02-24'));
+    const an = b.team.map((t) => t.benutzerId);
+    expect(an).not.toContain(chefin);
+    expect(an).toContain(admin);
+  });
+
   it('das Konto der Person selbst bekommt keine Meldung der Personalstelle', async () => {
     // Ihr Zugang hält als Administration selbst `personal.nachweis_lesen`.
     const eigenes = await kontoMit(f.security, 'admin', f.fatima);

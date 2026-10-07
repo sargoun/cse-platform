@@ -12,6 +12,11 @@
 -- als Leitung darin, sonst als Personalstelle. Die Konten der Person selbst
 -- stehen nie darin — sie hat ihre eigene Warnung.
 --
+-- Auch die Leitung nur, wenn sie personal.nachweis_lesen haelt: die Meldung
+-- nennt Mensch und Nachweis und zeigt auf das Nachweisregister, das genau
+-- dieses Recht verlangt (NOT-03). Nach der Rechtematrix haelt die Leitung es;
+-- nimmt eine Gesellschaft es ihr, bekommt sie auch die Meldung nicht.
+--
 -- Ein Definer, weil der Waechter unter cse_job laeuft und die Tests ihn unter
 -- einer Planungssitzung rufen: die Mitgliedschaften fremder Konten sieht keine
 -- der beiden Rollen, und eine Empfaengerliste, die davon abhaengt, wer fragt,
@@ -27,6 +32,9 @@ set search_path = pg_catalog, public, app as $$
   with eigene as (
     select b.id from public.benutzer b where b.person_id = p_person
   ),
+  lesende as (
+    select unnest(kern.traeger_des_rechts(p_mandant, 'personal.nachweis_lesen')) as id
+  ),
   leitung as (
     select distinct bm.benutzer_id as id
       from public.benutzer_mandant bm
@@ -40,13 +48,11 @@ set search_path = pg_catalog, public, app as $$
        and (bm.gueltig_bis is null or bm.gueltig_bis >= app.berlin_heute())
        and b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
        and b.id not in (select id from eigene)
-  ),
-  personalstelle as (
-    select unnest(kern.traeger_des_rechts(p_mandant, 'personal.nachweis_lesen')) as id
+       and b.id in (select id from lesende)
   )
   select l.id, 'leitung' from leitung l
   union all
-  select p.id, 'personalstelle' from personalstelle p
+  select p.id, 'personalstelle' from lesende p
    where p.id not in (select id from eigene)
      and p.id not in (select id from leitung)
 $$;
@@ -54,7 +60,8 @@ $$;
 comment on function kern.nachweis_ablauf_empfaenger(uuid, uuid, boolean) is
   'V-380, O-31, D-810: Empfaenger der Ablaufmeldung eines Nachweises in der erfassenden '
   'Gesellschaft — Personalstelle (personal.nachweis_lesen) und, wenn p_mit_leitung, die '
-  'Leitung (Rolle leitung); jedes Konto einmal, nie das der Person selbst.';
+  'Leitung (Rolle leitung, ebenfalls mit personal.nachweis_lesen); jedes Konto einmal, '
+  'nie das der Person selbst.';
 
 alter function kern.nachweis_ablauf_empfaenger(uuid, uuid, boolean) owner to cse_definer;
 revoke execute on function kern.nachweis_ablauf_empfaenger(uuid, uuid, boolean) from public;
