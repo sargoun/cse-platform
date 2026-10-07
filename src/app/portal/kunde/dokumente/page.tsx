@@ -101,10 +101,11 @@ export default async function Kundendokumente(
         <div className="mb-s5">
           <Offen
             nummer="O-671"
+            art="voreinstellung"
             was="Unterlagen kommen zurzeit nicht über das Portal"
-            weg="Ob freigegebene Dokumente und Anhänge im Portal
-              herunterladbar sind, ist noch nicht entschieden; bis dahin
-              schickt Ihre Ansprechpartnerin sie auf dem bisherigen Weg. Diese
+            weg="Freigegebene Unterlagen sollen hier zum Herunterladen stehen;
+              dieser Weg ist noch nicht gebaut. Bis dahin schickt Ihre
+              Ansprechpartnerin sie auf dem bisherigen Weg. Diese
               Liste bleibt deshalb leer — das heißt NICHT, dass zu Ihnen keine
               Unterlagen vorliegen."
           />

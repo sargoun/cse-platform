@@ -41,11 +41,11 @@ import {
  *    Frage also schon entschieden, genauso wie beim Bautagebuch — die offene
  *    Frage ist nicht „anschliessen oder nicht", sondern „soll eine Migration
  *    die Decke oeffnen".
- *    // TODO(client, O-674): Sieht der Auftraggeber seine eigenen Nachtraege
- *    (VOB/B § 2) und die an ihn gerichteten Behinderungsanzeigen (VOB/B § 6)
- *    im Portal? Ein Nachtrag beruehrt Geld, eine Behinderungsanzeige ist eine
- *    empfangsbeduerftige Erklaerung — beides braucht eine Entscheidung, bevor
- *    eine Decke geoeffnet wird.
+ *    // TODO(client, O-674): Voreinstellung — Nachtraege (VOB/B § 2) und
+ *    Behinderungsanzeigen (VOB/B § 6) stehen NICHT im Portal: beide erreichen
+ *    den Auftraggeber schriftlich ueber die Bauleitung, mit nachweisbarem
+ *    Zugang (empfangsbeduerftige Erklaerung); die Decken bleiben zu. Wie
+ *    gebaut. D-794.
  *  · **Kalkulation, Marge, Stundensaetze, Sicherheitseinbehalt** — nirgends
  *    gelesen. `projekt` fuehrt `auftragssumme_netto_cent`; die Spalte steht
  *    nicht in dieser Abfrage, und RLS wirkt zeilenweise.

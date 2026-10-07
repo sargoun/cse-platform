@@ -184,8 +184,10 @@ export default async function Kundenreklamationen(
         <Offen
           nummer="O-74"
           was="Melden läuft über Ihre Ansprechpartnerin"
-          weg="Eine Beanstandung im Portal zu erfassen setzt einen Schreibweg
-            voraus, den das Kundenportal noch nicht hat."
+          art="voreinstellung"
+          weg="Das Portal ist lesend: eine Beanstandung nimmt Ihre
+            Ansprechpartnerin entgegen und legt sie an — danach steht sie in
+            dieser Liste."
         />
       </div>
     </KundenRahmen>

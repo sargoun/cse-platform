@@ -35,6 +35,17 @@ import 'server-only';
  * **Kein `app.aktiver_mandant()` in einem SQL dieses Ordners.** Im
  * Kunden-Scope ist er nach K-20 NULL; eine Bedingung darauf ist keine
  * Verengung, sondern das stille Ende der Ergebnismenge.
+ *
+ * // TODO(client, O-96): Voreinstellung — im Portal nimmt ein Kunde kein
+ * Angebot an, zeichnet keinen Leistungsnachweis gegen und meldet keine
+ * Reklamation: Annahme und Reklamation nimmt die Ansprechpartnerin entgegen,
+ * gegengezeichnet wird vor Ort (O-89); das Portal ist lesend (O-74, D-790).
+ * Wie gebaut. D-794.
+ * // TODO(client, O-52): Voreinstellung — EIN Konto je Ansprechpartner ueber
+ * alle Gesellschaften der Gruppe, die ihn beliefern: je Gesellschaft ein
+ * `kunde_zugang` (eindeutig je Konto und Gesellschaft), die Anzeige filtert
+ * nach liefernder Gesellschaft (`GesellschaftsFilter`), und jede Zeile nennt
+ * sie. Wie gebaut. D-794.
  */
 
 /** Was jeder Lesedienst hier bekommt — und mehr braucht er nicht. */

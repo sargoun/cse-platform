@@ -254,12 +254,19 @@ describe('die Projektion gibt keine internen Spalten heraus (04-SEITENKARTE §8)
     'absender_benutzer_id', 'absender_extern', 'erstellt_von', 'geaendert_von',
     'letzte_mahnstufe', 'nummer_laufend', 'nummernkreis_id', 'festgeschrieben_von',
     /*
+     * Der Mahnstand bleibt schriftlich (Voreinstellung O-673, D-794): nicht
+     * nur die Stufe, auch Datum der letzten Mahnung und Mahnsperre bleiben
+     * aus jeder Abfrage dieses Ordners.
+     */
+    'letzte_mahnung_am', 'mahnsperre_bis',
+    /*
      * Der Auftrag, das Angebot und das Objekt (Stapel „auftraege/angebote/
      * objekte/dokumente"). Jede dieser Spalten steht auf einer Tabelle, deren
      * ZEILE der Kunde zu Recht sieht — RLS wirkt zeilenweise, die Projektion
      * entscheidet, welche Spalten herauskommen:
      *
-     *   auftragswert_netto_cent   die Auftragssumme (offen, O-840)
+     *   auftragswert_netto_cent   die Auftragssumme (Voreinstellung O-840:
+     *                             nicht im Portal)
      *   personalbedarf_anzahl     die Besetzung (§8: no names, no schedules)
      *   wochenstunden_soll        dieselbe Zeile von §8, plus Rechengroesse
      *   ausstattung_hinweis       interner Vermerk fuer die Kolonne

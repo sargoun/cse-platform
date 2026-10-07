@@ -40,13 +40,17 @@ import {
  * genuegt EINE Migration mit einer permissiven `t_kunde` — diese Abfragen
  * liefern dann Zeilen, ohne dass hier eine Zeile geaendert wird.
  *
- * // TODO(client, O-671): Bekommt `dokument` eine eng gefasste permissive
- * `t_kunde` auf `sichtbar_fuer_kunde` (die Decken dafuer stehen bereits), oder
- * bleiben Dokumente und Anlagen dem Mailweg vorbehalten? Bis zur Antwort
+ * // TODO(client, O-671): Voreinstellung (D-780, D-794) — `dokument` bekommt
+ * eine eng gefasste permissive `t_kunde` auf `sichtbar_fuer_kunde` (die Decken
+ * dafuer stehen bereits), freigebbar sind die Kategorien aus
+ * `KUNDENFREIGABE_KATEGORIEN`; nicht gebaut (V-282). Bis dahin
  * liefert diese Liste null Zeilen, und die Seite sagt das ausdruecklich —
  * sie sagt NICHT „es liegt nichts vor" (K-18).
  *
- * // TODO(client, O-843): Faellt O-671 positiv aus, braucht der Abruf einen
+ * // TODO(client, O-843): Voreinstellung — jeder Kundenabruf vermerkt sich
+ * VOR der signierten Adresse in `dokument_zugriff`, ueber einen
+ * `security definer`, der Kunde, Dokument und Zugang prueft (V-347, D-794).
+ * Dafuer braucht der Abruf (O-671) einen
  * zweiten Schritt, der heute fehlt und der beim ersten Versuch auffiele:
  * `dokument_zugriff` ist die Abrufspur (DOC-03, SEC-A6, Art. 15 DSGVO), und
  * ihre INSERT-Policy `t_dokument_zugriff_anlegen` (0139) verlangt

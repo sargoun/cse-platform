@@ -35,6 +35,13 @@ import {
  * // TODO(client, O-74): Voreinstellung — das Kundenportal ist lesend: keine
  * Antwort im Portal, damit keine ausgehende Nachricht ohne Freigabe entsteht
  * (Invariante 7, § 7 UWG); die Ansprechpartnerin legt die Antwort ab (D-790).
+ * // TODO(client, O-670): Voreinstellung — eine Portalnachricht ist fuer den
+ * Kunden sichtbar, sobald sie mit Kunde und Empfaenger angelegt ist (0255,
+ * wie gebaut); einen Text, den der Kunde noch nicht sehen soll, bereitet die
+ * Sachbearbeitung als Entwurf ausserhalb des Fadens vor (Freigabe,
+ * `freigabe_id`), und die Nachricht entsteht erst mit dem Absenden. Einen
+ * internen Weg, der eine Nachricht mit `kunde_id` anlegt, gibt es noch nicht
+ * (V-346). D-794.
  */
 
 export interface Kundennachricht extends Gesellschaft {

@@ -221,16 +221,19 @@ export default async function Kundenprojekt(
       <div className="mt-s5 flex flex-col gap-s4">
         <Offen
           nummer="O-78"
+          art="voreinstellung"
           was="Bautagebuch und Wachbuch stehen nicht im Portal"
-          weg="Beide sind interne Aufzeichnungen mit Personenbezug; ob es einen
-            kundensichtbaren Auszug geben soll, ist noch nicht entschieden."
+          weg="Beide sind interne Aufzeichnungen mit Personenbezug und bleiben
+            intern; was Ihr Projekt betrifft, erreicht Sie schriftlich über die
+            Bauleitung."
         />
         <Offen
           nummer="O-674"
+          art="voreinstellung"
           was="Nachträge und Behinderungsanzeigen stehen nicht im Portal"
           weg="Ein Nachtrag berührt Geld, eine Behinderungsanzeige ist eine
-            Erklärung nach VOB/B § 6 — beides erreicht Sie heute schriftlich
-            über die Bauleitung."
+            Erklärung nach VOB/B § 6 — beide erreichen Sie schriftlich über die
+            Bauleitung, mit nachweisbarem Zugang."
         />
       </div>
     </KundenRahmen>

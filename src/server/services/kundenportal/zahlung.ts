@@ -50,16 +50,18 @@ import {
  *    verschlossen. `erstellt_am` der Zuordnung waere der BUCHUNGSzeitpunkt
  *    und nicht der Zahlungseingang — eine Zahl, die aussieht wie eine
  *    Antwort und eine andere Frage beantwortet.
- *    // TODO(client, O-672): Soll dem Kunden das Valutadatum seiner eigenen
- *    Zahlung angezeigt werden (dann braucht `zahlung` einen eng gefassten
- *    Kundenlesepfad auf die eigenen Eingaenge), oder genuegt „ausgeglichen
- *    am"?
+ *    // TODO(client, O-672): Voreinstellung — „ausgeglichen am" genuegt; das
+ *    Valutadatum bleibt intern (`zahlung` ohne Kundenlesepfad: Bankbuchung,
+ *    Sammelzahlungen), der Kunde kennt das Datum seiner Ueberweisung aus der
+ *    eigenen Buchhaltung. Wie gebaut. D-794.
  *  · **Keine Mahnstufe.** `op.letzte_mahnstufe` ist im Kunden-Scope lesbar,
  *    `mahnung` selbst nicht. Eine Stufe ohne das Schreiben dahinter ist eine
  *    Drohung ohne Text.
- *    // TODO(client, O-673): Sieht ein Kunde seinen eigenen Mahnstand im
- *    Portal — Stufe, Datum, Gebuehr —, oder bleibt das Mahnwesen ein
- *    Vorgang, der ausschliesslich per Post und Mail stattfindet?
+ *    // TODO(client, O-673): Voreinstellung — das Mahnwesen bleibt
+ *    schriftlich (Brief oder E-Mail); das Portal zeigt offene und
+ *    ueberfaellige Betraege, aber keine Mahnstufe, kein Mahndatum, keine
+ *    Gebuehr (`tests/kern/kundenportal.test.ts` haelt die Spalten fern). Wie
+ *    gebaut. D-794.
  *  · **Keine Guthaben-Posten.** `art = 'debitor_guthaben'` faellt heraus:
  *    `p_op_decke` laesst im Kundenportal ohnehin nur `debitor` zu, und eine
  *    Guthabenzeile zwischen Forderungen ist keine Forderung (so trennt es

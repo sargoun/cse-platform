@@ -76,8 +76,9 @@ describe('bindefristText · die Bindefrist eines Angebots als Satz', () => {
 
   it('der Satz leitet KEINEN Zustand ab (O-842)', () => {
     /**
-     * `angebot_status` kennt `abgelaufen` als eigenen Wert, und es gibt heute
-     * keinen Lauf, der ihn setzt. Die Seite zeigt den GESPEICHERTEN Zustand
+     * `angebot_status` kennt `abgelaufen` als eigenen Wert, und ihn setzt der
+     * nächtliche Lauf `angebot_ablauf` (V-085, Voreinstellung O-842) — nicht
+     * die Seite. Sie zeigt den GESPEICHERTEN Zustand
      * und diesen Satz nebeneinander. Fiele hier eine Ableitung hinein, stünde
      * im Portal ein anderer Zustand als in der Datenbank — und die
      * Sachbearbeitung suchte den Unterschied.
@@ -187,9 +188,10 @@ describe('die Dokumentenseite sagt, WARUM sie leer ist (K-18, O-671)', () => {
    * Datenbank nachgemessen). „Es liegt keine Unterlage vor" wäre dort schlicht
    * gelogen: es liegen welche vor, sie kommen nur nicht diesen Weg.
    *
-   * Ob sie ihn je kommen, ist eine Entscheidung über Offenlegung und als
-   * O-671 offen. Diese Prüfungen halten fest, dass die Seite sie als offen
-   * AUSWEIST, statt sie stillschweigend als Tatsache auszugeben.
+   * Dass sie ihn kommen sollen, ist die Voreinstellung (O-671, D-780); der
+   * Weg ist nicht gebaut (V-282). Diese Prüfungen halten fest, dass die Seite
+   * das AUSWEIST, statt die leere Liste stillschweigend als Tatsache
+   * auszugeben.
    */
   const LISTE = quelle('src/app/portal/kunde/dokumente/page.tsx');
   const BLATT = quelle('src/app/portal/kunde/dokumente/[id]/page.tsx');
@@ -325,7 +327,7 @@ describe('die vier neuen Seitenpaare halten sich an die Bauart des Portals', () 
     });
   }
 
-  it('die Aufträge nennen O-840 — die Auftragssumme ist offen, nicht vergessen', () => {
+  it('die Aufträge nennen O-840 — die Auftragssumme fehlt mit Absicht, nicht vergessen', () => {
     /**
      * Sie steht in keiner Abfrage (`tests/kern/kundenportal.test.ts` hält die
      * Spalte fern). Eine Auslassung ohne Nummer wäre von einem Versehen nicht
