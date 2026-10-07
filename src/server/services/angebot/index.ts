@@ -212,7 +212,7 @@ export async function uebernimmKalkulation(
      kalkulation.istPlatzhalter,
      kalkulation.offeneFragen.length === 0
        ? null
-       : `Offene Fragen: ${kalkulation.offeneFragen.join(', ')}`,
+       : `Unbestätigte Voreinstellungen: ${kalkulation.offeneFragen.join(', ')}`,
      opts.frequenz.istPlatzhalter],
   );
   if (kopf === undefined) {

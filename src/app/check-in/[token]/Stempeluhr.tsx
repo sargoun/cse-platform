@@ -22,14 +22,14 @@ import { Schichtfoto } from './Schichtfoto';
  * anzeigte, machte eine verstellte Telefonuhr zur Auskunft ueber die
  * Arbeitszeit.
  *
- * **Kein Ort wird erhoben**, solange O-06 offen ist: der Aufruf von
+ * **Kein Ort wird erhoben** (Voreinstellung O-06, D-802): der Aufruf von
  * `navigator.geolocation` steht hier nicht, das Feld fehlt im Rumpf, und die
  * Datenbank verwirft einen Punkt zusaetzlich (LEG-10, §9.5). Das ist die
  * Zusage aus dem Abnahmekriterium — nirgends erhoben, nirgends gespeichert.
- * // TODO(client, O-06): Gibt es einen Betriebsrat? § 87 Abs. 1 Nr. 6 BetrVG
- * entscheidet, ob LEG-10 ueberhaupt ausgeliefert wird — und die Frage betrifft
- * neben der Geolokalisierung auch Geraetekennung, Geraeteabweichung,
- * Korrekturstatistik und Nicht-erschienen-Auswertung.
+ * // TODO(client, O-06): Voreinstellung — die Plattform verhaelt sich, als gaebe
+ * es einen Betriebsrat ohne Betriebsvereinbarung dazu (§ 87 Abs. 1 Nr. 6
+ * BetrVG): LEG-10 bleibt aus, ebenso die Geraetekennung und die Abweichungs-,
+ * Korrektur- und Nicht-erschienen-Auswertung.
  *
  * **Die Wörter kommen als Eigenschaft** (V-200, EMP-12): die Seite liest die
  * Sprache des Geräts und reicht die passenden Texte herein. Die Uhrzeit bleibt

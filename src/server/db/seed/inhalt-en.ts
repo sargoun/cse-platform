@@ -12,8 +12,9 @@
  * hilft, steht eine kurze Erklaerung daneben — das ist eine Lesehilfe und
  * keine zweite Bedeutung.
  *
- * // TODO(client): O-207 — bitte auch die englische Fassung durchgehen. Sie
- * // ist so zurückhaltend wie die deutsche und wartet auf dieselben Angaben.
+ * // TODO(client, O-207): Voreinstellung — auch die englische Fassung steht so
+ * // veröffentlicht da; sie ist so zurückhaltend wie die deutsche und wird in
+ * // der Website-Pflege mitgeprüft (D-802).
  */
 import type { SeitenInhalt } from './inhalt.js';
 
@@ -538,13 +539,14 @@ export const SEITEN_EN: readonly SeitenInhalt[] = [
 /**
  * The English twin of `LEISTUNGSSEITEN` (D-82) — same path, own `seite` row.
  *
- * Provisional demonstration content, and it says so. Which services get a
- * page of their own and which company is responsible for them is open
- * (O-652); until that is answered `mandant_id` stays NULL and the `Service`
- * block carries no `provider`.
+ * Demonstration content, and it says so. A service page belongs to the
+ * company that performs the service (default O-652, D-802), but neither the
+ * import nor page maintenance sets `seite.mandant_id` (V-293) — so the row
+ * stays NULL and the `Service` block carries no `provider`.
  *
- * // TODO(client, O-652): Which services get their own page under
- * `/leistungen/<slug>`, and which company is responsible for each?
+ * // TODO(client, O-652): Default — a service page names the company that
+ * performs the service; which services get a page is an editorial decision
+ * (until then only this one).
  */
 export const LEISTUNGSSEITEN_EN: readonly {
   readonly pfad: string;
@@ -572,9 +574,10 @@ export const LEISTUNGSSEITEN_EN: readonly {
         ueberschrift: 'Provisional page',
         text:
           'This page is demonstration content. It shows what a single service '
-          + 'looks like as a page of its own — which services get one, and '
-          + 'which company is responsible for them, has not been decided yet '
-          + '(open question O-652). Until then the page names no provider.',
+          + 'looks like as a page of its own. Which services get one is an '
+          + 'editorial decision; such a page names the company that performs '
+          + 'the service as its provider (default O-652). This page is not yet '
+          + 'assigned to a company and therefore names no provider.',
       },
     ],
   },

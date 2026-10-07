@@ -16,8 +16,9 @@
  * ist eine Zusage. Was hier fehlt, ist genau das, was der Mandant beisteuern
  * muss.
  *
- * // TODO(client): O-207 — bitte die Texte durchgehen und ergänzen. Besonders
- * // alles, was eine Zusage an einen Kunden wäre.
+ * // TODO(client, O-207): Voreinstellung — diese Entwurfstexte stehen
+ * // veröffentlicht da; der Betreiber prüft und ergänzt sie in der
+ * // Website-Pflege, besonders alles, was eine Zusage an einen Kunden wäre (D-802).
  */
 
 export interface InhaltsAbschnitt {
@@ -655,15 +656,17 @@ export const SEITEN: readonly SeitenInhalt[] = [
  * — fertig gemeldeter, zur Laufzeit ungesehener Code. Eine Zeile je Sprache
  * ist das Minimum, das die Route wirklich ausführt.
  *
- * **Sie sagt selbst, dass sie vorläufig ist.** Der Text nennt O-652, und
- * `mandant_id` bleibt NULL: solange niemand entschieden hat, WELCHE
- * Gesellschaft eine Leistungsseite verantwortet, bleibt `Service.provider`
- * weg (siehe `seitenService` in `services/inhalt/jsonld.ts`). Die
- * Leistungsbeschreibung selbst ist nicht erfunden — sie steht wortgleich in
- * der Liste auf `/leistungen` (D-473).
+ * **Sie sagt selbst, dass sie Demonstrationsbestand ist.** Der Text nennt
+ * O-652, und `mandant_id` bleibt NULL: eine Leistungsseite gehört der
+ * Gesellschaft, die die Leistung erbringt (Voreinstellung O-652, D-802), aber
+ * weder dieser Import noch die Seitenpflege setzen `seite.mandant_id` (V-293)
+ * — also bleibt `Service.provider` weg (siehe `seitenService` in
+ * `services/inhalt/jsonld.ts`). Die Leistungsbeschreibung selbst ist nicht
+ * erfunden — sie steht wortgleich in der Liste auf `/leistungen` (D-473).
  *
- * // TODO(client, O-652): Welche Leistungen bekommen eine eigene Seite unter
- * `/leistungen/<slug>`, und welche Gesellschaft verantwortet sie?
+ * // TODO(client, O-652): Voreinstellung — eine Leistungsseite trägt die
+ * Gesellschaft, die die Leistung erbringt; welche Leistungen eine eigene Seite
+ * bekommen, entscheidet die Redaktion (bis dahin nur diese eine).
  */
 export interface LeistungsSeite extends SeitenInhalt {
   readonly titel: string;
@@ -689,10 +692,11 @@ export const LEISTUNGSSEITEN: readonly LeistungsSeite[] = [
         ueberschrift: 'Vorläufige Seite',
         text:
           'Diese Seite ist Demonstrationsbestand. Sie zeigt, wie eine '
-          + 'einzelne Leistung als eigene Seite aussieht — welche Leistungen '
-          + 'eine eigene Seite bekommen und welche Gesellschaft sie '
-          + 'verantwortet, ist noch nicht entschieden (offen O-652). Bis '
-          + 'dahin nennt die Seite keine Gesellschaft als Anbieter.',
+          + 'einzelne Leistung als eigene Seite aussieht. Welche Leistungen '
+          + 'eine eigene Seite bekommen, legt die Redaktion fest; eine solche '
+          + 'Seite nennt die Gesellschaft als Anbieter, die die Leistung '
+          + 'erbringt (Voreinstellung O-652). Diese Seite ist noch keiner '
+          + 'Gesellschaft zugeordnet und nennt deshalb keinen Anbieter.',
       },
     ],
   },

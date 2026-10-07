@@ -15,9 +15,9 @@
  * ist, und der Handler antwortet 404. Eine erfundene Adresse waere genau die
  * vorgetaeuschte Anbindung, die CLAUDE.md ausschliesst.
  *
- * // TODO(client, O-35): Welches Postfach empfaengt Sicherheitsmeldungen, wer
- * liest es, und in welcher Frist wird geantwortet? Ohne Antwort bleibt
- * `/.well-known/security.txt` ein 404 — mit Absicht.
+ * // TODO(client, O-35): Betreiberdaten — Postfach fuer Sicherheitsmeldungen,
+ * wer es liest und die Antwortfrist traegt der Betreiber ein (D-803, V-390).
+ * Bis dahin bleibt `/.well-known/security.txt` ein 404 — mit Absicht.
  */
 
 /** Der Schluessel in `plattform_einstellung`, unter dem das Postfach steht. */

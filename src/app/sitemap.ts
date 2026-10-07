@@ -3,6 +3,7 @@ import { basisAusAnfrage } from '@/server/inhalt/seiten-daten';
 import { oeffentlichLesen } from '@/server/inhalt/lesen';
 import { detailEintraege, sitemapEintraege } from '@/server/services/inhalt/sitemap';
 import { alternativen, istSprache, mitSprache, SPRACHEN } from '@/lib/sprache';
+import { offeneStellenKennungen } from '@/app/(public)/karriere/daten';
 
 /**
  * `/sitemap.xml` (PUB-10, PUB-12) — die veroeffentlichten Seiten, sonst nichts.
@@ -59,5 +60,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(d.geaendert === null ? {} : { lastModified: d.geaendert }),
   }));
 
-  return [...seiten, ...detailseiten, ...barrierefreiheit];
+  /**
+   * **Der Karrierebereich** (O-512, Voreinstellung D-802). `/karriere` ist eine
+   * Codeseite wie die Erklärung; die offenen Stellen kommen aus dem Leser der
+   * Karriereseite (`offeneStellenKennungen`, dieselbe Bedingung wie
+   * `offeneStellen`): die Sichtbarkeitsregel bleibt die der Policy, keine
+   * zweite Liste — und ohne die 50er-Grenze der Seite, gemeldet wird jede
+   * Stelle, die es gibt. Nur deutsch, bis der englische Baum steht (V-393,
+   * D-82): ein `hreflang="en"` verwiese auf eine Fassung, die es noch nicht
+   * gibt. Ohne `lastModified`: der Leser trägt keinen Zeitpunkt, und „heute"
+   * wäre jeden Tag eine neue Behauptung (R-11).
+   */
+  const stellen = await offeneStellenKennungen();
+  const karriere = [
+    { url: `${basis}/karriere` },
+    ...stellen.map((id) => ({ url: `${basis}/karriere/${id}` })),
+  ];
+
+  return [...seiten, ...detailseiten, ...barrierefreiheit, ...karriere];
 }

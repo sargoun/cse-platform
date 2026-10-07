@@ -33,9 +33,9 @@ const TEXT = {
       'Die Angaben dieser Gesellschaft sind noch nicht bestätigt. Sie stammen aus '
       + 'dem Demonstrationsbestand und sind KEINE gültige Auskunft nach § 5 TMG.',
     hinweis:
-      'Angaben, die hier als „noch nicht hinterlegt" erscheinen, sind von der '
-      + 'Geschäftsführung zu bestätigen. Sie stehen bewusst sichtbar offen, statt '
-      + 'weggelassen zu werden.',
+      'Angaben, die hier als „noch nicht hinterlegt" erscheinen, trägt der Betreiber '
+      + 'ein, und die Geschäftsführung bestätigt sie. Bis dahin stehen sie bewusst '
+      + 'sichtbar da, statt weggelassen zu werden.',
   },
   en: {
     ueberschrift: 'The companies of the group',
@@ -51,8 +51,9 @@ const TEXT = {
       'The details of this company have not been confirmed. They come from the '
       + 'demonstration data set and are NOT a valid legal notice.',
     hinweis:
-      'Entries shown as “not yet recorded” are awaiting confirmation by the '
-      + 'management. They are left visibly open rather than omitted.',
+      'Entries shown as “not yet recorded” are entered by the operator and '
+      + 'confirmed by the management. Until then they are shown deliberately '
+      + 'rather than omitted.',
   },
 } as const;
 

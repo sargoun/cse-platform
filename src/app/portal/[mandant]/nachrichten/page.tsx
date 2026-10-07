@@ -168,7 +168,7 @@ export default async function Nachrichtenliste(
             * SMS-Frage (O-82) fiel weg, obwohl das Register sie führt.
             */}
           {ohneVersand.map((w) => `${KANAL_TEXT[w.kanal] ?? w.kanal}: nicht verbunden`
-            + (w.offen === null ? '' : ` (offen ${w.offen})`)).join(' · ')}
+            + (w.offen === null ? '' : ` — trägt der Betreiber ein (${w.offen})`)).join(' · ')}
           {'. '}
           Interne Fäden im Portal funktionieren. Was den Kunden erreichen soll,
           geht erst hinaus, wenn ein Versender eingerichtet ist.

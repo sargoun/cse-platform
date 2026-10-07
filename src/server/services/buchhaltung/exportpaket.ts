@@ -20,6 +20,11 @@ import 'server-only';
  * Sperre steht in der Datenbank (`app.export_sperre_pruefen`), nicht hier —
  * damit sie auch dann gilt, wenn jemand später einen zweiten Schreiber baut
  * und diese Datei nicht kennt.
+ *
+ * // TODO(client, O-124): Voreinstellung — die Belege gehen als ZIP neben der
+ * // EXTF-Datei an den Steuerberater, geprüft gegen den SHA-256 dieses
+ * // Manifests; eine Anbindung an DATEV Unternehmen online braucht es dafür
+ * // nicht. Das Paket je Export ist nicht gebaut (V-385, D-802).
  */
 
 export interface Abfrage {

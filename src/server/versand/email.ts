@@ -25,8 +25,8 @@ export class EmailNichtVerbundenFehler extends Error {
   constructor() {
     super(
       'Es ist kein Postausgang verbunden (O-501). Die Nachricht wurde NICHT versendet. '
-      + 'Offen: welcher in der EU gehostete Anbieter mit AV-Vertrag, welche Absenderadresse '
-      + 'je Gesellschaft, und ob DKIM/DMARC ueber die bestehenden Domains laufen.',
+      + 'Den Anbieter (in der EU gehostet, mit AV-Vertrag), die Absenderadresse je '
+      + 'Gesellschaft und DKIM/DMARC ueber die bestehenden Domains traegt der Betreiber ein.',
     );
     this.name = 'EmailNichtVerbundenFehler';
   }

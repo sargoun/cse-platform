@@ -21,6 +21,9 @@ import { ImportFehler, importiereAuszug }
  * **Es gibt keinen Abruf bei der Bank.** Kein PSD2, kein FinTS, keine
  * Zugangsdaten. Ein Mensch lädt die Datei hoch, die seine Bank ihm
  * bereitstellt; diese Route liest sie.
+ * // TODO(client, O-120): Voreinstellung — Hochladen von Hand, kein SFTP und
+ * // kein EBICS; Bank und IBAN je Gesellschaft trägt der Betreiber unter
+ * // Finanzen › Bankkonten ein (D-802).
  *
  * **Der Prüfwert der Datei entscheidet über den zweiten Versuch.** Dieselbe
  * Datei noch einmal hochzuladen ist ein Nichtereignis und wird als solches

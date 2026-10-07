@@ -7,6 +7,8 @@ const config: NextConfig = {
   typedRoutes: true,
   // D-04: serverless functions run in Frankfurt. Recorded here as well as in
   // the Vercel project so a reviewer can see the intent in the repository.
+  // TODO(client, O-11): Voreinstellung — managed EU cloud (Supabase Frankfurt,
+  // Vercel fra1, OpenAI EU endpoint), no self-hosted server (D-802).
   env: { VERCEL_REGION: process.env['VERCEL_REGION'] ?? 'fra1' },
 
   /**

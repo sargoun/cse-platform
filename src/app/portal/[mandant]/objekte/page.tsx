@@ -28,8 +28,9 @@ import type { BereichSchluessel } from '@/lib/design/theme';
  * Die Karte (SEITENKARTE: "list + map") fehlt hier mit Absicht: sie braucht
  * einen Kartendienst, und keiner ist eingerichtet. Eine Karte einzubauen, die
  * nichts laedt, waere eine vorgetaeuschte Integration.
- * // TODO(client, O-132): welcher EU-gehostete Kartendienst, unter welchem
- * Auftragsverarbeitungsvertrag? Bis dahin bleibt die Liste eine Liste.
+ * // TODO(client, O-132): Betreiberdaten — den EU-gehosteten Kartendienst und
+ * seinen Auftragsverarbeitungsvertrag traegt der Betreiber ein (D-803). Bis
+ * dahin bleibt die Liste eine Liste.
  */
 export const dynamic = 'force-dynamic';
 

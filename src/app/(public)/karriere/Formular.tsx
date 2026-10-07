@@ -113,7 +113,7 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
         <textarea id="nachricht" name="nachricht" rows={6} className={eingabe} />
       </div>
 
-      {/* TODO(client, O-375): Lebenslauf als Datei — braucht den Belegspeicher. */}
+      {/* TODO(client, O-375): Voreinstellung — Unterlagen in den privaten Belegspeicher, gelöscht mit der Bewerbung; das Dateifeld ist nicht gebaut (V-387), den Speicher verbindet der Betreiber (D-803). */}
       <p className="m-0 max-w-prose rounded-md border border-line bg-surface-2 p-s4 text-sm text-text-muted">
         <strong className="text-text">Noch kein Datei-Upload.</strong> Der
         Dokumentenspeicher ist nicht verbunden; ein Feld, das eine Datei annimmt

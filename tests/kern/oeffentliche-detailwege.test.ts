@@ -116,7 +116,7 @@ describe('die Leistungsseiten des Demonstrationsbestands', () => {
     },
   );
 
-  it('sie nennt keine Gesellschaft als Anbieter, solange O-652 offen ist', () => {
+  it('sie nennt keine Gesellschaft als Anbieter, solange keine zugeordnet ist (O-652)', () => {
     /*
      * `mandant_id` bleibt NULL, also liefert die `besitzer`-Abfrage `null`,
      * also bleibt `provider` weg. Ein `provider` auf ein Dach, das es als

@@ -20,10 +20,10 @@ import { alternativen, mitSprache, VORGABE_SPRACHE, type Sprache } from '@/lib/s
  * eine falsche Zusage an genau die Menschen, die sich darauf verlassen. Der
  * Abschnitt ist deshalb sichtbar als offen gekennzeichnet.
  *
- * // TODO(client): O-205 — Konformitätsstatus (vollständig / teilweise /
- * // nicht konform), benannte Stelle für Feedback und Durchsetzungsverfahren,
- * // sowie das Datum der Erstprüfung. Ohne diese drei Angaben ist die
- * // Erklärung nach BFSG unvollständig.
+ * // TODO(client, O-205): Voreinstellung — kein Konformitätsstatus ohne
+ * // Prüfung (der Kasten bleibt; Status und Datum der Erstprüfung fehlen),
+ * // Durchsetzungsstelle ist die MLBF, Meldungen gehen über das Formular und
+ * // an die Adresse der ersten Gesellschaft mit E-Mail (D-802).
  */
 export async function barriereMetadaten(
   sprache: Sprache = VORGABE_SPRACHE,
@@ -77,6 +77,16 @@ export async function Barrierefreiheit(
       >
         <h2 className="text-h2 text-text">{t.offenTitel}</h2>
         <p className="text-base text-text">{t.offenText}</p>
+      </section>
+
+      {/*
+        * **Die Durchsetzungsstelle** (O-205, Voreinstellung D-802). Ihr Name ist
+        * eine Tatsache über die Marktüberwachung nach dem BFSG und keine
+        * Konformitätsaussage — deshalb steht er da, der Status nicht.
+        */}
+      <section data-cse="durchsetzung" className="flex flex-col gap-s2">
+        <h2 className="text-h2 text-text">{t.durchsetzungTitel}</h2>
+        <p className="text-base text-text-muted">{t.durchsetzungText}</p>
       </section>
 
       {/*

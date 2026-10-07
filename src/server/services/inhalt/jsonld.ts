@@ -185,15 +185,15 @@ export function organisation(
  * `provider`, der auf ein Dach zeigt, das es als Rechtstraeger nicht gibt,
  * ist eine falsche Aussage in strukturierten Daten. Die vorhandenen
  * `seite`-Zeilen der Gruppenebene tragen alle `mandant_id = NULL`; solange
- * niemand entschieden hat, welche Gesellschaft welche Leistungsseite
- * verantwortet, bleibt der `provider` WEG. Ein Block ohne `provider` ist
+ * eine Zeile keiner Gesellschaft zugeordnet ist (O-652, V-293), bleibt der
+ * `provider` WEG. Ein Block ohne `provider` ist
  * gueltiges Schema.org und sagt weniger; ein erfundener saehe vollstaendig aus
  * und waere falsch.
  *
- * // TODO(client, O-652): Welche Gesellschaft verantwortet welche
- * Leistungsseite unter `/leistungen/<slug>`, und welche Leistungen bekommen
- * ueberhaupt eine eigene Seite? Ohne Antwort bleibt `Service.provider` leer
- * und die Seite ist redaktioneller Demonstrationsbestand.
+ * // TODO(client, O-652): Voreinstellung — eine Leistungsseite verantwortet
+ * die Gesellschaft, die die Leistung erbringt, und `provider` nennt sie, sobald
+ * die Zeile ihre `mandant_id` traegt; welche Leistungen eine Seite bekommen,
+ * entscheidet die Redaktion. Gesetzt wird die Spalte noch nirgends (V-293).
  */
 export function seitenService(
   titel: string, beschreibung: string | null, basis: string, bereichSlug: string | null,

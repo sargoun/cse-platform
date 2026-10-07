@@ -56,7 +56,7 @@ const RUHE_MS = 750;
  * nennt. Welche weiteren Endpunkte der Auftragsverarbeitungsvertrag des
  * Kunden abdeckt, weiss der Kunde — nicht diese Datei.
  */
-// TODO(client): O-509 — welche KI-Endpunkte deckt der AV-Vertrag ab?
+// TODO(client, O-509): Betreiberdaten — welche KI-Endpunkte der AV-Vertrag abdeckt, trägt der Betreiber über OPENAI_EU_HOSTS ein (D-803).
 const EU_ENDPUNKTE = new Set(['eu.api.openai.com']);
 
 /**

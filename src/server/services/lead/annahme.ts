@@ -331,7 +331,13 @@ export async function nimmAn(
       formular.mandantId, leadId, betreff,
       einsendung.datei === undefined ? null : `LV: ${einsendung.datei.dateiname}`,
       // CRM-08: eine Anfrage begruendet `anfrage`, kein Werbeeinverstaendnis.
-      // Nur das freiwillige Haekchen hebt sie auf `einwilligung`.
+      // Nur das freiwillige Haekchen hebt den Beleg dieser EINGANGSzeile auf
+      // `einwilligung` — er haelt fest, dass es gesetzt war, und oeffnet
+      // keinen Kanal: das UWG-Tor (`app.darf_kontaktiert_werden`, 0020) prueft
+      // den lebenden Kontakt und seine `einwilligung_kanaele`, und die traegt
+      // ein Mensch ein.
+      // TODO(client, O-94): Voreinstellung — kein Newsletter; das Haekchen
+      // steht an der Anfrage, ein Mensch entscheidet (O-63, D-802).
       werbung ? 'einwilligung' : 'anfrage',
     ],
   );

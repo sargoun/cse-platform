@@ -102,6 +102,9 @@ test.describe('(4) jede öffentliche Route gibt es auf Englisch', () => {
     await expect(page.locator('h1')).toHaveText('Accessibility statement');
     // Und sie sagt, dass die deutsche Fassung gilt.
     await expect(page.locator('[data-cse="rechtshinweis"]')).toContainText('German');
+    // Die Durchsetzungsstelle steht da, ein Konformitätsstatus nicht (O-205, D-802).
+    await expect(page.locator('[data-cse="durchsetzung"]')).toContainText('MLBF');
+    await expect(page.locator('[data-cse="offener-punkt"]')).toContainText('Not yet declared');
   });
 });
 

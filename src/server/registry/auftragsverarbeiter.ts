@@ -8,9 +8,10 @@
  * erfundenes Datum saehe aus wie ein Vertrag.
  *
  * DWD Open Data fehlt mit Absicht: oeffentliche Wetterdaten ohne
- * Personenbezug, kein Auftragsverarbeiter. Dienste, die noch nicht gewaehlt
- * sind (O-82, O-36, O-132, O-135, O-118, O-123), stehen im Register der
- * Anbindungen, nicht hier.
+ * Personenbezug, kein Auftragsverarbeiter. Dienste ohne Vertrag (O-82, O-36,
+ * O-132, O-135, O-123) stehen im Register der Anbindungen, nicht hier; fuer
+ * die Betriebsueberwachung ist kein fremder Dienst vorgesehen (Voreinstellung
+ * O-118, D-803).
  */
 export interface Auftragsverarbeiter {
   readonly schluessel: string;

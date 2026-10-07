@@ -64,9 +64,10 @@ export default async function Auftragsverarbeiter(
         />
       </div>
       <p className="mt-s5 max-w-[72ch] text-sm text-text-subtle">
-        Dienste, die noch nicht gewählt sind (SMS, E-Mail, OCR, Karten, Überwachung),
-        stehen unter Integrationen mit ihrer offenen Frage — sie kommen hierher, sobald
-        ein Vertrag vorliegt.
+        Dienste ohne Vertrag (SMS, E-Mail, OCR, Karten) stehen unter Integrationen mit
+        ihrer Frage im Register — sie kommen hierher, sobald der Betreiber einen Vertrag
+        einträgt. Für die Betriebsüberwachung ist kein fremder Dienst vorgesehen
+        (Voreinstellung O-118).
       </p>
     </PortalRahmen>
   );

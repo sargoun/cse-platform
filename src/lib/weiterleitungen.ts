@@ -13,8 +13,10 @@
  * Suchmaschine behaelt dann den alten Eintrag, und die Autoritaet der alten
  * Adresse geht nicht auf die neue ueber.
  *
- * // TODO(client): O-13 — die vollstaendige Liste der Alt-URLs kommt aus dem
- * // Export von cse-dienstleistungen.de; hier stehen die bekannten.
+ * // TODO(client, O-08): Voreinstellung — eine Gruppendomain (D-784); die
+ * // Alt-URLs gehen per 301 auf ihre neuen Pfade. Die vollstaendige Liste kommt
+ * // aus dem Export von cse-dienstleistungen.de (Betreiberdaten, D-803); hier
+ * // stehen die bekannten.
  */
 export const WEITERLEITUNGEN: Readonly<Record<string, string>> = {
   // Die alte Website (PUB-08).

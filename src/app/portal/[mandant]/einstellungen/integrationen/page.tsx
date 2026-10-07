@@ -18,8 +18,8 @@ import { mandantTor, MandantAntwort } from '../../../unterseite';
  *
  * Die Zustaende kommen aus den Adaptern, die die Verbindung auch benutzen
  * (`registry/integrationen.ts`). Diese Seite behauptet nichts, was ein
- * Adapter nicht bestaetigt — und sie nennt zu jeder Luecke die offene Frage,
- * die sie schliesst.
+ * Adapter nicht bestaetigt — und sie nennt zu jeder Luecke die Frage im
+ * Register, die sie schliesst: eine Voreinstellung oder Betreiberdaten (D-803).
  */
 export const dynamic = 'force-dynamic';
 
@@ -145,7 +145,7 @@ export default async function Integrationen(
                 </span>
               ) },
             { schluessel: 'hinweis', kopf: 'Woher die Antwort kommt', zelle: (z) => z.hinweis },
-            { schluessel: 'offen', kopf: 'Offene Frage',
+            { schluessel: 'offen', kopf: 'Frage im Register',
               zelle: (z) => (z.offen === null ? '—' : <code className="text-xs">{z.offen}</code>) },
           ]}
         />

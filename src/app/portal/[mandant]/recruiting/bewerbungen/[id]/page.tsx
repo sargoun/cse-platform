@@ -221,8 +221,8 @@ export default async function Bewerbungsblatt(
               Datei annimmt und sie nirgends ablegt, ist schlimmer als keines —
               der Mensch glaubt dann, sie sei angekommen. Voreinstellung (O-375):
               Unterlagen gehen in den privaten Belegspeicher der Plattform und werden
-              mit der Bewerbung gelöscht — das entsteht, sobald der Betreiber den
-              Speicher verbindet.
+              mit der Bewerbung gelöscht. Der Weg dafür ist nicht gebaut; er braucht
+              den Speicher, den der Betreiber verbindet.
             </Hinweis>
 
             {/* ------------------- Strukturierte Angaben (REC-04, V-223, D-717) */}

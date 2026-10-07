@@ -146,10 +146,10 @@ Schaden, den man nachträglich nicht wegräumt. Sie bleiben sichtbar
 offen, und die betroffene Funktion bleibt gesperrt.
 
 - **O-134** — Rechnungsnummernkreis je Gesellschaft. Eine festgeschriebene Rechnung ist unveränderlich (Invariante 4) — eine mit geratener Nummer bekommt man nicht zurück. Der Kreis bleibt ein Platzhalter und vergibt keine Nummer, bis die Maske bestätigt ist.
-- **O-01** — Ist CSE Operations eine GmbH oder eine Abteilung? Davon hängt ab, ob sie überhaupt eigene Rechnungen stellen darf (§ 14 UStG). Die Spalte bleibt NULL — jeder andere Wert wäre eine Behauptung über eine Rechtsform.
+- **O-01** — Ist CSE Operations eine GmbH oder eine Abteilung? Davon hängt ab, ob sie überhaupt eigene Rechnungen stellen darf (§ 14 UStG). Die Spalte bleibt NULL — jeder andere Wert wäre eine Behauptung über eine Rechtsform. Sie trägt der Betreiber ein; bis dahin stellt CSE Operations keine eigenen Rechnungen (D-803).
 - **O-205** — Konformitätsstatus der Barrierefreiheitserklärung. Er setzt eine tatsächliche Prüfung voraus; ihn zu behaupten wäre eine falsche Zusage an genau die Menschen, die sich darauf verlassen.
 - **O-05** — DATEV-Kontenrahmen, Beraternummer und Steuerschlüssel. Ein falsch gebuchter Beleg fällt beim Jahresabschluss auf, nicht vorher.
-- **O-06** — Gibt es einen Betriebsrat? § 87 Abs. 1 Nr. 6 BetrVG regelt die Standorterfassung mit. Ohne Antwort bleibt die Standorterfassung AUS.
+- **O-06** — Gibt es einen Betriebsrat? § 87 Abs. 1 Nr. 6 BetrVG regelt die Standorterfassung mit. Voreinstellung (D-802): die Plattform verhält sich, als gäbe es einen ohne Vereinbarung — die Standorterfassung und jede Auswertung je Person bleiben AUS.
 
 ---
 

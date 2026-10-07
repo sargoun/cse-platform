@@ -51,7 +51,8 @@ export class KanalNichtVerbundenFehler extends Error {
   constructor(readonly kanal: Versandart) {
     super(
       `Der Kanal „${kanal}" ist nicht verbunden. Es gibt in dieser Anwendung `
-      + 'keinen automatischen Versand von Mahnungen (O-116; Voreinstellung: Brief); die Mahnung geht als Brief, '
+      + 'keinen automatischen Versand von Mahnungen — ein Versanddienst ist nicht verbunden, ihn trägt '
+      + 'der Betreiber ein (O-116); die Mahnung geht als Brief, '
       + 'Einschreiben oder durch Boten hinaus und wird hier dokumentiert.',
     );
     this.name = 'KanalNichtVerbundenFehler';

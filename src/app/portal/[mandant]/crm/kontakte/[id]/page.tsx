@@ -246,11 +246,12 @@ export default async function Kontaktblatt(
   /*
    * `abmeldezeileGerendert = null` — NICHT `true`.
    *
-   * Es gibt auf diesem Blatt keinen Sendeweg (`POST /api/crm/nachrichten` ist
-   * nicht gebaut), also gibt es keine Nachricht, an der eine Abmeldezeile
-   * hinge. Ein `true` an dieser Stelle bejahte § 7 Abs. 3 Nr. 4 UWG für einen
-   * Weg, den es nicht gibt — und der Bildschirm zeigte diese Annahme als
-   * Rechtsauskunft.
+   * Die Antworten auf diesem Blatt gelten für den Kontakt, nicht für eine
+   * bestimmte Nachricht. Der Sendeweg (`POST /api/crm/nachrichten`, V-101)
+   * hängt den Hinweis an jede Werbenachricht; ein Versender ist aber nicht
+   * verbunden, also geht keine hinaus. Ein `true` an dieser Stelle bejahte
+   * § 7 Abs. 3 Nr. 4 UWG für eine Nachricht, die es nicht gibt — und der
+   * Bildschirm zeigte diese Annahme als Rechtsauskunft.
    */
   const lage = stand === null ? null : alsKontaktLage(stand, null, kundenLage, {
     archiviert: false, anonymisiert: kopf.anonymisiert,

@@ -71,21 +71,21 @@ const TOKEN_FORM = /^[A-Za-z0-9_-]{20,200}$/u;
 const STAENDE = new Set(['erfasst', 'verbraucht', 'ungueltig', 'unbekannt']);
 
 /**
- * **Der Hinweistext nach § 7 Abs. 3 Nr. 4 UWG — ein PLATZHALTER.**
+ * **Der Hinweistext nach § 7 Abs. 3 Nr. 4 UWG — eine VOREINSTELLUNG** (O-34,
+ * D-802).
  *
  * Was hier steht, ist Rechtstext: das Gesetz verlangt einen „klaren und
- * deutlichen" Hinweis, und welche Formulierung das erfüllt, sagt eine
- * anwaltliche Prüfung und nicht diese Datei. Ihn zu erfinden verstiesse gegen
- * „Never invent a business rule" — an genau der Stelle, an der ein falscher
- * Satz eine Abmahnung kostet. Er steht deshalb sichtbar als „vorläufig" auf
- * dem Bildschirm, statt geprüft auszusehen.
+ * deutlichen" Hinweis. Die Voreinstellung folgt dem Wortlaut des Gesetzes —
+ * wie der Satz, den `mitPflichthinweis` an jede Werbenachricht hängt, mit den
+ * „Übermittlungskosten nach den Basistarifen". Anwaltlich geprüft ist er
+ * nicht; der Bildschirm sagt das, statt geprüft auszusehen.
  *
- * // TODO(client, O-34): Geprüfter Wortlaut des Hinweises nach § 7 Abs. 3 Nr. 4 UWG und die Ausgangsmatrix (welcher Zweck auf welchem Kanal bei welcher Rechtsgrundlage).
+ * // TODO(client, O-34): Voreinstellung — dieser Wortlaut des § 7 Abs. 3 Nr. 4 UWG und die Ausgangsmatrix in `crm/uwg-matrix.ts`, beide anwaltlich ungeprüft.
  */
 const UWG_HINWEIS = 'Sie erhalten Werbung von uns, weil eine Geschäftsbeziehung '
   + 'oder eine Einwilligung vorliegt. Der Verwendung Ihrer Adresse für Werbung '
-  + 'können Sie jederzeit widersprechen, ohne dass andere Kosten als die '
-  + 'Übermittlungskosten entstehen.';
+  + 'können Sie jederzeit widersprechen, ohne dass für Sie andere als die '
+  + 'Übermittlungskosten nach den Basistarifen entstehen.';
 
 export default async function Seite(
   { params, searchParams }: {
@@ -195,7 +195,7 @@ export default async function Seite(
         <h2 className="mt-0 text-h2 text-text">Hinweis nach § 7 UWG</h2>
         <p className="m-0 text-sm text-text">{UWG_HINWEIS}</p>
         <p className="m-0 mt-s3 text-xs text-warning" data-cse="platzhalter">
-          Vorläufiger Wortlaut — die anwaltliche Prüfung steht aus (offen O-34).
+          Voreinstellung (O-34): der Wortlaut des § 7 Abs. 3 Nr. 4 UWG, anwaltlich nicht geprüft.
         </p>
       </section>
     </main>
