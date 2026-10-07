@@ -13,7 +13,7 @@ import {
 } from '@/server/services/mitarbeiter/nachweis-schicht';
 import { AnmeldungNoetig } from '../../../../Anmeldung';
 import { meinPortal, MeinRahmen } from '../../../rahmen';
-import { Feld, Felder, Hinweis, Leer } from '../../../bausteine';
+import { ErfassungsNachlauf, Feld, Felder, Hinweis, Leer } from '../../../bausteine';
 import { FormularFehler } from '../../../FormularAntwort';
 
 /**
@@ -173,19 +173,18 @@ export default async function MeinLeistungsnachweis(
   const { schicht, nachweise, vorschau, offene } = ergebnis.daten;
   const t = basis.texte;
   /*
-   * Mit der Minute des Schichtendes schliesst die Erfassung, und die Seite
-   * sagt es, statt ein Formular anzubieten, das scheitert.
+   * Mit Schichtende plus Ausstempeltoleranz schliesst die Erfassung, und die
+   * Seite sagt es, statt ein Formular anzubieten, das scheitert.
    *
-   * `app.ist_eingesetzt_auf_objekt` verlangt `ende_zeitpunkt >= now()` (0004);
-   * danach greifen weder `leistungsnachweis.t_selbst_m1_*` noch
-   * `objekt.t_selbst_m1` (0300/0304), und der POST antwortete mit einem
-   * nackten `422 kein_objekt`. Wie lange NACH Schichtende noch erfasst werden
-   * darf, ist die offene Frage O-740; bis zur Antwort ist die Grenze das
-   * Schichtende — und CLN-04 laesst den Kunden AM ENDE der Schicht
-   * unterschreiben, also steht der Grund hier und nicht nur in 0300.
+   * `app.ist_eingesetzt_auf_objekt` traegt die Schicht so lange (0499, V-326;
+   * Voreinstellung zu O-740, D-789); danach greifen weder
+   * `leistungsnachweis.t_selbst_m1_*` noch `objekt.t_selbst_m1` (0300/0304),
+   * und der POST antwortete mit einem nackten `422 kein_objekt`. CLN-04 laesst
+   * den Kunden AM ENDE der Schicht unterschreiben — genau dafuer ist die Zeit
+   * danach da, und `ErfassungsNachlauf` nennt, bis wann.
    */
   const sperre = schicht.entfernt ? t.schichtEntfernt
-    : schicht.beendet ? t.schichtBeendet : null;
+    : schicht.erfassungGeschlossen ? t.schichtBeendet : null;
   const eingabe =
     'min-h-11 w-full rounded-md border border-line-strong bg-surface px-s3 py-s2 '
     + 'text-base text-text';
@@ -202,6 +201,7 @@ export default async function MeinLeistungsnachweis(
       </p>
 
       <FormularFehler sprache={basis.sprache} grund={fehler} />
+      <ErfassungsNachlauf schicht={schicht} texte={t} />
 
       {schicht.objektId === null ? <Leer text={t.keineEintraege} /> : (
         <>

@@ -104,8 +104,9 @@ async function objekt(
 /**
  * Eine Schicht mit ABSOLUTEN Zeitpunkten relativ zu `now()`.
  *
- * `app.ist_eingesetzt_auf_objekt` fragt `e.ende_zeitpunkt >= now()` — der Fall,
- * den dieser Stapel beweisen muss, ist genau der Wechsel an dieser Grenze.
+ * `app.ist_eingesetzt_auf_objekt` fragt `e.ende_zeitpunkt` plus Ausstempeltoleranz
+ * (60 Minuten, 0499, V-326) gegen `now()` — der Fall, den dieser Stapel beweisen
+ * muss, ist genau der Wechsel an dieser Grenze.
  * Mit Kalendertagen liesse er sich nicht ausloesen, ohne die Uhr zu stellen.
  */
 async function einsatz(
@@ -354,12 +355,14 @@ describe('(2) meine Objekte sind die meiner Einteilungen (EMP-02, OPS-01)', () =
   it('`aktuellEingeteilt` ist wahr vor Schichtende und falsch danach', async () => {
     /**
      * **Die Grenze, an der alles haengt.** `app.ist_eingesetzt_auf_objekt`
-     * verlangt `e.ende_zeitpunkt >= now()`. Ein Objekt der Vergangenheit
+     * verlangt Schichtende plus Ausstempeltoleranz `>= now()` (0499, V-326:
+     * 60 Minuten). Die vergangene Schicht endet deshalb ZWEI Stunden zurueck —
+     * eine Stunde laege genau auf der Grenze. Ein Objekt der Vergangenheit
      * bleibt in der Liste — der Weg von vorletzter Woche ist nachschlagbar —,
      * aber es ist nicht mehr „aktuell".
      */
     const kommend = await eingeteilt(f.reinigung, f.fatimaReinigung, 'Kommend', 1, 9);
-    const vergangen = await eingeteilt(f.reinigung, f.fatimaReinigung, 'Vergangen', -9, -1);
+    const vergangen = await eingeteilt(f.reinigung, f.fatimaReinigung, 'Vergangen', -10, -2);
     const liste = await alsPerson(async (k) => listeEigeneObjekte(k));
 
     const a = liste.find((x) => x.objektId === kommend);
@@ -370,7 +373,7 @@ describe('(2) meine Objekte sind die meiner Einteilungen (EMP-02, OPS-01)', () =
   });
 
   it('die laufenden stehen oben', async () => {
-    await eingeteilt(f.reinigung, f.fatimaReinigung, 'Vergangen', -9, -1);
+    await eingeteilt(f.reinigung, f.fatimaReinigung, 'Vergangen', -10, -2);
     const kommend = await eingeteilt(f.reinigung, f.fatimaReinigung, 'Kommend', 1, 9);
     const liste = await alsPerson(async (k) => listeEigeneObjekte(k));
     expect(liste[0]?.objektId).toBe(kommend);
@@ -478,8 +481,11 @@ describe('(3) der Zutrittshinweis gehoert dem, der eingeteilt IST (0360, SEC-05)
      * Alarmcode gehoert dem, der dort eingeteilt IST, und nur, solange er es
      * ist. Das Objekt selbst bleibt lesbar — sonst verloere die Kraft auch die
      * Anschrift ihrer letzten Woche.
+     *
+     * Zwei Stunden nach Schichtende: auch die Ausstempeltoleranz (60 Minuten,
+     * 0499, V-326) ist vorbei.
      */
-    const o = await mitSchicht('Treppenhaus', -9, -1);
+    const o = await mitSchicht('Treppenhaus', -10, -2);
     expect(await alsPerson(async (k) => leseObjektZugang(k, o))).toBeNull();
     expect(await alsPerson(async (k) => findeEigenesObjekt(k, o))).not.toBeNull();
   });

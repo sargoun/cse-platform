@@ -64,19 +64,29 @@ export interface EigeneSchicht {
   /**
    * Ist die Schicht VORBEI? (`now() >= ende_zeitpunkt`)
    *
-   * Sie steht hier, weil mit dieser Minute die Erfassung schliesst und die
-   * Seite das SAGEN muss. `app.ist_eingesetzt_auf_objekt` und
-   * `app.ist_eingesetzt_auf_projekt` verlangen `e.ende_zeitpunkt >= now()`
-   * (0004); danach greift keine der M1-Policies aus 0300/0303/0304 mehr. Ohne
-   * dieses Feld boten Wachbuch, Fotos, Leistungsnachweis und Bautagebuch
-   * weiter ein Formular an, das die Datenbank dann abweist — beim
-   * Leistungsnachweis mit einem nackten `422 kein_objekt`.
-   *
-   * TODO(client, O-740): Voreinstellung — Schichtende plus die Ausstempeltoleranz
-   * (60 Minuten, O-164); gebaut ist die Grenze Schichtende (0004, V-326), und
-   * die Seite nennt sie. D-789.
+   * Die Stempeluhr, die Zusage und „Eine Zeit fehlt" (V-189) richten sich
+   * danach. Die ERFASSUNG schliesst erst später — siehe `erfassungGeschlossen`.
    */
   readonly beendet: boolean;
+  /**
+   * Ist die Erfassung zu dieser Schicht GESCHLOSSEN? (`now() >= ende_zeitpunkt
+   * + zeit.checkout_toleranz_minuten`)
+   *
+   * Sie steht hier, weil mit dieser Minute Wachbuch, Fotos, Leistungsnachweis
+   * und Bautagebuch schliessen und die Seite das SAGEN muss:
+   * `app.eigene_einsatz_objekte`/`…_projekte` tragen die eigene Schicht bis
+   * Schichtende plus Ausstempeltoleranz (0499, V-326); danach greift keine
+   * der M1-Policies aus 0300/0303/0304 mehr. Ohne dieses Feld boten die vier
+   * Seiten weiter ein Formular an, das die Datenbank dann abweist — beim
+   * Leistungsnachweis mit einem nackten `422 kein_objekt`.
+   *
+   * TODO(client, O-740): Voreinstellung — Schichtende plus die
+   * Ausstempeltoleranz der Gesellschaft (`zeit.checkout_toleranz_minuten`,
+   * ohne gültige Zahl 60 Minuten, O-164); gebaut mit V-326 (0499, D-808).
+   */
+  readonly erfassungGeschlossen: boolean;
+  /** Bis wann erfasst werden kann — `TT.MM.JJJJ HH:MM`, Berliner Ortszeit. */
+  readonly erfassungBisLokal: string;
   /**
    * Wurde die Einteilung AUS DEM PLAN GENOMMEN? (`entfernt_am is not null`)
    *
@@ -103,7 +113,8 @@ export const SCHICHT_FELDER = [
   'objekt', 'objektId', 'projektId',
   'planDatum', 'beginnLokal', 'endeLokal', 'endetAmFolgetag',
   'pauseGeplantMinuten', 'dauerMinuten', 'funktion', 'status', 'einsatzStatus',
-  'zeitanomalie', 'laeuftJetzt', 'beendet', 'entfernt',
+  'zeitanomalie', 'laeuftJetzt', 'beendet', 'erfassungGeschlossen',
+  'erfassungBisLokal', 'entfernt',
 ] as const;
 
 interface SchichtRoh {
@@ -127,6 +138,8 @@ interface SchichtRoh {
   readonly zeitanomalie: string;
   readonly laeuft_jetzt: boolean;
   readonly beendet: boolean;
+  readonly erfassung_geschlossen: boolean;
+  readonly erfassung_bis_lokal: string;
   readonly entfernt: boolean;
 }
 
@@ -167,13 +180,27 @@ const SPALTEN = `
   -- koennten Seite und Policy um Sekunden auseinanderliegen, und dann
   -- verspraeche der Bildschirm ein Formular, das die Zeile schon abweist.
   (now() >= z.ende_zeitpunkt)                   as beendet,
+  -- Dieselbe Grenze wie app.eigene_einsatz_objekte (0499, V-326): Schichtende
+  -- plus zeit.checkout_toleranz_minuten, ohne ganze Zahl 60. Gerechnet ab dem
+  -- EIGENEN Ende: die Zuordnung liegt im Fenster des Einsatzes
+  -- (kern.ez_fenster_pruefen), die Seite schliesst also nie spaeter als die
+  -- Policy.
+  (now() >= z.ende_zeitpunkt + t.toleranz)      as erfassung_geschlossen,
+  to_char((z.ende_zeitpunkt + t.toleranz) at time zone 'Europe/Berlin',
+          'DD.MM.YYYY HH24:MI')                 as erfassung_bis_lokal,
   (z.entfernt_am is not null)                   as entfernt`;
 
 const QUELLE = `
   from einsatz_zuordnung z
   join einsatz e on e.mandant_id = z.mandant_id and e.id = z.einsatz_id
   join mandant m on m.id = z.mandant_id
-  left join objekt o on o.mandant_id = e.mandant_id and o.id = e.objekt_id`;
+  left join objekt o on o.mandant_id = e.mandant_id and o.id = e.objekt_id
+  cross join lateral (
+    select make_interval(mins => case when r.roh ~ '^[0-9]{1,4}$'
+                                      then r.roh::int else 60 end) as toleranz
+      from (select app.einstellung(z.mandant_id, 'zeit.checkout_toleranz_minuten')
+                     #>> '{}' as roh) r
+  ) t`;
 
 /**
  * Eine entfernte Zuordnung ist keine Schicht mehr — aber sie wird nicht
@@ -204,6 +231,8 @@ function abbilden(z: SchichtRoh): EigeneSchicht {
     zeitanomalie: z.zeitanomalie,
     laeuftJetzt: z.laeuft_jetzt,
     beendet: z.beendet,
+    erfassungGeschlossen: z.erfassung_geschlossen,
+    erfassungBisLokal: z.erfassung_bis_lokal,
     entfernt: z.entfernt,
   };
 }
