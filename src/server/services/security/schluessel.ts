@@ -30,14 +30,14 @@
  *    gespeicherten Nutzlast neu. Eine Quittung, deren Abzug nachtraeglich
  *    veraendert waere, faellt damit auf — und nicht erst im Streitfall.
  *
- * **Wer quittiert: die Objektleitung im Büro** — Voreinstellung (O-240,
- * D-800). `schluessel.schreiben` ist an die Rolle `mitarbeiter` gebunden und
- * `0079` gibt der Tabelle die Einsatzdecke, aber `04-SEITENKARTE.md` fuehrt
- * die Quittungsseite nur unter `/portal/[mandant]`; gebaut ist der interne
- * Weg (D-235). Die Wache haelt eine Uebergabe vor Ort im Wachbuch fest
- * (Eintragsart `schluessel`, V-180).
+ * **Wer quittiert: das Büro** — Voreinstellung (O-240, D-800). Quittiert
+ * wird über den internen Weg unter `/portal/[mandant]` (D-235), von jedem mit
+ * `schluessel.schreiben`: Leitung, Administration und die Rolle
+ * `mitarbeiter` (0008). Eine Bindung an die Objektleitung gibt es nicht.
+ * `0079` gibt der Tabelle die Einsatzdecke; die Wache haelt eine Uebergabe
+ * vor Ort im Wachbuch fest (Eintragsart `schluessel`, V-180).
  */
-// TODO(client, O-240): Voreinstellung — quittiert wird im Buero (interner Weg, D-235); die Wache vermerkt Uebergaben im Wachbuch. Wie gebaut. D-800.
+// TODO(client, O-240): Voreinstellung — quittiert wird im Buero (interner Weg, D-235) von jedem mit schluessel.schreiben; die Wache vermerkt Uebergaben im Wachbuch. Wie gebaut. D-800.
 
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';

@@ -97,8 +97,8 @@ function Zelle({ zelle }: { readonly zelle: RadarZelle }) {
         </span>
       ) : null}
       {zelle.istPlatzhalterProfil ? (
-        <span className="text-xs text-text-subtle" title="Suchprofil mit unbestätigten Gewichten (O-98)">
-          Platzhalterprofil
+        <span className="text-xs text-text-subtle" title="Suchprofil mit unbestätigten Gewichten (Voreinstellung O-98)">
+          Profil unbestätigt
         </span>
       ) : null}
     </span>

@@ -346,7 +346,9 @@ describe('Art. 15: die Auskunft läuft in allen drei Zweigen wirklich', () => {
     expect(a.offeneFristen.length).toBeGreaterThan(0);
     for (const titel of a.offeneFristen) {
       const s = a.abschnitte.find((x) => x.titel === titel);
-      expect(s?.frist, titel).toMatch(/nicht entschieden|nicht gesetzt/iu);
+      // Dieselben drei Marker wie `istBeziffert` — „Voreinstellung (O-514), noch
+      // nicht hinterlegt" nennt so wenig eine Zahl wie „nicht entschieden".
+      expect(s?.frist, titel).toMatch(/nicht entschieden|nicht gesetzt|nicht hinterlegt/iu);
     }
   });
 

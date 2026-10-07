@@ -1092,8 +1092,9 @@ function kanonisch(a: readonly AuskunftAbschnitt[]): string {
  * EINE Stelle, die aus dem Register und den Aufbewahrungsregeln einen Satz
  * macht; eine zweite Funktion, die dasselbe noch einmal entscheidet, wäre die
  * zweite Wahrheit, die beim ersten Auseinanderlaufen niemand sieht. Geprüft
- * wird deshalb das Ergebnis: ein Satz mit dem Wort „nicht entschieden" oder
- * „nicht gesetzt" ist keine Speicherdauer im Sinne des Art. 15 Abs. 1 lit. d.
+ * wird deshalb das Ergebnis: ein Satz mit „nicht entschieden", „nicht gesetzt"
+ * oder „nicht hinterlegt" ist keine Speicherdauer im Sinne des Art. 15 Abs. 1
+ * lit. d.
  */
 /**
  * Ob eine Frist eine ZAHL nennt. „Voreinstellung (O-514), noch nicht
