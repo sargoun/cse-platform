@@ -35,14 +35,14 @@ import {
  *    des Hauses.
  *  · **`auftragswert_netto_cent`** — siehe O-840 unten.
  *
- * // TODO(client, O-840): Sieht ein Kundenzugang die Auftragssumme
- * (`auftrag.auftragswert_netto_cent`) im Portal? Sie steht im
- * unterschriebenen Vertrag, ist also keine Neuigkeit — aber im Portal ist sie
- * eine gepflegte Zahl neben den Rechnungen, und bei einem Rahmenvertrag mit
- * Abrufen bedeutet sie etwas anderes als die Summe der Belege. Bis zur
- * Antwort steht sie in KEINER Abfrage dieser Datei; die Seite nennt
- * stattdessen die Rechnungen, die tatsaechlich gestellt wurden. Dieselbe
- * Zurueckhaltung wie bei `projekt.auftragssumme_netto_cent` (`projekt.ts`).
+ * // TODO(client, O-840): Voreinstellung — die Auftragssumme
+ * (`auftrag.auftragswert_netto_cent`) steht NICHT im Portal: sie steht im
+ * unterschriebenen Vertrag, im Portal waere sie eine gepflegte Zahl neben den
+ * Rechnungen, und bei einem Rahmenvertrag mit Abrufen bedeutet sie etwas
+ * anderes als die Summe der Belege. Sie steht in KEINER Abfrage dieser Datei;
+ * die Seite nennt die vereinbarten Leistungszeilen und die Rechnungen, die
+ * tatsaechlich gestellt wurden. Dieselbe Zurueckhaltung wie bei
+ * `projekt.auftragssumme_netto_cent` (`projekt.ts`). Wie gebaut. D-794.
  *
  * ===========================================================================
  * Was der Kunde SEHR WOHL sieht

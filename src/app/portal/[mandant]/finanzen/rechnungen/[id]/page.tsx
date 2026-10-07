@@ -754,7 +754,7 @@ export default async function Rechnungsblatt(
               )}
               {/*
                 * V-209: die Objekte des Kunden zuerst, die übrigen darunter —
-                * ob ein fremder Leistungsort zulässig ist, ist offen (O-933).
+                * ein fremder Leistungsort ist zulässig (Voreinstellung O-933).
                 */}
               {[
                 { schluessel: 'eigene', label: e.objekteDesKunden,

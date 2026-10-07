@@ -43,9 +43,13 @@
  * offenen Nummer daneben. Eine Abweichung, die auf dem Bildschirm steht,
  * wird entschieden; eine, die nur im Quelltext steht, bleibt.
  *
- * // TODO(client, O-660): Soll `app.darf_kontaktiert_werden` auf diese Matrix
- * umgestellt werden — Werbung an `bestandskunde` nur mit `aehnliche_leistung`,
- * Werbung an `anfrage` gar nicht?
+ * // TODO(client, O-660): Voreinstellung — das Tor wird auf diese Matrix
+ * umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail
+ * mit festgestellter `aehnliche_leistung` und Abmeldezeile (§ 7 Abs. 3 UWG),
+ * an `einwilligung` auf den eingewilligten Kanälen. Die Umstellung ist eine
+ * Migration von `app.darf_kontaktiert_werden` mit Isolationstest (V-342,
+ * zusammen mit V-339); bis dahin gilt das heutige Tor, und das Kontaktblatt
+ * zeigt beide Antworten. D-793.
  */
 
 /** Die vier Grundlagen des Enums `rechtsgrundlage`. */
@@ -404,8 +408,8 @@ export function abweichungenVomTor(lage: KontaktLage): readonly Abweichung[] {
         richtung: 'matrix_strenger',
         text: 'Das wirksame Tor prüft für Werbung nur, DASS eine Grundlage '
           + 'aufgezeichnet ist — „Anfrage" genügt ihm. Die Matrix des § 7 Abs. 2 UWG '
-          + 'nicht: eine Anfrage deckt die Antwort darauf, nicht Werbung (offen, '
-          + 'O-660).',
+          + 'nicht: eine Anfrage deckt die Antwort darauf, nicht Werbung '
+          + '(Voreinstellung O-660: die Matrix wird Tor, V-342).',
         norm: '§ 7 Abs. 2 Nr. 2 UWG',
       });
     }
@@ -415,7 +419,7 @@ export function abweichungenVomTor(lage: KontaktLage): readonly Abweichung[] {
           richtung: 'matrix_strenger',
           text: 'Das wirksame Tor prüft die ähnliche eigene Leistung nicht; § 7 Abs. 3 '
             + 'Nr. 2 UWG verlangt sie. Ohne die festgestellte Ähnlichkeit trägt die '
-            + 'Ausnahme nicht (offen, O-95 / O-660).',
+            + 'Ausnahme nicht (Voreinstellung O-660, V-342; O-95).',
           norm: '§ 7 Abs. 3 Nr. 2 UWG',
         });
       } else if (lage.abmeldezeileGerendert !== true) {
@@ -435,7 +439,7 @@ export function abweichungenVomTor(lage: KontaktLage): readonly Abweichung[] {
         text: 'Die Ausnahme des § 7 Abs. 3 UWG gilt nur für die ELEKTRONISCHE '
           + 'Postadresse. Das wirksame Tor prüft den Kanal nur bei einer Einwilligung '
           + '— bei „Bestandskunde" lässt es Telefon, SMS, Post und WhatsApp gleich '
-          + 'mit durch (offen, O-660).',
+          + 'mit durch (Voreinstellung O-660: die Matrix wird Tor, V-342).',
         norm: '§ 7 Abs. 3 UWG',
       });
     }

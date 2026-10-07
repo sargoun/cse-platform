@@ -31,6 +31,11 @@ import type { LeseKontext } from '../../kontext/index.js';
  * kommt mit; die andere Gesellschaft, ihr Objekt und ihr Kunde kommen nicht —
  * weder hier noch in `details`. Der Planer erfaehrt, dass die Person
  * anderweitig gebunden ist; alles Weitere geht ihn nichts an.
+ *
+ * // TODO(client, O-42): Voreinstellung — die Konfliktkarte nennt die andere
+ * Gesellschaft NICHT (Datenminimierung, § 26 BDSG; mit Betriebsrat § 87
+ * BetrVG): sie sagt, DASS die Person anderweitig gebunden ist; welche
+ * Gesellschaft, sieht nur die Gruppenansicht. Wie gebaut. D-795.
  */
 
 export interface KonfliktBlatt {

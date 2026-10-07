@@ -297,8 +297,9 @@ export default async function WebsiteFormular(
           <strong className="block">Diese Sitzung ist ein Dienstkonto.</strong>
           Der Annahmeprinzipal hält <Recht schluessel="formular.schreiben" />,
           weil er Einsendungen speichern muss — nicht, um ein öffentliches Formular zu
-          ändern (03-AUTH §14.3). Welches Recht das Live-Stellen tragen soll, ist offen
-          (O-682); bis dahin ist hier nichts änderbar.
+          ändern (03-AUTH §14.3). Das Live-Stellen trägt dasselbe Recht wie die
+          Pflege, nur für Menschen (Voreinstellung O-682); für ein Dienstkonto ist
+          hier nichts änderbar.
         </Hinweis>
       )}
 
@@ -458,8 +459,10 @@ export default async function WebsiteFormular(
             : 'Auch in einem Entwurf nicht: '}
           Die englische Fassung eines Feldes steht fest im Programm, nicht in der
           Datenbank; ein hier angelegtes Feld stünde auf{' '}
-          <code className="font-mono">/en/angebot</code> deutsch da. Das ist offen
-          (O-680) und deshalb ausdrücklich nicht gebaut — statt halb.
+          <code className="font-mono">/en/angebot</code> deutsch da. Felder sind
+          deshalb Programm und werden mit ihrer englischen Fassung geändert
+          (Voreinstellung O-680) — ein Feldeditor hier ist ausdrücklich nicht
+          gebaut, statt halb.
         </Hinweis>
         {felder.length === 0 ? (
           <Hinweis art="warnung" cse="keine-felder" className="max-w-prose">

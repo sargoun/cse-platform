@@ -16,11 +16,11 @@
  * der Zustand.
  *
  * **Kein Preis.** `einzelpreis_cent` wird hier nicht gelesen und nicht gezeigt
- * (EMP-13, K-05) — und bei der Erfassung bleibt er NULL, weil offen ist, ob
- * eine Position bei Monatspauschale ueberhaupt einen Einzelpreis je Durchgang
- * traegt.
+ * (EMP-13, K-05) — und bei der Erfassung bleibt er NULL: eine Position bei
+ * Monatspauschale traegt keinen Einzelpreis je Durchgang (Voreinstellung
+ * O-348).
  *
- * // TODO(client, O-348): Traegt eine Position des Leistungsnachweises bei Monatspauschale einen Einzelpreis je Durchgang, oder bleibt er leer und die Rechnung stellt die Pauschale?
+ * // TODO(client, O-348): Voreinstellung — kein Einzelpreis je Durchgang; der Nachweis belegt die Leistung, die Rechnung stellt die Pauschale. Wie gebaut. D-796.
  */
 import type { LeseKontext } from '../../kontext/index.js';
 

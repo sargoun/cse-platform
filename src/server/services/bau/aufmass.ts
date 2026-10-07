@@ -1,6 +1,12 @@
 /**
  * Das Aufmass nach § 14 VOB/B (BAU-02, BAU-03, 03-GEWERKE §7.6 – §7.9).
  *
+ * // TODO(client, O-340): Voreinstellung — ein Aufmaßblatt darf Zeilen
+ * verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt (deren
+ * Einheit sie trägt, `kern.aufmass_zeile_einheit`); die Obergrenze gegen
+ * doppelte Abrechnung gilt dann je LV-Position, nicht je Blatt. Gebaut ist die
+ * Blattsumme (`fin.pruefe_aufmass_menge`, 0107) — V-357. D-796.
+ *
  * Der Dienst tut drei Dinge und keines davon nebenbei:
  *
  *  1. **Er rechnet die Menge SELBST.** Der Browser schickt den Rechenansatz

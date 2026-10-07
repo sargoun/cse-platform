@@ -273,16 +273,18 @@ export default async function Kundenzahlungen(
       <div className="mt-s5 flex flex-col gap-s4">
         <Offen
           nummer="O-672"
+          art="voreinstellung"
           was="Kein Datum des Zahlungseingangs"
           weg={'Die Spalte „Ausgeglichen am" nennt den Tag, an dem der Posten '
-            + 'geschlossen wurde. Ob Ihnen zusätzlich das Valutadatum Ihrer '
-            + 'eigenen Zahlung gezeigt werden soll, ist noch nicht entschieden.'}
+            + 'geschlossen wurde. Das Datum Ihrer Überweisung steht in Ihrer '
+            + 'eigenen Buchhaltung; die Bankbuchung selbst bleibt intern.'}
         />
         <Offen
           nummer="O-673"
+          art="voreinstellung"
           was="Kein Mahnstand im Portal"
-          weg="Mahnungen erreichen Sie schriftlich; ob Stufe, Datum und Gebühr
-            zusätzlich im Portal stehen sollen, ist noch nicht entschieden."
+          weg="Mahnungen erreichen Sie schriftlich; Stufe, Datum und Gebühr
+            stehen im Schreiben, nicht im Portal. Hier sehen Sie, was offen ist."
         />
       </div>
     </KundenRahmen>

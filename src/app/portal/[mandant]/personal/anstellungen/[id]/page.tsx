@@ -262,7 +262,14 @@ export default async function Anstellungsblatt({
           {/* `numeric(5,2)` als Text „38.50" — deutsch „38,50 h", nicht „38.50 h" (V-196). */}
           <Feld label="Wochenstunden" wert={kopf.wochenstunden === null ? 'nicht hinterlegt' : `${formatiereMenge(mengeAusPostgres(kopf.wochenstunden))} h`} />
           <Feld label="Telefon" wert={kopf.telefon ?? '—'} />
-          <Feld label="Weitere Beschäftigungen" wert={kopf.weitere === 0 ? 'keine' : `${String(kopf.weitere)} — in anderen Gesellschaften (D-09); Arbeitszeitgrenzen gelten je Person, siehe Gruppenansicht`} />
+          {/*
+            * `weitere` zählt unter der RLS dieser Gesellschaft
+            * (`t_anstellung_lesen`) — also nur hiesige, frühere oder parallele
+            * Beschäftigungen. Hier stand „in anderen Gesellschaften", und das
+            * konnte die Zahl nie sein (Voreinstellung O-220: die Personalstelle
+            * sieht nur ihre Gesellschaft).
+            */}
+          <Feld label="Weitere Beschäftigungen in dieser Gesellschaft" wert={kopf.weitere === 0 ? 'keine' : `${String(kopf.weitere)} (frühere oder parallele)`} />
         </dl>
         <p className="mt-s4 text-sm text-text-subtle">
           Der interne Stundensatz steht auf einer eigenen Seite mit eigenem Recht (K-05);

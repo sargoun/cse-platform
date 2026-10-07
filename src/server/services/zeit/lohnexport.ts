@@ -26,6 +26,20 @@ import type { BewegungArt, KontoStatus } from './stundenkonto.js';
  * Plattform nicht nach (Ausnahme § 10 ArbZG, Ersatzruhetag § 11 Abs. 3 ArbZG);
  * das Lohnsystem leitet die Stunden aus zeiten.csv ab, der Ersatzruhetag steht
  * im Dienstplan (V-322, D-788).
+ * TODO(client, O-100): Voreinstellung — die Plattform führt kein Nachtfenster
+ * und keinen Zuschlag (D-06): Zuschläge rechnet das Lohnsystem nach dem Tarif
+ * des Bereichs aus zeiten.csv (Beginn und Ende in Berliner Zeit); wo die
+ * Plattform selbst Nachtzeit braucht (§ 6 ArbZG, O-103), gilt die gesetzliche
+ * Nachtzeit 23–06 Uhr (§ 2 Abs. 3 ArbZG). D-795.
+ * TODO(client, O-37): Voreinstellung — Lohngrundlage je Bereich: Reinigung
+ * nach dem Rahmen- und Lohntarifvertrag Gebäudereinigung, Security nach den
+ * Tarifverträgen des Wach- und Sicherheitsgewerbes Berlin/Brandenburg, Bau
+ * nach dem BRTV und seinen Lohntarifen; die Plattform führt die Tarifgruppe je
+ * Anstellung (O-136, O-610), das Entgelt rechnet das Lohnsystem. D-795.
+ * TODO(client, O-32): Voreinstellung — gesetzlicher Mindestlohn und
+ * Branchenmindestlöhne (AEntG) wendet das Lohnsystem an; die Plattform führt
+ * keinen Satz, weil er sich jährlich ändert und eine veraltete Zahl einen
+ * Verstoss verdeckte. Sie liefert die Stunden (§ 17 MiLoG). D-795.
  *
  * **Das Format ist ein Platzhalter.** Welches Lohnsystem die Gesellschaften
  * nutzen und welches Importformat es erwartet, ist nicht entschieden

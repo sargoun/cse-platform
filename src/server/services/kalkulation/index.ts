@@ -244,13 +244,13 @@ export const LEERE_KALKULATION: Kalkulation = {
  *
  * **Material und Geraet reisen mit** (V-174): sie stecken im Netto und
  * werden wie Gemeinkosten, Wagnis und Gewinn nach dem Lohngewicht auf die
- * Leistungszeilen verteilt — dieselbe offene Frage O-208, ob sie im Angebot
- * eigene Positionen waeren.
+ * Leistungszeilen verteilt — dieselbe Voreinstellung O-208: keine eigenen
+ * Positionen.
  *
- * TODO(client, O-208): Sollen Gemeinkosten, Wagnis und Gewinn im Angebot als
- * EIGENE Positionen erscheinen, oder bleiben sie — wie hier — im Einzelpreis
- * der Leistungszeilen enthalten? Beides ist ueblich; die Wahl entscheidet,
- * was der Kunde im Dokument liest, und sie gehoert nicht uns.
+ * TODO(client, O-208): Voreinstellung — Gemeinkosten, Wagnis und Gewinn (wie
+ * Material und Geraet) stecken im Einzelpreis der Leistungszeilen, und der
+ * Langtext nennt sie; eigene Zuschlagszeilen gibt es nicht, die Kalkulation
+ * bleibt intern (K-05). Wie gebaut. D-796.
  */
 export function verteileNetto(
   zeilen: readonly Kalkulationszeile[], netto: Cent,

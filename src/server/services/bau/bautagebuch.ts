@@ -826,8 +826,9 @@ export function alsStunden(minuten: number): string {
  * `revier_id`, `posten_id` und `projekt_id`, aber kein `gewerk_id`. Die Stunden
  * je Gewerk stehen deshalb DANEBEN, statt dass hier eine Zuordnung erfunden
  * wird, die es nicht gibt.
- * // TODO(client, O-282): Soll die Zeiterfassung das Gewerk mitfuehren, damit
- * der Abgleich je Gewerk statt nur in der Tagessumme laufen kann?
+ * // TODO(client, O-282): Voreinstellung — die Kolonne waehlt beim
+ * Einstempeln kein Gewerk; abgeglichen wird die Tagessumme je Baustelle, die
+ * Mannstunden je Gewerk traegt das Bautagebuch. Wie gebaut. D-795.
  *
  * **Verglichen wird in ganzen MINUTEN.** Beide Seiten fuehren ganze Minuten;
  * in Stunden umzurechnen und dann zu vergleichen erzeugte eine Differenz aus

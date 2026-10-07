@@ -106,10 +106,11 @@ export default async function Kundennachricht(
           {ANHAENGE_SICHTBAR ? null : (
             <Offen
               nummer="O-671"
+              art="voreinstellung"
               was="Die Anlagen liegen nicht im Portal"
-              weg="Die Dateien haben Sie auf dem bisherigen Weg erhalten; ob
-                Anlagen im Portal zum Herunterladen stehen, ist noch nicht
-                entschieden."
+              weg="Die Dateien haben Sie auf dem bisherigen Weg erhalten;
+                Anlagen sollen hier zum Herunterladen stehen, dieser Weg ist
+                noch nicht gebaut."
             />
           )}
         </div>

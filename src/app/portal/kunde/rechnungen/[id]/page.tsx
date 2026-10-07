@@ -386,8 +386,10 @@ export default async function Kundenrechnung(
         <Offen
           nummer="O-74"
           was="Rückfragen zu diesem Beleg laufen über Ihre Ansprechpartnerin"
-          weg="Das Portal ist lesend; ob ein Kundenzugang eine Rechnung im
-            Portal beanstanden kann, ist noch nicht entschieden."
+          art="voreinstellung"
+          weg="Das Portal ist lesend: eine Beanstandung dieses Belegs richten
+            Sie an Ihre Ansprechpartnerin; sie prüft sie und antwortet Ihnen
+            mit einer Korrektur oder einer Begründung."
         />
       </div>
     </KundenRahmen>

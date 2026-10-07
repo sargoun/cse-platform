@@ -350,9 +350,10 @@ export async function seedCrm(
        * `ansprechpartner_aehnliche_leistung_begruendet` lässt das Kennzeichen
        * ohne Begründungstext ohnehin nicht zu.
        *
-       * Dass die Wertung heute noch nicht ins Tor eingeht, ist O-660 und
-       * steht so auf der Seite: die Matrix zeigt ihre Antwort neben der des
-       * Tores, nicht an deren Stelle.
+       * Dass die Wertung heute noch nicht ins Tor eingeht, ist die
+       * Voreinstellung O-660 (D-793: die Matrix wird Tor, V-342) und steht so
+       * auf der Seite: die Matrix zeigt ihre Antwort neben der des Tores, nicht
+       * an deren Stelle.
        */
       const gewertet = await sql`
         update ansprechpartner

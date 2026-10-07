@@ -33,9 +33,9 @@ import {
  *
  * **Die Bindefrist ist ein SATZ, kein Zustand.** `bindefristText` formt die
  * Tage, die die Datenbank gegen `app.berlin_heute()` gerechnet hat (K-11), in
- * Worte. Der gespeicherte `status` bleibt daneben unveraendert stehen — ob
- * ein versendetes Angebot nach Fristende von selbst `abgelaufen` wird, ist
- * offen (O-842) und wird hier nicht entschieden.
+ * Worte. Der gespeicherte `status` bleibt daneben unveraendert stehen — nach
+ * Fristende setzt ihn der naechtliche Lauf `angebot_ablauf` auf `abgelaufen`
+ * (Voreinstellung O-842, V-085), nicht diese Seite.
  */
 export const dynamic = 'force-dynamic';
 

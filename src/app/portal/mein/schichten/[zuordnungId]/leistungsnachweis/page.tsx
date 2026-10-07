@@ -36,8 +36,8 @@ import { FormularFehler } from '../../../FormularAntwort';
  * **Die Positionen tippt die Kraft.** Sie aus `auftrag_leistung` abzuleiten
  * ginge nicht: die Auftragszeilen sind die kaufmaennische Seite und der Kraft
  * bewusst verschlossen (EMP-13, K-05). Was geleistet wurde, weiss sie — der
- * Preis bleibt leer, weil offen ist, ob eine Position bei Monatspauschale
- * ueberhaupt einen Einzelpreis je Durchgang traegt (O-348).
+ * Preis bleibt leer: eine Position bei Monatspauschale traegt keinen
+ * Einzelpreis je Durchgang (Voreinstellung O-348).
  *
  * **Kein Kunde auf dem Bildschirm, ausser auf dem Blatt selbst.** In der Liste
  * steht der Zustand; im Abzug steht der Name, weil der Kunde unter seinem

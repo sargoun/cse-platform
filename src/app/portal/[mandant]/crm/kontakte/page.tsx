@@ -132,6 +132,12 @@ export default async function Kontaktliste(
 
       /*
        * Das ENGERE Recht trägt den Nachweisblock (0247, O-661). Fehlt es,
+       * // TODO(client, O-661): Voreinstellung — `crm.rechtsgrundlage_lesen`
+       * // trägt den Rechtsgrundlagen-Block (0222, 0247), nicht `crm.lesen`;
+       * // `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das
+       * // Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen`
+       * // (0020, `crm.lesen`) hat keinen Aufrufer mehr und gehört per
+       * // Migration auf das engere Recht oder weg (V-343). D-793.
        * wird die Funktion NICHT gerufen — sie würde werfen, und ein
        * abgefangener Fehler wäre hier nicht von „keine Grundlage" zu
        * unterscheiden.
@@ -257,7 +263,8 @@ export default async function Kontaktliste(
       ) : (
         <Hinweis art="hinweis" cse="kontakte-grundlage-verdeckt" className="mb-s5 max-w-prose">
           <strong>Die Einstufung nach § 7 UWG ist Ihnen nicht sichtbar.</strong> Dafür
-          fehlt <Recht schluessel="crm.rechtsgrundlage_lesen" />. Das heisst
+          fehlt <Recht schluessel="crm.rechtsgrundlage_lesen" /> — das engere Recht
+          trägt den Block (Voreinstellung O-661). Das heisst
           nicht, dass keine hinterlegt ist — die Spalte und die Filter danach fehlen
           deshalb ganz, statt leer zu erscheinen. Die Antwort des Sendetores steht
           weiterhin in der letzten Spalte.

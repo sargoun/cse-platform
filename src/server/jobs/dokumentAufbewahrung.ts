@@ -56,10 +56,10 @@ import type { SchreibKontext } from '../kontext/index.js';
  * Bei den vier GoBD-Klassen ist das eine offene Rechtsfrage und keine
  * Einstellung: § 147 AO nennt eine MINDESTfrist, Art. 5 Abs. 1 lit. e DSGVO
  * verlangt eine Obergrenze, und `08-PR-PLAN.md` PR 64 sagt „for the full ten
- * years" — die Tabelle sperrt dauerhaft. Eine der beiden Seiten muss
- * nachgeben, und das entscheidet nicht diese Datei.
+ * years" — die Tabelle sperrt dauerhaft. Die Voreinstellung (O-894, D-796)
+ * löst es: Vorschlag nach Fristablauf, Freigabe durch einen Menschen.
  *
- * // TODO(client, O-894): Darf eine Rechnung, ein Buchungsbeleg oder ein Vertrag nach Ablauf der zehn Jahre gelöscht werden, oder bleibt die Aufbewahrung dauerhaft?
+ * // TODO(client, O-894): Voreinstellung — die Sperre der vier GoBD-Klassen endet mit der Frist nicht von selbst: nach Ablauf schlägt dieser Lauf die Löschung vor, und ein Mensch gibt sie frei, nachdem er die Ablaufhemmung geprüft hat (§ 147 Abs. 3 Satz 5 AO: offene Festsetzungsfrist, laufende Prüfung) — Art. 5 Abs. 1 lit. e DSGVO verlangt die Obergrenze, die AO die Prüfung davor. Nicht gebaut: die Sperre ist heute dauerhaft, ein Vorschlag fehlt (V-354). D-796.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **`je_mandant` und NICHT `uebergreifend` — der Unterschied ist die Policy.**

@@ -19,7 +19,21 @@ import {
   berlinKalendertag, dauerMinutenAbgerundet, dauerMinutenGerundet, ZeitFehler,
 } from './dauer.js';
 
-/** `02-datenmodell/04-PLANUNG-ZEIT.md` §3 — the enum, mirrored value for value. */
+/**
+ * `02-datenmodell/04-PLANUNG-ZEIT.md` §3 — the enum, mirrored value for value.
+ *
+ * TODO(client, O-103): Voreinstellung — Nachtarbeit ist Arbeit von mehr als
+ * zwei Stunden der Nachtzeit 23–06 Uhr (§ 2 Abs. 3, 4 ArbZG). Nachtarbeitnehmer
+ * ist, wer nach seiner Arbeitszeitgestaltung normalerweise Nachtarbeit in
+ * Wechselschicht leistet (§ 2 Abs. 5 Nr. 1) ODER an mindestens 48 Tagen im
+ * Kalenderjahr Nachtarbeit leistet (Nr. 2); für ihn gilt der Ausgleich auf
+ * durchschnittlich acht Stunden binnen eines Kalendermonats (§ 6 Abs. 2).
+ * Sonntags- und Feiertagsarbeit nur in den Fällen des § 10 Abs. 1 (u. a.
+ * Bewachung, Reinigung von Betriebseinrichtungen), der Ersatzruhetag nach § 11
+ * Abs. 3 (zwei bzw. acht Wochen) steht im Dienstplan (O-171). Keine dieser
+ * Regeln steht in dieser Liste oder im Enum `arbzg_regel`; geprüft wird sie
+ * nicht (V-350). D-795.
+ */
 export const ARBZG_REGELN = [
   'tagesarbeitszeit_ueber_8h',
   'tagesarbeitszeit_ueber_10h',
@@ -147,7 +161,7 @@ export interface Arbeitstagsgrenze {
 const TAG_MS = 24 * 60 * 60 * 1000;
 
 /**
- * PLATZHALTER — beide Lesarten zugleich, bis O-926 beantwortet ist.
+ * VOREINSTELLUNG (O-926, D-795) — beide Lesarten zugleich.
  *
  * Zwei Blöcke gelten nur dann als EIN Arbeitstag, wenn BEIDE Lesarten das
  * sagen: sie beginnen am selben Berliner Kalendertag, UND der spätere
@@ -158,10 +172,10 @@ const TAG_MS = 24 * 60 * 60 * 1000;
  * Richtung: ein Verstoss, den eine der beiden Lesarten sieht, wird nicht
  * verschwiegen; verschwiegen wird nur, was nach keiner ein Verstoss ist.
  *
- * TODO(client, O-926): Wo endet ein Arbeitstag im Sinne der §§ 3 und 5 ArbZG — am Berliner Kalendertag oder 24 Stunden nach Arbeitsbeginn (individueller Werktag) —, und gilt für einen geteilten Dienst über Mitternacht (etwa 22:00–23:30 und 00:30–06:00) die Unterbrechung als Teil desselben Arbeitstags?
+ * TODO(client, O-926): Voreinstellung — ein Arbeitstag im Sinne der §§ 3 und 5 ArbZG endet, wo BEIDE Lesarten es sagen: zwei Blöcke sind ein Arbeitstag nur, wenn sie am selben Berliner Kalendertag beginnen UND der spätere weniger als 24 Stunden nach Beginn des Arbeitstags beginnt — die strengere Prüfung; die Unterbrechung eines geteilten Dienstes über Mitternacht ist damit Ruhezeit nur, wo beide Lesarten es so sehen. Die § 3-Summe steht je Berliner Kalendertag des Schichtbeginns (O-101). Wie gebaut. D-795.
  */
 export const ARBEITSTAG_BEIDE_LESARTEN: Arbeitstagsgrenze = {
-  name: 'Platzhalter: derselbe Arbeitstag nur, wenn Kalendertag (Berlin) und 24-Stunden-Werktag übereinstimmen',
+  name: 'Voreinstellung: derselbe Arbeitstag nur, wenn Kalendertag (Berlin) und 24-Stunden-Werktag übereinstimmen',
   offeneFrage: 'O-926',
   gleicherArbeitstag: ({ vorherBeginn, naechsterBeginn, arbeitstagBeginn }) =>
     berlinKalendertag(vorherBeginn) === berlinKalendertag(naechsterBeginn)
@@ -180,6 +194,13 @@ export const ARBEITSTAG_BEIDE_LESARTEN: Arbeitstagsgrenze = {
  */
 export const ACHT_STUNDEN = 8 * 60;
 export const ZEHN_STUNDEN = 10 * 60;
+/**
+ * TODO(client, O-102): Voreinstellung — elf Stunden in allen vier Bereichen;
+ * die Verkürzung auf zehn (§ 5 Abs. 2 ArbZG: Krankenhäuser, Gaststätten,
+ * Verkehr, Rundfunk, Landwirtschaft) trifft keinen Bereich der Gruppe, und
+ * eine tarifliche Regel darf nur strenger sein (`tv_mindestens_gesetz`). Wie
+ * gebaut. D-795.
+ */
 export const RUHEZEIT_MINUTEN = 11 * 60;
 export const PAUSE_AB_6H = 30;
 export const PAUSE_AB_9H = 45;
@@ -203,6 +224,13 @@ function pruefePersonenSchluessel(schichten: readonly Schicht[]): string {
  * Which reading of "werktäglich" applies to a shift crossing midnight is not
  * settled by the statute and is not invented here — the reading is named in
  * every finding's `begruendung` so a reviewer can see which one produced it.
+ *
+ * TODO(client, O-101): Voreinstellung — die Stunden einer Nachtschicht
+ * (22–06) gehören dem Berliner Kalendertag ihres Beginns: für § 3 ArbZG, den
+ * MiLoG-Nachweis (`milog_aufzeichnung`) und die Abrechnung (O-179); geteilt
+ * wird nur an der Monatsgrenze (Stundenkonto, `zeiten.csv`). Sonntags- und
+ * Feiertagsanteile nach Kalendertag rechnet das Lohnsystem aus Beginn und
+ * Ende. Wie gebaut. D-795.
  */
 export function pruefeArbzg(
   schichten: readonly Schicht[],

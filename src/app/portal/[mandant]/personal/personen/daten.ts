@@ -135,9 +135,10 @@ export interface AnstellungZeile {
  * darf, dass jemand auch bei der Schwester arbeitet, ist eine Rechtsfrage und
  * keine technische.
  *
- * // TODO(client, O-220): Darf die Personalstelle einer Gesellschaft sehen,
- * dass ein Mensch zusaetzlich bei einer Schwestergesellschaft der Gruppe
- * beschaeftigt ist — und wenn ja, nur der Name der Gesellschaft oder mehr?
+ * // TODO(client, O-220): Voreinstellung — die Personalstelle sieht nur die
+ * Beschaeftigungen ihrer Gesellschaft; wer in der Gruppe wo beschaeftigt ist,
+ * zeigt die Gruppenansicht (`gruppe.personal.lesen`), die ArbZG-Belastung
+ * kommt ohne Namen ueber K-06. Wie gebaut. D-795.
  */
 export async function leseAnstellungen(
   kontext: LeseKontext, personId: string,

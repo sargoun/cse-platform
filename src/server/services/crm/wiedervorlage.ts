@@ -30,11 +30,11 @@ import { istUuid } from '../../../lib/uuid.js';
  * dass jemand es weiss, ist schlimmer als eine, die nur an einer Stelle
  * steht.
  *
- * // TODO(client, O-663): Soll eine Wiedervorlage immer zugleich eine
- * `aufgabe` und einen `kalender_eintrag` erzeugen (so 04-SEITENKARTE §5.2),
- * oder bleibt sie eine reine Vertriebsnotiz auf `lead_aktivitaet`? Bis zur
- * Antwort werden alle drei geschrieben, soweit die Rechte reichen, und die
- * Oberfläche sagt, was entstanden ist.
+ * // TODO(client, O-663): Voreinstellung — eine Wiedervorlage ist zugleich
+ * `aufgabe` und `kalender_eintrag` (04-SEITENKARTE §5.2): alle drei Zeilen
+ * entstehen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und
+ * die Oberfläche sagt, was nicht entstand. Erledigen und Verschieben fassen
+ * die Aufgabe mit an, den Kalendereintrag noch nicht (V-344). D-793.
  */
 
 /** Die vier Fächer, in die eine Fälligkeit fällt. */

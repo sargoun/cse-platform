@@ -140,9 +140,10 @@ export default async function Kundendokument(
         <div className="flex flex-col gap-s4">
           <Offen
             nummer="O-671"
+            art="voreinstellung"
             was="Diese Unterlage kommt nicht über das Portal"
-            weg={`Ob freigegebene Dokumente hier herunterladbar sind, ist noch
-              nicht entschieden. Ausgeliefert würde eine Datei ausschließlich
+            weg={`Freigegebene Unterlagen sollen hier zum Herunterladen stehen;
+              dieser Weg ist noch nicht gebaut. Ausgeliefert würde eine Datei ausschließlich
               über eine Adresse, die nach ${String(SIGNATUR_MINUTEN)} Minuten
               verfällt — einen dauerhaften Pfad gibt es nicht. Ihre
               Ansprechpartnerin schickt Ihnen die Unterlage auf dem bisherigen

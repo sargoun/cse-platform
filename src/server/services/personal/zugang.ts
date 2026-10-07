@@ -179,9 +179,9 @@ export async function richteZugangEin(
  *
  * **Wer die Nummer hat, bekommt den Code.** Ein Umschreiben ist deshalb
  * fachlich eine Kontoübergabe, und seit `0384` steht sie mit Vorher und
- * Nachher im Protokoll. Ob dafür ein zweites Augenpaar verlangt wird, ist
- * NICHT entschieden — siehe O-86; die Oberfläche sagt das hin, statt eine
- * Regel zu erfinden.
+ * Nachher im Protokoll. Ein zweites Augenpaar verlangt es nicht —
+ * Voreinstellung (O-86, D-781): das Protokoll mit alter und neuer Nummer
+ * genügt; die Oberfläche sagt es.
  *
  * Die alte Nummer wird verglichen, ohne sie nach Node zu holen: sie ist ein
  * personenbezogenes Datum, und der Vergleich gehört dorthin, wo sie liegt.

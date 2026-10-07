@@ -93,7 +93,8 @@ const LOESCHENDE_LAEUFE: Readonly<Record<string, string>> = {
     + 'mit Grund und Datum, die Datei im Speicher ganz (DOC-07, LEG-01). Er erreicht '
     + 'heute die Klassen „Angebot“ und „Kunde“ (je sechs Jahre, § 257 HGB) — die vier '
     + 'GoBD-Klassen und die drei offenen tragen eine Löschsperre und fallen aus dem '
-    + 'Lauf heraus, er sieht sie nicht (O-894, O-25). Ebenso ein Dokument, auf das '
+    + 'Lauf heraus, er sieht sie nicht (O-25; für die GoBD-Klassen ist ein Löschvorschlag '
+    + 'nach Fristablauf die Voreinstellung O-894, nicht gebaut). Ebenso ein Dokument, auf das '
     + 'sich eine Buchungszeile beruft.',
   bewerber_loeschung:
     'Anonymisiert abgelaufene Bewerbungen: Bewertungen, Kandidatendaten und '

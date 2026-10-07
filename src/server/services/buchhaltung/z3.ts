@@ -10,6 +10,11 @@ import {
  * Der Z3-Export — die Datentraegerueberlassung nach § 147 Abs. 6 AO
  * (ACC-09, GoBD Rz. 158 ff., PR 66, D-485).
  *
+ * // TODO(client, O-45): Voreinstellung — Z3 (Datenträgerüberlassung) ist der
+ * Regelweg und gebaut; Z1 und Z2 gewährt die Gesellschaft auf Verlangen der
+ * Prüfung über ein befristetes, ausschliesslich lesendes Konto — eine eigene
+ * Prüferrolle dafür fehlt (V-355). D-796.
+ *
  * **Was Z3 ist.** Die Finanzverwaltung hat drei Zugriffsarten: Z1 ist der
  * unmittelbare Zugriff am System, Z2 der mittelbare ueber einen Mitarbeiter,
  * Z3 die Ueberlassung der Daten auf einem Datentraeger. Fuer Z3 verlangt sie

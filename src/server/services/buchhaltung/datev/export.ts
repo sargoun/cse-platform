@@ -28,6 +28,12 @@ import {
  *     bestätigt, oder es entsteht nichts.
  *  3. Die Policy auf `datev_export` verlangt `buchhaltung.exportieren`.
  *
+ * // TODO(client, O-129): Voreinstellung — ein Export sperrt keine Periode:
+ * exportierte Buchungen tragen den Stapel (`datev_export_id`) und gehen in
+ * keinen zweiten Export, ein später Beleg fällt in den nächsten Export;
+ * gesperrt wird eine Periode nur durch den Periodenabschluss
+ * (`schliessePeriode`, vorläufig und endgültig). Wie gebaut. D-796.
+ *
  * Die Reihenfolge ist Absicht: erst die teure fachliche Prüfung, dann die
  * billige Rechteprüfung? Nein — umgekehrt wäre es billiger und schlechter.
  * Wer das Recht hat, aber einen unvollständigen Monat exportiert, soll den

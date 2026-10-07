@@ -27,8 +27,8 @@ import {
  *
  * **Keine Auftragssumme, keine Besetzung, kein Verantwortlicher.** Die
  * Spalten stehen in keiner Abfrage (`services/kundenportal/auftrag.ts`); die
- * Begruendung je Spalte steht dort, und O-840 haelt die Frage nach der
- * Auftragssumme offen.
+ * Begruendung je Spalte steht dort; die Auftragssumme haelt die
+ * Voreinstellung O-840 aus dem Portal.
  *
  * **Der Zustand wird auf DESIGN §5 abgebildet, nicht erfunden.** Das feste
  * Pillenvokabular kennt kein „Pausiert" und kein „Storniert"; beide werden

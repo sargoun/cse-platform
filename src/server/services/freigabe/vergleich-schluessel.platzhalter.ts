@@ -16,14 +16,14 @@
  * als GEAENDERTE Position mit ihrem Delta. Solange die Frage offen ist, gilt
  * deshalb die sichtbare Variante.
  *
- * TODO(client, O-114): Welche Merkmale unterscheiden zwei Rechnungspositionen
- * fachlich voneinander — gehoert die Tarif- bzw. Zuschlagsgruppe zur
- * Identitaet einer Position, oder ist sie ein Attribut, dessen Aenderung als
- * Aenderung derselben Position angezeigt werden soll?
+ * TODO(client, O-114): Voreinstellung — die Tarif- bzw. Zuschlagsgruppe ist
+ * ein ATTRIBUT der Position, nicht Teil ihrer Identitaet: Objekt, Leistung
+ * und Einheit bestimmen sie, eine geaenderte Zuschlagsgruppe erscheint als
+ * Aenderung derselben Zeile mit Delta. Wie gebaut (leere Liste). D-796.
  */
 
 /**
- * PLATZHALTER (O-114) — leer, bis der Kunde antwortet.
+ * VOREINSTELLUNG (O-114, D-796) — leer: kein zusaetzliches Merkmal.
  *
  * Jeder Eintrag ist ein Schluessel aus `VergleichsPosition.meta`. Ein Name,
  * den `meta` nicht traegt, geht als leerer Abschnitt in den Schluessel ein —

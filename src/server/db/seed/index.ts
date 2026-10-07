@@ -2335,7 +2335,7 @@ async function main(): Promise<void> {
       + `${String(crm.bescheinigungen)} §-48b-Bescheinigung, `
       + `${String(crm.wiedervorlagen)} Wiedervorlagen in allen vier Faechern und `
       + `${String(crm.aehnlicheLeistung)} begruendete §-7-Abs.-3-Wertung `
-      + '(noch ohne Wirkung im Tor — O-660)\n');
+      + '(Voreinstellung O-660: wird Tor, V-342 — heute ohne Wirkung im Tor)\n');
 
   /**
    * Zuletzt die Ausgangsrechnungen — nach Kunden, Konten und Nummernkreisen,

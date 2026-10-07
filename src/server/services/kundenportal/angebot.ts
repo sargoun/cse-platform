@@ -376,17 +376,17 @@ export async function angebotsSummen(
  * der Vortag, und die Bindefrist um einen Tag falsch.
  *
  * **Was dieser Satz NICHT tut: er aendert keinen Zustand.** `angebot_status`
- * kennt `abgelaufen` als eigenen Wert; ob ein versendetes Angebot nach
- * `gueltig_bis` von selbst dorthin wandert, ist nicht entschieden — es gibt
- * heute keinen Lauf, der das tut (nachgesehen in `src/server/jobs/`). Die
- * Seite zeigt den gespeicherten Zustand UND diesen Satz nebeneinander; sie
- * leitet aus dem Datum keinen Zustand ab.
+ * kennt `abgelaufen` als eigenen Wert, und dorthin setzt ein versendetes
+ * Angebot der naechtliche Lauf `angebot_ablauf` (02:10 Uhr,
+ * `jobs/statuslaeufe.ts`, V-085), sobald `gueltig_bis` vorbei ist. Die Seite
+ * zeigt den gespeicherten Zustand UND diesen Satz nebeneinander; sie leitet
+ * aus dem Datum keinen Zustand ab — zwischen Mitternacht und dem Lauf stuende
+ * sonst im Portal ein anderer Zustand als in der Datenbank.
  *
- * // TODO(client, O-842): Gilt ein versendetes Angebot nach Ablauf von
- * `gueltig_bis` automatisch als `abgelaufen` — und wer stellt das fest, ein
- * naechtlicher Lauf oder die Sachbearbeitung? Solange die Frage offen ist,
- * bleibt der Zustand in der Datenbank stehen, wie ein Mensch ihn gesetzt hat,
- * und der Kunde liest das Datum daneben.
+ * // TODO(client, O-842): Voreinstellung — ein versendetes Angebot wird nach
+ * Ablauf von `gueltig_bis` automatisch `abgelaufen`, festgestellt vom
+ * naechtlichen Lauf `angebot_ablauf`, nicht von der Sachbearbeitung und nicht
+ * von der Seite. Wie gebaut (V-085). D-794.
  */
 export function bindefristText(tage: number | null): string | null {
   if (tage === null) return null;

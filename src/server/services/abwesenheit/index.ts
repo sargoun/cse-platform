@@ -402,7 +402,7 @@ export interface Unverfuegbarkeit {
  * des aktiven Mandanten und sieht die fremde Abmeldung nicht. Das ist kein
  * Versehen: eine zweite Durchlaessigkeit in der Mandantenwand waere neben der
  * ArbZG-Belastung die zweite, und K-06 laesst ausdruecklich genau eine zu.
- * // TODO(client, O-209): Soll eine Abwesenheit in einer Gesellschaft die Person auch in der anderen als unverfuegbar zeigen — und auf welcher Rechtsgrundlage (Art. 9 DSGVO)?
+ * // TODO(client, O-209): Voreinstellung — eine Abwesenheit gilt nur in ihrer Gesellschaft: eine Krankmeldung ist ein Gesundheitsdatum (Art. 9 DSGVO), und die Mandantenwand lässt genau eine Durchlässigkeit zu (ArbZG, K-06); wer in zwei Gesellschaften beschäftigt ist, meldet sich in beiden ab (D-09). Wie gebaut. D-795.
  */
 export async function unverfuegbarImFenster(
   kontext: LeseKontext, von: string, bis: string,

@@ -23,7 +23,7 @@ import {
 } from '../../src/server/services/finanz/entwurf.js';
 import {
   ENTWURF_RECHNUNGSARTEN, OBJEKT_KUNDE_REGEL, istEntwurfRechnungsart, istVorauszahlung,
-  type RechnungFehler,
+  pruefeObjektZuordnung, type RechnungFehler,
 } from '../../src/server/services/finanz/rechnung.js';
 import { istKalendertag } from '../../src/server/services/auftrag/angaben.js';
 import type { QuellenFehler } from '../../src/server/services/finanz/positionsquelle.js';
@@ -192,8 +192,39 @@ describe('die Route liest, statt Postgres raten zu lassen (V-209)', () => {
       /aktion === 'kopf' && text\('rechnungsart'\) === null\) return abweisung\('unvollstaendig'/u);
   });
 
-  it('der Leistungsort bleibt offen, bis O-933 beantwortet ist', () => {
-    expect(OBJEKT_KUNDE_REGEL).toEqual({ art: 'offen', frage: 'O-933' });
+  it('der Leistungsort darf einem anderen Kunden gehören (Voreinstellung O-933, D-796)', () => {
+    expect(OBJEKT_KUNDE_REGEL).toEqual({ art: 'frei', frage: 'O-933' });
+  });
+
+  /*
+   * Die Regel ist austauschbar und wird gelesen (Prüfstand PR #36): eine
+   * andere Entscheidung ändert `OBJEKT_KUNDE_REGEL`, nicht die Aufrufer.
+   */
+  const objektVon = (kundeId: string | null) => ({
+    abfrage: <T>() => Promise.resolve([{ id: 'o-1', kunde_id: kundeId }] as unknown as readonly T[]),
+  });
+  const keinObjekt = { abfrage: <T>() => Promise.resolve([] as readonly T[]) };
+
+  it('„frei" nimmt das Objekt eines anderen Kunden an', async () => {
+    await expect(pruefeObjektZuordnung(objektVon('kunde-b'), 'o-1', 'kunde-a'))
+      .resolves.toBeUndefined();
+  });
+
+  it('„gleich" weist das Objekt eines anderen Kunden ab und nennt O-933', async () => {
+    await expect(pruefeObjektZuordnung(objektVon('kunde-b'), 'o-1', 'kunde-a',
+      { art: 'gleich', frage: 'O-933' })).rejects.toThrow(/O-933/u);
+  });
+
+  it('„gleich" nimmt ein Objekt ohne Kunden und eines desselben Kunden an', async () => {
+    await expect(pruefeObjektZuordnung(objektVon(null), 'o-1', 'kunde-a',
+      { art: 'gleich', frage: 'O-933' })).resolves.toBeUndefined();
+    await expect(pruefeObjektZuordnung(objektVon('kunde-a'), 'o-1', 'kunde-a',
+      { art: 'gleich', frage: 'O-933' })).resolves.toBeUndefined();
+  });
+
+  it('ein unsichtbares Objekt fällt unter jeder Regel', async () => {
+    await expect(pruefeObjektZuordnung(keinObjekt, 'o-1', 'kunde-a'))
+      .rejects.toThrow(/nicht sichtbar/u);
   });
 });
 

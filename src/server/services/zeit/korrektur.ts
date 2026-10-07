@@ -305,7 +305,7 @@ export async function korrigiereZeiteintrag(
    * hier ist die Grenze zwischen „nichts zu verschieben" und „Differenz ins
    * Nichts": die erste Lage kommt vor, und sie braucht eine Antwort.
    *
-   * // TODO(client, O-891): Wie wird eine Korrektur an einem gesperrten Monat gebucht, die KEINE Minuten bewegt (nur Objekt, Revier oder Auftragszuordnung)?
+   * // TODO(client, O-891): Voreinstellung — im gesperrten Monat ist eine Korrektur ohne Minutendifferenz nicht zulässig (der Auslöser weist ab, wie gebaut): eine falsche Zuordnung eines abgeschlossenen Monats berichtigt die Rechnung (Storno und neue Position), nicht der Zeiteintrag. Im offenen Monat ändert eine Korrektur die Zuordnung (O-927) — das kann sie noch nicht (V-351). D-795.
    */
   let ausgleich = eingabe.ausgleichBewegungId ?? null;
   if (ausgleich === null && alt.gesperrt_am !== null) {

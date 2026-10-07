@@ -333,15 +333,19 @@ export default async function Kundenauftrag(
       <div className="flex flex-col gap-s4">
         <Offen
           nummer="O-840"
+          art="voreinstellung"
           was="Die Auftragssumme steht nicht im Portal"
-          weg="Ob der vereinbarte Auftragswert hier erscheint, ist noch nicht
-            entschieden; was berechnet wurde, steht unter „Rechnungen“."
+          weg="Der vereinbarte Auftragswert steht in Ihrem Vertrag; hier stehen
+            die vereinbarten Leistungen mit ihren Preisen und unter
+            „Rechnungen“, was berechnet wurde."
         />
         <Offen
           nummer="O-74"
+          art="voreinstellung"
           was="Änderungswünsche laufen über Ihre Ansprechpartnerin"
-          weg="Das Portal ist lesend; ob ein Kundenzugang einen Auftrag im
-            Portal ändern oder kündigen kann, ist noch nicht entschieden."
+          weg="Das Portal ist lesend: eine Änderung oder Kündigung erklären Sie
+            gegenüber Ihrer Ansprechpartnerin, die sie mit Ihnen abstimmt und
+            schriftlich bestätigt."
         />
       </div>
     </KundenRahmen>

@@ -194,9 +194,10 @@ export default async function Arbeitszeit(
         </h2>
         <p className="mb-s4 max-w-[72ch] text-sm text-text-muted">
           Hinterlegt wird nur, was STRENGER ist als das Gesetz (O-50). Je Gewerk gilt
-          eine Fassung ab einem Tag; die Prüfung nach § 4 und § 5 ArbZG nimmt dann den
-          strengeren Wert. Ist nichts hinterlegt, gilt das Gesetz — und das ist eine
-          Aussage, keine Lücke.
+          eine Fassung ab einem Tag. Die Prüfung nach § 4 und § 5 ArbZG rechnet heute
+          mit den gesetzlichen Werten; die tarifliche Regel steht hier als Nachweis und
+          wirkt in der Prüfung noch nicht. Ist nichts hinterlegt, gilt das Gesetz — und
+          das ist eine Aussage, keine Lücke.
         </p>
         <div data-cse="tarifvergleich">
           <DataTable

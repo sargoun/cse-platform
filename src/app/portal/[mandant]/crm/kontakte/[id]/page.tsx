@@ -395,7 +395,8 @@ export default async function Kontaktblatt(
             <strong>Der Nachweis ist Ihnen nicht sichtbar.</strong> Dafür fehlt{' '}
             <Recht schluessel="crm.rechtsgrundlage_lesen" /> — ein
             eigenes Recht neben <Recht schluessel="crm.lesen" />, mit dem
-            die Seitenkarte auch den Werbewiderspruchs-Katalog bewacht. Das heisst
+            die Seitenkarte auch den Werbewiderspruchs-Katalog bewacht — die
+            Voreinstellung (O-661). Das heisst
             nicht, dass keine Grundlage hinterlegt ist. Die Antwort des Sendetores
             steht darunter und ist von diesem Recht unabhängig.
           </Hinweis>
@@ -508,7 +509,8 @@ export default async function Kontaktblatt(
                   Das Tor unten ist das WIRKSAME — es entscheidet, was hinausgeht. Ein
                   grünes „Bereit" in der Spalte der Matrix ist deshalb keine Zusage für
                   später: wo oben „Das Tor sperrt" steht, bleibt dieser Kontakt auch
-                  nach einer Entscheidung zu O-660 gesperrt.
+                  nach der Umstellung des Tors auf die Matrix (Voreinstellung O-660,
+                  V-342) gesperrt.
                 </p>
               </Hinweis>
             )}
@@ -730,15 +732,15 @@ export default async function Kontaktblatt(
                data-cse="wv-spiegel-hinweis">
               {darf['aufgabe.schreiben'] === true && darf['kalender.schreiben'] === true
                 ? 'Sie wird zugleich als Aufgabe und als Kalendereintrag gespiegelt '
-                  + '(O-663) — sonst stünde derselbe Vorgang hier offen und in der '
-                  + 'Aufgabenliste gar nicht.'
+                  + '(Voreinstellung O-663) — sonst stünde derselbe Vorgang hier offen '
+                  + 'und in der Aufgabenliste gar nicht.'
                 : (
                   <>
                     Gespiegelt wird sie nur, soweit die Rechte reichen: für die Aufgabe
                     braucht es <Recht schluessel="aufgabe.schreiben" />, für den
                     Kalendereintrag <Recht schluessel="kalender.schreiben" />. Was nicht
-                    entsteht, sagt Ihnen die Meldung nach dem Speichern beim Namen (O-663) —
-                    verschwiegen wird nichts.
+                    entsteht, sagt Ihnen die Meldung nach dem Speichern beim Namen
+                    (Voreinstellung O-663) — verschwiegen wird nichts.
                   </>
                 )}
             </p>

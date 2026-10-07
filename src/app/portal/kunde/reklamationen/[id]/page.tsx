@@ -146,9 +146,10 @@ export default async function Kundenreklamation(
         <Offen
           nummer="O-74"
           was="Nachfassen und Erledigung bestätigen läuft über Ihre Ansprechpartnerin"
+          art="voreinstellung"
           weg="Eine Bestätigung durch Sie ist rechtlich die Abnahme der
-            Nacharbeit; ob sie im Portal erklärt werden kann, ist noch nicht
-            entschieden."
+            Nacharbeit; das Portal ist lesend, Sie erklären sie gegenüber Ihrer
+            Ansprechpartnerin."
         />
       </div>
     </KundenRahmen>

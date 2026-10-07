@@ -30,6 +30,13 @@ import { KeineAnstellungFehler, mandantDerAnstellung }
  *     `beantragt` heran und nur den Zielzustand `storniert` — eine
  *     Selbstgenehmigung fällt an der WITH-CHECK-Hälfte.
  *
+ * // TODO(client, O-895): Voreinstellung — die eigene Rücknahme bleibt
+ * möglich, solange die Abwesenheit unentschieden ist (`erfasst`, `beantragt`),
+ * auch wenn ihre Tage schon in einem Lohnexport standen: der Export ist ein
+ * Lesevorgang ohne gespeicherten Lauf, und die Personalstelle korrigiert den
+ * Monat im Lohnsystem. Dafür meldet sich jede Selbstrücknahme bei ihr — die
+ * Meldung fehlt noch, heute steht sie nur im Protokoll (V-353). D-795.
+ *
  * **303 und kein JSON.** Das Formular ist ein echtes `<form method="post">`,
  * damit es auf einem alten Diensttelefon ohne JavaScript funktioniert.
  */

@@ -378,11 +378,11 @@ export async function seedVertrieb(
       /**
        * `gueltigBis` bleibt LEER.
        *
-       * // TODO(client, O-350): Wie lange ist ein Angebot bindend, und wird
-       * `gueltig_bis` beim Versand aus dieser Frist gesetzt? Ein geratenes
-       * Datum stuende auf einem Dokument, das der Kunde als Zusage liest —
-       * und der Ablaufbericht (`angebot_ablauf_idx`) mahnte danach zu einem
-       * Termin, den niemand vereinbart hat.
+       * // TODO(client, O-350): Voreinstellung — ein Angebot bindet vier
+       * Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf den
+       * Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je
+       * Gesellschaft änderbar. Nicht gebaut (V-359) — bis dahin bleibt das
+       * Feld hier leer, wie ein Mensch es ohne Eintrag liesse. D-796.
        */
     });
     const positionen = await uebernimmKalkulation(db, angebotId, kalkulation, {

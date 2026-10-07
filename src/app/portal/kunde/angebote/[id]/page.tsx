@@ -10,6 +10,7 @@ import {
   findeKundenangebot, positionenZumAngebot, steuernZumAngebot,
   type Angebotsposition,
 } from '@/server/services/kundenportal/angebot';
+import { GRENZE } from '@/server/services/kundenportal/basis';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { kennungOder404 } from '../../../kennung';
 import { kundePortal, KundenRahmen } from '../../rahmen';
@@ -58,10 +59,11 @@ import {
  * Schnappschuss, wie K-12 ihn fuer die Rechnung verlangt. Zwei Abzuege
  * desselben Angebots koennten sich damit unterscheiden — bei einem Dokument,
  * das ein Vertragsangebot IST, ist das kein Schoenheitsfehler.
- * // TODO(client, O-844): Bekommt das versendete Angebot einen Schnappschuss
- * wie die Rechnung (`rechnung_snapshot`, K-12), damit der Kunde im Portal
- * genau das Dokument herunterladen kann, das er per Mail bekommen hat? Ohne
- * ihn gibt es keinen Abzug, der nachweislich derselbe ist.
+ * // TODO(client, O-844): Voreinstellung — das versendete Angebot bekommt
+ * beim Versand einen Schnappschuss wie die Rechnung (`rechnung_snapshot`,
+ * K-12), aus dem der Abzug fuer Kunde und Akte entsteht; Einleitungs- und
+ * Schlusstext werden mit dem Versand ebenfalls eingefroren. Nicht gebaut
+ * (V-348) — bis dahin bietet diese Seite keinen Dateiverweis an. D-794.
  */
 export const dynamic = 'force-dynamic';
 
@@ -203,6 +205,18 @@ export default async function Kundenangebot(
       </Card>
 
       <h2 className="mb-s3 text-h3 text-text">Positionen</h2>
+      {positionen.length >= GRENZE && (
+        /*
+         * `positionenZumAngebot` liest höchstens `GRENZE` Zeilen, die Summen
+         * darunter rechnet die Datenbank über ALLE (Prüfstand PR #36). Ohne
+         * diesen Satz läse sich eine gekürzte Liste als das ganze Angebot.
+         */
+        <p className="mb-s5 rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text-muted"
+           data-cse="positionen-gekuerzt">
+          Die Liste zeigt die ersten {String(GRENZE)} Positionen; das Angebot kann
+          mehr führen. Die Summen unten umfassen alle.
+        </p>
+      )}
       {positionen.length === 0 ? (
         <p className="m-0 mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Dieses Angebot führt keine Einzelpositionen.
@@ -370,10 +384,12 @@ export default async function Kundenangebot(
         />
         <Offen
           nummer="O-844"
+          art="voreinstellung"
           was="Dieses Angebot gibt es hier nicht als Datei"
-          weg="Ein Abzug entstünde aus den heutigen Stammdaten und wäre damit
-            nicht nachweislich derselbe wie der versendete; ob das versendete
-            Angebot einen Schnappschuss bekommt, ist noch nicht entschieden."
+          weg="Ein versendetes Angebot bekommt einen eingefrorenen Abzug wie eine
+            Rechnung, damit Sie hier genau das Dokument erhalten, das Sie
+            bekommen haben; dieser Abzug ist noch nicht gebaut. Die Datei
+            schickt Ihre Ansprechpartnerin."
         />
       </div>
     </KundenRahmen>

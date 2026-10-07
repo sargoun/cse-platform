@@ -114,9 +114,10 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
       'Eine Änderung des Bauvertrags ist ein Nachtrag nach § 2 VOB/B — am Projekt dieses '
       + 'Auftrags.',
     wertWegOffen: (frage) =>
-      'Wie ein Vertragswert aus einem Angebot in dieser Gesellschaft berichtigt oder angepasst '
-      + `wird, ist noch nicht entschieden (${frage}). Bis dahin bleibt er, wie der Kunde ihn `
-      + 'angenommen hat.',
+      'Der Vertragswert aus einem Angebot bleibt, wie der Kunde ihn angenommen hat: eine '
+      + 'Berichtigung oder ein anderer Umfang ist eine neue Angebotsfassung, eine '
+      + `Preisanpassung eine neue datierte Leistungszeile (Voreinstellung ${frage}). `
+      + 'Leistungszeilen lassen sich hier noch nicht anlegen oder beenden.',
 
     ops10Titel: 'Was der Vertrag verlangt (OPS-10)',
     ops10Hinweis:
@@ -205,8 +206,9 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
       'A change of the construction contract is a Nachtrag (change order) under § 2 VOB/B — '
       + 'on the project of this order.',
     wertWegOffen: (frage) =>
-      'How a contract value from an offer is corrected or adjusted in this Mandant (company) '
-      + `has not been decided yet (${frage}). Until then it stays as the customer accepted it.`,
+      'A contract value from an offer stays as the customer accepted it: a correction or a '
+      + 'changed scope is a new offer version, a price adjustment a new dated service line '
+      + `(default ${frage}). Service lines cannot be created or ended here yet.`,
 
     ops10Titel: 'What the contract requires (OPS-10)',
     ops10Hinweis:

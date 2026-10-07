@@ -34,9 +34,14 @@ import { anbieter } from '../../auth/kennwort-anmeldung.js';
  * Konto, mit dem sich niemand anmelden kann. Diese Datei weist das deshalb
  * benannt ab, statt es zu tun.
  *
- * // TODO(client, O-662): Wird ein Kundenzugang nach dem Anschluss von
- * Supabase Auth (O-501) über die Admin-API angelegt, und wer trägt den
- * Auftragsverarbeitungsvertrag für die Konten externer Ansprechpartner?
+ * // TODO(client, O-662): Voreinstellung — bis Supabase Auth verbunden ist
+ * (O-501, Betreiberdatum), legt `app.kundenzugang_ausstellen` (0249) das Konto
+ * selbst an (`benutzer` im Status `eingeladen`, eine Zeile in der
+ * `auth.users`-Attrappe, den Einladungstoken; das Kennwort setzt die Person
+ * über den Link), und der Einladungslink wird einmal gezeigt; danach
+ * entsteht das Konto über die Admin-API, und der Auftragsverarbeitungsvertrag
+ * mit Supabase (EU-Region) deckt auch die Konten externer Ansprechpartner —
+ * Verantwortliche bleibt die Gesellschaft, die den Zugang ausstellt. D-793.
  */
 
 /** Der kurzlebige Keks, in dem die Route den Klartext an die Seite reicht. */

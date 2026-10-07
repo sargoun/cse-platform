@@ -109,9 +109,9 @@ describe('wo die Lesarten auseinandergehen, bleibt der Verstoss (vorsichtig, O-9
 });
 
 describe('die Grenze ist austauschbar — die Antwort auf O-926 ersetzt eine Stelle', () => {
-  it('der Platzhalter ist beschriftet und nennt seine Frage', () => {
+  it('die Voreinstellung ist beschriftet und nennt ihre Frage (O-926, D-795)', () => {
     expect(ARBEITSTAG_BEIDE_LESARTEN.offeneFrage).toBe('O-926');
-    expect(ARBEITSTAG_BEIDE_LESARTEN.name).toContain('Platzhalter');
+    expect(ARBEITSTAG_BEIDE_LESARTEN.name).toContain('Voreinstellung');
   });
 
   it('eine andere Lesart ändert das Ergebnis, nicht die Rechnung', () => {
@@ -125,7 +125,7 @@ describe('die Grenze ist austauschbar — die Antwort auf O-926 ersetzt eine Ste
     expect(befunde.map((b) => b.minuten)).toEqual([480]);
     expect(befunde[0]?.begruendung).toContain('Test: jede Lücke ist Ruhezeit');
     expect(befunde[0]?.begruendung).not.toContain('O-926');
-    // Mit dem ausgelieferten Platzhalter: kein Befund.
+    // Mit der ausgelieferten Voreinstellung: kein Befund.
     expect(ruhezeiten([frueh, abends])).toEqual([]);
   });
 });
