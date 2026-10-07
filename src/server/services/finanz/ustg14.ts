@@ -1125,7 +1125,7 @@ export async function ladePruefEingabe(
        from rechnungsposition p
        join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
        left join masseinheit e on e.id = p.masseinheit_id
-      where p.rechnung_id = $1
+      where p.rechnung_id = $1 and p.entfernt_am is null
       order by p.position_nr`,
     [rechnungId],
   );

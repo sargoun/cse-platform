@@ -21,7 +21,7 @@ import {
   QuellenFehler, type QuelleEingabe,
 } from '@/server/services/finanz/positionsquelle';
 import {
-  aendereEntwurfKopf, fuegeMaterialPositionHinzu, uebernimmAbrechnungsart,
+  aendereEntwurfKopf, entfernePosition, fuegeMaterialPositionHinzu, uebernimmAbrechnungsart,
 } from '@/server/services/finanz/entwurf';
 import { AbrechnungFehler } from '@/server/services/finanz/abrechnungsart/index';
 import { SteuerfallFehler } from '@/server/services/finanz/steuerfall';
@@ -60,12 +60,13 @@ const MASKE: Readonly<Record<string, readonly string[]>> = {
     'herkunft', 'auftragLeistungId', 'ausgabeId', 'herkunftNotiz'],
   'aus-zeiten': [],
   'aus-abrechnungsart': [],
+  'position-entfernen': ['positionId', 'grund'],
 };
 
 /** Wohin der Browser auf dem Blatt zurueckspringt. */
 const ANKER: Readonly<Record<string, string>> = {
   kopf: 'kopf', position: 'position', 'aus-zeiten': 'zeitzeile',
-  'aus-abrechnungsart': 'abrechnungsart',
+  'aus-abrechnungsart': 'abrechnungsart', 'position-entfernen': 'positionen',
 };
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -178,6 +179,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const auftragId = kennungOderNull('auftragId');
   const auftragLeistungId = kennungOderNull('auftragLeistungId');
   const ausgabeId = kennungOderNull('ausgabeId');
+  const positionId = kennungOderNull('positionId');
   const aufmassIds = daten.getAll('aufmassIds')
     .filter((w): w is string => typeof w === 'string' && w.trim() !== '')
     .map((w) => w.trim());
@@ -304,6 +306,18 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         ...(fertigstellungBp === undefined ? {} : { fertigstellungBp }),
       });
       return `/${rechnungId}?hinweis=uebernommen#positionen`;
+    }
+
+    /**
+     * **Eine Position verlässt den Entwurf** (V-356, O-212, D-831) — mit
+     * Grund. Die Zeile bleibt stehen (Invariante 8), fällt aus jeder Summe,
+     * und ihre Herkunft wird frei; zurück geht es auf das Blatt des Entwurfs,
+     * zu dem die Position gehört.
+     */
+    if (aktion === 'position-entfernen') {
+      if (positionId === null) return null;
+      const entfernt = await entfernePosition(kontext, positionId, text('grund') ?? '');
+      return `/${entfernt.rechnungId}?hinweis=position_entfernt#positionen`;
     }
 
     /** **Der Kopf des Entwurfs** (V-204, V-205). Nur ein Entwurf ändert sich. */

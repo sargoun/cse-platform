@@ -104,7 +104,7 @@ const RECHNUNG_GRUENDE: Readonly<Record<RechnungFehler['grund'], true>> = {
   basismenge_ungueltig: true, kopf_nicht_uebernehmbar: true, leistungszeitpunkt_fehlt: true,
   quelle_passt_nicht: true, auftrag_passt_nicht: true, rechnungsart_unbekannt: true,
   zeitraum_verkehrt: true, zuordnung_gebunden: true, zeitraum_gebunden: true,
-  objekt_passt_nicht: true,
+  objekt_passt_nicht: true, grund_zu_kurz: true, schon_entfernt: true, letzte_position: true,
 };
 const QUELLEN_GRUENDE: Readonly<Record<QuellenFehler['grund'], true>> = {
   ohne_quelle: true, quelle_fehlt: true, schon_abgerechnet: true, anteil_fehlt: true,

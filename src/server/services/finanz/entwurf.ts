@@ -7,7 +7,7 @@ import {
   schreibeSummen,
   type Abfrage, type EntwurfRechnungsart,
 } from './rechnung.js';
-import { QuellenFehler } from './positionsquelle.js';
+import { gibPositionFrei, QuellenFehler } from './positionsquelle.js';
 import { schreibeSteuerfall } from './steuerfall.js';
 import { zahlungsmittelCode } from './zahlungsmittel.js';
 import {
@@ -257,6 +257,101 @@ export async function aendereEntwurfKopf(
   };
 }
 
+export interface EntfernenErgebnis {
+  readonly rechnungId: string;
+  /** Wie viele Herkünfte der Zeile frei geworden sind (Zeit, Abruf, Nachweis …). */
+  readonly freigegeben: number;
+}
+
+/**
+ * **Eine Position verlässt den Entwurf** — mit Grund (V-356, O-212, D-831).
+ *
+ * Bis hierher blieb eine versehentlich erfasste Zeile stehen, und der einzige
+ * Ausweg war, den ganzen Entwurf zu verwerfen. Jetzt bekommt sie
+ * `entfernt_am`, Person und Grund (0522) — gelöscht wird nichts
+ * (Invariante 8) —, fällt aus jeder Summe, aus Nutzlast, Beleg und XRechnung,
+ * und ihre Herkunft wird frei: dieselbe Zeit, derselbe Abruf, derselbe
+ * Nachweis lassen sich wieder abrechnen.
+ *
+ * Gesperrt wird die RECHNUNG, nicht die Zeile: zwei gleichzeitige Entfernungen
+ * auf demselben Entwurf zählen nacheinander, und die zweite sieht, ob nach der
+ * ersten noch eine Leistungszeile lebt. Die letzte bleibt — ohne sie gäbe es
+ * keinen Beleg mehr, sondern nur noch einen, den man verwirft.
+ */
+export async function entfernePosition(
+  db: Abfrage, positionId: string, grund: string,
+): Promise<EntfernenErgebnis> {
+  const text = grund.trim();
+  if (text.length < 3) {
+    throw new RechnungFehler(
+      'Eine Position verlässt den Entwurf nur mit Grund — mindestens drei Zeichen.',
+      'grund_zu_kurz',
+    );
+  }
+
+  const [kopf] = await db.abfrage<{ rechnung_id: string; status: string }>(
+    `select r.id::text as rechnung_id, r.status::text as status
+       from rechnungsposition p
+       join rechnung r on r.id = p.rechnung_id and r.mandant_id = p.mandant_id
+      -- Auch eine schon entfernte Zeile (entfernt_am): sie wird unten benannt
+      -- abgewiesen, nicht als unbekannt.
+      where p.id = $1::uuid
+      for update of r`,
+    [positionId],
+  );
+  if (kopf === undefined) {
+    throw new RechnungFehler(`Position ${positionId} nicht gefunden`, 'nicht_gefunden');
+  }
+  if (kopf.status !== 'entwurf') {
+    throw new RechnungFehler(
+      'Nur aus einem Entwurf verlässt eine Position die Rechnung. Ein '
+      + 'festgeschriebener Beleg wird durch Storno korrigiert (Invariante 4).',
+      'kein_entwurf',
+    );
+  }
+
+  /* Nach der Sperre gelesen: eine gleichzeitige Entfernung ist dann schon da. */
+  const [zeile] = await db.abfrage<{ positionsart: string; entfernt: boolean; lebend: string }>(
+    `select p.positionsart::text as positionsart, p.entfernt_am is not null as entfernt,
+            (select count(*) from rechnungsposition q
+              where q.rechnung_id = p.rechnung_id and q.positionsart = 'leistung'
+                and q.entfernt_am is null)::text as lebend
+       from rechnungsposition p
+      where p.id = $1::uuid`,
+    [positionId],
+  );
+  if (zeile === undefined) {
+    throw new RechnungFehler(`Position ${positionId} nicht gefunden`, 'nicht_gefunden');
+  }
+  if (zeile.entfernt) {
+    throw new RechnungFehler('Diese Position ist schon aus dem Entwurf entfernt.', 'schon_entfernt');
+  }
+  if (zeile.positionsart === 'leistung' && Number(zeile.lebend) <= 1) {
+    throw new RechnungFehler(
+      'Die letzte Leistungszeile bleibt — ohne sie gäbe es keinen Beleg mehr. '
+      + 'Wer nichts abrechnen will, verwirft den Entwurf.',
+      'letzte_position',
+    );
+  }
+
+  const entfernt = await db.abfrage<{ id: string }>(
+    `update rechnungsposition
+        set entfernt_am = now(), entfernt_von = app.aktueller_benutzer(), entfernt_grund = $2,
+            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid and entfernt_am is null
+      returning id`,
+    [positionId, text],
+  );
+  if (entfernt.length === 0) {
+    throw new RechnungFehler('Diese Position ist schon aus dem Entwurf entfernt.', 'schon_entfernt');
+  }
+
+  const freigegeben = await gibPositionFrei(db, positionId);
+  await schreibeSummen(db, kopf.rechnung_id);
+  await schreibeSteuerfall(db, kopf.rechnung_id);
+  return { rechnungId: kopf.rechnung_id, freigegeben };
+}
+
 /**
  * Hängt schon ein Beleg des Auftrags an diesem Entwurf?
  *
@@ -269,7 +364,7 @@ export async function aendereEntwurfKopf(
 async function pruefeZuordnungFrei(db: Abfrage, rechnungId: string): Promise<void> {
   const [gebunden] = await db.abfrage<{ n: string }>(
     `select (select count(*) from rechnungsposition p
-              where p.rechnung_id = $1::uuid
+              where p.rechnung_id = $1::uuid and p.entfernt_am is null
                 and (p.auftrag_leistung_id is not null or p.vertrag_abrechnung_id is not null
                      or p.lv_position_id is not null))
           + (select count(*) from rechnungsposition_quelle q
@@ -308,6 +403,7 @@ async function pruefeZeitraumGebunden(
             to_char(p.leistung_bis, 'DD.MM.YYYY') as bis
        from rechnungsposition p
       where p.rechnung_id = $1::uuid and p.vertrag_abrechnung_id is not null
+        and p.entfernt_am is null
         and ($2::date is null or $3::date is null
              or p.leistung_von is null or p.leistung_bis is null
              or p.leistung_von < $2::date or p.leistung_bis > $3::date)
@@ -344,7 +440,7 @@ async function pruefeSaetzeAmStichtag(
        join steuersatz_gruppe g on g.id = p.steuersatz_gruppe_id
        cross join (select coalesce($3::date, $2::date, $4::date, app.berlin_heute())
                      as stichtag) t
-      where p.rechnung_id = $1::uuid
+      where p.rechnung_id = $1::uuid and p.entfernt_am is null
         and not (t.stichtag >= g.gueltig_von
                  and (g.gueltig_bis is null or t.stichtag <= g.gueltig_bis))`,
     [rechnungId, von, bis, vereinnahmung]);
@@ -492,7 +588,8 @@ export async function vorschauAbrechnungsart(
     });
     const [schon] = await db.abfrage<{ n: string }>(
       `select count(*)::text as n from rechnungsposition
-        where rechnung_id = $1::uuid and vertrag_abrechnung_id = $2::uuid`,
+        where rechnung_id = $1::uuid and vertrag_abrechnung_id = $2::uuid
+          and entfernt_am is null`,
       [rechnungId, ergebnis.konfiguration.id]);
     return {
       bisherAnderswo: ergebnis.bisher.filter((a) => a.rechnungId !== rechnungId),
@@ -579,7 +676,8 @@ export async function uebernimmAbrechnungsart(
   } else {
     const [schon] = await db.abfrage<{ n: string }>(
       `select count(*)::text as n from rechnungsposition
-        where rechnung_id = $1::uuid and vertrag_abrechnung_id = $2::uuid`,
+        where rechnung_id = $1::uuid and vertrag_abrechnung_id = $2::uuid
+          and entfernt_am is null`,
       [rechnungId, konfiguration.id]);
     if (Number(schon?.n ?? '0') > 0) {
       throw new AbrechnungFehler(

@@ -1207,6 +1207,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'finanzen', pfad: 'finanz/kanonisch', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/kettenlauf', schreibend: false },
+  /**
+   * V-356, D-831 — ob eine Steuerzeile auf den Beleg gehört: eine SQL-Bedingung,
+   * kein Lese- und kein Schreibweg. Eine Gruppe, deren einzige Position den
+   * Entwurf verlassen hat, steht mit null Netto und null Steuer da.
+   */
+  { modul: 'finanzen', pfad: 'finanz/steuerzeile', schreibend: false },
   {
     modul: 'finanzen', pfad: 'finanz/rechnung',
     schreibend: true, schreibRecht: 'finanzen.festschreiben',

@@ -150,7 +150,8 @@ export async function fuegeQuelleHinzu(
             $3::uuid, $4::uuid, $5::uuid, $6::uuid, $7::uuid, $8::uuid, $9::uuid,
             $10::numeric, $11, 'mensch', app.aktueller_benutzer()
        from rechnungsposition p
-      where p.id = $1
+      -- Eine entfernte Zeile bekommt keine Herkunft mehr (V-356, 0522).
+      where p.id = $1 and p.entfernt_am is null
      returning id`,
     [positionId, eingabe.typ, ...werte,
      eingabe.mengeAnteil == null ? null : mengeNachPostgres(eingabe.mengeAnteil),
@@ -269,6 +270,11 @@ export interface QuelleZeile {
   readonly ziel: string | null;
   /** Der auf diese Quelle entfallende Anteil des Zeilenbetrags (Cent). */
   readonly anteilCent: Cent;
+  /**
+   * Die Zeile hat den Entwurf verlassen (V-356): ihre Herkunft ist frei und
+   * gehört nicht mehr zu dem, was der Beleg abrechnet.
+   */
+  readonly positionEntfernt: boolean;
 }
 
 interface QuelleRoh {
@@ -283,6 +289,7 @@ interface QuelleRoh {
   readonly netto_cent: string | null;
   readonly bezeichnung: string | null;
   readonly ziel: string | null;
+  readonly position_entfernt: boolean;
 }
 
 /**
@@ -303,6 +310,7 @@ export async function ladeQuellen(
                      q.sonderleistung_id,
                      q.leistungsnachweis_id, q.nachtrag_id)::text as quelle_id,
             q.menge_anteil::text, q.notiz, q.wirksam, p.netto_cent::text,
+            p.entfernt_am is not null as position_entfernt,
             case q.quelle_typ
               when 'zeiteintrag' then
                 coalesce('Schicht ' || to_char(z.beginn_zeitpunkt at time zone 'Europe/Berlin',
@@ -388,6 +396,7 @@ export async function ladeQuellen(
         bezeichnung: r.bezeichnung ?? 'Beleg',
         ziel: r.ziel,
         anteilCent: anteile[i] ?? cent(0n),
+        positionEntfernt: r.position_entfernt,
       });
     });
   }
@@ -486,6 +495,28 @@ export async function markiereQuellenAbgerechnet(
   }
 
   return getroffen.length + abrufe.length;
+}
+
+/**
+ * Die Herkunft EINER Position freigeben — wenn sie den Entwurf verlässt
+ * (V-356, O-212, D-831).
+ *
+ * Dasselbe wie `gibQuellenFrei`, nur für eine Zeile: `wirksam` fällt, und die
+ * Teilindizes auf Zeit, Abruf, Nachweis, Aufmaß und Ausgabe lassen sie wieder
+ * zu. Ein Zeiteintrag trägt im Entwurf noch keinen Abrechnungsstempel — den
+ * setzt erst die Festschreibung (`markiereQuellenAbgerechnet`) —, also gibt es
+ * hier keinen zurückzunehmen. Wieder wirksam wird die Herkunft einer
+ * entfernten Position nie (`trg_rpq_3_entfernt`, 0522).
+ */
+export async function gibPositionFrei(db: Abfrage, positionId: string): Promise<number> {
+  const frei = await db.abfrage<{ id: string }>(
+    `update rechnungsposition_quelle
+        set wirksam = false
+      where rechnungsposition_id = $1::uuid and wirksam
+      returning id`,
+    [positionId],
+  );
+  return frei.length;
 }
 
 /**

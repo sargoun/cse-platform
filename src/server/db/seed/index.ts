@@ -2383,7 +2383,8 @@ async function main(): Promise<void> {
       : `  ${String(rechnungen.festgeschrieben)} festgeschriebene Rechnungen `
         + `(${rechnungen.nummern.join(', ')}) und ${String(rechnungen.entwuerfe)} Entwürfe `
         + 'ohne Nummer — über legeEntwurfAn → fuegePositionHinzu → finalisiere, '
-        + 'als cse_app mit gebundener Sitzung\n');
+        + 'als cse_app mit gebundener Sitzung; '
+        + `${String(rechnungen.entfernt)} Position(en) mit Grund aus einem Entwurf entfernt (V-356)\n`);
 
   process.stdout.write('\nSeed fertig.\n');
   if (demodaten) {

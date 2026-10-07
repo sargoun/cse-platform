@@ -4090,7 +4090,7 @@ auf null Zeichen, und `RE-{jahr}-{nr}` hätte `RE-2027-` ergeben.
 
 | # | Question | Blocks |
 |---|---|---|
-| O-212 | **Darf eine Rechnungsposition im Entwurf entfernt werden?** Invariante 8 und §1.6 verbieten in dieser Domäne jeden Hard Delete, auch auf `rechnungsposition` — eine versehentlich erfasste Zeile bleibt damit im Entwurf stehen, und der einzige Ausweg ist, den ganzen Entwurf zu verwerfen. Wenn das im Alltag untragbar ist, braucht `rechnungsposition` eine Zustandsspalte (`entfernt_am` plus Grund), die aus jeder Summe herausfällt — nicht eine Löschpolicy. Die Entscheidung ist buchhalterisch, nicht technisch: ob eine nie ausgestellte Entwurfszeile überhaupt aufbewahrungspflichtig ist. | FIN-01, Invariante 8, `rechnungsposition` · **Voreinstellung → D-796** |
+| O-212 | **Darf eine Rechnungsposition im Entwurf entfernt werden?** Invariante 8 und §1.6 verbieten in dieser Domäne jeden Hard Delete, auch auf `rechnungsposition` — eine versehentlich erfasste Zeile bleibt damit im Entwurf stehen, und der einzige Ausweg ist, den ganzen Entwurf zu verwerfen. Wenn das im Alltag untragbar ist, braucht `rechnungsposition` eine Zustandsspalte (`entfernt_am` plus Grund), die aus jeder Summe herausfällt — nicht eine Löschpolicy. Die Entscheidung ist buchhalterisch, nicht technisch: ob eine nie ausgestellte Entwurfszeile überhaupt aufbewahrungspflichtig ist. | FIN-01, Invariante 8, `rechnungsposition` · **Voreinstellung → D-796** · gebaut → D-831 |
 
 ---
 
@@ -25525,7 +25525,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | O-921 | Der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: Berichtigung oder geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag, eine Preisanpassung (Tariferhöhung) eine neue datierte Leistungszeile ab dem Stichtag; im Bau der Nachtrag. Die Auftragspflege sagt das jetzt (de/en). Leistungszeilen hatten bis D-825 keinen Schreibweg (V-360). | `auftrag/aendern.ts`, `lib/i18n/verwaltung/auftrag.ts` |
 | O-932 | Der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung ist der Gesamtstand (bisher Berechnetes wird abgezogen), nicht der Zuwachs; die Position nennt Stand und Abzug. Wie gebaut (`anteiligerRest`). | `finanz/abrechnungsart/festpreis-los.ts` |
 | O-45 | Z3 (Datenträgerüberlassung) ist der Regelweg und gebaut; Z1 und Z2 gewährt die Gesellschaft auf Verlangen der Prüfung über ein befristetes, ausschliesslich lesendes Konto — eine Prüferrolle dafür fehlt (V-355). | `buchhaltung/z3.ts` |
-| O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Nicht gebaut; heute bleibt nur, den Entwurf zu verwerfen (V-356). | `finanz/rechnung.ts` |
+| O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Gebaut mit V-356 (D-831): Maske „Position entfernen" am Rechnungsblatt, die Herkunft wird frei, die letzte Leistungszeile bleibt. | `finanz/entwurf.ts` (`entfernePosition`) |
 | O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut ist die Blattsumme (V-357). | `bau/aufmass.ts`, `drizzle/0107` |
 | O-348 | Eine Position des Leistungsnachweises bei Monatspauschale trägt keinen Einzelpreis je Durchgang: der Nachweis belegt die Leistung, die Rechnung stellt die Pauschale. Wie gebaut; der Satz im Arbeiterportal sagt es jetzt in vier Sprachen statt „offen". | `mitarbeiter/nachweis-schicht.ts`, `lib/i18n/texte.ts`, `db/seed/reinigung.ts` |
 | O-349 | Ein Glasreinigungsrevier rechnet seine Sollzeit auf die Glasfläche mit eigenem Leistungswert je m² Glas aus dem Belagsartenkatalog. Gebaut mit V-358 (D-830): `revier.bezugsgroesse`, Katalogzeile GLAS mit 50 m²/h (Voreinstellung, O-17), die Belagsartenseite sagt es. | `reinigung/sollzeit.ts`, Stammdaten › Belagsarten, `db/seed/reinigung.ts` |
@@ -27523,4 +27523,88 @@ Zeile GLAS, fremde Bezugsgrösse abgewiesen samt CHECK), `revier-anlegen`,
 `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
 
 | Betrifft | V-358, O-349, O-17, D-796; `drizzle/0521_glasreinigung_bezugsgroesse.sql`, `src/server/services/reinigung/{sollzeit,revier}.ts`, `src/app/api/reinigung/reviere/route.ts`, `src/app/portal/[mandant]/reinigung/{RevierFormular.tsx,daten.ts,reviere/[id]/page.tsx,reviere/[id]/raeume/page.tsx}`, `src/app/portal/[mandant]/stammdaten/belagsarten/page.tsx`, `src/lib/i18n/verwaltung/reinigung.ts`, `src/server/db/seed/{operations,dienstplan,reinigung}.ts`, `tests/kern/reinigung-glaszone.test.ts`, `tests/isolation/{revier-glas,revier-anlegen}.test.ts` |
+|---|---|
+
+### D-831 · Bauwelle 28: Eine Position verlässt den Rechnungsentwurf, mit Grund (V-356, O-212)
+
+**Der Anlass.** `rechnungsposition` trägt die Löschsperre (Invariante 8) und
+hatte keine Zustandsspalte: eine versehentlich erfasste Zeile blieb im
+Entwurf, und der einzige Ausweg war, den ganzen Entwurf zu verwerfen — samt
+jeder richtig erfassten Zeile. Voreinstellung (O-212, D-796): wie bei
+`angebotsposition` (0392) bleibt die Zeile stehen und bekommt `entfernt_am` —
+hier mit Person und Grund —, und sie fällt aus jeder Summe heraus.
+
+**Was gebaut ist.**
+- **0522:** `entfernt_am`, `entfernt_von`, `entfernt_grund` mit
+  `rp_entfernung_benannt` (alle drei oder keiner, Grund mindestens drei
+  Zeichen) und `rp_lebend_idx`. `trg_rp_entfernt_bleibt`: eine entfernte
+  Position bleibt, wie sie ist — kein Zurückholen. `trg_rpq_3_entfernt`: ihre
+  Herkunft wird nicht wieder wirksam. Entfernen geht nur im Entwurf, weil
+  `fin.kind_unveraenderlich` (0076) danach jede Änderung abweist. Ersetzt
+  sind `fin.rechnung_summen_stimmig` (0076, Summen nur über lebende
+  Positionen), `fin.rechnung_beziehung_pruefen` (0076, im Vollstorno zählt
+  eine Steuergruppe ohne Netto und ohne Steuer nicht),
+  `fin.rechnung_ustg14_pflichtfelder` (0104, mindestens eine LEBENDE
+  Leistungszeile) und `fin.auftrag_abschluss_befunde` (0299/0340, ein
+  Leistungsnachweis gilt nur über eine wirksame Herkunft als abgerechnet —
+  auch nach Verwerfen und Storno). `t_kunde` auf `rechnungsposition` kommt
+  neu, mit `entfernt_am is null`.
+- **Der Dienst** (`finanz/entwurf.ts`, `entfernePosition`): Grund, Sperre auf
+  der RECHNUNG (zwei gleichzeitige Entfernungen zählen nacheinander), nur im
+  Entwurf, nicht zweimal, nie die letzte Leistungszeile (`letzte_position` —
+  wer nichts abrechnen will, verwirft); setzt `entfernt_*`, gibt die Herkunft
+  frei (`gibPositionFrei`), rechnet Summen und Steuerfall neu.
+- **Jeder Leser kennt die Spalte:** Summen (`schreibeSummen`), Nutzlast und
+  damit Hash, PDF, ZUGFeRD und XRechnung (`ladeRechnungVollstaendig`:
+  Positionen, Herkunft, Steuerzeilen), die Zählung vor dem Festschreiben,
+  Storno, Korrektur und die übernommene Herkunft, Steuerfall (§ 13b),
+  §-14-Prüfung, Vorabprüfung, Abrechnungsart (Ansprüche, „schon
+  übernommen"), die Prüfungen am Entwurfskopf, Buchungssatz, Z3,
+  Kundenportal, Rechnungs-, Festschreibe-, Verwerfen- und Stornoblatt, die
+  Weiterberechnung einer Ausgabe („die Zeile hat den Entwurf verlassen").
+  Eine Steuerzeile ohne Betrag steht nur auf dem Beleg, wenn noch etwas sie
+  trägt (`steuerzeileAufDemBeleg`, `finanz/steuerzeile.ts`) — für jeden
+  Beleg vor 0522 dieselbe Menge wie ohne Bedingung.
+- **Oberfläche:** Rechnungsblatt mit der Maske „Position entfernen" (Zeile,
+  Grund) und der Liste „Entfernte Positionen" (Zeit, Person, Grund); Route
+  `api/rechnungen`, `aktion=position-entfernen`; Gründe `grund_zu_kurz`,
+  `schon_entfernt`, `letzte_position` und der Hinweis `position_entfernt` in
+  beiden Sprachen. Die Sätze der Zeitkorrektur und der Abruf-Zuordnung
+  nennen jetzt beide Wege (Position entfernen oder Entwurf verwerfen).
+- **Die Nummern bleiben:** eine entfernte Zeile behält ihre Nummer, die
+  nächste Zeile bekommt eine neue — eine Nummer wird auf einem Beleg nie
+  zweimal vergeben. Der Beleg zeigt die Lücke; § 14 UStG verlangt keine
+  lückenlose Positionsnummerierung.
+- **`rls.ts`:** `rechnungsposition` bleibt `append` — die Zeile endet nie, sie
+  verlässt nur einen Entwurf; ein Wechsel auf `archiv` schriebe den
+  erzeugten Block der angewandten Migration 0075 um.
+- **Seed:** im Demoentwurf jeder Gesellschaft verlässt eine doppelt erfasste
+  Zeile den Entwurf über denselben Dienst.
+
+**Nebenbefund, behoben.** Das Storno übernahm die Zahlungsart (BT-81) nicht:
+jedes Storno an einen Kunden mit XRechnungspflicht scheiterte in
+`finalisiere` an BR-DE-1. `storniere` übernimmt `zahlungsmittel_code` jetzt
+vom Original.
+
+**Nebenbefunde, nicht in dieser Welle** (V-395): `uebernimmQuellen` kopiert
+`sonderleistung_id` nicht — das Storno einer Rechnung mit Abrufherkunft
+verletzte `rpq_genau_eine_quelle`; die Nutzlast führt die Kennung einer
+Abrufherkunft leer; `gibQuellenFrei` setzt `sonderleistung.status` nach einem
+Storno nicht zurück; die Verwerfen-Seite nennt Herkünfte „von Hand" nicht,
+obwohl sie bei Pauschale und Los den Monat beanspruchen.
+
+**Prüfung.** `tests/isolation/rechnungsposition-entfernen.test.ts` (eine ganze
+Steuergruppe verlässt den Beleg: Kopf, leere Gruppe, Nutzlast, XRechnung,
+Buchung, Vollstorno — ohne die Nullbedingung in 0522 scheitert das Storno;
+die Stunde wird frei und ein zweiter Entwurf nimmt sie; jede Abweisung
+benannt und folgenlos; am Dienst vorbei kein Zurückholen, keine wieder
+wirksame Herkunft, kein Entfernen ohne Grund; der Kunde sieht die Zeile
+nicht), `tests/kern/rechnungsposition-lebend.test.ts` (jede lesende Abfrage
+auf `rechnungsposition` nennt `entfernt_am`; die Steuerzeilenbedingung;
+die vier ersetzten Funktionen und `t_kunde`), die Isolationsdateien um
+Rechnung, XRechnung, Abrechnungsart, Abschlag, Ausgabe, Buchung, DATEV,
+Mahnung, Kundenportal, Seed und Definer, `tests/kern` komplett,
+`pnpm guards`, `pnpm typecheck`, `pnpm db:triggers --check`.
+
+| Betrifft | V-356, O-212, D-796; `drizzle/0522_rechnungsposition_entfernen.sql`, `src/server/services/finanz/{entwurf,rechnung,positionsquelle,steuerzeile,steuerfall,ustg14,vorabpruefung,ausgabe}.ts`, `src/server/services/finanz/abrechnungsart/index.ts`, `src/server/services/buchhaltung/{buchungssatz,z3}.ts`, `src/server/services/kundenportal/rechnung.ts`, `src/server/registry/dienste.ts`, `src/server/db/schema/rls.ts`, `src/app/api/rechnungen/route.ts`, `src/app/portal/[mandant]/finanzen/rechnungen/[id]/{page,festschreiben/page,verwerfen/page,storno/page}.tsx`, `src/app/portal/[mandant]/finanzen/ausgaben/[id]/page.tsx`, `src/app/portal/[mandant]/zeiten/[id]/korrektur/page.tsx`, `src/lib/i18n/verwaltung/{finanzen/rechnung-entwurf,finanzen/rechnung-akte,finanzen/belege,reinigung}.ts`, `src/server/db/seed/{rechnung,index}.ts`, `tests/isolation/rechnungsposition-entfernen.test.ts`, `tests/kern/{rechnungsposition-lebend,rechnung-entwurf}.test.ts` |
 |---|---|

@@ -257,6 +257,8 @@ export async function bucheRechnung(
             steuersatz_gruppe_id, coalesce(netto_cent, 0)::text as netto_cent
        from rechnungsposition
       where mandant_id = $1 and rechnung_id = $2 and netto_cent is not null
+        -- Gebucht wird, was auf dem Beleg steht (V-356).
+        and entfernt_am is null
       order by position_nr`,
     [kopf.mandant_id, rechnungId]);
 

@@ -87,6 +87,20 @@ export interface RechnungAkteTexte {
   readonly codeOffen: string;
   readonly unbestaetigterWert: string;
 
+  /* V-356 (D-831): eine Position verlässt den Entwurf, mit Grund. */
+  readonly positionEntfernenTitel: string;
+  readonly positionEntfernenErklaerung: string;
+  readonly positionWaehlen: string;
+  readonly entfernenGrund: string;
+  readonly entfernenGrundBeispiel: string;
+  readonly entfernenKnopf: string;
+  readonly entfernteTitel: string;
+  readonly entfernteErklaerung: string;
+  readonly tabelleEntfernte: string;
+  readonly entferntAm: string;
+  readonly entferntVon: string;
+  readonly entferntGrund: string;
+
   readonly herkunftTitel: string;
   readonly anspruchErloschen: string;
   readonly summeDerBelege: string;
@@ -376,6 +390,27 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     tabellePositionen: 'Positionen der Rechnung mit Menge, Einzelpreis und Steuersatz',
     codeOffen: 'offen',
     unbestaetigterWert: 'Voreinstellung (O-174)',
+
+    positionEntfernenTitel: 'Position entfernen',
+    positionEntfernenErklaerung:
+      'Eine versehentlich erfasste Zeile verlässt den Entwurf mit Grund. Gelöscht wird '
+      + 'nichts: die Zeile bleibt mit Grund, Zeit und Person stehen, fällt aus jeder Summe '
+      + 'und erscheint weder auf dem Beleg noch in der XRechnung. Ihre Herkunft — Stunden, '
+      + 'Abruf, Nachweis, Aufmaß, Ausgabe — wird wieder frei. Die letzte Leistungszeile '
+      + 'bleibt; wer nichts abrechnen will, verwirft den Entwurf.',
+    positionWaehlen: 'Position',
+    entfernenGrund: 'Grund',
+    entfernenGrundBeispiel: 'z. B. doppelt erfasst, falscher Monat',
+    entfernenKnopf: 'Position entfernen',
+    entfernteTitel: 'Entfernte Positionen',
+    entfernteErklaerung:
+      'Diese Zeilen haben den Entwurf verlassen. Sie stehen nicht auf dem Beleg, zählen '
+      + 'in keiner Summe, und ihre Herkunft ist frei; die Nummern der übrigen Zeilen '
+      + 'bleiben, wie sie waren.',
+    tabelleEntfernte: 'Aus dem Entwurf entfernte Positionen mit Grund',
+    entferntAm: 'Entfernt am',
+    entferntVon: 'Von',
+    entferntGrund: 'Grund',
 
     herkunftTitel: 'Herkunft der Positionen',
     anspruchErloschen: 'Anspruch erloschen',
@@ -750,6 +785,26 @@ export const RECHNUNG_AKTE_TEXTE: Readonly<Record<InternSprache, RechnungAkteTex
     tabellePositionen: 'Invoice line items with quantity, unit price and tax rate',
     codeOffen: 'open',
     unbestaetigterWert: 'Default (O-174)',
+
+    positionEntfernenTitel: 'Remove a line',
+    positionEntfernenErklaerung:
+      'A line entered by mistake leaves the draft with a reason. Nothing is deleted: the '
+      + 'line stays with reason, time and person, drops out of every total and appears '
+      + 'neither on the invoice nor in the XRechnung. Its origin — hours, call-off, record '
+      + 'of work, Aufmaß, expense — becomes free again. The last service line stays; to '
+      + 'bill nothing, discard the draft.',
+    positionWaehlen: 'Line',
+    entfernenGrund: 'Reason',
+    entfernenGrundBeispiel: 'e.g. entered twice, wrong month',
+    entfernenKnopf: 'Remove line',
+    entfernteTitel: 'Removed lines',
+    entfernteErklaerung:
+      'These lines have left the draft. They are not on the invoice, count in no total, '
+      + 'and their origin is free; the numbers of the remaining lines stay as they were.',
+    tabelleEntfernte: 'Lines removed from the draft, with reason',
+    entferntAm: 'Removed on',
+    entferntVon: 'By',
+    entferntGrund: 'Reason',
 
     herkunftTitel: 'Origin of the line items',
     anspruchErloschen: 'claim extinguished',

@@ -221,6 +221,8 @@ export async function offenePruefungen(db: Abfrage): Promise<Vorabbefund> {
        join rechnung r on r.mandant_id = p.mandant_id and r.id = p.rechnung_id
        left join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
       where r.status = 'entwurf'
+        -- Eine entfernte Zeile hat ihre Herkunft absichtlich frei (V-356).
+        and p.entfernt_am is null
         and not exists (select 1 from rechnungsposition_quelle q
                          where q.mandant_id = p.mandant_id
                            and q.rechnungsposition_id = p.id

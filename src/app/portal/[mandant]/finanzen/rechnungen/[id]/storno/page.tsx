@@ -179,7 +179,8 @@ export default async function Stornoblatt(
                   e.bezeichnung as einheit, p.netto_cent::text
              from rechnungsposition p
              left join masseinheit e on e.id = p.masseinheit_id
-            where p.rechnung_id = $1
+            -- Gespiegelt wird, was auf dem Beleg steht (V-356).
+            where p.rechnung_id = $1 and p.entfernt_am is null
             order by p.position_nr`, [id]),
       };
     })) as Promise<{ kopf: Kopf | null; positionen: readonly Pos[] }>);

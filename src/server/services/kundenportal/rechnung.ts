@@ -1,6 +1,7 @@
 import 'server-only';
 import { fehlendePflichtfelder } from '../finanz/xrechnung/index.js';
 import { leseNutzlast, SnapshotZuAltFehler } from '../finanz/xrechnung/aus-snapshot.js';
+import { steuerzeileAufDemBeleg } from '../finanz/steuerzeile.js';
 import {
   GESELLSCHAFT_SPALTEN, GRENZE, gesellschaftAus,
   type Gesellschaft, type GesellschaftRoh, type KundenAbfrage,
@@ -274,7 +275,9 @@ export async function findeKundenrechnung(
             to_char(p.leistung_von, 'DD.MM.YYYY') as leistung_von_lokal,
             to_char(p.leistung_bis, 'DD.MM.YYYY') as leistung_bis_lokal
        from rechnungsposition p
-      where p.rechnung_id = $1::uuid
+      -- Was im Entwurf entfernt wurde, stand nie auf dem Beleg (V-356); die
+      -- Policy t_kunde (0522) haelt dasselbe als zweite Linie.
+      where p.rechnung_id = $1::uuid and p.entfernt_am is null
       order by p.position_nr`,
     [id],
   );
@@ -287,7 +290,7 @@ export async function findeKundenrechnung(
             s.netto_cent::text as netto_cent, s.steuer_cent::text as steuer_cent,
             s.befreiungsgrund_text
        from rechnung_steuer s
-      where s.rechnung_id = $1::uuid
+      where s.rechnung_id = $1::uuid and ${steuerzeileAufDemBeleg('s')}
       order by s.satz_bp desc`,
     [id],
   );

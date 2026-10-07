@@ -129,7 +129,8 @@ const FEHLER_TEXT: Readonly<Record<string, ReactNode>> = {
     + 'nicht die Zuordnung der Zeit.',
   zuordnung_in_rechnung:
     'Diese Zeit steht in einem Rechnungsentwurf, der sie mit der bisherigen Zuordnung führt. '
-    + 'Erst den Entwurf verwerfen, dann korrigieren.',
+    + 'Erst ihre Position aus dem Entwurf entfernen oder den Entwurf verwerfen, dann '
+    + 'korrigieren.',
   objekt_unbekannt: 'Dieses Objekt gibt es in dieser Gesellschaft nicht, oder es ist archiviert.',
   objekt_aus_schicht:
     'Diese Zeit hängt an einer Schicht und damit an deren Objekt. Ein anderes Objekt heisst '

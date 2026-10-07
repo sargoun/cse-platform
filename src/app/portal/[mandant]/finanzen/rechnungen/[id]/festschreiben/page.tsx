@@ -21,6 +21,7 @@ import { kennungOder404 } from '@/app/portal/kennung';
 import { haeltRechte } from '@/app/portal/rechte';
 import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { RECHNUNG_AKTE_TEXTE } from '@/lib/i18n/verwaltung/finanzen/rechnung-akte';
+import { steuerzeileAufDemBeleg } from '@/server/services/finanz/steuerzeile';
 
 /**
  * `/portal/[mandant]/finanzen/rechnungen/[id]/festschreiben` — **das
@@ -184,7 +185,8 @@ export default async function Festschreibeblatt(
                 r.bauabzugsteuer_pflichtig, r.bauabzugsteuer_satz_bp,
                 r.reverse_charge, r.steuerhinweis,
                 (select count(*) from rechnungsposition p
-                  where p.mandant_id = r.mandant_id and p.rechnung_id = r.id)::int
+                  where p.mandant_id = r.mandant_id and p.rechnung_id = r.id
+                    and p.entfernt_am is null)::int
                   as positionen
            from rechnung r
            join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
@@ -199,7 +201,7 @@ export default async function Festschreibeblatt(
                   s.netto_cent::text, s.steuer_cent::text
              from rechnung_steuer s
              join steuersatz_gruppe g on g.id = s.steuersatz_gruppe_id
-            where s.rechnung_id = $1
+            where s.rechnung_id = $1 and ${steuerzeileAufDemBeleg('s')}
             order by s.satz_bp desc, g.bezeichnung`, [id]),
         bericht: await pruefeRechnung(kontext, id),
         fin18: await pruefeZeiterfassung(kontext, id),

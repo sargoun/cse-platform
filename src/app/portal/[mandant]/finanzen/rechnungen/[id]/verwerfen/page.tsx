@@ -98,7 +98,8 @@ export default async function Verwerfenblatt(
                 to_char(r.leistung_bis, 'DD.MM.YYYY') as leistung_bis,
                 r.netto_gesamt_cent::text, r.brutto_cent::text,
                 (select count(*) from rechnungsposition p
-                  where p.mandant_id = r.mandant_id and p.rechnung_id = r.id)::int
+                  where p.mandant_id = r.mandant_id and p.rechnung_id = r.id
+                    and p.entfernt_am is null)::int
                   as positionen,
                 to_char(r.verworfen_am at time zone 'Europe/Berlin',
                         'DD.MM.YYYY HH24:MI') as verworfen_am,

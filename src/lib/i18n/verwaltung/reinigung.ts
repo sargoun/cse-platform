@@ -411,7 +411,8 @@ export const SONDERLEISTUNG_TEXTE: Readonly<Record<'de', SonderleistungTexte>> =
       zuordnung_storniert: 'Ein stornierter Abruf kommt in keine Rechnung mehr.',
       zuordnung_in_rechnung:
         'Der Abruf steht in einem Rechnungsentwurf, der den Preis der bisherigen '
-        + 'Vertragszeile führt. Erst den Entwurf verwerfen, dann die Zeile ändern.',
+        + 'Vertragszeile führt. Erst seine Position aus dem Entwurf entfernen oder den '
+        + 'Entwurf verwerfen, dann die Zeile ändern.',
       vertragszeile_unbekannt:
         'Diese Vertragszeile gibt es in dieser Gesellschaft nicht, oder Ihrem Konto fehlt '
         + 'das Recht, Aufträge zu lesen.',

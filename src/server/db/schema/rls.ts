@@ -1252,6 +1252,13 @@ export const KEIN_HARD_DELETE: readonly Loeschsperre[] = [
   },
   {
     tabelle: 'rechnungsposition',
+    /*
+     * Bleibt `append`, obwohl 0522 `entfernt_am` bringt (V-356, D-831): die
+     * Zeile endet nie — sie verlässt nur einen ENTWURF, mit Grund, und bleibt
+     * stehen; nach der Festschreibung ändert sich an ihr nichts mehr
+     * (`fin.kind_unveraenderlich`). Ein Wechsel auf `archiv` schriebe
+     * ausserdem den erzeugten Block der angewandten Migration 0075 um.
+     */
     art: 'append',
     migration: '0075',
     grund:
