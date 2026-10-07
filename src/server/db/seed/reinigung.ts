@@ -128,13 +128,14 @@ function istNebenraum(bezeichnung: string | null): boolean {
  * Unterhaltsreinigung und Glasreinigung sind zwei Reviere ueber denselben
  * Raeumen (CLN-05). Verboten ist nur die doppelte Zeile im selben Revier.
  *
- * // TODO(client, O-349): Rechnet ein Glasreinigungsrevier seine Sollzeit auf
- * die GLASflaeche und mit welchem Leistungswert? `berechneRevierSollzeit`
+ * // TODO(client, O-349): Voreinstellung — ein Glasreinigungsrevier rechnet seine
+ * Sollzeit auf die GLASflaeche mit einem eigenen Leistungswert je m² Glas aus dem
+ * Belagsartenkatalog; nicht gebaut (V-358, D-796). `berechneRevierSollzeit`
  * rechnet heute fuer jede Zone auf die BODENflaeche und den Leistungswert der
  * Belagsart; die Glasflaeche reist als Schnappschuss mit
  * (`revier_raum.fenster_flaeche_qm`), geht aber in keine Zeit ein. Die
  * Demozone „Glasflaechen" traegt deshalb die Raeume, die Glas haben — ihre
- * Sollzeit ist bis zur Antwort die des Bodens und keine Glasreinigungszeit.
+ * Sollzeit ist bis dahin die des Bodens und keine Glasreinigungszeit.
  */
 function zuschnitt(kurzzeichen: string | null, raeume: readonly RaumZeile[]): readonly RaumZeile[] {
   switch (kurzzeichen) {
@@ -276,9 +277,9 @@ function ersterMonat(zeilen: readonly DurchgangZeile[]): readonly DurchgangZeile
  * deshalb der Durchgang selbst, und die erfasste Dauer steht als ANGABE in der
  * Bemerkung — formatiert von der Datenbank, nicht addiert.
  *
- * // TODO(client, O-348): Traegt eine Nachweisposition bei monatlicher
- * Pauschale einen Einzelpreis je Durchgang, und wie wird er aus der Pauschale
- * bestimmt? `einzelpreis_cent` bleibt bis zur Antwort NULL — der Nachweis
+ * // TODO(client, O-348): Voreinstellung — eine Nachweisposition bei
+ * monatlicher Pauschale traegt keinen Einzelpreis je Durchgang (D-796):
+ * `einzelpreis_cent` bleibt NULL — der Nachweis
  * belegt die LEISTUNG, der Preis steht am Auftrag (`auftrag_leistung`), und
  * ein aus der Monatspauschale geteilter Betrag waere eine erfundene Zahl auf
  * einem Dokument, das der Kunde unterschreibt.

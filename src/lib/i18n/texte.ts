@@ -1650,7 +1650,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nummerOffen:
       'Dieser Nachweis hat noch keine Nummer — in dieser Gesellschaft ist kein '
       + 'Nummernkreis dafür eingerichtet.',
-    offeneFrage: 'offen',
+    offeneFrage: 'ohne Preis je Durchgang, Voreinstellung',
     gewerkeVoreinstellung: 'Noch kein Gewerk im Katalog dieser Gesellschaft — die Verwaltung '
       + 'übernimmt unter Bau › Gewerke die Voreinstellung (O-159). Bis dahin lassen sich '
       + 'keine Mannstunden eintragen.',
@@ -2043,7 +2043,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nummerOffen:
       'This record does not have a number yet — no number range is configured for it '
       + 'in this company.',
-    offeneFrage: 'open',
+    offeneFrage: 'no price per visit, default',
     gewerkeVoreinstellung: 'No Gewerk in this company\'s catalogue yet — the office takes over '
       + 'the default under Bau › Gewerke (O-159). Until then no Mannstunden can be entered.',
     abgleichVoreinstellung: 'Default: Mannstunden count net, without breaks; a difference above '
@@ -2417,7 +2417,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
       'أُزيل هذا التكليف من الخطة. يبقى قابلاً للقراءة، لكن لا يمكن تسجيل أي شيء عليه بعد الآن.',
     nummerOffen:
       'لا يحمل هذا المحضر رقماً بعد — لا يوجد نطاق ترقيم مُعدّ له في هذه الشركة.',
-    offeneFrage: 'مفتوح',
+    offeneFrage: 'بدون سعر لكل زيارة، إعداد افتراضي',
     gewerkeVoreinstellung: 'لا توجد حرفة في كتالوج هذه الشركة بعد — تعتمد الإدارة الإعداد الافتراضي تحت '
       + 'البناء › الحِرَف (O-159). حتى ذلك الحين لا يمكن تسجيل ساعات العمل.',
     abgleichVoreinstellung: 'الإعداد الافتراضي: تُحسب ساعات العمل صافيةً بدون فترات الراحة؛ الفرق الذي يتجاوز '
@@ -2798,7 +2798,7 @@ export const MEIN_TEXTE: Readonly<Record<PortalSprache, MeinTexte>> = {
     nummerOffen:
       'Bu belgenin henüz bir numarası yok — bu şirkette bunun için bir numara aralığı '
       + 'tanımlı değil.',
-    offeneFrage: 'açık',
+    offeneFrage: 'ziyaret başına fiyat yok, varsayılan',
     gewerkeVoreinstellung: 'Bu şirketin kataloğunda henüz bir iş kolu yok — yönetim, İnşaat › İş '
       + 'kolları altında varsayılan ayarı devralır (O-159). O zamana kadar adam-saat girilemez.',
     abgleichVoreinstellung: 'Varsayılan: adam-saatler net, molalar hariç sayılır; 30 dakikayı aşan '

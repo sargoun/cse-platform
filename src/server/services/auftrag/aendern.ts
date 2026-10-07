@@ -101,16 +101,16 @@ export const PFLEGE_GESPERRT: readonly string[] = ['abgeschlossen', 'storniert']
 export type WertAenderungsweg = 'nachtrag' | 'offen';
 
 /**
- * PLATZHALTER — die Antwort auf O-921 ändert diese Funktion, nicht ihre
- * Aufrufer.
+ * VOREINSTELLUNG (O-921, D-796) — eine andere Entscheidung ändert diese
+ * Funktion, nicht ihre Aufrufer.
  *
- * TODO(client, O-921): Wie wird der Vertragswert eines Auftrags, der aus einem angenommenen Angebot entstanden ist, in Reinigung und Sicherheit berichtigt oder angepasst — (a) über eine neue Angebotsfassung und einen neuen Auftrag, (b) über eine eigene Vertragsänderung am Auftrag (Betrag, Grund, Datum, Zustimmung des Kunden) wie der Nachtrag im Bau, oder (c) als Berichtigung in der Auftragspflege mit Grund und Protokoll? Und gilt für eine Preisanpassung (etwa nach einer Tariferhöhung) derselbe Weg wie für einen Tippfehler?
+ * TODO(client, O-921): Voreinstellung — der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: eine Berichtigung oder ein geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag; eine Preisanpassung (etwa nach einer Tariferhöhung) ist eine neue datierte Leistungszeile ab dem Stichtag. Leistungszeilen haben heute keinen Schreibweg (V-360). D-796.
  */
 export function wertAenderungsweg(module: readonly string[]): WertAenderungsweg {
   return module.includes('bau') ? 'nachtrag' : 'offen';
 }
 
-/** Die offene Frage hinter `offen` — die Seite nennt sie (V-239). */
+/** Die Frage hinter `offen` — die Seite nennt ihre Voreinstellung (V-239, D-796). */
 export const WERT_AENDERUNG_FRAGE = 'O-921';
 
 function leerZuNull(wert: string | null | undefined): string | null {
@@ -182,7 +182,7 @@ export async function aendereAuftrag(
   if (alt.angebot_id !== null && wertNeu !== alt.wert) {
     throw new AuftragPflegeFehler(
       'Der Wert dieses Auftrags kommt aus dem Angebot und wird hier nicht geändert '
-      + '(Bau: Nachtrag; sonst offen, O-921).',
+      + '(Bau: Nachtrag; sonst eine neue Angebotsfassung — Voreinstellung O-921).',
       'wert_aus_angebot');
   }
 

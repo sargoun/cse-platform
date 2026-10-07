@@ -22,7 +22,7 @@ import { grundAufsFormularweg } from '@/app/api/formular-antwort';
  * `kunde`-Formularfeld machte die Kundendecke zu einer Eingabe.
  *
  * **Der Preis bleibt LEER.** `einzelpreis_cent` wird nicht gesetzt:
- * // TODO(client, O-348): Traegt eine Position bei Monatspauschale einen Einzelpreis je Durchgang, oder bleibt er leer und die Rechnung stellt die Pauschale?
+ * // TODO(client, O-348): Voreinstellung — kein Einzelpreis je Durchgang; die Rechnung stellt die Pauschale. Wie gebaut. D-796.
  *
  * **Die Nummer faellt vielleicht nicht — und dann steht es auf dem Blatt.**
  * `legeVor` zieht sie aus dem Nummernkreis `leistungsnachweis`; gibt es keinen

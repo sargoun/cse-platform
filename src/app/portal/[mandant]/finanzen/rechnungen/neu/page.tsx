@@ -130,8 +130,8 @@ export default async function NeueRechnung(
     .sort((a, b) => a.name.localeCompare(b.name, 'de'));
   /*
    * Die Objekte ebenso (V-209): welcher Leistungsort zu welchem Kunden gehört,
-   * steht an der Gruppe. Ob ein fremder überhaupt zulässig ist, ist offen
-   * (O-933) — abgewiesen wird nur, was der Mensch nicht sehen darf.
+   * steht an der Gruppe. Ein fremder ist zulässig (Voreinstellung O-933) —
+   * abgewiesen wird nur, was der Mensch nicht sehen darf.
    */
   const objektGruppen = [...new Set(daten.objekte.map((o) => o.kunde_id))]
     .map((kid) => ({

@@ -28,7 +28,15 @@ export interface AufbewahrungZeile {
   readonly geaendertAm: string | null;
 }
 
-/** Die gesetzlichen Untergrenzen in Jahren — § 147 AO, § 257 HGB; `null`: keine eine Zahl (O-25). */
+/**
+ * Die gesetzlichen Untergrenzen in Jahren — § 147 AO, § 257 HGB; `null`: keine eine Zahl (O-25).
+ *
+ * TODO(client, O-906): Voreinstellung — Rechnungen und Buchungsbelege bleiben
+ * zehn Jahre, obwohl das BEG IV die Frist für Buchungsbelege seit dem
+ * 1. Januar 2025 auf acht Jahre verkürzt: eine zu lange Frist kostet nichts,
+ * eine zu kurze ist nicht nachholbar, und welche Belege schon unter die
+ * kürzere fallen, entscheidet der Steuerberater. Wie gebaut. D-796.
+ */
 export const UNTERGRENZE: Readonly<Record<Kategorie, number | null>> = {
   rechnung: 10, buchhaltung: 10, beleg: 10,
   vertrag: 6, angebot: 6, kunde: 6,

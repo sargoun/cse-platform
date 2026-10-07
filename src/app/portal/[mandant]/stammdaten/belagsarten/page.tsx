@@ -124,8 +124,9 @@ export default async function Belagsarten(
             + 'sind Voreinstellungen (O-17): branchenübliche m²/h-Werte je Belagsart, die die '
             + 'Bereichsleitung hier bestätigt. Bis dahin rechnet die Kalkulation mit der '
             + 'Voreinstellung und sagt es an jeder Position.'}
-        {' '}Ein Glasreinigungsrevier rechnet ausserdem heute auf die Bodenfläche —
-        ein Leistungswert je m² Glas steht in keinem Katalog (O-349).
+        {' '}Ein Glasreinigungsrevier rechnet heute noch auf die Bodenfläche; nach der
+        Voreinstellung (O-349) rechnet es auf die Glasfläche mit einem eigenen
+        Leistungswert je m² Glas, der in diesem Katalog noch fehlt.
       </p>
 
       <Hinweis art={schreibbar ? 'hinweis' : 'warnung'} cse="belagsarten-rechte"

@@ -45,11 +45,11 @@
  * Bezeichnung, Rundung und Satzbasis je Art bestaetigen. Fuer diese Art
  * konkret: wird Teilfertigstellung anteilig abgerechnet oder erst bei Abnahme?
  *
- * // TODO(client, O-932): Ist der Fertigstellungsgrad einer anteiligen
- * Abrechnung der Gesamtstand (bisher Berechnetes wird abgezogen) oder der
- * Zuwachs seit der letzten Rechnung? Ausgeliefert ist der Gesamtstand — die
- * Lesart, bei der eine Verwechslung eine sichtbare Unterberechnung ergibt
- * und keine stille Doppelberechnung (`anteiligerRest`).
+ * // TODO(client, O-932): Voreinstellung — der Fertigstellungsgrad ist der
+ * Gesamtstand (bisher Berechnetes wird abgezogen), nicht der Zuwachs: eine
+ * Verwechslung ergibt eine sichtbare Unterberechnung statt einer stillen
+ * Doppelberechnung (`anteiligerRest`), und die Position nennt Stand und
+ * Abzug. Wie gebaut. D-796.
  */
 import {
   addiere, anteilInBasisPunkten, basisPunkte, cent, formatiereGeld, subtrahiere, type Cent,

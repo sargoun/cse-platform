@@ -273,18 +273,16 @@ export async function pruefeAuftragZuordnung(
 }
 
 /**
- * // TODO(client, O-933): Darf der Leistungsort einer Rechnung ein Objekt
- * sein, das einem ANDEREN Kunden zugeordnet ist als dem Rechnungsempfänger
- * (Hausverwaltung und Eigentümer, Generalunternehmer und Bauherr, eine
- * Muttergesellschaft, die für die Tochter bezahlt) — oder muss
- * `objekt.kunde_id` dem Kunden der Rechnung entsprechen?
- *
- * Bis zur Antwort weist die Plattform NICHT ab: `offen`. Die Masken ordnen die
- * Objekte des Kunden zuerst und die übrigen darunter, damit die Wahl
- * sichtbar ist; geprüft wird nur, ob der Mensch das Objekt sehen darf.
+ * // TODO(client, O-933): Voreinstellung — der Leistungsort einer Rechnung
+ * darf einem ANDEREN Kunden gehören als dem Rechnungsempfänger (Hausverwaltung
+ * und Eigentümer, Generalunternehmer und Bauherr, eine Muttergesellschaft, die
+ * für die Tochter bezahlt): `frei`. Die Masken ordnen die Objekte des Kunden
+ * zuerst und die übrigen darunter, damit die Wahl sichtbar ist; geprüft wird,
+ * ob der Mensch das Objekt sehen darf. Der Beleg nennt den Leistungsort mit
+ * Bezeichnung und Anschrift (BG-13). Wie gebaut. D-796.
  */
-export const OBJEKT_KUNDE_REGEL: { readonly art: 'offen'; readonly frage: 'O-933' } = {
-  art: 'offen', frage: 'O-933',
+export const OBJEKT_KUNDE_REGEL: { readonly art: 'frei'; readonly frage: 'O-933' } = {
+  art: 'frei', frage: 'O-933',
 };
 
 /**
@@ -295,7 +293,8 @@ export const OBJEKT_KUNDE_REGEL: { readonly art: 'offen'; readonly frage: 'O-933
  * Objekt auf den Beleg schreiben, das die Auswahl nie angeboten hätte (ein
  * Objekt unter `objekt.lesen`, das diese Sitzung nicht hält). Dieselbe Regel
  * wie beim Auftrag (D-698 Nr. 2): wer zuordnet, muss sehen, was er zuordnet.
- * Ob das Objekt zum Kunden gehören MUSS, ist offen (`OBJEKT_KUNDE_REGEL`).
+ * Ob das Objekt zum Kunden gehören muss: nein (`OBJEKT_KUNDE_REGEL`,
+ * Voreinstellung O-933).
  */
 export async function pruefeObjektZuordnung(db: Abfrage, objektId: string): Promise<void> {
   const [o] = await db.abfrage<{ id: string }>(
@@ -415,6 +414,12 @@ export interface PositionAnlegen {
  * `netto = runde(menge / basismenge × einzelpreis × (10000 − rabatt) / 10000)`,
  * ganzzahlig in Cent, halb aufgerundet. Die Rundungsregel steht an der Stelle,
  * an der gerundet wird (K-16).
+ *
+ * TODO(client, O-99): Voreinstellung — Preise in ganzen Cent; ein Preis unter
+ * einem Cent je Einheit wird über die Bezugsmenge ausgedrückt: an der
+ * Rechnungsposition `preis_basismenge` (BT-149/150, etwa 1,25 € je 100 m²), in
+ * Angebot und Leistungszeile über die Einheit (Preis je 100 m²). Wie gebaut.
+ * D-796.
  *
  * **Exportiert seit PR 48**, damit die fuenf Abrechnungsarten dieselbe Formel
  * benutzen und nicht jede ihre eigene. Eine Strategie, die ihren Nettobetrag
@@ -910,6 +915,12 @@ export async function schreibeSummen(db: Abfrage, rechnungId: string): Promise<v
 // ---------------------------------------------------------------------------
 
 /**
+ * TODO(client, O-212): Voreinstellung — eine Position darf im Entwurf entfernt
+ * werden, über eine Zustandsspalte `entfernt_am` mit Grund wie bei
+ * `angebotsposition` (0392), die aus jeder Summe fällt; kein Hard Delete
+ * (Invariante 8). Nicht gebaut — heute bleibt nur, den ganzen Entwurf zu
+ * verwerfen (V-356). D-796.
+ *
  * Ein verworfener Entwurf wird NICHT geloescht. Er bekommt einen Zustand,
  * einen Zeitpunkt, einen Menschen und einen Grund — und ist danach ebenso
  * unveraenderlich wie eine festgeschriebene Rechnung.

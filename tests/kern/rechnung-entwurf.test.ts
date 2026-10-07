@@ -192,8 +192,8 @@ describe('die Route liest, statt Postgres raten zu lassen (V-209)', () => {
       /aktion === 'kopf' && text\('rechnungsart'\) === null\) return abweisung\('unvollstaendig'/u);
   });
 
-  it('der Leistungsort bleibt offen, bis O-933 beantwortet ist', () => {
-    expect(OBJEKT_KUNDE_REGEL).toEqual({ art: 'offen', frage: 'O-933' });
+  it('der Leistungsort darf einem anderen Kunden gehören (Voreinstellung O-933, D-796)', () => {
+    expect(OBJEKT_KUNDE_REGEL).toEqual({ art: 'frei', frage: 'O-933' });
   });
 });
 

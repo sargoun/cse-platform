@@ -402,6 +402,9 @@ export interface Versandergebnis {
  * nicht den Preis. Wer den Preis verantwortet hat, steht in
  * `freigegeben_von`, und das war moeglicherweise ein anderer Mensch — genau
  * darum geht es.
+ *
+ * TODO(client, O-350): Voreinstellung — Bindefrist vier Wochen ab Versand,
+ * hier gesetzt, wenn kein Datum eingetragen ist; nicht gebaut (V-359). D-796.
  */
 export async function versendeAngebot(
   db: Abfrage & NummernAbfrage, angebotId: string, versenderBenutzerId: string,

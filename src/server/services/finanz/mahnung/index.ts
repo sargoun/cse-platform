@@ -171,8 +171,13 @@ export type BriefkopfAngabe =
 
 /**
  * Welche Angaben des Briefkopfs leer sind — für den Hinweis auf dem
- * Mahnungsblatt, nicht als Sperre. Ob eine Gesellschaft ohne Registereintrag
- * mahnen darf, entscheidet hier niemand; gesagt wird nur, was fehlt.
+ * Mahnungsblatt, nicht als Sperre.
+ *
+ * // TODO(client, O-934): Voreinstellung — keine Sperre: wer freigibt, sieht
+ * vor der Freigabe, was fehlt, und entscheidet (die Folge eines Verstosses
+ * gegen § 35a GmbHG ist ein Zwangsgeld, nicht die Unwirksamkeit der Mahnung).
+ * Eine Gesellschaft ohne Registereintrag führt die Angaben ihrer Rechtsform;
+ * die Angaben selbst sind Betreiberdaten (O-24, O-353). Wie gebaut. D-796.
  */
 export function fehlendeBriefkopfangaben(a: MahnAbsender): readonly BriefkopfAngabe[] {
   const leer = (w: string | null): boolean => w === null || w.trim() === '';
