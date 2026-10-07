@@ -755,16 +755,17 @@ describe('V-328 — arbeitsbehindernde Witterung', () => {
 
   it('die Bauleitung setzt es am offenen Tag — ja, nein und wieder „nicht beurteilt"', async () => {
     const bau = await baueBaustelle(f.bau);
-    await alsBauleitung(bau, async (k) => {
-      const tag = await legeBautagAn(k, { projektId: bau.projekt, datum: '2026-08-10' });
-      await setzeWitterung(k, { bautagebuchId: tag, behindernd: true });
-      expect((await findeBautagZuDatum(k, bau.projekt, '2026-08-10'))!
-        .arbeitsbehindernde_witterung).toBe(true);
-      await setzeWitterung(k, { bautagebuchId: tag, behindernd: false });
-      expect(await kennzeichen(tag)).toBe(false);
-      await setzeWitterung(k, { bautagebuchId: tag, behindernd: null });
-      expect(await kennzeichen(tag)).toBeNull();
-    });
+    // Jeder Schritt in seiner eigenen Transaktion: `kennzeichen` liest über
+    // eine andere Verbindung und sieht nur, was festgeschrieben ist.
+    const tag = await alsBauleitung(bau, (k) =>
+      legeBautagAn(k, { projektId: bau.projekt, datum: '2026-08-10' }));
+    await alsBauleitung(bau, (k) => setzeWitterung(k, { bautagebuchId: tag, behindernd: true }));
+    expect((await alsBauleitung(bau, (k) => findeBautagZuDatum(k, bau.projekt, '2026-08-10')))!
+      .arbeitsbehindernde_witterung).toBe(true);
+    await alsBauleitung(bau, (k) => setzeWitterung(k, { bautagebuchId: tag, behindernd: false }));
+    expect(await kennzeichen(tag)).toBe(false);
+    await alsBauleitung(bau, (k) => setzeWitterung(k, { bautagebuchId: tag, behindernd: null }));
+    expect(await kennzeichen(tag)).toBeNull();
   });
 
   it('am geschlossenen Tag steht es fest — auch am Dienst vorbei (0501)', async () => {
