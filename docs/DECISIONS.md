@@ -24838,7 +24838,7 @@ weiter keine Adresse, also ordnet der Katalog ihnen keine Plattform zu.
 |---|---|---|
 | O-07 | Plattformkatalog: Vergabeplattform Berlin, Deutsches Vergabeportal (DTVP), Vergabe24, e-Vergabe des Bundes, subreport ELViS, Vergabemarktplatz Brandenburg, Bekanntmachungen auf bund.de, TED — je mit Betreiber, Adresse und Hostnamen; Registrierungspflicht ausser bund.de und TED; unbestätigt, bis die Super-Administration bestätigt, ändert oder archiviert; der Seed legt sie an. Unter welcher Kennung wer registriert ist, trägt jede Gesellschaft selbst ein (Betreiberdaten). | `radar/plattform.ts` (`PLATTFORM_VOREINSTELLUNG`, `uebernimmPlattformVoreinstellung`), `api/radar/plattform`, Radar › Vergabeplattformen, Mappe › Einreichung, `seed/radar.ts`, `tests/kern/radar-plattform.test.ts` (8), `tests/isolation/radar-plattform.test.ts` (5) |
 | O-194 | Prüfliste: Angebotsschreiben, bepreistes Leistungsverzeichnis, Eigenerklärung zur Eignung (Formblatt 124 bei Bauleistungen), Handels-/Gewerberegisterauszug, Bescheinigung in Steuersachen, Unbedenklichkeit von Berufsgenossenschaft und Krankenkasse, Betriebshaftpflicht, Referenzen der letzten drei Jahre, Gewerbezentralregisterauszug (§ 150a GewO), Tariftreue- und Mindestentgelterklärung (Berliner Ausschreibungs- und Vergabegesetz), Nachunternehmererklärung (freiwillig) — ein Anfang, den die Vergabeunterlagen korrigieren; jede Zeile startet `offen`. | `vergabe/mappe.ts` (`PRUEFLISTE_VOREINSTELLUNG`, `uebernimmPrueflisteVoreinstellung`), `api/vergabe/mappe`, Radar › Mappe, `tests/kern/vergabe-pruefliste-voreinstellung.test.ts`, `tests/isolation/vergabemappe.test.ts` (6) |
-| O-195 | Warnschwelle 80 % des Monatsbudgets, in der Maske vorbelegt und im Seed gesetzt; eine Zeile ohne Schwelle bleibt möglich und wird unter der Tabelle genannt. Budget und Preisliste rechnen in Euro (Mikrocent); der Anbieter rechnet in USD ab — umgerechnet wird beim Eintrag der Preisliste zum Kurs des Eintragstags, `waehrung_original` hält die Ursprungswährung fest, ein Kursdienst ist nicht angebunden. Die Schwelle löst heute nichts aus (V-292). | `agent/budget-pflege.ts` (`WARNSCHWELLE_VOREINSTELLUNG_PROZENT`), Agenten › KI-Budget, `seed/index.ts`, `agent-budget.ts` (i18n), `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
+| O-195 | Warnschwelle 80 % des Monatsbudgets, in der Maske vorbelegt und im Seed gesetzt; eine Zeile ohne Schwelle bleibt möglich und wird unter der Tabelle genannt. Budget und Preisliste rechnen in Euro (Mikrocent); der Anbieter rechnet in USD ab — umgerechnet wird beim Eintrag der Preisliste zum Kurs des Eintragstags, `waehrung_original` hält die Ursprungswährung fest, ein Kursdienst ist nicht angebunden. Erreicht der Verbrauch die Schwelle, meldet die Buchung es einmal je Budgetzeile an alle mit `agent.budget_verwalten` (`app.agent_warnung_vermerken`, 0505) — gebaut mit V-292 (D-810). | `agent/budget-pflege.ts` (`WARNSCHWELLE_VOREINSTELLUNG_PROZENT`), Agenten › KI-Budget, `seed/index.ts`, `agent-budget.ts` (i18n), `tests/kern/agent-budget-warnschwelle.test.ts`, `tests/e2e/agenten.spec.ts` |
 | O-193 | Bewertet und beworben wird die Bekanntmachung als Ganzes; eine Bewertung je Los führt die Plattform nicht, die Loszahl steht am Blatt. | Radar › Bekanntmachung |
 | O-870 | Bewerten zwei Gesellschaften dieselbe Bekanntmachung hoch, bietet die mit der höheren Bewertung; bei Gleichstand entscheidet die Gruppenleitung, eine Bietergemeinschaft gibt es nur auf ihren Beschluss (§ 124 GWB im Blick). Die Gruppenseite zeigt den Sachverhalt und setzt die Regel nicht durch. | Gruppe › Radar |
 | O-721 | Bezugsfassung der Regionspräfixe ist NUTS 2024 (gilt seit 1. Januar 2024); geprüft wird die Form, nicht die Existenz (V-294) — ein Präfix ohne Gebiet engt die Suche still ein, die Seite sagt es. | Radar › Suchprofil |
@@ -25111,7 +25111,7 @@ gebaut ist, steht es dabei (V-319 bis V-322).
 | O-143 | Ein Stundenkonto ist offen oder gesperrt; `vorlaeufig` steht im Enum und setzt kein Weg — der Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`). Wie gebaut. | `zeit/stundenkonto.ts`, `zeit/einwand.ts` |
 | O-162 | Zeiteinträge werden nicht gelöscht (Invariante 8); die zwei Jahre des § 17 Abs. 1 MiLoG sind damit immer eingehalten. Käme je ein Löschlauf, zählt die Frist ab dem Ende des Kalenderjahres der Aufzeichnung (wie § 147 Abs. 4 AO). | `zeit/milog.ts` |
 | O-164 | Die Ausstempelmarke gilt bis Schichtende plus `zeit.checkout_toleranz_minuten` (ausgeliefert 60 Minuten, Einstellung je Gesellschaft, 0035); wer länger arbeitet, meldet es der Planung, die den Eintrag nacherfasst. Wie gebaut. | `zeit/checkin.ts`, `drizzle/0035` |
-| O-165 | Nacherfassung bis sieben Kalendertage nach dem Arbeitstag — die Obergrenze des § 17 Abs. 1 MiLoG —, danach Hinweis an die Leitung. Nicht gebaut: die Plattform prüft keine Frist (V-321). | `zeit/korrektur.ts` |
+| O-165 | Nacherfassung bis sieben Kalendertage nach dem Arbeitstag — die Obergrenze des § 17 Abs. 1 MiLoG —, danach Hinweis an die Leitung (Rolle `leitung`, ohne den Erfassenden), kein Verbot; die Seite der neuen Fassung sagt es dem Erfassenden. Gebaut mit V-321 (`app.nacherfassung_spaet_melden`, 0506, D-810). | `zeit/korrektur.ts` |
 | O-168 | Pausen werden als Summe je Schicht erfasst (`zeiteintrag.pause_minuten`), nicht gestempelt; im Plan heisst `pause_geplant_minuten` 0 „nicht hinterlegt" und ist keine Pause; eine fehlende Angabe ist ein Befund, keine Verletzung (§ 4 ArbZG). Wie gebaut. | `zeit/arbzg.ts`, `dienstplan/einteilung.ts` |
 | O-169 | Zeit ohne Auftrag (Schulung, Bereitschaft, Fahrt, interne Arbeit) ist erlaubt, zählt aufs Stundenkonto und wird nicht fakturiert („ohne Auftrag — nicht abrechenbar", FIN-18); eine Kostenstelle trägt sie nicht, bewertet wird sie im Lohnlauf (D-06). Wie gebaut. | `zeit/abrechnungsfreigabe.ts`, Zeiten |
 | O-171 | Sonntags- und Feiertagsarbeit weist die Plattform nicht nach — weder die Ausnahme (§ 10 ArbZG) noch den Ersatzruhetag (§ 11 Abs. 3 ArbZG); das Lohnsystem leitet die Stunden aus `zeiten.csv` ab, der Ersatzruhetag steht im Dienstplan. Das LIESMICH des Lohnexports sagt es (V-322). | `zeit/lohnexport.ts` |
@@ -25710,7 +25710,7 @@ ab). O-97 ist wortgleich mit O-41 und folgt dessen Voreinstellung (D-782).
 |---|---|---|
 | O-23 | Abzüge und Übermessung nach VOB/C (ATV je Gewerk) trägt die Bauleitung in den Rechenansatz ein; die Plattform wendet keine Regel automatisch an (wie gebaut). Die § 2-Grundlagen sind die vollständige Liste aus dem Gesetzestext (§ 1 Abs. 3 und 4, § 2 Abs. 3 bis 8 VOB/B, § 650b BGB), als „unbestätigter Wert" gekennzeichnet; bestätigen lässt sie sich noch nicht (V-384). Die Behinderungsvorlage `vob_b_6_1` ist die Voreinstellung und unter Einstellungen › Vorlagen ersetzbar. | `bau/rechenansatz.ts`, `bau/AufmassTeile.tsx`, `einstellung/vorlagen.ts` |
 | O-30 | 14 Tage (SPEC §14), gemeldet an die verantwortliche Bauleitung des Projekts, einmal (`ueberfaellig_gemeldet_am`); fehlt die Bauleitung, an alle, die in der Gesellschaft Nachträge einreichen dürfen (`bau.nachtrag_einreichen`) und den Nachtrag lesen können (`bau.lesen`) — gebaut mit V-381 (D-808). | `bau/nachtrag.ts`, `jobs/nachtragWache.ts` |
-| O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle, ab 7 Tagen an die Leitung — nicht gebaut (V-380); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
+| O-31 | Stufen 60, 30 und 7 Tage vor Ablauf, je Qualifikation änderbar (`warnung_tage`); an die Beschäftigte selbst (wie gebaut), ab 30 Tagen zusätzlich an die Personalstelle (`personal.nachweis_lesen` in der erfassenden Gesellschaft), ab 7 Tagen an die Leitung (Rolle `leitung`) — je Konto eine Meldung je Stufe, gebaut mit V-380 (`kern.nachweis_ablauf_empfaenger`, 0504, D-810); nach Ablauf sperrt der Nachweis die Einteilung (SEC-04, wie gebaut). | `nachweis/benachrichtigung.ts`, `nachweis/ablauf.ts` |
 | O-97 | Wie O-41 (D-782): Zielformat GAEB DA XML (X83/X84); gelesen wird heute CSV mit Semikolon, der GAEB-Leser fehlt (V-291). | `bau/lv-quelle.ts` |
 | O-133 | Kein Pflichtfoto je Beweisart ausser dem Messfoto des Aufmaßes (BAU-03, `kern.aufmass_vorlage_pruefen`, wie gebaut); Leistungsnachweis, Wachbuch, Bautagebuch, Schicht und Referenz nehmen Fotos an und verlangen keine, und ein Beweis ohne Foto gilt nicht als unvollständig. | `api/mein/schichten/[zuordnungId]/fotos`, `bau/aufmass.ts` |
 | O-211 | Die Wache sieht Kontrollpunkte und Dienstanweisung ihres laufenden und jedes kommenden Objekts ab der Einteilung und verliert den Zugriff, wenn nach der letzten Schicht auch die Ausstempeltoleranz vorbei ist (`app.eigene_einsatz_objekte()`, 0499, V-326, D-808 — eine Grenze mit der Erfassung, O-740; dieselbe in `app.eigene_einsatz_projekte()`). Die Kenntnisnahmepflicht öffnet weiter nur für Schichten, die noch nicht zu Ende sind (0078). | `drizzle/0069`, `drizzle/0071`, `drizzle/0078` |
@@ -26358,4 +26358,54 @@ D-786) und die Bestätigung einer CPV-Zeile (`ist_platzhalter`, O-98, D-786).
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-298, V-299, V-392, V-309, V-312; O-355, O-356, O-358, O-35, O-15, O-98; `src/server/services/radar/profil.ts`, `src/app/api/radar/profil/route.ts`, `src/app/portal/[mandant]/radar/profile/[id]/page.tsx`, `drizzle/0502_mandant_module_buchen.sql`, `drizzle/0503_sicherheitskontakt_pflegen.sql`, `src/server/services/system/mandant-module.ts`, `src/app/api/einstellungen/module/route.ts`, `src/app/portal/[mandant]/einstellungen/module/page.tsx`, `src/lib/i18n/verwaltung/einstellungen/modulbuchung.ts`, `src/server/db/seed/index.ts`, `src/server/services/finanz/mahnung/basiszinssatz.ts`, `src/app/api/finanzen/basiszinssatz/route.ts`, `src/app/portal/[mandant]/einstellungen/mahnwesen/page.tsx`, `src/server/jobs/basiszinssatz.ts`, `src/server/services/inhalt/sicherheitskontakt.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `src/app/api/einstellungen/sicherheitskontakt/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts` |
+|---|---|
+
+### D-810 · Bauwelle 6: Meldungen — Nachweisablauf an Personalstelle und Leitung, Warnschwelle des KI-Budgets, späte Nacherfassung (V-380, V-292, V-321)
+
+**Der Anlass.** Drei Voreinstellungen sagten, wer wann erfährt — und keine
+Meldung ging hinaus: der Nachweisablauf erreichte nur die Beschäftigte selbst
+(O-31, D-800), die Warnschwelle des KI-Budgets stand an der Zeile und löste
+nichts aus (O-195, D-784), und eine Nacherfassung prüfte keinen Abstand zum
+Arbeitstag (O-165, D-788).
+
+**Was gebaut ist.**
+- **Nachweisablauf (V-380).** Ab der 30-Tage-Stufe erfährt es zusätzlich die
+  Personalstelle — wer in der erfassenden Gesellschaft
+  `personal.nachweis_lesen` hält —, ab der 7-Tage-Stufe die Leitung (Rolle
+  `leitung`). Zwei neue Arten (`nachweis.ablauf_personalstelle`,
+  `nachweis.ablauf_leitung`, deutsch, Ziel: das Nachweisregister); jedes
+  Konto bekommt je Stufe genau eine Meldung, nie das der Person selbst. Die
+  Auswahl macht `kern.nachweis_ablauf_empfaenger` (0504) als Definer: der
+  Wächter läuft unter `cse_job`, und keine Sitzung sieht fremde
+  Mitgliedschaften. Dieselbe Quittung wie die Meldung an die Person
+  (`nachweis_warnung`) — je Stufe einmal, auch wenn für die Person keine Art
+  registriert ist. Nachtlauf und Seed stellen zu.
+- **Warnschwelle des KI-Budgets (V-292).** `bucheKosten` vergleicht nach jeder
+  Buchung Verbrauch und Grenze mal Schwelle (`app.agent_warnung_vermerken`,
+  0505 — Mikrocent, numeric gerechnet) und meldet beim Erreichen einmal je
+  Budgetzeile an alle mit `agent.budget_verwalten`: Status `gewarnt`,
+  `gewarnt_am`, Art `agent.budget_warnschwelle` mit der Budgetseite als Ziel.
+  Ändert jemand die Grenze, setzt die Budgetpflege die Warnung zurück, und
+  die neue Grenze darf wieder warnen. Der Hartstopp bei 100 % bleibt.
+- **Späte Nacherfassung (V-321).** Liegt eine Nacherfassung mehr als sieben
+  Kalendertage nach dem Arbeitstag (Berliner Tage, aus der Datenbank), meldet
+  `app.nacherfassung_spaet_melden` (0506) es einmal an die Leitung der
+  Gesellschaft, ohne den Erfassenden. Der Definer prüft Korrektur, Art,
+  Urheber und Abstand selbst. Kein Verbot — die Nacherfassung ist schon
+  geschrieben; die Seite der neuen Fassung sagt dem Erfassenden, dass die
+  Leitung informiert ist.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-31 | Ab 30 Tagen die Personalstelle (`personal.nachweis_lesen`), ab 7 Tagen die Leitung (Rolle `leitung`) — wie D-800, jetzt gebaut. | `drizzle/0504`, `nachweis/ablauf.ts`, `nachweis/benachrichtigung.ts` |
+| O-195 | Warnung bei 80 %, einmal je Budgetzeile, an alle mit `agent.budget_verwalten` — wie D-784, jetzt mit Auslöser. | `drizzle/0505`, `agent/budget.ts` |
+| O-165 | Sieben Kalendertage nach dem Arbeitstag, danach Hinweis an die Leitung, kein Verbot — wie D-788, jetzt gebaut. | `drizzle/0506`, `zeit/korrektur.ts` |
+
+**Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (4),
+`tests/isolation/nacherfassung-frist.test.ts` (in der CI), `tests/kern/nachweis.test.ts`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-380, V-292, V-321; O-31, O-195, O-165; `drizzle/0504_nachweis_ablauf_empfaenger.sql`, `drizzle/0505_agent_budget_warnschwelle.sql`, `drizzle/0506_nacherfassung_frist.sql`, `src/server/services/nachweis/ablauf.ts`, `src/server/services/nachweis/benachrichtigung.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/agent/budget.ts`, `src/server/agent/benachrichtigung.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/zeit/korrektur.ts`, `src/server/services/zeit/benachrichtigung.ts`, `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/lib/i18n/konto.ts` |
 |---|---|
