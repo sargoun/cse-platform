@@ -77,6 +77,9 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
   frist: 'Die Mindestrestfrist sind ganze Tage zwischen 0 und 365.',
   empfaenger: 'Der Empfänger liess sich nicht eintragen. Ein Konto muss Mitglied DIESER '
     + 'Gesellschaft sein — die Datenbank besteht darauf.',
+  schwelle: 'Eine Schwelle sind ganze Punkte: für das Profil zwischen 0 und der Skala, für '
+    + 'einen Empfänger zwischen 1 und der Skala — beim Empfänger heißt leer: die Schwelle '
+    + 'des Profils.',
   nicht_gefunden: 'Das Profil wurde nicht gefunden, ist archiviert, oder diese Sitzung '
     + 'darf es nicht ändern.',
   gesperrt: 'Diese Handlung ist an dieser Stelle nicht vorgesehen.',
@@ -87,10 +90,14 @@ const VERMERKT_TEXT: Readonly<Record<string, string>> = {
     + 'hochgezählt; der nächste Lauf schreibt neue Bewertungen, die alten bleiben stehen.',
   cpv_hinzu: 'Die CPV-Zeile ist eingetragen — als Voreinstellung, gegen die amtliche Liste unbestätigt (O-98).',
   cpv_weg: 'Die CPV-Zeile ist entfernt.',
-  empfaenger_hinzu: 'Der Empfänger ist eingetragen — ohne eigene Schwelle: es gilt die '
-    + `Schwelle des Profils, bei neuen Profilen die Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} `
-    + 'von 100 Punkten (O-15, D-786), oben in den Stammdaten änderbar. Hat das Profil keine '
-    + 'Schwelle, bekommt niemand eine Treffermeldung.',
+  cpv_bestaetigen: 'Die CPV-Zeile ist gegen die amtliche Liste bestätigt (O-98). Punkte und '
+    + 'Meldungen ändern sich dadurch nicht; die Bestätigung steht im Protokoll.',
+  empfaenger_hinzu: 'Der Empfänger ist eingetragen. Ohne eigene Schwelle gilt die des Profils, '
+    + `bei neuen Profilen die Voreinstellung ${String(SCHWELLE_VOREINSTELLUNG)} von 100 Punkten `
+    + '(O-15, D-786). Hat weder er noch das Profil eine Schwelle, bekommt er keine '
+    + 'Treffermeldung.',
+  empfaenger_schwelle: 'Die Schwelle des Empfängers ist gespeichert; die Fassung des Profils '
+    + 'ist damit hochgezählt.',
   empfaenger_weg: 'Der Empfänger ist entfernt.',
   /*
    * Die Umleitung nach dem Anlegen (V-016) landet HIER, auf dem Blatt des
@@ -438,16 +445,32 @@ export default async function ProfilBearbeiten(
                     <span className="ml-s2 text-xs text-warning">
                       Voreinstellung — gegen die amtliche CPV-Liste unbestätigt (O-98)
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="ml-s2 text-xs text-text-muted" data-cse="profil-cpv-bestaetigt">
+                      gegen die amtliche CPV-Liste bestätigt
+                    </span>
+                  )}
                 </span>
-                <form method="post" action="/api/radar/profil">
-                  <input type="hidden" name="profil" value={p.id} />
-                  <input type="hidden" name="was" value="cpv_weg" />
-                  <input type="hidden" name="cpv" value={c.id} />
-                  <Button type="submit" variante="ghost" data-cse="profil-cpv-weg">
-                    Entfernen
-                  </Button>
-                </form>
+                <span className="flex flex-wrap gap-s2">
+                  {c.istPlatzhalter ? (
+                    <form method="post" action="/api/radar/profil">
+                      <input type="hidden" name="profil" value={p.id} />
+                      <input type="hidden" name="was" value="cpv_bestaetigen" />
+                      <input type="hidden" name="cpv" value={c.id} />
+                      <Button type="submit" variante="secondary" data-cse="profil-cpv-bestaetigen">
+                        Bestätigen
+                      </Button>
+                    </form>
+                  ) : null}
+                  <form method="post" action="/api/radar/profil">
+                    <input type="hidden" name="profil" value={p.id} />
+                    <input type="hidden" name="was" value="cpv_weg" />
+                    <input type="hidden" name="cpv" value={c.id} />
+                    <Button type="submit" variante="ghost" data-cse="profil-cpv-weg">
+                      Entfernen
+                    </Button>
+                  </form>
+                </span>
               </li>
             ))}
           </ul>
@@ -490,9 +513,12 @@ export default async function ProfilBearbeiten(
           <p className="text-xs text-text-muted">
             Die Präfixlänge sagt, wie viele Stellen verglichen werden:{' '}
             <span className="font-mono">45000000</span> bei Länge 2 fängt den ganzen
-            Hochbau. Jede hier eingetragene Zeile bleibt <strong>Voreinstellung</strong>, bis
-            die CPV-Listen der Gewerke gegen die amtliche Liste bestätigt sind{' '}
-            <strong>(O-98)</strong>. Ein eigenes Gewicht je Code gibt es nicht: die
+            Hochbau. Jede hier eingetragene Zeile ist zuerst <strong>Voreinstellung</strong>;
+            „Bestätigen" an der Zeile heißt: der Code steht so in der amtlichen CPV-Liste
+            (Verordnung (EG) Nr. 213/2008) und meint diese Leistung{' '}
+            <strong>(O-98)</strong>. Die Plattform führt die Liste nicht — die Prüfung macht
+            ein Mensch, und sie ändert nur die Markierung, nicht die Punkte. Ein eigenes
+            Gewicht je Code gibt es nicht: die
             Spalte steht im Schema, die Bewertung benutzt sie nicht (O-15).
             {' '}<strong>„Schliesst aus" verwirft still</strong>, was nie ein Mensch gesehen
             hat — verwenden Sie es sparsam.
@@ -538,14 +564,34 @@ export default async function ProfilBearbeiten(
                       : `ab ${String(e.abPunkte)} von ${String(p.skalaMax)} Punkten`}
                   </span>
                 </span>
-                <form method="post" action="/api/radar/profil">
-                  <input type="hidden" name="profil" value={p.id} />
-                  <input type="hidden" name="was" value="empfaenger_weg" />
-                  <input type="hidden" name="empfaenger" value={e.id} />
-                  <Button type="submit" variante="ghost" data-cse="profil-empfaenger-weg">
-                    Entfernen
-                  </Button>
-                </form>
+                <span className="flex flex-wrap items-end gap-s2">
+                  <form method="post" action="/api/radar/profil"
+                        className="flex flex-wrap items-end gap-s2"
+                        data-cse="profil-empfaenger-schwelle-formular">
+                    <input type="hidden" name="profil" value={p.id} />
+                    <input type="hidden" name="was" value="empfaenger_schwelle" />
+                    <input type="hidden" name="empfaenger" value={e.id} />
+                    <label className="flex flex-col gap-s1 text-xs text-text-muted"
+                           htmlFor={`schwelle-${e.id}`}>
+                      Eigene Schwelle
+                      <input id={`schwelle-${e.id}`} name="abPunkte" type="number" min={1}
+                             max={p.skalaMax} step={1}
+                             defaultValue={e.abPunkte === null ? '' : String(e.abPunkte)}
+                             className={`${feld} w-24`} data-cse="profil-empfaenger-schwelle" />
+                    </label>
+                    <Button type="submit" variante="ghost" data-cse="profil-empfaenger-schwelle-speichern">
+                      Speichern
+                    </Button>
+                  </form>
+                  <form method="post" action="/api/radar/profil">
+                    <input type="hidden" name="profil" value={p.id} />
+                    <input type="hidden" name="was" value="empfaenger_weg" />
+                    <input type="hidden" name="empfaenger" value={e.id} />
+                    <Button type="submit" variante="ghost" data-cse="profil-empfaenger-weg">
+                      Entfernen
+                    </Button>
+                  </form>
+                </span>
               </li>
             ))}
           </ul>
@@ -578,13 +624,17 @@ export default async function ProfilBearbeiten(
                 ))}
               </select>
             </label>
+            <label className="flex flex-col gap-s2 text-xs text-text-muted" htmlFor="abPunkte">
+              Eigene Schwelle (optional, 1 bis {String(p.skalaMax)} Punkte)
+              <input id="abPunkte" name="abPunkte" type="number" min={1} max={p.skalaMax}
+                     step={1} className={feld} data-cse="profil-empfaenger-neu-schwelle" />
+            </label>
             <p className="text-xs text-text-muted">
-              Eingetragen wird <strong>ohne eigene Schwelle</strong>: es gilt die Schwelle des
-              Profils — bei neuen Profilen die Voreinstellung {String(SCHWELLE_VOREINSTELLUNG)} von{' '}
-              {String(p.skalaMax)} Punkten <strong>(O-15, D-786)</strong>; eine eigene Zahl je
-              Empfänger hat hier kein Feld (V-309). Die <strong>knappe Abgabefrist</strong> meldet
-              der Wächter davon unabhängig und ohne Schwelle: fünf Tage stehen in SPEC §14 und
-              RAD-06.
+              Bleibt das Feld leer, gilt die Schwelle des Profils — bei neuen Profilen die
+              Voreinstellung {String(SCHWELLE_VOREINSTELLUNG)} von {String(p.skalaMax)} Punkten{' '}
+              <strong>(O-15, D-786)</strong>. Eine eigene Schwelle geht ihr vor. Die{' '}
+              <strong>knappe Abgabefrist</strong> meldet der Wächter davon unabhängig und ohne
+              Schwelle: fünf Tage stehen in SPEC §14 und RAD-06.
             </p>
             <div>
               <Button type="submit" variante="secondary" data-cse="profil-empfaenger-hinzu">

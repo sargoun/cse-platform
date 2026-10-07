@@ -16,8 +16,9 @@
  * vorgetaeuschte Anbindung, die CLAUDE.md ausschliesst.
  *
  * // TODO(client, O-35): Betreiberdaten — Postfach fuer Sicherheitsmeldungen,
- * wer es liest und die Antwortfrist traegt der Betreiber ein (D-803, V-392).
- * Bis dahin bleibt `/.well-known/security.txt` ein 404 — mit Absicht.
+ * wer es liest und die Antwortfrist traegt der Betreiber ein (D-803); der
+ * Eingabeweg steht unter Einstellungen › Betrieb (V-392, D-809). Bis zum
+ * Eintrag bleibt `/.well-known/security.txt` ein 404 — mit Absicht.
  */
 
 /** Der Schluessel in `plattform_einstellung`, unter dem das Postfach steht. */

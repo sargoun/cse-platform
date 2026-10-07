@@ -33,7 +33,10 @@ import { SCHWELLE_VOREINSTELLUNG } from './gewichte.platzhalter.js';
  *
  * **Und `ist_platzhalter` lässt sich nicht von Hand löschen.** Das Flag sagt
  * „die Gewichte und die CPV-Codes dieses Profils sind unbestätigt"; es zu
- * entfernen wäre eine Behauptung über O-15 und O-98, nicht eine Eingabe.
+ * entfernen wäre eine Behauptung über O-15 und O-98, nicht eine Eingabe. Je
+ * CPV-ZEILE bestätigt die Bereichsleitung dagegen den Code gegen die amtliche
+ * Liste (`bestaetigeCpv`, V-312); das Flag des Profils bleibt, solange die
+ * Gewichte unbestätigt sind (O-15).
  *
  * **Und ein Profil lässt sich archivieren** (`archiviereProfil`, V-304).
  * `radar_profil` trägt `geloescht_am`/`geloescht_von`; gesetzt werden sie mit
@@ -784,27 +787,72 @@ export async function entferneCpv(
 }
 
 /**
+ * Eine CPV-Zeile gegen die amtliche Liste bestätigen (V-312, O-98, RAD-03,
+ * D-809).
+ *
+ * TODO(client, O-98): Voreinstellung — die Bereichsleitung bestätigt je Zeile,
+ * dass der Code so in der amtlichen CPV-Liste steht (Verordnung (EG)
+ * Nr. 213/2008) und die Leistung meint; die Plattform führt die Liste nicht,
+ * die Prüfung macht ein Mensch. Bestätigt wird nur die Markierung: Punkte und
+ * Meldungen ändern sich nicht. D-786, D-809.
+ *
+ * Die Bestätigung ist eine Änderung der Zeile und zählt deshalb wie jede
+ * andere die Fassung des Profils hoch (`trg_rpc_version_upd`); die
+ * Trefferquittung hängt an der Bekanntmachung, nicht an der Fassung, und
+ * meldet nichts zweimal. Zurückgenommen wird eine Bestätigung, indem man die
+ * Zeile entfernt und neu einträgt — dann ist sie wieder Voreinstellung.
+ */
+export async function bestaetigeCpv(
+  kontext: SchreibKontext, profilId: string, cpvId: string,
+): Promise<{ readonly geaendert: boolean }> {
+  const [zeile] = await kontext.schreibe<{ cpv_code: string; praefix_laenge: number }>(
+    `update radar_profil_cpv c set ist_platzhalter = false
+       from radar_profil p
+      where c.id = $1::uuid and c.radar_profil_id = $2::uuid and c.mandant_id = $3::uuid
+        and p.id = c.radar_profil_id and p.geloescht_am is null
+        and c.ist_platzhalter
+     returning c.cpv_code, c.praefix_laenge`,
+    [cpvId, profilId, kontext.aktiverMandantId]);
+  if (zeile === undefined) {
+    const [da] = await kontext.abfrage<{ eins: number }>(
+      `select 1 as eins from radar_profil_cpv
+        where id = $1::uuid and radar_profil_id = $2::uuid and not ist_platzhalter`,
+      [cpvId, profilId]);
+    if (da !== undefined) return { geaendert: false };
+    throw new ProfilFehler('cpv', 'Diese CPV-Zeile gehört nicht zu diesem Profil.');
+  }
+  await kontext.schreibe(
+    `select app.protokolliere('radar.profil_cpv_bestaetigt', 'radar_profil', $1,
+                              $2::jsonb, $3::jsonb, app.aktiver_mandant())`,
+    [profilId,
+      { cpvCode: zeile.cpv_code, praefixLaenge: Number(zeile.praefix_laenge), istPlatzhalter: true },
+      { cpvCode: zeile.cpv_code, praefixLaenge: Number(zeile.praefix_laenge), istPlatzhalter: false }]);
+  return { geaendert: true };
+}
+
+/**
  * Einen Empfänger eintragen.
  *
- * **Ohne EIGENE Schwelle** — `ab_punkte` bleibt `null`: es gilt die Schwelle
- * des Profils (`benachrichtigung_ab_punkte`), bei neuen Profilen die
- * Voreinstellung `SCHWELLE_VOREINSTELLUNG` (O-15, D-786), die das Formular
- * aendern kann. Nur ein Profil OHNE Schwelle meldet nach RAD-08 nichts, und
- * die Oberflaeche sagt genau das. Eine Zahl je Empfaenger hat kein Feld
- * (V-309) — „keine eigene Schwelle" und „keine wirksame Schwelle" sind zwei
- * verschiedene Saetze, und die Seite unterscheidet sie.
+ * **Ohne eigene Schwelle, wenn das Feld leer bleibt** — `ab_punkte` ist dann
+ * `null`, und es gilt die Schwelle des Profils (`benachrichtigung_ab_punkte`),
+ * bei neuen Profilen die Voreinstellung `SCHWELLE_VOREINSTELLUNG` (O-15,
+ * D-786). Nur ein Profil OHNE Schwelle meldet nach RAD-08 nichts, und die
+ * Oberflaeche sagt genau das. Eine eigene Schwelle liegt zwischen 1 und
+ * `skala_max` (V-309, D-809) und geht in `warnung.ts` vor der des Profils.
  */
 export async function setzeEmpfaenger(
   kontext: SchreibKontext, profilId: string, benutzerId: string,
+  abPunkte: number | null = null,
 ): Promise<void> {
+  const schwelle = pruefeEmpfaengerSchwelle(abPunkte, await skalaDesProfils(kontext, profilId));
   const [zeile] = await kontext.schreibe<{ id: string }>(
-    `insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id)
-     select $1::uuid, p.id, $3::uuid
+    `insert into radar_profil_empfaenger (mandant_id, radar_profil_id, benutzer_id, ab_punkte)
+     select $1::uuid, p.id, $3::uuid, $4::integer
        from radar_profil p
       where p.id = $2::uuid and p.mandant_id = $1::uuid and p.geloescht_am is null
      on conflict (radar_profil_id, benutzer_id) do nothing
      returning id`,
-    [kontext.aktiverMandantId, profilId, benutzerId]);
+    [kontext.aktiverMandantId, profilId, benutzerId, schwelle]);
   if (zeile === undefined) {
     /*
      * `do nothing` gibt auch dann keine Zeile zurueck, wenn der Empfaenger
@@ -831,7 +879,75 @@ export async function setzeEmpfaenger(
   await kontext.schreibe(
     `select app.protokolliere('radar.profil_empfaenger_gesetzt', 'radar_profil', $1,
                               null, $2::jsonb, app.aktiver_mandant())`,
-    [profilId, { benutzerId }]);
+    [profilId, { benutzerId, abPunkte: schwelle }]);
+}
+
+/**
+ * Die eigene Schwelle eines Empfängers: ganze Punkte von 1 bis `skala_max`,
+ * oder `null` — dann erbt er die des Profils (O-15, D-786, V-309).
+ */
+export function pruefeEmpfaengerSchwelle(eingabe: number | null, skalaMax: number): number | null {
+  if (eingabe === null) return null;
+  if (!Number.isInteger(eingabe) || eingabe < 1 || eingabe > skalaMax) {
+    throw new ProfilFehler('schwelle',
+      `Die eigene Schwelle sind ganze Punkte zwischen 1 und ${String(skalaMax)} — leer heißt: `
+      + 'die Schwelle des Profils.');
+  }
+  return eingabe;
+}
+
+async function skalaDesProfils(kontext: SchreibKontext, profilId: string): Promise<number> {
+  const [p] = await kontext.abfrage<{ skala_max: number }>(
+    `select skala_max from radar_profil
+      where id = $1::uuid and mandant_id = $2::uuid and geloescht_am is null`,
+    [profilId, kontext.aktiverMandantId]);
+  if (p === undefined) {
+    throw new ProfilFehler('nicht_gefunden',
+      'Das Profil wurde nicht gefunden, oder diese Sitzung darf es nicht ändern.');
+  }
+  return Number(p.skala_max);
+}
+
+/**
+ * Die eigene Schwelle eines eingetragenen Empfängers ändern (V-309).
+ *
+ * Die Änderung zählt die Fassung des Profils hoch (`trg_rpe_version_upd`,
+ * 0146): sie ist eine Eingabe der Benachrichtigung. Protokolliert mit altem
+ * und neuem Wert; eine unveränderte Zahl schreibt nichts.
+ */
+export async function setzeEmpfaengerSchwelle(
+  kontext: SchreibKontext, profilId: string, empfaengerId: string, abPunkte: number | null,
+): Promise<{ readonly geaendert: boolean }> {
+  const schwelle = pruefeEmpfaengerSchwelle(abPunkte, await skalaDesProfils(kontext, profilId));
+  /*
+   * `for update`: die Zeile bleibt bis zum Ende gesperrt — ein gleichzeitiges
+   * Speichern wartet und liest danach den neuen Wert (dann ist es unverändert
+   * und schreibt nichts), ein gleichzeitiges Entfernen wartet ebenso.
+   */
+  const [vorher] = await kontext.schreibe<{ ab_punkte: number | null; benutzer_id: string }>(
+    `select ab_punkte, benutzer_id from radar_profil_empfaenger
+      where id = $1::uuid and radar_profil_id = $2::uuid and mandant_id = $3::uuid
+      for update`,
+    [empfaengerId, profilId, kontext.aktiverMandantId]);
+  if (vorher === undefined) {
+    throw new ProfilFehler('empfaenger', 'Dieser Eintrag gehört nicht zu diesem Profil.');
+  }
+  const alt = vorher.ab_punkte === null ? null : Number(vorher.ab_punkte);
+  if (alt === schwelle) return { geaendert: false };
+  const geschrieben = await kontext.schreibe<{ id: string }>(
+    `update radar_profil_empfaenger set ab_punkte = $2::integer
+      where id = $1::uuid and radar_profil_id = $3::uuid and mandant_id = $4::uuid
+      returning id`,
+    [empfaengerId, schwelle, profilId, kontext.aktiverMandantId]);
+  if (geschrieben.length === 0) {
+    throw new ProfilFehler('empfaenger', 'Dieser Eintrag gehört nicht zu diesem Profil.');
+  }
+  await kontext.schreibe(
+    `select app.protokolliere('radar.profil_empfaenger_schwelle', 'radar_profil', $1,
+                              $2::jsonb, $3::jsonb, app.aktiver_mandant())`,
+    [profilId, { benutzerId: vorher.benutzer_id, abPunkte: alt },
+      { benutzerId: vorher.benutzer_id, abPunkte: schwelle }]);
+  return { geaendert: true };
 }
 
 /** Einen Empfänger entfernen — hart, aus demselben Grund wie bei den CPV-Zeilen. */

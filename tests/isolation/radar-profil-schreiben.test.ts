@@ -29,8 +29,8 @@ import type postgres from 'postgres';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  ProfilFehler, archiviereProfil, entferneCpv, entferneEmpfaenger, legeProfilAn, leseProfil,
-  schreibeProfil, setzeCpv, setzeEmpfaenger,
+  ProfilFehler, archiviereProfil, bestaetigeCpv, entferneCpv, entferneEmpfaenger, legeProfilAn,
+  leseProfil, schreibeProfil, setzeCpv, setzeEmpfaenger, setzeEmpfaengerSchwelle,
 } from '../../src/server/services/radar/profil.js';
 import { bewerteLauf } from '../../src/server/services/radar/lauf.js';
 import { SCHWELLE_VOREINSTELLUNG } from '../../src/server/services/radar/gewichte.platzhalter.js';
@@ -790,5 +790,141 @@ describe('(10) archivieren (V-304, O-720, D-806)', () => {
       `select geloescht_am is not null as archiviert from radar_profil where id = $1`,
       [profil] as never[]);
     expect(z!.archiviert).toBe(false);
+  });
+});
+
+describe('(10) V-312 — eine CPV-Zeile bestätigen (O-98)', () => {
+  async function zeile(): Promise<{ id: string; ist_platzhalter: boolean }> {
+    const [z] = await sql.unsafe<{ id: string; ist_platzhalter: boolean }[]>(
+      `select id, ist_platzhalter from radar_profil_cpv where radar_profil_id = $1`, [profil]);
+    return z!;
+  }
+
+  it('bestätigt die Markierung, protokolliert — und ein zweites Mal ändert nichts', async () => {
+    await alsWer(benutzer, (k) => setzeCpv(k, profil, {
+      code: '90910000', praefixLaenge: 8, wirkung: 'positiv', bezeichnung: null,
+    }));
+    const { id } = await zeile();
+    expect(await alsWer(benutzer, (k) => bestaetigeCpv(k, profil, id)))
+      .toEqual({ geaendert: true });
+    expect((await zeile()).ist_platzhalter).toBe(false);
+    const [z] = await sql.unsafe<{ vorher: Record<string, unknown>; nachher: Record<string, unknown> }[]>(
+      `select vorher, nachher from audit_log
+        where aktion = 'radar.profil_cpv_bestaetigt' and mandant_id = $1
+        order by id desc limit 1`, [f.reinigung]);
+    expect(z?.vorher['istPlatzhalter']).toBe(true);
+    expect(z?.nachher['istPlatzhalter']).toBe(false);
+    expect(await alsWer(benutzer, (k) => bestaetigeCpv(k, profil, id)))
+      .toEqual({ geaendert: false });
+  });
+
+  it('eine geänderte Wirkung lässt die Bestätigung stehen — sie gilt dem Code', async () => {
+    await alsWer(benutzer, (k) => setzeCpv(k, profil, {
+      code: '90910000', praefixLaenge: 8, wirkung: 'positiv', bezeichnung: null,
+    }));
+    const { id } = await zeile();
+    await alsWer(benutzer, (k) => bestaetigeCpv(k, profil, id));
+    await alsWer(benutzer, (k) => setzeCpv(k, profil, {
+      code: '90910000', praefixLaenge: 8, wirkung: 'abzug', bezeichnung: null,
+    }));
+    expect((await zeile()).ist_platzhalter).toBe(false);
+  });
+
+  it('ohne `radar.profil_schreiben` nicht, und keine Zeile eines fremden Profils', async () => {
+    await alsWer(benutzer, (k) => setzeCpv(k, profil, {
+      code: '90910000', praefixLaenge: 8, wirkung: 'positiv', bezeichnung: null,
+    }));
+    const { id } = await zeile();
+    // Eine Administration, deren Module das Radar nicht enthalten (wie in (3)).
+    const leser = await konto(f.reinigung, ['objekt']);
+    await expect(alsWer(leser, (k) => bestaetigeCpv(k, profil, id)))
+      .rejects.toBeInstanceOf(ProfilFehler);
+    const fremd = await alsWer(benutzer, (k) => legeProfilAn(k, 'Fremdes Profil'));
+    await expect(alsWer(benutzer, (k) => bestaetigeCpv(k, fremd, id)))
+      .rejects.toBeInstanceOf(ProfilFehler);
+    expect((await zeile()).ist_platzhalter).toBe(true);
+  });
+});
+
+describe('(11) V-309 — die eigene Schwelle eines Empfängers (O-15)', () => {
+  async function schwelle(): Promise<number | null> {
+    const [z] = await sql.unsafe<{ ab_punkte: number | null }[]>(
+      `select ab_punkte from radar_profil_empfaenger where radar_profil_id = $1`, [profil]);
+    return z!.ab_punkte;
+  }
+
+  it('beim Eintragen gesetzt, geändert und zurück auf „die des Profils" — je mit Fassung und Protokoll', async () => {
+    await alsWer(benutzer, (k) => setzeEmpfaenger(k, profil, benutzer, 75));
+    expect(await schwelle()).toBe(75);
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `select id from radar_profil_empfaenger where radar_profil_id = $1`, [profil]);
+    const vorher = await version();
+    expect(await alsWer(benutzer, (k) => setzeEmpfaengerSchwelle(k, profil, e!.id, 40)))
+      .toEqual({ geaendert: true });
+    expect(await schwelle()).toBe(40);
+    expect(await version()).toBe(vorher + 1);
+    const [z] = await sql.unsafe<{ vorher: Record<string, unknown>; nachher: Record<string, unknown> }[]>(
+      `select vorher, nachher from audit_log
+        where aktion = 'radar.profil_empfaenger_schwelle' and mandant_id = $1
+        order by id desc limit 1`, [f.reinigung]);
+    expect([z?.vorher['abPunkte'], z?.nachher['abPunkte']]).toEqual([75, 40]);
+
+    expect(await alsWer(benutzer, (k) => setzeEmpfaengerSchwelle(k, profil, e!.id, 40)))
+      .toEqual({ geaendert: false });
+    await alsWer(benutzer, (k) => setzeEmpfaengerSchwelle(k, profil, e!.id, null));
+    expect(await schwelle()).toBeNull();
+  });
+
+  /*
+   * Copilot-Befund auf PR #41: zwei gleichzeitige Speichervorgänge lasen
+   * denselben Vorwert — beide schrieben, beide zählten die Fassung hoch, und
+   * das Protokoll des zweiten nannte einen Wert, der nicht mehr galt. Mit
+   * `for update` wartet der zweite und liest danach den neuen Wert.
+   */
+  it('zwei gleichzeitige gleiche Schwellen: der zweite wartet und ändert nichts', async () => {
+    await alsWer(benutzer, (k) => setzeEmpfaenger(k, profil, benutzer, 75));
+    const [e] = await sql.unsafe<{ id: string }[]>(
+      `select id from radar_profil_empfaenger where radar_profil_id = $1`, [profil]);
+    const vorher = await version();
+    let gehalten!: () => void;
+    const haelt = new Promise<void>((r) => { gehalten = r; });
+    let freigeben!: () => void;
+    const halt = new Promise<void>((r) => { freigeben = r; });
+    const erster = alsWer(benutzer, async (k) => {
+      const r = await setzeEmpfaengerSchwelle(k, profil, e!.id, 40);
+      gehalten();
+      await halt;
+      return r;
+    });
+    await haelt;
+    const zweiter = alsWer(benutzer, (k) => setzeEmpfaengerSchwelle(k, profil, e!.id, 40));
+    for (let i = 0; ; i += 1) {
+      const [w] = await sql.unsafe<{ n: number }[]>(
+        `select count(*)::int as n from pg_stat_activity
+          where datname = current_database() and wait_event_type = 'Lock'`);
+      if (w!.n >= 1) break;
+      if (i >= 250) throw new Error('Der zweite wartete nicht auf die Zeile.');
+      await new Promise((r) => { setTimeout(r, 20); });
+    }
+    freigeben();
+    expect(await erster).toEqual({ geaendert: true });
+    expect(await zweiter).toEqual({ geaendert: false });
+    expect(await schwelle()).toBe(40);
+    expect(await version()).toBe(vorher + 1);
+    const zeilen = await sql.unsafe(
+      `select id from audit_log
+        where aktion = 'radar.profil_empfaenger_schwelle' and mandant_id = $1`,
+      [f.reinigung] as never[]);
+    expect(zeilen).toHaveLength(1);
+  });
+
+  it('0, Bruchzahlen und mehr als die Skala weist der Dienst ab', async () => {
+    for (const falsch of [0, 2.5, 101, Number.NaN]) {
+      await expect(alsWer(benutzer, (k) => setzeEmpfaenger(k, profil, benutzer, falsch)), String(falsch))
+        .rejects.toMatchObject({ code: 'schwelle' });
+    }
+    expect(await sql.unsafe(
+      `select id from radar_profil_empfaenger where radar_profil_id = $1`,
+      [profil] as never[])).toHaveLength(0);
   });
 });

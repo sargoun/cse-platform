@@ -237,6 +237,24 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
     expect(g).toHaveLength(1);
   });
 
+  /**
+   * V-298 (D-809): eine EINGETRAGENE Modulbuchung überschreibt der zweite Lauf
+   * nicht — die Bau-GmbH mit Bauendreinigung (O-356) bleibt so gebucht. Die
+   * Gegenprobe: ohne Eintrag setzt der Seed seinen Stand weiter durch.
+   */
+  it('vorbereitet: eine eingetragene Modulbuchung und ein Seed-Stand', async () => {
+    const z = await sql`
+      update mandant set module = '{bau,reinigung}', module_gepflegt = true,
+                         module_eingetragen_am = now()
+       where slug = 'bau' returning id`;
+    expect(z).toHaveLength(1);
+    const g = await sql`
+      update mandant set module = '{bau,reinigung}', module_gepflegt = true,
+                         module_eingetragen_am = null
+       where slug = 'security' returning id`;
+    expect(g).toHaveLength(1);
+  });
+
   it('ein zweiter Lauf auf derselben Datenbank gelingt', () => {
     const ergebnis = execFileSync(join(WURZEL, 'node_modules/.bin/tsx'),
       ['--import', join(WURZEL, 'scripts/hooks/server-only.mjs'),
@@ -252,6 +270,14 @@ describe('der Seed laeuft ZWEIMAL — sonst ist er keiner', () => {
     const [g] = await sql<{ iban: string | null }[]>`
       select iban from mandant where slug = 'bau'`;
     expect(g?.iban ?? null).not.toBeNull();
+  });
+
+  it('und die eingetragene Modulbuchung bleibt — der Seed-Stand nicht', async () => {
+    const [b] = await sql<{ module: string[] }[]>`select module from mandant where slug = 'bau'`;
+    expect(b?.module).toEqual(['bau', 'reinigung']);
+    const [s] = await sql<{ module: string[] }[]>`
+      select module from mandant where slug = 'security'`;
+    expect(s?.module).toEqual(['security']);
   });
 
   it('und die Konten mit 2FA-Rolle tragen wirklich einen Faktor', async () => {

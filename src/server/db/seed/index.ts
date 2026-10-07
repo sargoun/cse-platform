@@ -132,8 +132,8 @@ interface Bereich {
    * // TODO(client, O-356): Voreinstellung — jede Gesellschaft bucht genau ihr
    * Gewerk aus CLAUDE.md; eine Ueberschneidung (Bauendreinigung bei der
    * REALTIME Service, Veranstaltungsreinigung bei der SSE Security) bucht die
-   * Super-Administration als weiteres Modul (O-355), sobald der Eingabeweg
-   * steht (V-298). D-799.
+   * Super-Administration als weiteres Modul (O-355) unter Einstellungen ›
+   * Module (V-298, D-809). D-799.
    */
   readonly module: readonly string[];
 }
@@ -351,9 +351,13 @@ async function main(): Promise<void> {
                  then coalesce(mandant.bank, excluded.bank) else mandant.bank end,
             -- Die Buchung gehoert zur Gesellschaft und nicht zum ersten Lauf:
             -- ohne diese Zeile blieben vier bereits angelegte Bereiche fuer
-            -- immer bei '{}', und der Modulriegel griffe nirgends.
-            module = excluded.module,
-            module_gepflegt = excluded.module_gepflegt
+            -- immer bei '{}', und der Modulriegel griffe nirgends. Hat die
+            -- Super-Administration die Buchung eingetragen (V-298, 0502),
+            -- bleibt sie: der Seed ist ein Stand, keine Entscheidung.
+            module = case when mandant.module_eingetragen_am is null
+                 then excluded.module else mandant.module end,
+            module_gepflegt = case when mandant.module_eingetragen_am is null
+                 then excluded.module_gepflegt else mandant.module_gepflegt end
       returning id`;
     ids.set(b.slug, z!.id);
   }

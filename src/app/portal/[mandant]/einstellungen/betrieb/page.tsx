@@ -11,6 +11,12 @@ import {
   type Befundart, type Betriebslage, type MandantFehler,
 } from '@/server/services/betrieb/ueberwachung';
 import type { BereichSchluessel } from '@/lib/design/theme';
+import { Recht } from '@/components/ui/Recht';
+import { eigenerEintrag } from '@/lib/nachschlagen';
+import {
+  leseSicherheitskontakt, type Sicherheitskontakt,
+} from '@/server/services/inhalt/sicherheitskontakt';
+import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 
 /**
@@ -45,6 +51,21 @@ const ERGEBNIS_PILL: Readonly<Record<string, PillZustand>> = {
   läuft: 'In Arbeit',
 };
 
+/**
+ * Der Rückweg des Sicherheitskontakts (`?sicherheitskontakt=`, V-392) — ein
+ * Schlüssel, nachgeschlagen, nie roh angezeigt (D-728).
+ */
+const KONTAKT_MELDUNG: Readonly<Record<string, {
+  readonly art: 'erfolg' | 'hinweis' | 'warnung'; readonly text: string;
+}>> = {
+  gesetzt: { art: 'erfolg', text: 'Der Sicherheitskontakt ist gespeichert.' },
+  unveraendert: { art: 'hinweis', text: 'Der Sicherheitskontakt war schon so eingetragen — nichts geändert.' },
+  kontakt_ungueltig: { art: 'warnung', text: 'Nicht gespeichert: der Kontakt ist eine mailto:-, https:- oder tel:-Adresse (RFC 9116), etwa mailto:security@example.de.' },
+  richtlinie_ungueltig: { art: 'warnung', text: 'Nicht gespeichert: die Richtlinie ist eine https:-Adresse.' },
+  richtlinie_ohne_kontakt: { art: 'warnung', text: 'Nicht gespeichert: eine Richtlinie ohne Kontakt steht in keiner Datei.' },
+  nur_super_admin: { art: 'warnung', text: 'Nicht gespeichert: den Sicherheitskontakt der Plattform trägt die Super-Administration ein.' },
+};
+
 function HierListe({ hier }: { readonly hier: readonly MandantFehler[] }) {
   if (hier.length === 0) return null;
   return (
@@ -59,24 +80,41 @@ function HierListe({ hier }: { readonly hier: readonly MandantFehler[] }) {
 }
 
 export default async function Betriebsseite(
-  { params }: { params: Promise<{ mandant: string }> },
+  { params, searchParams }: {
+    params: Promise<{ mandant: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+  },
 ) {
   const { mandant } = await params;
+  const suche = await searchParams;
   const tor = await mandantTor(`/portal/${mandant}/einstellungen/betrieb`, mandant);
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
 
   const jobs = alleJobs(db());
-  const lage = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
-    withTenant(tx, zugang.sitzung, (kontext) =>
-      liesBetriebslage(kontext, jobs))) as Promise<Betriebslage>);
+  const darf = await haeltRechte(zugang.sitzung, 'system.einstellung_verwalten');
+  const { lage, kontakt, superAdmin } = await (db().begin(SCHNAPPSCHUSS,
+    async (tx: postgres.TransactionSql) =>
+      withTenant(tx, zugang.sitzung, async (kontext) => ({
+        lage: await liesBetriebslage(kontext, jobs),
+        kontakt: await leseSicherheitskontakt(kontext),
+        /* Dieselbe Frage, die `app.sicherheitskontakt_setzen` stellt (0503). */
+        superAdmin: (await kontext.abfrage<{ ja: boolean }>(
+          `select app.ist_super_admin() as ja`))[0]?.ja === true,
+      }))) as Promise<{
+        lage: Betriebslage; kontakt: Sicherheitskontakt; superAdmin: boolean;
+      }>);
+  const darfKontakt = darf['system.einstellung_verwalten'] === true && superAdmin;
+  const kontaktMeldung = eigenerEintrag(KONTAKT_MELDUNG, suche['sicherheitskontakt']) ?? null;
+  const feld = 'mt-s2 min-h-11 w-full rounded-md border border-line bg-surface-3 '
+    + 'p-s3 text-sm text-text';
 
   return (
     <PortalRahmen
       titel="Betrieb"
       wurzelTitel="Einstellungen"
       bereich={mandant as BereichSchluessel}
-      nurLesen
+      nurLesen={!darfKontakt}
       leiste={zugang.leiste}
       wurzel={`/portal/${mandant}`}
       aktiverTab="einstellungen"
@@ -227,6 +265,62 @@ export default async function Betriebsseite(
           Ein Lauf steht hier auch dann, wenn ein späterer gelungen ist — der Rückblick
           zeigt, was passiert ist, die Befunde oben zeigen, was jetzt gilt.
         </p>
+      </section>
+
+      <section id="sicherheitskontakt" aria-labelledby="sicherheitskontakt-titel"
+               data-cse="sicherheitskontakt" className="mb-s7">
+        <h2 id="sicherheitskontakt-titel" className="mb-s3 text-h3 text-text">
+          Sicherheitskontakt (security.txt)
+        </h2>
+        {kontaktMeldung !== null ? (
+          <Hinweis art={kontaktMeldung.art} rolle={kontaktMeldung.art === 'warnung' ? 'alert' : 'status'}
+                   cse="sicherheitskontakt-meldung" className="mb-s4 max-w-prose">
+            {kontaktMeldung.text}
+          </Hinweis>
+        ) : null}
+        <p data-cse="sicherheitskontakt-stand" data-verbunden={String(kontakt.kontakt !== null)}
+           className="mb-s4 max-w-prose text-sm text-text-muted">
+          {kontakt.kontakt === null
+            ? 'Nicht verbunden — trägt der Betreiber ein (O-35): kein Postfach benannt, '
+              + 'deshalb antwortet /.well-known/security.txt mit 404. Eine Adresse, die '
+              + 'niemand liest, wäre schlimmer als keine Datei.'
+            : `Veröffentlicht für die ganze Plattform: Contact ${kontakt.kontakt}`
+              + `${kontakt.richtlinie === null ? '' : ` · Policy ${kontakt.richtlinie}`}. `
+              + 'Wer das Postfach liest und in welcher Frist geantwortet wird, legt der '
+              + 'Betreiber fest (O-35).'}
+        </p>
+        {darfKontakt ? (
+          <form method="post" action="/api/einstellungen/sicherheitskontakt"
+                data-cse="sicherheitskontakt-formular"
+                className="max-w-prose rounded-lg border border-line bg-surface p-s5">
+            <label className="block text-sm text-text" htmlFor="sicherheitskontakt-kontakt">
+              Kontakt (mailto:, https: oder tel:)
+              <input id="sicherheitskontakt-kontakt" name="kontakt" maxLength={500}
+                defaultValue={kontakt.kontakt ?? ''} placeholder="mailto:security@example.de"
+                className={feld} />
+            </label>
+            <label className="mt-s4 block text-sm text-text" htmlFor="sicherheitskontakt-richtlinie">
+              Richtlinie (optional, https:)
+              <input id="sicherheitskontakt-richtlinie" name="richtlinie" maxLength={500}
+                defaultValue={kontakt.richtlinie ?? ''} className={feld} />
+            </label>
+            <p className="mt-s3 text-xs text-text-muted">
+              Leer gespeichert heißt: kein Postfach — die Datei antwortet wieder mit 404.
+              Jede Änderung steht mit altem und neuem Wert im Protokoll.
+            </p>
+            <button
+              type="submit"
+              className="mt-s5 min-h-11 rounded-md bg-brand px-s5 py-s3 text-base font-semibold text-white hover:bg-brand-hover"
+            >
+              Sicherheitskontakt speichern
+            </button>
+          </form>
+        ) : (
+          <p className="max-w-prose text-xs text-text-subtle">
+            Eingetragen wird er von der Super-Administration (Recht{' '}
+            <Recht schluessel="system.einstellung_verwalten" />, mit zweitem Faktor).
+          </p>
+        )}
       </section>
     </PortalRahmen>
   );
