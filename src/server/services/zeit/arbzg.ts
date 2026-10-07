@@ -22,9 +22,11 @@ import {
 /**
  * `02-datenmodell/04-PLANUNG-ZEIT.md` §3 — the enum, mirrored value for value.
  *
- * TODO(client, O-103): Voreinstellung — Nachtarbeitnehmer ist, wer an
- * mindestens 48 Tagen im Kalenderjahr mehr als zwei Stunden der Nachtzeit
- * 23–06 Uhr arbeitet (§ 2 Abs. 3 bis 5 ArbZG); für ihn gilt der Ausgleich auf
+ * TODO(client, O-103): Voreinstellung — Nachtarbeit ist Arbeit von mehr als
+ * zwei Stunden der Nachtzeit 23–06 Uhr (§ 2 Abs. 3, 4 ArbZG). Nachtarbeitnehmer
+ * ist, wer nach seiner Arbeitszeitgestaltung normalerweise Nachtarbeit in
+ * Wechselschicht leistet (§ 2 Abs. 5 Nr. 1) ODER an mindestens 48 Tagen im
+ * Kalenderjahr Nachtarbeit leistet (Nr. 2); für ihn gilt der Ausgleich auf
  * durchschnittlich acht Stunden binnen eines Kalendermonats (§ 6 Abs. 2).
  * Sonntags- und Feiertagsarbeit nur in den Fällen des § 10 Abs. 1 (u. a.
  * Bewachung, Reinigung von Betriebseinrichtungen), der Ersatzruhetag nach § 11

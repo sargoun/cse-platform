@@ -10,6 +10,7 @@ import {
   findeKundenangebot, positionenZumAngebot, steuernZumAngebot,
   type Angebotsposition,
 } from '@/server/services/kundenportal/angebot';
+import { GRENZE } from '@/server/services/kundenportal/basis';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { kennungOder404 } from '../../../kennung';
 import { kundePortal, KundenRahmen } from '../../rahmen';
@@ -204,6 +205,18 @@ export default async function Kundenangebot(
       </Card>
 
       <h2 className="mb-s3 text-h3 text-text">Positionen</h2>
+      {positionen.length >= GRENZE && (
+        /*
+         * `positionenZumAngebot` liest höchstens `GRENZE` Zeilen, die Summen
+         * darunter rechnet die Datenbank über ALLE (Prüfstand PR #36). Ohne
+         * diesen Satz läse sich eine gekürzte Liste als das ganze Angebot.
+         */
+        <p className="mb-s5 rounded-lg border border-line bg-surface-2 p-s4 text-sm text-text-muted"
+           data-cse="positionen-gekuerzt">
+          Die Liste zeigt die ersten {String(GRENZE)} Positionen; das Angebot kann
+          mehr führen. Die Summen unten umfassen alle.
+        </p>
+      )}
       {positionen.length === 0 ? (
         <p className="m-0 mb-s5 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">
           Dieses Angebot führt keine Einzelpositionen.
@@ -375,8 +388,8 @@ export default async function Kundenangebot(
           was="Dieses Angebot gibt es hier nicht als Datei"
           weg="Ein versendetes Angebot bekommt einen eingefrorenen Abzug wie eine
             Rechnung, damit Sie hier genau das Dokument erhalten, das Sie
-            bekommen haben; dieser Abzug ist noch nicht gebaut. Die Angaben
-            oben sind vollständig, die Datei schickt Ihre Ansprechpartnerin."
+            bekommen haben; dieser Abzug ist noch nicht gebaut. Die Datei
+            schickt Ihre Ansprechpartnerin."
         />
       </div>
     </KundenRahmen>

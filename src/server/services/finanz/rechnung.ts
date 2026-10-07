@@ -280,10 +280,18 @@ export async function pruefeAuftragZuordnung(
  * zuerst und die übrigen darunter, damit die Wahl sichtbar ist; geprüft wird,
  * ob der Mensch das Objekt sehen darf. Der Beleg nennt den Leistungsort mit
  * Bezeichnung und Anschrift (BG-13). Wie gebaut. D-796.
+ *
+ * `pruefeObjektZuordnung` liest die Regel (Prüfstand PR #36): `gleich` wiese
+ * ein Objekt ab, das einem anderen Kunden als dem der Rechnung zugeordnet ist.
+ * Eine Einstellung je Gesellschaft gibt es noch nicht — die Regel ist heute
+ * diese eine Zeile.
  */
-export const OBJEKT_KUNDE_REGEL: { readonly art: 'frei'; readonly frage: 'O-933' } = {
-  art: 'frei', frage: 'O-933',
-};
+export interface ObjektKundeRegel {
+  readonly art: 'frei' | 'gleich';
+  readonly frage: 'O-933';
+}
+
+export const OBJEKT_KUNDE_REGEL: ObjektKundeRegel = { art: 'frei', frage: 'O-933' };
 
 /**
  * **Ein Leistungsort, den dieser Mensch sehen darf** (V-209, D-702).
@@ -296,13 +304,24 @@ export const OBJEKT_KUNDE_REGEL: { readonly art: 'frei'; readonly frage: 'O-933'
  * Ob das Objekt zum Kunden gehören muss: nein (`OBJEKT_KUNDE_REGEL`,
  * Voreinstellung O-933).
  */
-export async function pruefeObjektZuordnung(db: Abfrage, objektId: string): Promise<void> {
-  const [o] = await db.abfrage<{ id: string }>(
-    `select id::text as id from objekt where id = $1::uuid`, [objektId]);
+export async function pruefeObjektZuordnung(
+  db: Abfrage, objektId: string, kundeId: string,
+  regel: ObjektKundeRegel = OBJEKT_KUNDE_REGEL,
+): Promise<void> {
+  const [o] = await db.abfrage<{ id: string; kunde_id: string | null }>(
+    `select id::text as id, kunde_id::text as kunde_id from objekt where id = $1::uuid`,
+    [objektId]);
   if (o === undefined) {
     throw new RechnungFehler(
       'Dieses Objekt gibt es in dieser Gesellschaft nicht — oder es ist für Sie nicht '
       + 'sichtbar.',
+      'objekt_passt_nicht',
+    );
+  }
+  if (regel.art === 'gleich' && o.kunde_id !== null && o.kunde_id !== kundeId) {
+    throw new RechnungFehler(
+      'Dieses Objekt ist einem anderen Kunden zugeordnet; nach der eingestellten Regel '
+      + `gehört der Leistungsort zum Rechnungsempfänger (${regel.frage}).`,
       'objekt_passt_nicht',
     );
   }
@@ -333,7 +352,7 @@ export async function legeEntwurfAn(db: Abfrage, eingabe: EntwurfAnlegen): Promi
   if (auftragId !== null) await pruefeAuftragZuordnung(db, eingabe.kundeId, auftragId);
   /* V-209: ein Leistungsort, den dieser Mensch sehen darf. */
   const objektId = eingabe.objektId ?? null;
-  if (objektId !== null) await pruefeObjektZuordnung(db, objektId);
+  if (objektId !== null) await pruefeObjektZuordnung(db, objektId, eingabe.kundeId);
   const ziel = eingabe.zahlungszielTage ?? await ermittleZahlungsziel(db, eingabe.kundeId);
 
   const [zeile] = await db.abfrage<{ id: string }>(

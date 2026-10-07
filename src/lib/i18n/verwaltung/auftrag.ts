@@ -116,7 +116,8 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
     wertWegOffen: (frage) =>
       'Der Vertragswert aus einem Angebot bleibt, wie der Kunde ihn angenommen hat: eine '
       + 'Berichtigung oder ein anderer Umfang ist eine neue Angebotsfassung, eine '
-      + `Preisanpassung eine neue datierte Leistungszeile (Voreinstellung ${frage}).`,
+      + `Preisanpassung eine neue datierte Leistungszeile (Voreinstellung ${frage}). `
+      + 'Leistungszeilen lassen sich hier noch nicht anlegen oder beenden.',
 
     ops10Titel: 'Was der Vertrag verlangt (OPS-10)',
     ops10Hinweis:
@@ -207,7 +208,7 @@ export const AUFTRAG_TEXTE: Readonly<Record<InternSprache, AuftragTexte>> = {
     wertWegOffen: (frage) =>
       'A contract value from an offer stays as the customer accepted it: a correction or a '
       + 'changed scope is a new offer version, a price adjustment a new dated service line '
-      + `(default ${frage}).`,
+      + `(default ${frage}). Service lines cannot be created or ended here yet.`,
 
     ops10Titel: 'What the contract requires (OPS-10)',
     ops10Hinweis:
