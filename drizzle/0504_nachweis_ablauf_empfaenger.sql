@@ -6,7 +6,8 @@
 --
 -- Personalstelle: wer in der erfassenden Gesellschaft personal.nachweis_lesen
 -- haelt — kern.traeger_des_rechts, ohne Dienstkonten. Leitung: wer dort die
--- Systemrolle leitung mit gueltiger Mitgliedschaft hat. Jedes Konto steht
+-- Systemrolle leitung mit gueltiger Mitgliedschaft hat — gueltig am Berliner
+-- Tag (app.berlin_heute(), 0169), nie am Tag der Sitzungszeitzone. Jedes Konto steht
 -- hoechstens einmal in der Antwort: wer beides ist, steht ab der 7-Tage-Stufe
 -- als Leitung darin, sonst als Personalstelle. Die Konten der Person selbst
 -- stehen nie darin — sie hat ihre eigene Warnung.
@@ -35,8 +36,8 @@ set search_path = pg_catalog, public, app as $$
      where p_mit_leitung
        and bm.mandant_id = p_mandant
        and bm.entzogen_am is null
-       and bm.gueltig_ab <= current_date
-       and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
+       and bm.gueltig_ab <= app.berlin_heute()
+       and (bm.gueltig_bis is null or bm.gueltig_bis >= app.berlin_heute())
        and b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
        and b.id not in (select id from eigene)
   ),

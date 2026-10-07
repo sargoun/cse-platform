@@ -12,8 +12,8 @@
 -- Nacherfassung, stammt vom Aufrufer und ist frisch; der Abstand wird aus der
 -- Datenbank gerechnet — Berliner Tag der Korrektur gegen Berliner Tag des
 -- Arbeitsbeginns der neuen Fassung (Invariante 2). Empfaenger ist die Leitung
--- der Gesellschaft (Systemrolle leitung, gueltige Mitgliedschaft), ohne den
--- Aufrufer. Je Korrektur hoechstens einmal.
+-- der Gesellschaft (Systemrolle leitung, gueltige Mitgliedschaft am Berliner
+-- Tag, app.berlin_heute(), 0169), ohne den Aufrufer. Je Korrektur hoechstens einmal.
 --
 -- Nur Kommentare mit Doppelstrich.
 
@@ -69,8 +69,8 @@ begin
     join public.benutzer b on b.id = bm.benutzer_id
    where bm.mandant_id = v_mandant
      and bm.entzogen_am is null
-     and bm.gueltig_ab <= current_date
-     and (bm.gueltig_bis is null or bm.gueltig_bis >= current_date)
+     and bm.gueltig_ab <= app.berlin_heute()
+     and (bm.gueltig_bis is null or bm.gueltig_bis >= app.berlin_heute())
      and b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
      and b.id <> v_benutzer
      and not exists (
