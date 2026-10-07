@@ -54,8 +54,8 @@ const FEHLER_TEXT: Readonly<Record<string, string>> = {
     + 'und nicht geschrieben.',
   rolle_nicht_editierbar: 'Die Rechte dieser Rolle ändert keine einzelne Gesellschaft. '
     + 'Die Plattformverwaltung und die Dienstprinzipale gehören der Plattform; eine '
-    + 'Rolle, die es nur hier gibt, steht in keiner Spalte der Matrix (offene Frage '
-    + 'O-904).',
+    + 'Rolle, die es nur hier gibt, erhält ihre Rechte nach der Voreinstellung einzeln '
+    + 'je Gesellschaft; dieser Weg ist noch nicht gebaut (O-904, V-290).',
   nur_global: 'Dieses Recht gilt nur über die globale Rolle. Eine Abweichung je '
     + 'Gesellschaft wäre eine Zeile, die nichts bewirkt — und eine Anzeige, die das '
     + 'Gegenteil behauptet.',

@@ -123,7 +123,7 @@ export function fristText(
       if (regel === undefined || regel.jahre === null) {
         return `Klasse „${k}" — für diese Gesellschaft noch nicht gesetzt (O-25)`;
       }
-      const platzhalter = regel.istPlatzhalter ? ' · Platzhalter' : '';
+      const platzhalter = regel.istPlatzhalter ? ' · Voreinstellung' : '';
       return `${String(regel.jahre)} Jahre (Klasse „${k}", ${regel.grundlage}${platzhalter})`;
     }
     case 'einstellung':
@@ -390,7 +390,8 @@ export async function erstelleVerarbeitungsverzeichnis(
       + 'noch nicht hinterlegt',
     ...(tageBewerbung === null ? ['O-373 — Aufbewahrungsfrist für Bewerberdaten'] : []),
     ...(regeln.some((r) => r.istPlatzhalter)
-      ? ['O-25 — Aufbewahrungsklassen stehen teilweise als Platzhalter'] : []),
+      ? ['O-25 — Aufbewahrungsklassen stehen teilweise als Voreinstellung (mit Löschsperre)']
+      : []),
     ...(AUFTRAGSVERARBEITER.some((a) => a.vertragAm === null)
       ? ['Für mindestens einen Auftragsverarbeiter ist kein AV-Vertrag hinterlegt'] : []),
   ];

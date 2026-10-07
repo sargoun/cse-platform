@@ -223,7 +223,7 @@ export default async function Abschluss(
             {
               schluessel: 'wirkung', kopf: 'Wirkung',
               zelle: () => (
-                <span className="text-warning">warnt (offen, O-730)</span>
+                <span className="text-warning">warnt (Voreinstellung O-730)</span>
               ),
             },
             {

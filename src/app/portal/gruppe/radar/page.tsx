@@ -294,7 +294,7 @@ export default async function GruppenRadar({ searchParams }: { searchParams: Suc
                         : `${String(b.profilePlatzhalter)} davon mit unbestätigten Gewichten (O-98)`}>
                   {b.profileAktiv}
                   {b.profilePlatzhalter !== null && b.profilePlatzhalter > 0
-                    ? <span className="text-text-subtle"> ({b.profilePlatzhalter} Platzhalter)</span>
+                    ? <span className="text-text-subtle"> ({b.profilePlatzhalter} unbestätigt)</span>
                     : null}
                 </span>
               )) },

@@ -1301,7 +1301,7 @@ async function main(): Promise<void> {
       (mandant_id, gewerk, bezeichnung, fundstelle,
        pause_ab_6h_minuten, pause_ab_9h_minuten, ist_platzhalter, gilt_ab)
     values (${ids.get('reinigung')!}, 'reinigung',
-            'Rahmentarifvertrag Gebäudereinigung (Platzhalter, O-50)',
+            'Rahmentarifvertrag Gebäudereinigung (Voreinstellung, O-50)',
             '§ 5 RTV — Wortlaut nicht geprüft', 45, 60, true, '2025-01-01')
     on conflict do nothing`;
   process.stdout.write(
@@ -1932,7 +1932,7 @@ async function main(): Promise<void> {
     `  ${String(sonder.abrufe)} Einzelabrufe in vier Zustaenden `
     + `(„abgerechnet" fehlt absichtlich — den Stempel setzt die Rechnungsuebernahme), `
     + `${String(sonder.pruefungen)} Qualitaetspruefungen `
-    + `(ohne Urteil: das Verfahren ist ein Platzhalter ohne Skala, O-29)\n`,
+    + `(ohne Urteil: das Verfahren der Voreinstellung trägt keine Skala, O-29)\n`,
   );
 
   /**

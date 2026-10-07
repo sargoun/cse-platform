@@ -663,7 +663,7 @@ export const VOLLZUG_VOREINSTELLUNG =
 
 /** Der Satz der Seite zu den Zeilen, die „offen (O-71)" tragen (D-792). */
 export const O71_VOREINSTELLUNG =
-  'Voreinstellung (O-71, D-792) für die Zeilen mit „offen (O-71)": abgeleitete Befunde, '
+  'Voreinstellung (O-71, D-792) für die Zeilen mit „Voreinstellung (O-71)": abgeleitete Befunde, '
   + 'Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz; Abwesenheiten mit der '
   + 'Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als '
   + 'Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3 AO) und werden dann anonymisiert, der '

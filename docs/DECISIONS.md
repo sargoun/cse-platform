@@ -25741,3 +25741,52 @@ tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-800), 39 keinen.
 
 | Betrifft | O-23, O-30, O-31, O-97, O-133, O-211, O-240, O-241, O-260, O-346, O-347, O-351, O-919, O-920, O-922, O-937, O-955; V-380 bis V-384; `src/server/services/bau/{rechenansatz,nachtrag,projekt,wetter}.ts`, `src/app/portal/[mandant]/bau/AufmassTeile.tsx`, `src/server/services/einstellung/vorlagen.ts`, `src/server/services/nachweis/benachrichtigung.ts`, `src/app/api/mein/schichten/[zuordnungId]/fotos/route.ts`, `src/server/storage/exif.ts`, `src/server/services/security/{schluessel,dienstanweisung}.ts`, `src/app/api/bau/{behinderungen/[id]/versenden,nachtraege/[id]/einreichen}/route.ts`, `src/server/db/seed/{index,bau}.ts`, `src/lib/i18n/verwaltung/{bau,angebot-hand}.ts`, `src/server/services/raumbuch/tabelle.ts`, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/server/services/dokument/{kategorie,ablage}.ts` |
 |---|---|
+
+### D-801 · Wortlaut-Nachlese: sichtbare „offen"-Reste zu Fragen mit Voreinstellung
+
+**Der Anlass.** Die Runden D-779 bis D-800 haben die Fragen an ihren
+Hauptstellen umgestellt; eine Suche über alle sichtbaren Texte (JSX,
+Meldungen, Übersetzungen, Seed-Ausgaben) fand danach noch Sätze, die zu
+einer Frage MIT Voreinstellung „offen", „offene Frage", „nicht entschieden"
+oder „Platzhalter" sagten. Die Weisung (`CLAUDE.md`, D-778) ist eindeutig:
+die Oberfläche sagt „Voreinstellung", nie „offene Frage"; Betreiberdaten
+sagen „nicht verbunden — trägt der Betreiber ein".
+
+**Was sich ändert.** Nur Wortlaut, je Stelle an der Voreinstellung der
+Frage gelesen. Bezeichner (`istPlatzhalter`, `FUND_PLATZHALTER`,
+`data-cse="pipeline-fund-platzhalter"`) bleiben, weil Prüfungen und
+Spalten sie tragen. Bewusst stehen gelassen: „Platzhalter — nicht
+freigegeben" für einen Nummernkreis zur Freigabe (O-134, O-606, D-779) —
+dort ist das Wort die Voreinstellung selbst, weil ein solcher Kreis nichts
+vergibt.
+
+| Frage | Stellen |
+|---|---|
+| O-05 | `server/services/buchhaltung/verfahrensdokumentation.ts` |
+| O-17, O-731 | `app/portal/[mandant]/leistungskatalog/[id]/PositionsFelder.tsx`, `app/portal/[mandant]/leistungskatalog/page.tsx` |
+| O-18 | `app/portal/[mandant]/personal/antraege/[id]/page.tsx` |
+| O-22 | `server/services/crm/erechnung.ts` |
+| O-25 | `server/services/datenschutz/verzeichnis.ts` |
+| O-26 | `app/portal/[mandant]/agenten/budget/page.tsx` |
+| O-29 | `server/db/seed/index.ts` |
+| O-36 | `app/portal/[mandant]/angebote/[id]/versand/page.tsx` |
+| O-47 | `server/services/radar/bewertung.ts` |
+| O-50 | `server/db/seed/index.ts` |
+| O-71 | `server/services/datenschutz/loeschentscheidung.ts` |
+| O-730 | `app/portal/[mandant]/auftraege/[id]/abschluss/page.tsx` |
+| O-904 | `app/portal/[mandant]/einstellungen/rollen/[rolle]/page.tsx` |
+| O-941 | `app/portal/gruppe/berichte/pipeline/page.tsx`, `server/services/radar/fund.platzhalter.ts` |
+| O-98 | `app/portal/[mandant]/radar/profile/page.tsx`, `app/portal/gruppe/radar/page.tsx` |
+| O-135 | `server/registry/integrationen.ts` (Hinweis der Belegerkennung: „nicht verbunden — trägt der Betreiber ein" statt „nicht entschieden") |
+
+**Was sich NICHT ändert.** Keine Logik, kein Recht, keine Migration.
+
+**Prüfung.** Eine Suche über sichtbare Texte findet zu keiner Frage mit
+Voreinstellung mehr „offen", „offene Frage" oder „nicht entschieden";
+`tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+**Stand.** Das Register führt 400 Fragen; 361 tragen einen Zeiger auf
+ihre Voreinstellung.
+
+| Betrifft | Wortlaut zu O-05, O-17, O-18, O-22, O-25, O-26, O-29, O-36, O-47, O-50, O-71, O-98, O-135, O-730, O-731, O-904, O-941 |
+|---|---|

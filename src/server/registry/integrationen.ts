@@ -132,7 +132,9 @@ export function anbindungen(): readonly Anbindung[] {
       schluessel: 'ocr', name: 'Belegerkennung (OCR)',
       zweck: 'Eingangsrechnungen auslesen (ACC-05)',
       stand: 'nicht_verbunden',
-      hinweis: 'Welcher Verarbeiter, in welcher Region, unter welchem Vertrag — nicht entschieden.',
+      hinweis: 'Nicht verbunden — Verarbeiter, Region und Vertrag trägt der Betreiber ein '
+        + '(Voreinstellung: EU-Anbieter mit Auftragsverarbeitungsvertrag); bis dahin werden '
+        + 'Eingangsrechnungen von Hand erfasst.',
       offen: 'O-135',
     },
     {

@@ -232,7 +232,7 @@ export default async function Versand(
           </Hinweis>
         ) : (
           <Hinweis art="warnung" cse="kanal-nicht-verbunden" className="mt-s4">
-            <strong>E-Mail-Versender nicht verbunden (offen, O-36).</strong> Es
+            <strong>E-Mail-Versender nicht verbunden — trägt der Betreiber ein (O-36).</strong> Es
             ist kein EU-gehosteter Transaktionsversender mit DPA gewählt. Dieser
             Klick <em>hält den Versand fest</em> — er zieht die Nummer, friert die
             Kalkulation ein, schreibt die Umsatzsteuerzeilen und stellt das

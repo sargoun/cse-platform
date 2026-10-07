@@ -107,9 +107,9 @@ export default async function Leistungskatalog(
           <strong>
             {offeneGesamt} Position(en) tragen Voreinstellungen (O-17, O-731).
           </strong>{' '}
-          Welche Zeitwerte, Leistungswerte und Standardpreise gelten und wer sie
-          freigibt, ist nicht entschieden. Die Zahlen stehen als{' '}
-          <em>gekennzeichnete Platzhalter</em> da — nicht als Preise, und nicht
+          Zeitwerte, Leistungswerte und Standardpreise sind Voreinstellungen, bis die
+          Bereichsleitung sie in der Katalogpflege bestätigt. Die Zahlen stehen als{' '}
+          <em>gekennzeichnete Voreinstellungen</em> da — nicht als bestätigte Preise, und nicht
           als Nullwerte: die Datenbank verlangt mindestens einen Wert je Position, „keinen erfinden" kann hier also
           nicht „leer lassen" heißen.
         </Hinweis>

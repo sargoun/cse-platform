@@ -24,8 +24,8 @@ export default async function Pipeline({ searchParams }: {
         was sie erreicht hat, im Jahr des Eingangs. Gefunden ist, was ein Suchprofil der
         Gesellschaft über CPV-Code oder Stichwort trifft und nicht ausschliesst, oder wozu
         ein Vorgang eröffnet wurde — eine Bewertung allein ist noch kein Fund;{' '}
-        <span data-cse="pipeline-fund-platzhalter">diese Lesart ist ein Platzhalter, bis
-          geklärt ist, was als gefunden zählt (O-941)</span>. Gesichtet ist ein Vorgang mit
+        <span data-cse="pipeline-fund-platzhalter">diese Lesart ist die Voreinstellung
+          (O-941)</span>. Gesichtet ist ein Vorgang mit
         Stand; geboten ist, was eingereicht wurde, samt Zuschlag, Absage und aufgehobenem
         Verfahren. Die Trefferquote ist gewonnen geteilt durch geboten; verworfene Fälle
         zählen dort nicht mit, weil sie nie geboten wurden.</>}
