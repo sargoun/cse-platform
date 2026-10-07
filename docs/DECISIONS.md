@@ -28455,7 +28455,13 @@ mit `finanzen.schreiben`, dem Recht der `WITH CHECK`-Hälfte der Policy.
   Nummer, Finanzamt, Zeitraum, Umfang und Auftrag nicht mehr — auch nicht am
   Dienst vorbei; festgeschriebene Belege nennen sie. Eine falsch erfasste
   Bescheinigung wird widerrufen und neu erfasst. `widerrufen_am` wird einmal
-  gesetzt und nicht vor dem heutigen Berliner Tag, `dokument_id` einmal.
+  gesetzt, nicht vor dem heutigen Berliner Tag und nicht nach dem letzten
+  gültigen Tag (nachgezogen in der Durchsicht von PR #45: der Dienst wies
+  das ab, die Datenbank noch nicht), `dokument_id` einmal.
+- **Der Scan-Verweis nur mit `dokument.lesen`** (Durchsicht PR #45): die
+  Datei-Adresse verlangt es; ohne das Recht steht der Titel da, kein Knopf,
+  der nur scheitern kann — auf der Pflegeseite und ebenso auf der Steuerseite
+  der Eingangsrechnung („hinterlegt — zum Öffnen fehlt das Leserecht").
 - **Route und Seite:** `POST /api/finanzen/freistellungen` unter
   `finanzen.schreiben` (drei Handlungen: erfassen, widerrufen, Beleg); eine
   abgewiesene Erfassung kommt mit ihren Eingaben zurück (V-240). Die

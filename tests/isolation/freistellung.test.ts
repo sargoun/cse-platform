@@ -314,13 +314,19 @@ describe('(3) Widerrufen', () => {
     expect((await zeile(id)).widerrufen_am).toBe(von);
   });
 
-  it('rückwirkend auch nicht am Dienst vorbei (0530)', async () => {
+  it('rückwirkend und nach dem Ablauf auch nicht am Dienst vorbei (0530)', async () => {
     const admin = await konto(f.bau);
     const l = await lieferant(f.bau);
     const { id } = await als(f.bau, admin, (k) => legeFreistellungAn(k, eingabe(l)));
     await expect(sql.unsafe(
       `update freistellungsbescheinigung set widerrufen_am = app.berlin_heute() - 1
         where id = $1`, [id])).rejects.toThrow(/nicht rueckwirkend/u);
+    // Auch die Sitzung mit dem Schreibrecht kommt nicht am Auslöser vorbei.
+    const e = await als(f.bau, admin, (k) => k.schreibe(
+      `update freistellungsbescheinigung set widerrufen_am = gueltig_bis + 1
+        where id = $1::uuid`, [id])).then(() => null, (x: unknown) => x as Error);
+    expect(e?.message).toMatch(/nach dem Ablauf widerriefe nichts/u);
+    expect((await zeile(id)).widerrufen_am).toBeNull();
   });
 });
 

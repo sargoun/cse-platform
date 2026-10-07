@@ -317,6 +317,7 @@ export interface EingangsrechnungenTexte {
   readonly giltAndererAuftrag: string;
   readonly giltNicht: string;
   readonly keinDokument: string;
+  readonly dokumentOhneRecht: string;
   readonly pflegeBetont: string;
   readonly pflegeOrt: string;
   readonly pflegeVerweis: string;
@@ -748,6 +749,7 @@ const DE: EingangsrechnungenTexte = {
   giltAndererAuftrag: 'gilt für einen anderen Auftrag',
   giltNicht: 'gilt am Stichtag nicht',
   keinDokument: 'kein Dokument',
+  dokumentOhneRecht: 'hinterlegt — zum Öffnen fehlt das Leserecht für Dokumente',
   pflegeBetont:
     'Diese Seite liest die Bescheinigungen nur — Voreinstellung (O-604): die Buchhaltung '
     + 'pflegt sie mit dem Schreibrecht der Finanzen (V-283).',
@@ -1182,6 +1184,7 @@ const EN: EingangsrechnungenTexte = {
   giltAndererAuftrag: 'valid for a different Auftrag (order)',
   giltNicht: 'not valid on the cut-off date',
   keinDokument: 'no document',
+  dokumentOhneRecht: 'on file — opening it needs the read right for documents',
   pflegeBetont:
     'This page only reads the certificates — default (O-604): accounting maintains them '
     + 'with the finance write right (V-283).',

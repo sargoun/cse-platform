@@ -16,9 +16,11 @@
 --   * Traeger, Nummer, Finanzamt, Zeitraum, Umfang und Auftrag aendern sich
 --     nicht. Eine falsch erfasste Bescheinigung wird widerrufen und neu
 --     angelegt.
---   * widerrufen_am wird EINMAL gesetzt, und nicht vor dem heutigen
---     Berliner Tag: ein Widerruf beendet die Bescheinigung ab seinem Tag,
---     rueckwirkend nie (0118) — fuer die Zeit davor durfte ausgezahlt werden.
+--   * widerrufen_am wird EINMAL gesetzt, nicht vor dem heutigen Berliner
+--     Tag und nicht nach ihrem letzten gueltigen Tag: ein Widerruf beendet
+--     die Bescheinigung ab seinem Tag, rueckwirkend nie (0118) — fuer die
+--     Zeit davor durfte ausgezahlt werden —, und nach dem Ablauf widerriefe
+--     er nichts mehr.
 --   * dokument_id (der Beleg) wird EINMAL verknuepft und dann nicht mehr
 --     getauscht.
 -- Geaendert-Spalten bleiben frei.
@@ -53,6 +55,12 @@ begin
       using errcode = 'check_violation',
             detail  = 'Fuer die Zeit vor dem Widerruf durfte ohne Einbehalt ausgezahlt werden.';
   end if;
+  if old.widerrufen_am is null and new.widerrufen_am is not null
+     and new.widerrufen_am > old.gueltig_bis then
+    raise exception 'Ein Widerruf nach dem Ablauf widerriefe nichts'
+      using errcode = 'check_violation',
+            detail  = 'Die Bescheinigung endet ohnehin an ihrem letzten gueltigen Tag.';
+  end if;
   if old.dokument_id is not null
      and new.dokument_id is distinct from old.dokument_id then
     raise exception 'Der Beleg einer Freistellungsbescheinigung wird nicht getauscht'
@@ -63,7 +71,8 @@ end $$;
 
 comment on function kern.freistellung_fest() is
   'V-283, D-845. Haelt eine Freistellungsbescheinigung nach dem Anlegen fest: '
-  'Kernfelder unveraenderlich, Widerruf einmal und nicht rueckwirkend, Beleg einmal.';
+  'Kernfelder unveraenderlich, Widerruf einmal, nicht rueckwirkend und nicht nach dem '
+  'Ablauf, Beleg einmal.';
 
 create trigger trg_freistellung_fest
   before update on freistellungsbescheinigung

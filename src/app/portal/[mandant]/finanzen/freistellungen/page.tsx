@@ -60,7 +60,8 @@ export default async function Freistellungen(
   if (tor.art !== 'ok') return <MandantAntwort tor={tor} />;
   const { zugang } = tor;
   const t = nachSprache(FREISTELLUNG_TEXTE, zugang.sprache);
-  const darf = await haeltRechte(zugang.sitzung, RECHT);
+  /* `dokument.lesen` für den Verweis auf den Scan — die Datei-Adresse verlangt es. */
+  const darf = await haeltRechte(zugang.sitzung, RECHT, 'dokument.lesen');
   const schreiben = darf[RECHT] === true && zugang.sitzung.ansicht !== 'gruppe';
 
   const suche = await searchParams;
@@ -170,12 +171,18 @@ export default async function Freistellungen(
                   <span className="flex flex-col">
                     {z.dokumentId === null
                       ? <span className="text-text-subtle">{t.ohneBeleg}</span>
-                      : (
+                      /*
+                       * Der Verweis nur mit `dokument.lesen`: die Datei-Adresse
+                       * verlangt es (AUT-06), und ohne es stünde hier ein Knopf,
+                       * der nur scheitern kann. Dass ein Scan verknüpft ist, bleibt
+                       * eine Aussage über die Bescheinigung — er steht als Titel da.
+                       */
+                      : darf['dokument.lesen'] === true ? (
                         <a href={`/api/dokumente/${z.dokumentId}/datei`}
                            className="text-text underline-offset-2 hover:text-brand hover:underline">
                           {z.dokument ?? t.oeffnen}
                         </a>
-                      )}
+                      ) : <span className="text-text">{z.dokument ?? t.oeffnen}</span>}
                     <span className="text-xs text-text-muted">{t.belege(z.belege)}</span>
                   </span>
                 ),

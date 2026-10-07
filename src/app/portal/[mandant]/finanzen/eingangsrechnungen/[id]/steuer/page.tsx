@@ -130,7 +130,7 @@ export default async function Steuerblatt(
    * statt einen leeren Bildschirm zu zeigen.
    */
   const darf = await haeltRechte(
-    sitzung, 'eingang.lesen', 'finanzen.lesen', 'finanzen.schreiben');
+    sitzung, 'eingang.lesen', 'finanzen.lesen', 'finanzen.schreiben', 'dokument.lesen');
 
   /* Die Sprache dieser Sitzung — nicht die des Pfades (D-419, D-592). */
   const t = nachSprache(EINGANGSRECHNUNGEN_TEXTE, zugang.sprache);
@@ -655,16 +655,17 @@ export default async function Steuerblatt(
               },
               {
                 schluessel: 'dokument', kopf: t.beleg,
+                /* Die Datei-Adresse verlangt `dokument.lesen` — ohne es kein Knopf (AUT-06). */
                 zelle: (b) => (b.dokumentId === null
                   ? <span className="text-text-subtle">{t.keinDokument}</span>
-                  : (
+                  : darf['dokument.lesen'] === true ? (
                     <a
                       href={`/api/dokumente/${b.dokumentId}/datei`}
                       className="text-text underline-offset-2 hover:text-brand hover:underline"
                     >
                       {g.oeffnen}
                     </a>
-                  )),
+                  ) : <span className="text-text-subtle">{t.dokumentOhneRecht}</span>),
               },
             ]}
           />
