@@ -1511,6 +1511,12 @@ export const DIENSTE: readonly DienstEintrag[] = [
    */
   { modul: 'system', pfad: 'mandant/umschalter', schreibend: false },
   /**
+   * V-391, D-829 — der Schluss eines Entwurfs aus Gruss und Signatur der
+   * Gesellschaft. Rein: liest nichts, schreibt nichts; die Signatur liest
+   * der Dienst, der den Entwurf baut.
+   */
+  { modul: 'system', pfad: 'mandant/signatur', schreibend: false },
+  /**
    * V-081 — der Auftrag laeuft, ruht oder ist storniert.
    *
    * `auftrag.schreiben` und ausdruecklich nicht `auftrag.abschliessen`:

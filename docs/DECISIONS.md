@@ -3083,7 +3083,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-112 | How many working days of internal lead time does a Vergabemappe need before the official deadline? · **Voreinstellung → D-786** |
 | O-113 | How is an Art. 15 / Art. 17 DSGVO request applied to agent protocols, knowledge chunks and approval snapshots when GoBD / §147 AO require retention? · **Voreinstellung → D-784** |
 | O-114 | Does the tariff or surcharge group belong to the *identity* of an invoice line, or is it an attribute of the same line? · **Voreinstellung → D-796** |
-| O-115 | Which sender mailboxes and which signature apply per entity for outgoing agent drafts? |
+| O-115 | Which sender mailboxes and which signature apply per entity for outgoing agent drafts? · Signatur in den Entwürfen → D-829 |
 | O-133 | How many photographs, and of what, are mandatory per evidence type — Leistungsnachweis (CLN-04), Wachbuch entry (SEC-07), Bautagebuch (BAU-07), receipt (ACC-05), reference (PRO-05) — and from when does evidence count as incomplete? · **Voreinstellung → D-800** |
 | O-204 | **Which of AGT-02's nine tools writes the REC-05 `shortlist` artefact?** No document of the set settles it. The ranking itself is deterministic code (`kandidat_bewertung.verfahren` is `CHECK`ed to `'deterministisch'`), so whatever writes the artefact renders a computed result and supplies no number of its own (K-10) — but the writer has no home in the tool surface today · **Voreinstellung → D-786** |
 
@@ -25897,7 +25897,7 @@ es verbunden.
 | O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
 | O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | Einstellungen › Betrieb › Sicherheitskontakt (Super-Administration, seit D-809, V-392) — Postfach, wer es liest, Antwortfrist |
 | O-82 | SMS-Gateway in der EU mit Ausgabendeckel: nicht verbunden; die Schichtleitung gibt Codes von Hand aus (D-790). | Gateway und Vertrag; Anbindung in `auth/sms.ts` |
-| O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Entwürfe lesen sie noch nicht (V-391), versendet wird ohne Postausgang nichts. | Einstellungen › Identität |
+| O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Antwortentwürfe im Recruiting und die Akquiseentwürfe schliessen mit der Signatur (V-391, D-829), den Absender trägt erst der Postausgang (O-116); versendet wird ohne ihn nichts. | Einstellungen › Identität |
 | O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
 | O-119 | Unabhängige, verschlüsselte Sicherung: gesichert wird beim Anbieter (Supabase, Frankfurt; Verfahrensdokumentation 4.3); ein eigenes Sicherungsziel, seine Frist und der Schlüsselhalter fehlen, der Wiederherstellungstest ist eingeplant und nicht erbracht (Abschnitt 5 nennt jetzt O-119). | Sicherungsziel und Schlüssel; Test in ROADMAP Phase 10 |
 | O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: die Plattform führt Bescheinigungen der Kunden und Lieferanten, nicht die eigenen (V-388). | — (V-388) |
@@ -27424,4 +27424,44 @@ Abnahme und ohne Projekt bleibt alles leer), `tests/isolation/bau-abnahme`,
 `auftrag-akte`, `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
 
 | Betrifft | V-341, O-68, D-792, D-782; `src/server/services/auftrag/abschluss.ts`, `src/app/portal/[mandant]/auftraege/[id]/abschluss/{page,daten}.tsx`, `src/server/services/kundenportal/auftrag.ts`, `src/server/db/seed/bau.ts`, `tests/isolation/auftrag-gewaehrleistung.test.ts` |
+|---|---|
+
+### D-829 · Bauwelle 26: Entwürfe schliessen mit der Signatur der Gesellschaft (V-391, O-115)
+
+**Der Anlass.** Einstellungen › Identität führt je Gesellschaft eine
+E-Mail-Signatur (`mandant_identitaet.email_signatur`); die Antwortentwürfe an
+Bewerberinnen und die Akquiseentwürfe schlossen trotzdem mit festem Gruss und
+dem Namen der Gesellschaft. Wer die Signatur pflegte, sah sie in keinem
+Entwurf.
+
+**Was gebaut ist.**
+- **`schlussMitSignatur`** (`mandant/signatur.ts`, rein): Gruss und Signatur,
+  ohne Signatur Gruss und Name wie bisher. Beginnt die Signatur selbst mit
+  einem Gruss (erste Zeile mit „Gruß", „Grüße", „Grüßen", auch mit ss oder
+  ue, „MfG" oder „regards"), steht sie allein — kein doppelter Gruss. Die
+  Zeilenumbrüche des Textfelds (`\r\n`) werden zu `\n`.
+- **Recruiting** (`recruiting/antwort.ts`): die vier Vorlagen enden auf
+  `{schluss}`; der Kopf der Bewerbung liest die Signatur der Gesellschaft mit
+  (Leserecht wie jede Kopfzeile, `t_mi_lesen`). Der AGG-Riegel (0174) prüft
+  den ganzen Text wie zuvor.
+- **Akquise** (`akquise/entwurf.ts`): `Gesellschaft` trägt `signatur`; die
+  Akquiseseite liest sie aus der Identitätszeile.
+- **Seed:** die Eingangsbestätigungen der Demobewerbungen schliessen mit
+  derselben Funktion und der Signatur, die der Seed vorher in die
+  Identitätszeile schreibt.
+
+**Was nicht gebaut ist.** Den Absender liest kein Entwurf: ein Entwurf hat
+keinen, `EmailAuftrag` trägt heute keine Absenderadresse, und sie gehört zum
+Postausgang, der nicht verbunden ist (O-116). Die Eingangsbestätigung einer
+Anfrage (`lead/bestaetigung.ts`) ist kein Entwurf, sondern eine Nutzlast des
+Tors und schliesst weiter mit Gruss und Firma.
+
+**Prüfung.** `tests/kern/entwurf-signatur.test.ts` (mit, ohne und mit
+eigenem Gruss; nur die erste Zeile zählt; der Akquiseentwurf mit und ohne
+Signatur; die Seite liest sie), `tests/isolation/bewerbung-antwort.test.ts`
+§7 (ohne Identitätszeile der Name, mit Signatur aus dem Textfeld die
+Signatur, wieder ohne der Name — schlägt mit dem alten Dienst fehl),
+`tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-391, O-115, D-803; `src/server/services/mandant/signatur.ts` (im Dienstregister `src/server/registry/dienste.ts`), `src/server/services/recruiting/antwort.ts`, `src/server/services/akquise/entwurf.ts`, `src/app/portal/[mandant]/crm/akquise/[id]/page.tsx`, `src/server/db/seed/recruiting.ts`, `tests/kern/entwurf-signatur.test.ts`, `tests/isolation/bewerbung-antwort.test.ts` |
 |---|---|

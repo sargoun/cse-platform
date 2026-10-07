@@ -1,5 +1,6 @@
 import type postgres from 'postgres';
 import { vorschlagAusWochenstunden } from '../../services/recruiting/beschaeftigungsart.js';
+import { schlussMitSignatur } from '../../services/mandant/signatur.js';
 
 /**
  * Recruiting für die Vorführung (REC-01…REC-09).
@@ -156,10 +157,18 @@ export async function seedRecruiting(
      * Der Gesellschaftsname für die Grussformel der Antwortentwürfe — aus der
      * Datenbank gelesen und nicht aus dem Slug gebastelt. „reinigung" ist kein
      * Firmenname, und unter einem Brief steht der Firmenname.
+     *
+     * Und darunter die Signatur aus der Identitätszeile, die der Seed vorher
+     * geschrieben hat — derselbe Schluss wie im Dienst (V-391, D-829).
      */
-    const [gesellschaft] = await sql<{ name: string }[]>`
-      select name from mandant where id = ${mandantId}`;
+    const [gesellschaft] = await sql<{ name: string; signatur: string | null }[]>`
+      select m.name, mi.email_signatur as signatur
+        from mandant m
+        left join mandant_identitaet mi on mi.mandant_id = m.id
+       where m.id = ${mandantId}`;
     const firmenname = gesellschaft?.name ?? slug;
+    const schluss = schlussMitSignatur(
+      'Freundliche Grüße', firmenname, gesellschaft?.signatur ?? null);
 
     /*
      * Die erste Stelle ist VERÖFFENTLICHT und trägt deshalb eine EIGENE,
@@ -309,7 +318,7 @@ export async function seedRecruiting(
                       + 'eingegangen und wird gerade gesichtet.\n\n'
                       + 'Wir melden uns, sobald wir sie durchgesehen haben. Bis dahin '
                       + 'brauchen Sie nichts weiter zu tun.\n\n'
-                      + `Freundliche Grüße\n${firmenname}`},
+                      + schluss},
                     'mensch'::akteur_art)
             on conflict do nothing
             returning id`;
