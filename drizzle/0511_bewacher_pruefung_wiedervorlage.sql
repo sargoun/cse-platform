@@ -84,6 +84,10 @@ comment on function kern.bewacher_pruefung_empfaenger(uuid) is
   'erfaehrt — je Gesellschaft mit aktiver Anstellung die Mitglieder mit '
   'personal.bewacher_verwalten, mit Slug und Modulbuchung der Gesellschaft.';
 
+-- Ausgefuehrt von cse_job (Nachtlauf) und cse_app wie 0504/0507: der Dienst,
+-- der ihn ruft, steht unter server/services, und dort laeuft jede lesende
+-- Anweisung auch in einer Planungssitzung (sql-schema.test.ts). Er nennt nur
+-- Kennungen, keine Namen.
 alter function kern.bewacher_pruefung_empfaenger(uuid) owner to cse_definer;
 revoke execute on function kern.bewacher_pruefung_empfaenger(uuid) from public;
-grant execute on function kern.bewacher_pruefung_empfaenger(uuid) to cse_job;
+grant execute on function kern.bewacher_pruefung_empfaenger(uuid) to cse_app, cse_job;
