@@ -30,10 +30,12 @@ import { RedaktionFehler } from './redaktion';
  * was ohne zweite Quelle auskommt: Titel, Beschreibung, Zuständigkeit — und
  * der Zustand.
  *
- * // TODO(client, O-680): Sollen die Anfrageformulare im Portal um eigene
- * // Felder erweiterbar sein? Dann braucht die englische Fassung eine
- * // Übersetzungstabelle (Migration), denn sonst steht ein neues Feld auf
- * // /en/angebot deutsch da (D-82, D-83).
+ * // TODO(client, O-680): Voreinstellung — die Felder eines Anfrageformulars
+ * // sind Programm (Seed-Vorlage `db/seed/formulare.ts` plus englische
+ * // Fassung `lib/i18n/formular-en.ts`, D-83), kein Portaleintrag; ein neues
+ * // Feld ist eine Programmänderung mit Übersetzung, damit `/en/angebot` nie
+ * // deutsch steht. Im Portal änderbar bleiben Titel, Beschreibung,
+ * // Zuständigkeit und Zustand. D-793.
  */
 
 /* ------------------------------------------------------------------- Lesen */
@@ -245,13 +247,15 @@ export async function istDienstkonto(kontext: LeseKontext): Promise<boolean> {
  * erfinden, wäre eine Entscheidung über die Rollenmatrix, die dem Auftraggeber
  * gehört.
  *
- * Deshalb ist hier fail-closed: ein Dienstkonto pflegt keine Website. Die
- * eigentliche Frage bleibt offen und steht im Register.
+ * Deshalb ist hier fail-closed: ein Dienstkonto pflegt keine Website.
  *
- * // TODO(client, O-682): Welches Recht trägt das Live-Stellen und
- * // Zurückziehen eines Anfrageformulars? `formular.schreiben` hält auch der
- * // zum Internet offene Annahmeprinzipal `formular_eingang`; braucht die
- * // Redaktion ein eigenes Recht (wie `referenz.veroeffentlichen` bei `seite`)?
+ * // TODO(client, O-682): Voreinstellung — Live-Stellen und Zurückziehen
+ * // tragen `formular.schreiben`, dasselbe Recht wie die Pflege (ein Recht,
+ * // fünf Handlungen), und Dienstkonten sind ausgeschlossen
+ * // (`verweigereDienstkonto`). Ein eigenes `formular.veroeffentlichen` wie
+ * // `referenz.veroeffentlichen` bei `seite` entsteht erst, wenn eine
+ * // Gesellschaft Redaktion und Freigabe trennen will — dann als Katalogzeile
+ * // in 03-AUTH §12 mit Migration. D-793.
  */
 export async function verweigereDienstkonto(kontext: LeseKontext): Promise<void> {
   if (await istDienstkonto(kontext)) {

@@ -239,8 +239,9 @@ const DE: WebsiteReferenzTexte = {
   ausDiesemAnlegen: 'Referenz anlegen',
   laufendTitel: 'Mit Kundenfreigabe, aber noch nicht abgeschlossen',
   laufendText:
-    'Aus diesen Aufträgen entsteht eine Referenz mit ihrem Abschluss. Ob ein laufender '
-    + 'Dauerauftrag schon vorher genügt, ist beim Auftraggeber angefragt (O-914).',
+    'Aus diesen Aufträgen entsteht eine Referenz mit ihrem Abschluss (Voreinstellung '
+    + 'O-914, nach PRO-05); ein laufender Dauerauftrag wird Referenz mit seinem Ende oder '
+    + 'über einen abgeschlossenen Einzelauftrag desselben Kunden.',
   keinerBereitTitel: 'Noch kein Auftrag ist bereit.',
   keinerBereitText:
     'Die Kundenfreigabe wird am Auftrag erfasst, der Abschluss ebenso. Ein Projekt aus der '
@@ -269,8 +270,7 @@ const DE: WebsiteReferenzTexte = {
     + 'Referenz.',
   auftragOffen: (stand) =>
     `Dieser Auftrag ist noch nicht abgeschlossen (Stand: ${stand}). Eine Referenz ist ein `
-    + 'abgeschlossener Auftrag (PRO-05); ob ein laufender Dauerauftrag genügt, ist beim '
-    + 'Auftraggeber angefragt (O-914).',
+    + 'abgeschlossener Auftrag (PRO-05, Voreinstellung O-914).',
   ausAuftragTitel: (nr) => `Vorbelegt aus Auftrag ${nr}.`,
   ausAuftragText:
     'Übernommen sind Titel und Kundenname, sonst nichts. Prüfen Sie beides — die '
@@ -325,7 +325,7 @@ const DE: WebsiteReferenzTexte = {
       + 'widerrufen. Ohne sie entsteht aus ihm keine Referenz.',
     auftrag_offen:
       'Dieser Auftrag ist nicht abgeschlossen. Eine Referenz ist ein abgeschlossener '
-      + 'Auftrag (PRO-05, offen: O-914).',
+      + 'Auftrag (PRO-05, Voreinstellung O-914).',
     auftrag_storniert:
       'Dieser Auftrag ist storniert — aus ihm entsteht keine Referenz.',
     nicht_angelegt: 'Die Referenz wurde nicht angelegt. Bitte laden Sie die Seite neu.',
@@ -438,7 +438,8 @@ const DE: WebsiteReferenzTexte = {
   vorschlagTitel: (nr) => `Datum und Beleg sind aus der Kundenfreigabe am Auftrag ${nr} vorgeschlagen.`,
   vorschlagText:
     'Gespeichert ist davon noch nichts. Prüfen Sie, ob die Zustimmung des Kunden auch '
-    + 'diese Referenz mit diesem Text deckt, und speichern Sie dann selbst (offen: O-913).',
+    + 'diese Referenz mit diesem Text deckt, und speichern Sie dann selbst — jede '
+    + 'Referenz braucht ihre eigene Zustimmung (Voreinstellung O-913).',
   belegAusAuftrag: (nr, ansprechpartner, schreiben) =>
     `Kundenfreigabe am Auftrag ${nr}`
     + (ansprechpartner === null ? '' : `, erklärt von ${ansprechpartner}`)
@@ -495,8 +496,8 @@ const DE: WebsiteReferenzTexte = {
 
   ausAuftragAnlegen: 'Referenz aus diesem Auftrag anlegen',
   erstNachAbschluss:
-    'Eine Referenz entsteht aus diesem Auftrag, sobald er abgeschlossen ist (PRO-05; ob '
-    + 'ein laufender Auftrag genügt, ist angefragt: O-914).',
+    'Eine Referenz entsteht aus diesem Auftrag, sobald er abgeschlossen ist (PRO-05, '
+    + 'Voreinstellung O-914).',
   ausDiesemAuftragAnzahl: (n) => (n === 0
     ? 'Aus diesem Auftrag ist noch keine Referenz angelegt.'
     : n === 1
@@ -558,8 +559,9 @@ const EN: WebsiteReferenzTexte = {
   ausDiesemAnlegen: 'Create reference',
   laufendTitel: 'With a Kundenfreigabe, but not yet completed',
   laufendText:
-    'A reference comes from these Aufträge once they are completed. Whether a running '
-    + 'standing order is enough before that has been asked of the client (O-914).',
+    'A reference comes from these Aufträge once they are completed (default O-914, per '
+    + 'PRO-05); a running standing order becomes a reference when it ends or through a '
+    + 'completed single Auftrag of the same customer.',
   keinerBereitTitel: 'No Auftrag is ready yet.',
   keinerBereitText:
     'The Kundenfreigabe is recorded on the Auftrag, and so is its completion. A project '
@@ -588,8 +590,7 @@ const EN: WebsiteReferenzTexte = {
     + 'it.',
   auftragOffen: (stand) =>
     `This Auftrag is not completed yet (state: ${stand}). A reference is a completed `
-    + 'Auftrag (PRO-05); whether a running standing order is enough has been asked of the '
-    + 'client (O-914).',
+    + 'Auftrag (PRO-05, default O-914).',
   ausAuftragTitel: (nr) => `Prefilled from Auftrag (order) ${nr}.`,
   ausAuftragText:
     'Title and customer name were copied, nothing else. Check both — the order’s label is '
@@ -642,7 +643,7 @@ const EN: WebsiteReferenzTexte = {
       'This Auftrag’s Kundenfreigabe is not (or no longer) valid — it was probably just '
       + 'revoked. Without it no reference comes from it.',
     auftrag_offen:
-      'This Auftrag is not completed. A reference is a completed Auftrag (PRO-05, open: '
+      'This Auftrag is not completed. A reference is a completed Auftrag (PRO-05, default '
       + 'O-914).',
     auftrag_storniert:
       'This Auftrag has been cancelled — no reference comes from it.',
@@ -754,7 +755,8 @@ const EN: WebsiteReferenzTexte = {
   vorschlagTitel: (nr) => `Date and evidence are suggested from the Kundenfreigabe on Auftrag ${nr}.`,
   vorschlagText:
     'None of it is saved yet. Check whether the customer’s consent also covers this '
-    + 'reference with this text, then save it yourself (open: O-913).',
+    + 'reference with this text, then save it yourself — every reference needs its '
+    + 'own consent (default O-913).',
   belegAusAuftrag: (nr, ansprechpartner, schreiben) =>
     `Kundenfreigabe on Auftrag ${nr}`
     + (ansprechpartner === null ? '' : `, declared by ${ansprechpartner}`)
@@ -811,8 +813,7 @@ const EN: WebsiteReferenzTexte = {
 
   ausAuftragAnlegen: 'Create a reference from this Auftrag',
   erstNachAbschluss:
-    'A reference comes from this Auftrag once it is completed (PRO-05; whether a running '
-    + 'Auftrag is enough has been asked: O-914).',
+    'A reference comes from this Auftrag once it is completed (PRO-05, default O-914).',
   ausDiesemAuftragAnzahl: (n) => (n === 0
     ? 'No reference has been created from this Auftrag yet.'
     : n === 1

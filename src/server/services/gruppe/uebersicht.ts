@@ -33,8 +33,11 @@ export const UEBERSICHT_RECHTE = {
    * kennt keinen Gruppenleseweg (0017), und ihn zu öffnen hiesse,
    * Gesprächsnotizen aller Gesellschaften in der Gruppe lesbar zu machen.
    */
-  // TODO(client, O-910): Darf die Gruppenansicht CRM-Aktivitäten (Notizen,
-  // Anrufe, Termine mit Inhalt) aller Gesellschaften lesen — mit welchem Recht?
+  // TODO(client, O-910): Voreinstellung — die Gruppenansicht liest KEINE
+  // Gesprächsinhalte anderer Gesellschaften; „letzte Aktivität" kommt, wenn,
+  // als Datum je Gesellschaft über eine Definer-Funktion ohne Inhalt (V-150
+  // bleibt offen). `t_aktivitaet_lesen` (0017) öffnet im Gruppen-Scope nur,
+  // was die Person als Mitglied mit `crm.lesen` ohnehin lesen darf. D-793.
   projekte: 'gruppe.bau.lesen',
   einsatz: 'gruppe.zeit.lesen',
   aufgaben: 'gruppe.aufgabe.lesen',

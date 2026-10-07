@@ -66,7 +66,6 @@ export const NOCH_UNBENUTZT: readonly string[] = [
   "buchhaltung_konfiguration.verwalten",
   "crm.exportieren",
   "crm.kommunikation_versenden",
-  "crm.rechtsgrundlage_lesen",
   "crm.rechtsgrundlage_setzen",
   "crm_entgelt.lesen",
   "datenschutz.auskunft_erstellen",

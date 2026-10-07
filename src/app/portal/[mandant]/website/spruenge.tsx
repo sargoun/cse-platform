@@ -35,11 +35,12 @@ import type { Sitzung } from '@/server/kontext/index';
  * die Neuigkeitenansicht. Das ist eine Entscheidung über die Rollenmatrix und
  * keine, die eine Sprungzeile treffen darf.
  *
- * // TODO(client, O-683): Soll `leitung` den öffentlichen Auftritt pflegen
- * // dürfen — also `referenz.schreiben` gebunden bekommen (heute nur
- * // `bindbar`)? Solange nicht, ist der Tab „Website" für sie unsichtbar, und
- * // `/portal/<bereich>/website/news` bleibt ihr verschlossen, obwohl sie
- * // dieselben Beiträge unter Social Media bearbeitet.
+ * // TODO(client, O-683): Voreinstellung — `leitung` bekommt
+ * // `referenz.schreiben` NICHT gebunden: der öffentliche Auftritt ist Sache
+ * // der Verwaltung (`admin`), Social Media bleibt Kanalpflege der Leitung.
+ * // Eine Gesellschaft, deren Leitung die Website pflegt, bindet das Recht im
+ * // Rolleneditor (`bindbar`, `rollenrecht.ts`); dann erscheinen Tab und
+ * // Neuigkeiten. D-793.
  */
 
 const ZIELE: readonly { readonly pfad: string; readonly text: string }[] = [

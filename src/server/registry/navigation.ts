@@ -311,8 +311,10 @@ export const NAVIGATION: readonly NaviEintrag[] = [
    * **Was dieser Punkt nicht leisten kann:** `leitung` haelt
    * `referenz.schreiben` nur, wo eine Gesellschaft es ihr bindet, und sieht
    * den Tab sonst gar nicht — auch nicht die Neuigkeitenansicht, obwohl sie
-   * dieselben Beitraege unter Social Media pflegt. Das ist eine Entscheidung
-   * ueber die Rollenmatrix und steht als O-683 im Register.
+   * dieselben Beitraege unter Social Media pflegt. Voreinstellung (O-683,
+   * D-793): so bleibt es — der Auftritt ist Sache der Verwaltung; eine
+   * Gesellschaft bindet das Recht im Rolleneditor, wenn ihre Leitung ihn
+   * pflegen soll.
    *
    * Der Punkt zeigt auf `website/seiten` und nicht auf `website`: eine
    * Modulwurzel gibt es nicht, und ein Menuepunkt auf eine Seite, die es nicht

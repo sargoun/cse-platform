@@ -41,15 +41,15 @@ import { WIEDERVORLAGE_RUECKWEG } from '@/lib/i18n/verwaltung/crm-rueckweg';
  * **Diese Seite ist die SICHT, nicht der Ort der Entstehung.**
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Angelegt werden Wiedervorlagen dort, wo sie entstehen — heute auf dem
- * KONTAKTBLATT (`crm/kontakte/[id]`, Abschnitt „Wiedervorlage"). Auf dem
- * Leadblatt fehlt das Formular noch; bis es dort steht, entsteht eine
- * Wiedervorlage zu einem Lead über den Kontakt, der daran hängt.
+ * Angelegt werden Wiedervorlagen dort, wo sie entstehen — auf dem
+ * KONTAKTBLATT (`crm/kontakte/[id]`, Abschnitt „Wiedervorlage") und auf dem
+ * LEADBLATT (`crm/leads/[id]`).
  *
  * Hier stehen zwei Vorgänge: „erledigt" (mit der Serverzeit) und
  * „verschieben" (mit Pflichtnotiz). Beide fassen die gespiegelte
  * `aufgabe`-Zeile mit an, sonst stünde derselbe Vorgang an einer Stelle offen
- * und an der anderen erledigt (O-663).
+ * und an der anderen erledigt (Voreinstellung O-663); den gespiegelten
+ * Kalendereintrag fassen sie noch nicht an (V-344).
  *
  * **Ihr Ausgang kommt als Schlüssel zurück** (`?wiedervorlage=`, `?erfolg=`;
  * D-769, D-772), und die Sätze stehen in `WIEDERVORLAGE_RUECKWEG`. Hier
@@ -336,7 +336,8 @@ export default async function Wiedervorlagen(
           Datum da, und dass es das vierte war, wüsste niemand.
           {darf['aufgabe.lesen'] === true ? (
             <>
-              {' '}Beide fassen die gespiegelte Aufgabe mit an (O-663) — sonst wäre
+              {' '}Beide fassen die gespiegelte Aufgabe mit an (Voreinstellung O-663; den
+              Kalendereintrag noch nicht, V-344) — sonst wäre
               derselbe Vorgang hier erledigt und in{' '}
               <Link href={`/portal/${mandant}/aufgaben`}
                     className="text-text underline-offset-2 hover:text-brand hover:underline">

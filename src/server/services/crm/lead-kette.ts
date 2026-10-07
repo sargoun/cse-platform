@@ -145,8 +145,14 @@ async function sperreLead(kontext: SchreibKontext, leadId: string): Promise<Lead
  *    ihm hängen Angebot und Auftrag. Der Kontakt der Anfrage bleibt stehen,
  *    ohne Kunden: er ist der Beleg der Anfrage (Grundlage `anfrage`, Quelle,
  *    Datum) und trägt, was an ihm festgehalten wurde. „Ein Mensch, ein
- *    Kontakt" gilt je Kunde, nicht über die Grenze Anfrage/Kunde hinweg; ob
- *    ein Widerspruch für alle Datensätze derselben Adresse gilt, ist O-908.
+ *    Kontakt" gilt je Kunde, nicht über die Grenze Anfrage/Kunde hinweg. Ein
+ *    Widerspruch bindet nach der Voreinstellung (O-908, D-793) den MENSCHEN,
+ *    also jeden Datensatz derselben Adresse in der Gesellschaft, für beide
+ *    Widerspruchsarten; gebaut ist das nur für den tokenlosen Weg
+ *    (`app.werbewiderspruch_formular`), Token, Hand und Art. 21 stempeln einen
+ *    Datensatz (V-345).
+ *    // TODO(client, O-908): Voreinstellung — Widerspruch je Adresse, nicht je
+ *    // Datensatz; drei der vier Wege stempeln noch einen Datensatz (V-345).
  *  - Wurde dem Anfragenden widersprochen (das Tor verweigert ihm sogar die
  *    vertragliche Antwort), bleibt die Anfrage bei ihm. Sie auf einen
  *    Zwilling ohne diesen Vermerk umzustellen, hiesse, den Widerspruch mit

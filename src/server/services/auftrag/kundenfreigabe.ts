@@ -125,11 +125,14 @@ export function freigabeGilt(
  * **Eine Stelle, damit die Antwort austauschbar bleibt.** In der Reinigung und
  * im Objektschutz laufen Aufträge als Dauerauftrag oder Rahmenvertrag über
  * Jahre; „wir reinigen seit 2019 die Zentrale der X AG" ist dort DIE übliche
- * Referenz, und nach dieser Regel entsteht sie erst mit dem Abschluss. Ob ein
- * laufender Auftrag mit geltender Freigabe genügt, entscheidet der
- * Auftraggeber — bis dahin gilt die SPEC wörtlich.
+ * Referenz, und nach dieser Regel entsteht sie erst mit dem Abschluss.
+ * Voreinstellung (O-914, D-793): die SPEC gilt wörtlich; ein laufender
+ * Dauerauftrag wird Referenz mit seinem Ende oder über einen abgeschlossenen
+ * Einzelauftrag desselben Kunden (Erstreinigung, Projekt). Einen anderen
+ * Kreis zu wählen ist eine Zeile in dieser Liste — und eine Entscheidung des
+ * Betreibers gegen den Wortlaut der SPEC.
  */
-// TODO(client, O-914): Darf auch ein LAUFENDER Auftrag (aktiv oder pausiert — etwa ein Dauerauftrag der Reinigung oder des Objektschutzes) mit geltender Kundenfreigabe zur Referenz werden, oder nur ein abgeschlossener (SPEC PRO-05)?
+// TODO(client, O-914): Voreinstellung — nur ein ABGESCHLOSSENER Auftrag wird Referenz (SPEC PRO-05 wörtlich); ein laufender Dauerauftrag mit seinem Ende oder über einen abgeschlossenen Einzelauftrag desselben Kunden. D-793.
 export const REFERENZFAEHIGE_ZUSTAENDE: readonly string[] = ['abgeschlossen'];
 
 /**

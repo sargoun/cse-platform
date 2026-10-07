@@ -641,7 +641,7 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * sie stehen auf derselben Liste und gehoeren demselben Menschen.
      * `anlegen` spiegelt nach `aufgabe` und `kalender_eintrag`, soweit
      * `aufgabe.schreiben` und `kalender.schreiben` reichen, und nennt in der
-     * Rueckmeldung, was NICHT entstand (O-663).
+     * Rueckmeldung, was NICHT entstand (Voreinstellung O-663, D-793).
      */
     pfad: 'api/crm/wiedervorlage',
     recht: 'crm.schreiben',
@@ -881,8 +881,8 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * (0016) auf `formular_definition` verlangt. Es haelt auch der zum
      * Internet offene Annahmeprinzipal `formular_eingang`; den weist der
      * Dienst zusaetzlich ab (`verweigereDienstkonto`, O-682), denn ein
-     * Dienstkonto pflegt keine Website. Welches Recht das Live-Stellen
-     * wirklich tragen soll, ist offen.
+     * Dienstkonto pflegt keine Website. Das Live-Stellen traegt dasselbe
+     * Recht wie die Pflege — die Voreinstellung (O-682, D-793).
      */
     pfad: 'api/website/formular',
     recht: 'formular.schreiben',

@@ -1117,7 +1117,7 @@ async function pruefeHerkunft(kontext: LeseKontext, auftragId: string): Promise<
   if (hindernis === 'nicht_abgeschlossen') {
     throw new RedaktionFehler(
       'Dieser Auftrag ist noch nicht abgeschlossen. Eine Referenz ist ein abgeschlossener '
-      + 'Auftrag (PRO-05, offen: O-914).', 'auftrag_offen');
+      + 'Auftrag (PRO-05, Voreinstellung O-914).', 'auftrag_offen');
   }
 }
 
@@ -1189,7 +1189,7 @@ async function bereichDerSitzung(kontext: LeseKontext): Promise<string> {
  * Blatt schlägt Datum und Beleg nur VOR. Eine Antwort des Auftraggebers
  * änderte genau diese Stelle (und den leeren Haken auf dem Blatt).
  */
-// TODO(client, O-913): Deckt die Kundenfreigabe am Auftrag die öffentliche Referenz in ihrer veröffentlichten Fassung (Titel, Beschreibung, Bild, Namensform) und auch mehrere Referenzen aus demselben Auftrag — oder braucht jede Referenz eine eigene schriftliche Zustimmung des Kunden?
+// TODO(client, O-913): Voreinstellung — die Freigabe am Auftrag deckt die Referenz NICHT von selbst: jede Referenz braucht ihre eigene, von einem Menschen eingetragene Zustimmung des Kunden zur veröffentlichten Fassung (Titel, Beschreibung, Bild, Namensform), auch die zweite aus demselben Auftrag; das Blatt schlägt Datum und Beleg nur vor. Wie gebaut. D-793.
 export async function legeReferenzAn(
   kontext: SchreibKontext, felder: NeueReferenz,
 ): Promise<AngelegteReferenz> {
