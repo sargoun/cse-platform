@@ -23,7 +23,11 @@ import {
 } from '../../src/server/services/nachweis/uebersicht.js';
 import { meldeAblaufwarnungen } from '../../src/server/services/nachweis/ablauf.js';
 import { leereArten } from '../../src/server/benachrichtigung/registry.js';
-import { registriereNachweisArten } from '../../src/server/services/nachweis/benachrichtigung.js';
+import {
+  ART_ABLAUF_LEITUNG, ART_ABLAUF_PERSONALSTELLE, registriereNachweisArten,
+} from '../../src/server/services/nachweis/benachrichtigung.js';
+import { leereRegister } from '../../src/server/jobs/registry.js';
+import { registriereNachweisWarnungen } from '../../src/server/jobs/nachweisWarnungen.js';
 
 let f: Fixtur;
 let planerReinigung: string;
@@ -607,5 +611,87 @@ describe('die Anforderung haengt an der Arbeit, und der Katalog bleibt sauber', 
     const n = await nachweis({ person: f.fatima, qualifikation: q, mandant: f.security });
     await expect(sql.unsafe(`delete from nachweis where id = $1`, [n]))
       .rejects.toThrow();
+  });
+});
+
+describe('(6) V-380 — Personalstelle ab 30, Leitung ab 7 Tagen (O-31, D-810)', () => {
+  beforeEach(() => {
+    leereArten();
+    registriereNachweisArten();
+  });
+
+  /** Ein Konto mit Rolle in einer Gesellschaft — gültig seit gestern (22–24 Uhr UTC). */
+  async function kontoMit(mandant: string, rolle: string, person: string | null = null): Promise<string> {
+    const id = await konto();
+    if (person !== null) {
+      await sql.unsafe(`update benutzer set person_id = $2 where id = $1`, [id, person]);
+    }
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, gueltig_ab)
+       values ($1, $2, $3, current_date - 1)`, [id, mandant, await rolleId(rolle)]);
+    return id;
+  }
+
+  it('Stufe 60 nur die Person, 30 auch die Personalstelle, 7 die Leitung — je Konto einmal', async () => {
+    const admin = await kontoMit(f.security, 'admin');
+    const chefin = await kontoMit(f.security, 'leitung');
+    const fremd = await kontoMit(f.reinigung, 'admin');
+    const q = await qualifikation();
+    await nachweis({ person: f.fatima, qualifikation: q, mandant: f.security,
+                     ab: '2025-01-01', bis: '2026-03-03' });
+    const lauf = (heute: string) => alsPlaner(planerSecurity, f.security, async (db) =>
+      meldeAblaufwarnungen(db, heute));
+    const an = (b: Awaited<ReturnType<typeof lauf>>) =>
+      new Map(b.team.map((t) => [t.benutzerId, t.benachrichtigung.art]));
+
+    expect((await lauf('2026-01-02')).team).toEqual([]);
+
+    const s30 = an(await lauf('2026-02-01'));
+    expect(s30.get(admin)).toBe(ART_ABLAUF_PERSONALSTELLE);
+    expect(s30.get(chefin)).toBe(ART_ABLAUF_PERSONALSTELLE);
+    expect(s30.has(fremd)).toBe(false);
+
+    const b7 = await lauf('2026-02-24');
+    const s7 = an(b7);
+    expect(s7.get(chefin)).toBe(ART_ABLAUF_LEITUNG);
+    expect(s7.get(admin)).toBe(ART_ABLAUF_PERSONALSTELLE);
+    expect(s7.has(fremd)).toBe(false);
+    expect(b7.team.filter((t) => t.benutzerId === chefin)).toHaveLength(1);
+    expect(b7.team[0]!.benachrichtigung.ziel).toBe('/portal/security/personal/nachweise');
+    expect(b7.unzustellbar).toHaveLength(0);
+
+    // Dieselbe Quittung wie bei der Person: ein zweiter Lauf meldet nichts.
+    expect((await lauf('2026-02-25')).team).toEqual([]);
+  });
+
+  it('das Konto der Person selbst bekommt keine Meldung der Personalstelle', async () => {
+    // Ihr Zugang hält als Administration selbst `personal.nachweis_lesen`.
+    const eigenes = await kontoMit(f.security, 'admin', f.fatima);
+    const q = await qualifikation();
+    await nachweis({ person: f.fatima, qualifikation: q, mandant: f.security,
+                     ab: '2025-01-01', bis: '2026-03-03' });
+    const b = await alsPlaner(planerSecurity, f.security, async (db) =>
+      meldeAblaufwarnungen(db, '2026-02-24'));
+    expect(b.team.map((t) => t.benutzerId)).not.toContain(eigenes);
+    expect(b.team.length).toBeGreaterThan(0);
+  });
+
+  it('der Nachtlauf stellt zu: Stufe 7 erreicht die Leitung im Posteingang', async () => {
+    const chefin = await kontoMit(f.security, 'leitung');
+    const q = await qualifikation();
+    const [bis] = await sql.unsafe<{ tag: string }[]>(
+      `select ((now() at time zone 'Europe/Berlin')::date + 7)::text as tag`);
+    await nachweis({ person: f.fatima, qualifikation: q, mandant: f.security,
+                     ab: '2025-01-01', bis: bis!.tag });
+    leereRegister();
+    const job = registriereNachweisWarnungen(sql);
+    const ergebnis = await job.ausfuehren({ mandantId: null, laufId: 'v380', versuch: 1 });
+    expect(Number((ergebnis as Record<string, unknown>)['an_personalstelle_und_leitung']))
+      .toBeGreaterThan(0);
+    const zeilen = await sql.unsafe<{ art: string; ziel: string }[]>(
+      `select art, ziel from benachrichtigung where empfaenger_id = $1`, [chefin]);
+    expect(zeilen.map((z) => z.art)).toContain(ART_ABLAUF_LEITUNG);
+    expect(zeilen.find((z) => z.art === ART_ABLAUF_LEITUNG)?.ziel)
+      .toBe('/portal/security/personal/nachweise');
   });
 });

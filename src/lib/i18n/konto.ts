@@ -430,6 +430,8 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
         ablauf_60: 'Nachweis läuft in 60 Tagen ab',
         ablauf_30: 'Nachweis läuft in 30 Tagen ab',
         ablauf_7: 'Nachweis läuft in 7 Tagen ab',
+        ablauf_personalstelle: 'Nachweis einer Beschäftigten läuft ab (Personalstelle)',
+        ablauf_leitung: 'Nachweis einer Beschäftigten läuft in 7 Tagen ab (Leitung)',
         frist_knapp: 'Ausschreibung: Frist wird knapp',
         treffer: 'Ausschreibung: neuer Treffer',
         einwand_entschieden: 'Entscheidung über Ihre Zeitmeldung',

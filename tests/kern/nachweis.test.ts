@@ -13,7 +13,8 @@ import {
 } from '../../src/server/services/nachweis/gueltigkeit.js';
 import { faelligeStufen } from '../../src/server/services/nachweis/ablauf.js';
 import {
-  WARNSTUFEN, artSchluessel, registriereNachweisArten,
+  ART_ABLAUF_LEITUNG, ART_ABLAUF_PERSONALSTELLE, WARNSTUFEN, artSchluessel,
+  registriereNachweisArten,
 } from '../../src/server/services/nachweis/benachrichtigung.js';
 import {
   erzeuge, findeArt, leereArten,
@@ -133,11 +134,42 @@ describe('die drei Benachrichtigungsarten (NOT-01, NOT-02, NOT-03)', () => {
   beforeEach(leereArten);
 
   it('60, 30 und 7 sind DREI Arten — sonst laesst sich nur alles abschalten', () => {
+    // Dieselbe Funktion meldet seit V-380 auch die beiden Arten für
+    // Personalstelle und Leitung an; die Stufenarten bleiben drei getrennte.
     const arten = registriereNachweisArten();
-    expect(arten).toHaveLength(3);
+    const stufenArten = arten.filter((a) =>
+      WARNSTUFEN.some((stufe) => a.schluessel === artSchluessel(stufe)));
+    expect(stufenArten).toHaveLength(3);
     for (const stufe of WARNSTUFEN) {
       expect(findeArt(artSchluessel(stufe)), String(stufe)).toBeDefined();
     }
+  });
+
+  it('Personalstelle und Leitung haben je eine eigene Art — mit dem Register als Ziel (V-380)', () => {
+    const arten = registriereNachweisArten();
+    expect(arten.map((a) => a.schluessel))
+      .toEqual(expect.arrayContaining([ART_ABLAUF_PERSONALSTELLE, ART_ABLAUF_LEITUNG]));
+    const daten = {
+      person: 'Erika Muster', bezeichnung: 'Sachkunde §34a', gueltigBis: '2026-03-03',
+      stufeTage: 7, blockiertEinsatz: true,
+    };
+    const leitung = erzeuge(ART_ABLAUF_LEITUNG, {
+      mandantId: 'm1', mandantSlug: 'security', objektTyp: 'nachweis', objektId: 'n1', daten,
+    });
+    expect(leitung.ziel).toBe('/portal/security/personal/nachweise');
+    expect(leitung.titel).toContain('7 Tagen');
+    expect(leitung.titel).toContain('Erika Muster');
+    expect(leitung.text).toContain('keine Einteilung');
+    const ps = erzeuge(ART_ABLAUF_PERSONALSTELLE, {
+      mandantId: 'm1', mandantSlug: 'security', objektTyp: 'nachweis', objektId: 'n1',
+      daten: { ...daten, stufeTage: 30, blockiertEinsatz: false },
+    });
+    expect(ps.titel).toContain('30 Tagen');
+    expect(ps.text).toContain('Verlängerung veranlassen');
+    // Ohne Gesellschaft kein Ziel — und ohne Ziel keine Meldung (NOT-03).
+    expect(() => erzeuge(ART_ABLAUF_LEITUNG, {
+      mandantId: 'm1', objektTyp: 'nachweis', objektId: 'n1', daten,
+    })).toThrow();
   });
 
   it('keine ist sammelbar — am naechsten Morgen gelesen heisst zu spaet', () => {
