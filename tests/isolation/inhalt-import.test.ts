@@ -60,6 +60,69 @@ describe('(2) zweimal importieren ändert NULL Zeilen', () => {
   });
 });
 
+describe('eine Pflege im Portal bleibt stehen (V-386, D-851)', () => {
+  /** Der Seed in einer neuen Fassung: Kontakt mit anderem Titel und anderer Überschrift. */
+  const NEUER_SEED = SEITEN.map((s) => (s.pfad === '/kontakt'
+    ? { ...s, titel: 'Kontakt (neu)',
+        abschnitte: s.abschnitte.map((x) => ({ ...x, ueberschrift: 'Kontakt (neu)' })) }
+    : s));
+
+  async function kontakt(): Promise<{ titel: string; ueberschrift: string | null }> {
+    const [z] = await sql.unsafe<{ titel: string; ueberschrift: string | null }[]>(
+      `select s.titel, a.ueberschrift from seite s join abschnitt a on a.seite_id = s.id
+        where s.pfad = '/kontakt' and s.sprache = 'de' and a.reihenfolge = 1`);
+    return z!;
+  }
+
+  it('was der Import zuletzt schrieb, setzt er auf den neuen Seed — was gepflegt ist, nicht', async () => {
+    await importiere(db, SEITEN);
+    // So pflegt das Portal (redaktion.ts): Text der Zeile, nicht import_stand.
+    await sql.unsafe(
+      `update abschnitt a set ueberschrift = 'So erreichen Sie uns', geaendert_am = now()
+         from seite s where s.id = a.seite_id and s.pfad = '/kontakt' and s.sprache = 'de'
+          and a.reihenfolge = 1`);
+
+    const bericht = await importiere(db, NEUER_SEED);
+    expect(bericht.gepflegt).toEqual(['/kontakt#1']);
+    expect(bericht.geaendert).toBe(1);   // der Seitentitel war nicht gepflegt
+    expect(await kontakt()).toEqual({ titel: 'Kontakt (neu)', ueberschrift: 'So erreichen Sie uns' });
+
+    // Ein zweiter Lauf ändert nichts und nennt dieselbe Zeile wieder.
+    const zweiter = await importiere(db, NEUER_SEED);
+    expect(zweiter.geaendert).toBe(0);
+    expect(zweiter.gepflegt).toEqual(['/kontakt#1']);
+  });
+
+  it('auch ein gepflegter Seitentitel bleibt stehen', async () => {
+    await importiere(db, SEITEN);
+    await sql.unsafe(
+      `update seite set titel = 'Kontakt & Anfahrt' where pfad = '/kontakt' and sprache = 'de'`);
+    const bericht = await importiere(db, NEUER_SEED);
+    expect(bericht.gepflegt).toEqual(['/kontakt']);
+    expect((await kontakt()).titel).toBe('Kontakt & Anfahrt');
+  });
+
+  it('erst „ueberschreiben" setzt zurück — und danach gilt der Seed wieder als Stand', async () => {
+    await importiere(db, SEITEN);
+    await sql.unsafe(
+      `update abschnitt a set ueberschrift = 'So erreichen Sie uns'
+         from seite s where s.id = a.seite_id and s.pfad = '/kontakt' and s.sprache = 'de'
+          and a.reihenfolge = 1`);
+    const bericht = await importiere(db, NEUER_SEED, 'de', { ueberschreiben: true });
+    expect(bericht.gepflegt).toEqual([]);
+    expect(await kontakt()).toEqual({ titel: 'Kontakt (neu)', ueberschrift: 'Kontakt (neu)' });
+    expect((await importiere(db, NEUER_SEED)).geaendert).toBe(0);
+  });
+
+  it('eine Zeile ohne Importstand, die vom Seed abweicht, gilt als gepflegt', async () => {
+    await importiere(db, SEITEN);
+    await sql.unsafe(`update abschnitt set import_stand = null`);
+    const bericht = await importiere(db, NEUER_SEED);
+    expect(bericht.gepflegt).toContain('/kontakt#1');
+    expect((await kontakt()).ueberschrift).not.toBe('Kontakt (neu)');
+  });
+});
+
 describe('(1) jede PUB-01-Route rendert aus `seite`', () => {
   it('nach dem Import hat jede Route ihre Zeile', async () => {
     await importiere(db, SEITEN);

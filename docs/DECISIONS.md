@@ -25837,7 +25837,7 @@ denselben Blöcken gehören nicht hierher: die Rechtsform der CSE Operations
 | O-127 | Kein Virenscanner. Eingehende Dateien prüft die Plattform selbst: Typ nach Magic Bytes gegen eine Positivliste, höchstens 256 MB, Metadaten aus JPEG entfernt und in PDF überschrieben, SVG nur als Logo nach einer Musterliste und mit Sandbox-CSP ausgeliefert (D-45, D-46). Ein Scanner wäre ein eigener Dienst in der EU mit Auftragsverarbeitungsvertrag, den der Betreiber beauftragt; eine Anbindung dafür ist nicht gebaut. Wie gebaut. | `storage/mime.ts`, `storage/exif.ts`, `storage/svg.ts` |
 | O-131 | Erfasst wird von Hand: Notiz, Anruf, E-Mail oder Termin, eingehend oder ausgehend, am Kunden oder am Ansprechpartner (`POST /api/crm/notiz`, V-147); der Verlauf zeigt sie mit den Portalnachrichten zusammen. Ein Kundenpostfach je Gesellschaft ist nicht verbunden — Postfach und Zugang trägt der Betreiber ein, wie beim Bewerbungspostfach (O-938). Wie gebaut. | `api/crm/notiz`, `crm/verlauf.ts` |
 | O-205 | Kein Konformitätsstatus, solange keine Prüfung vorliegt: der Kasten „Noch nicht abgegeben" bleibt und nennt jetzt nur, was wirklich fehlt — Status und Datum der Erstprüfung (die Frage bleibt in `OFFEN_GEBLIEBEN`, `annahmen.test.ts`). Neu steht die Durchsetzungsstelle da: die Marktüberwachungsstelle der Länder für die Barrierefreiheit von Produkten und Dienstleistungen (MLBF) mit Sitz in Magdeburg (de/en). Meldungen gehen über das Formular in den internen Eingang mit Frist (V-032) und an die Adresse der ersten Gesellschaft mit E-Mail (wie gebaut); ein eigenes Postfach für Barrierefreiheit trägt der Betreiber ein, wenn er eines will. | `(public)/barrierefreiheit/Erklaerung.tsx`, `lib/i18n/texte.ts` |
-| O-207 | Die Entwurfstexte sind die Voreinstellung und stehen veröffentlicht da — sachlich, ohne Zahlen, Auszeichnungen, Kundennamen oder Zusagen. Der Betreiber prüft und ergänzt sie in der Website-Pflege. `pnpm content:import` ist das Werkzeug für eine Datenbank ohne Pflege: es setzt jeden Abschnitt, dessen Text vom Seed abweicht, auf den Seed zurück, auch eine Pflege im Portal (V-386); seine Ausgabe sagt das jetzt. | `db/seed/{inhalt,inhalt-en}.ts`, `scripts/content-import.ts` |
+| O-207 | Die Entwurfstexte sind die Voreinstellung und stehen veröffentlicht da — sachlich, ohne Zahlen, Auszeichnungen, Kundennamen oder Zusagen. Der Betreiber prüft und ergänzt sie in der Website-Pflege. `pnpm content:import` lässt seit V-386 (D-851) eine Pflege im Portal stehen und nennt sie: er schreibt den Seed nur, wo die Zeile noch so steht, wie er sie zuletzt geschrieben hat (`import_stand`); zurückgesetzt wird nur mit `--ueberschreiben`. | `db/seed/{inhalt,inhalt-en}.ts`, `scripts/content-import.ts` |
 | O-512 | (a) Ja: `/karriere` und jede offene Stelle (`/karriere/<id>`) stehen jetzt in der Sitemap, mit derselben Bedingung wie die Karriereseite (`offeneStellenKennungen` neben `offeneStellen`) — keine zweite Liste; anders als die Seite ohne die 50er-Grenze, gemeldet wird jede veröffentlichte Stelle; ohne `lastModified` (R-11). (b) Englisch, wie D-82 es für die ganze öffentliche Website verlangt: der Karrierebereich steht unter `/en/karriere` (gebaut mit V-393, D-807) — dieselben Bauteile, die Stellentexte so, wie das Recruiting sie schreibt (deutsch, mit `lang="de"` und einem Satz dazu); die Sitemap meldet beide Sprachen mit gegenseitigem `hreflang`. | `app/sitemap.ts`, `(public)/karriere/daten.ts`, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-652 | Eine Leistungsseite gehört der Gesellschaft, die die Leistung erbringt, und nennt sie als `provider`, sobald die Zeile ihre `mandant_id` trägt (`seitenService`, wie gebaut). Welche Leistungen eine eigene Seite bekommen, entscheidet die Redaktion; bis sie eine anlegt, bleibt es bei der Demonstrationsseite `/leistungen/unterhaltsreinigung`. Sie ist keiner Gesellschaft zugeordnet und nennt keinen Anbieter, weil weder der Import noch die Seitenpflege `seite.mandant_id` setzen (V-293, berichtigt und um diesen Fall ergänzt). Kanonisch bleiben die Leistungen einer Gesellschaft unter `/unternehmen/<bereich>/leistungen` (§2.2). Der Text der Seite sagt es (de/en). | `services/inhalt/jsonld.ts`, `db/seed/{inhalt,inhalt-en}.ts` |
 
@@ -28848,4 +28848,45 @@ eine fremde Vereinbarung 42501. Die kern-Doppel der Pauschalprüfung
 neue Turnusfrage mit „keine" und werfen weiter bei jeder anderen Abfrage.
 
 | Betrifft | V-327, O-146, O-700, D-783, D-789, D-843, V-396, CLN-02, FIN-01; `drizzle/0534_turnus_fuer_abrechnung.sql`, `src/server/services/finanz/abrechnungsart/{turnusausfall,monatspauschale}.ts`, `src/server/registry/dienste.ts`, `tests/kern/{turnusausfall,abrechnungsart,arbeitstage-teilmonat}.test.ts`, `tests/isolation/abrechnungsart.test.ts` |
+|---|---|
+
+### D-851 · Bauwelle 48: Der Inhaltsimport lässt eine Pflege im Portal stehen (V-386, O-207)
+
+**Der Anlass.** `importiere` verglich jeden Abschnitt mit dem Seed und
+schrieb den Seed, wo der Text abwich. Einen im Portal gepflegten Abschnitt
+konnte er von einem veralteten nicht unterscheiden: `pnpm content:import`
+setzte die Pflege des Betreibers zurück (O-207, D-802 — „der Betreiber prüft
+und ergänzt die Entwurfstexte in der Website-Pflege"), und seine Ausgabe
+musste das ankündigen.
+
+**Was gebaut ist.**
+- **`import_stand`** (0535) an `seite` (Titel, Beschreibung) und `abschnitt`
+  (Überschrift, Akzentwort, Text, Daten): was der Import zuletzt geschrieben
+  hat. Beim Anlegen und bei jeder Änderung durch den Import gesetzt; die
+  Pflege im Portal (`redaktion.ts`) schreibt ihn nicht — und muss es nicht:
+  die Erkennung vergleicht Inhalte und hängt an keinem Schreibweg.
+- **`importiere`**: gleich dem Seed → nichts (wie bisher, kein Stempel);
+  sonst, wenn der heutige Stand dem Importstand gleicht → der Seed wird
+  geschrieben und wird neuer Importstand; sonst → **gepflegt**: die Zeile
+  bleibt stehen und steht im Bericht (`gepflegt`: `pfad` bzw.
+  `pfad#reihenfolge`). Eine Zeile ohne Importstand, die vom Seed abweicht,
+  gilt als gepflegt — kein Rückfüllen in der Migration: was vor 0535 im
+  Portal geändert wurde, kann niemand wissen, und Stehenlassen ist der
+  Fehler ohne Datenverlust.
+- **`ueberschreiben`** (`pnpm content:import --ueberschreiben`) setzt
+  ausdrücklich auch gepflegte Zeilen zurück; die Ausgabe nennt die stehen
+  gelassenen und sagt, wenn zurückgesetzt wurde.
+- Die Zusage „zweimal laufen lassen ändert null Zeilen" bleibt: ein zweiter
+  Lauf schreibt nichts und nennt dieselben gepflegten Zeilen wieder.
+
+**Prüfung.** `tests/isolation/inhalt-import.test.ts`: ein gepflegter
+Abschnitt bleibt, der nicht gepflegte Seitentitel geht auf den neuen Seed;
+ein zweiter Lauf ändert nichts; ein gepflegter Seitentitel bleibt;
+`ueberschreiben` setzt zurück, danach gilt der Seed wieder als Stand; ohne
+Importstand gilt eine abweichende Zeile als gepflegt. Die bisherigen
+Prüfungen (zweimal importieren ändert nichts, kein Stempel ohne Änderung,
+eine echte Änderung wird erkannt) laufen unverändert;
+`tests/isolation/{inhalt,website-pflege}.test.ts` ebenso.
+
+| Betrifft | V-386, O-207, D-802, PUB-08; `drizzle/0535_inhalt_importstand.sql`, `src/server/services/inhalt/import.ts`, `scripts/content-import.ts`, `tests/isolation/inhalt-import.test.ts` |
 |---|---|
