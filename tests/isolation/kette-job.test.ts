@@ -250,4 +250,25 @@ describe('V-286 — der Bruch erreicht Buchhaltung und Geschäftsführung', () =
       expect(z.sammelbar).toBe(false);
     }
   });
+
+  it('ohne finanzen.lesen keine Meldung — der Prüfbericht bliebe verschlossen', async () => {
+    // In einer Transaktion, die zurückgerollt wird: die übrigen Fälle dieser
+    // Datei teilen die Gesellschaft.
+    class Zurueck { constructor(readonly ids: readonly string[]) {} }
+    const ohne = await sql.begin(async (tx) => {
+      await tx.unsafe(
+        `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+         select r.id, b.id, $1, false from rolle r, berechtigung b
+          where r.schluessel = 'leitung' and r.mandant_id is null
+            and b.schluessel = 'finanzen.lesen'`, [f.reinigung]);
+      const z = await tx.unsafe<{ benutzer_id: string }[]>(
+        `select benutzer_id from kern.kette_meldung_empfaenger($1::uuid)`, [f.reinigung]);
+      throw new Zurueck(z.map((x) => x.benutzer_id));
+    }).catch((e: unknown) => {
+      if (e instanceof Zurueck) return e.ids;
+      throw e;
+    });
+    expect(ohne).not.toContain(leitung);
+    expect(ohne).toContain(buchhaltung);
+  });
 });

@@ -17,6 +17,11 @@
 -- Jedes Konto steht hoechstens einmal in der Antwort, als Buchhaltung, wenn
 -- es beides ist.
 --
+-- Beide nur, wenn sie finanzen.lesen halten: die Meldung zeigt auf den
+-- Pruefbericht der Kette, und der oeffnet mit genau diesem Recht (NOT-03).
+-- Nach der Rechtematrix halten es Administration und Leitung; nimmt eine
+-- Gesellschaft es einer Rolle, bekommt sie auch die Meldung nicht.
+--
 -- Ein Definer wie 0504: der Pruefer laeuft nachts als Job, und welche
 -- Mitgliedschaften fremder Konten eine Rolle sieht, darf die Empfaengerliste
 -- nicht still verkuerzen. Er liest nur Kennungen und schreibt nichts.
@@ -42,17 +47,21 @@ set search_path = pg_catalog, public, app as $$
   ),
   buchhaltung as (
     select unnest(kern.traeger_des_rechts(p_mandant, 'buchhaltung.lesen')) as id
+  ),
+  lesende as (
+    select unnest(kern.traeger_des_rechts(p_mandant, 'finanzen.lesen')) as id
   )
   select m.id,
          case when m.id in (select id from buchhaltung) then 'buchhaltung' else 'leitung' end
     from mitglieder m
-   where m.id in (select id from buchhaltung) or m.leitung
+   where (m.id in (select id from buchhaltung) or m.leitung)
+     and m.id in (select id from lesende)
 $$;
 
 comment on function kern.kette_meldung_empfaenger(uuid) is
   'V-286, O-357, D-811: Empfaenger der Meldung „Hashkette gebrochen" in einer Gesellschaft — '
   'ihre Mitglieder mit buchhaltung.lesen (Buchhaltung) oder der Rolle leitung '
-  '(Geschaeftsfuehrung); jedes Konto einmal.';
+  '(Geschaeftsfuehrung), beide mit finanzen.lesen (das Ziel); jedes Konto einmal.';
 
 alter function kern.kette_meldung_empfaenger(uuid) owner to cse_definer;
 revoke execute on function kern.kette_meldung_empfaenger(uuid) from public;

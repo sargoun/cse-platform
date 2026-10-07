@@ -36,7 +36,8 @@
  *
  * // TODO(client, O-357): Voreinstellung — die Kettenmeldung geht an
  * Buchhaltung (buchhaltung.lesen) und Geschäftsführung (Rolle leitung) der
- * Gesellschaft, in den Posteingang, einmal je Bruch (0507, D-811). Die Art
+ * Gesellschaft, beide mit finanzen.lesen (das Recht des Prüfberichts), in den
+ * Posteingang, einmal je Bruch (0507, D-811). Die Art
  * schlägt dazu E-Mail vor; zugestellt wird die erst mit dem Versanddienst
  * (V-367, O-202).
  */

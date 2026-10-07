@@ -24502,7 +24502,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-189 | Ausschliesslich EUR — Fremdwährung wird abgewiesen, nicht umgerechnet. | `bank/camt.ts`, `eingang/erechnung.ts` |
 | O-300 | Grundstücksbezug einer Leistung führt die Plattform nicht; der Hinweis nach § 14 Abs. 4 Nr. 9 UStG gehört von Hand in den Fußtext. | `ustg14.ts` |
 | O-352 | Nummernkreis eröffnen und Jahreswechsel: die Administration mit `nummernkreis.verwalten`; der Knopf folgt (V-284). | `uebersicht.ts` |
-| O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder; die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
+| O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder und nur mit `finanzen.lesen` (das Recht des Prüfberichts); die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
 | O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg (Hochladen, Gültigkeit, Widerruf) folgt (V-283). | `eingangsrechnungen.ts` |
@@ -26443,8 +26443,10 @@ Dienstanweisung zeigte „N von M bestätigt“, aber weder Frist noch Warnung
   Bruch zu (`meldeKettenbruch`): an Buchhaltung und Geschäftsführung der
   Gesellschaft — Mitglieder mit `buchhaltung.lesen` oder der Rolle `leitung`,
   jedes Konto einmal (`kern.kette_meldung_empfaenger`, 0507, Definer, das
-  Fenster der Mitgliedschaft am Berliner Tag). `finanzen.lesen` wäre zu weit:
-  das Recht hält auch die Rolle `kunde`. Die globale Super-Administration ohne
+  Fenster der Mitgliedschaft am Berliner Tag). `finanzen.lesen` wäre als
+  Auswahl zu weit — das Recht hält auch die Rolle `kunde` —, verlangt wird es
+  zusätzlich: die Meldung zeigt auf den Prüfbericht, und der öffnet mit genau
+  diesem Recht (NOT-03). Die globale Super-Administration ohne
   Mitgliedschaft bekommt nichts — sie hat dort keinen Posteingang, und
   `waechter_meldung` nimmt sie nicht an. Neue Art
   `finanzen.kette_gebrochen`: nie sammelbar (SPEC §14 „alert immediately“),
@@ -26472,7 +26474,7 @@ Dienstanweisung zeigte „N von M bestätigt“, aber weder Frist noch Warnung
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-357 | Die Kettenmeldung geht an Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, in den Posteingang, einmal je Bruch — wie D-779, jetzt gebaut. | `drizzle/0507`, `jobs/kettenpruefer.ts`, `waechter/benachrichtigung.ts` |
+| O-357 | Die Kettenmeldung geht an Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, beide mit `finanzen.lesen`, in den Posteingang, einmal je Bruch — wie D-779, jetzt gebaut. | `drizzle/0507`, `jobs/kettenpruefer.ts`, `waechter/benachrichtigung.ts` |
 | O-241 | Versäumt ab Beginn der ersten Schicht auf dem Objekt nach der Veröffentlichung, Warnung an die Leitung auf der Kenntnisnahme-Seite und an der Schicht, keine Sperre — wie D-800, jetzt gebaut. | `security/dienstanweisung.ts`, Kenntnisnahmen, Schichtblatt |
 
 **Prüfung.** `tests/isolation/kette-job.test.ts` (Empfänger, einmal je Bruch nach
