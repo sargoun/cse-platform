@@ -26001,3 +26001,48 @@ weiter keines); `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`,
 
 | Betrifft | V-390, V-392; O-01, O-24, O-35, O-353; `drizzle/0494_mandant_angaben_pflege.sql`, `src/server/services/mandant/angaben.ts`, `src/app/api/einstellungen/mandant/route.ts`, `src/app/portal/[mandant]/einstellungen/mandant/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/index.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `tests/kern/mandant-angaben.test.ts`, `tests/isolation/mandant-angaben.test.ts`, `tests/e2e/einstellungen.spec.ts` |
 |---|---|
+
+### D-805 · Bauwelle 1: keine Nachrichtenfäden in der Gruppenansicht, vier Augen für Bau-Rechtserklärungen (V-379, V-383)
+
+**Der Anlass.** Zwei Voreinstellungen standen beschlossen und ungebaut: die
+Gruppenleitung liest keine Nachrichtenfäden (O-651, D-799, V-379), und eine
+Behinderungsanzeige oder ein Nachtrag wird nicht von der Person freigegeben,
+die sie vorgelegt hat (O-260, D-800, V-383). Beides schliesst eine Lücke im
+Schutz: die eine zu viel Einsicht, die andere eine Kontrolle, die nur auf dem
+Papier stand.
+
+**Was gebaut ist.**
+- `0495`: `t_nachricht_gruppe` (0011) fällt weg; `p_gruppe_kein_personenbezug`
+  liegt restriktiv auf `nachricht`, `nachricht_anhang` und
+  `nachricht_empfaenger`, in der Bauart von 0370. Der Schlüssel
+  `gruppe.nachricht.lesen` bleibt im Katalog und öffnet auf diesen Tischen
+  nichts mehr — sichtbar im Kommentar an der Decke, nicht still.
+- `0496`: `kern.freigabe_vier_augen` mit `trg_freigabe_vier_augen` an der
+  Freigabe, für Einfügen und Statuswechsel: `behinderung_senden` und
+  `nachtrag_einreichen` genehmigt nicht, wer sie vorgelegt hat
+  (`erstellt_von`). Die Regel steht an der Freigabe und nicht im Dienst, damit
+  sie für jeden Weg gilt, der genehmigt. Eine Freigabe ohne `erstellt_von`
+  (Nachtlauf, Agent) hat keinen menschlichen Verfasser; dort entscheidet ein
+  Mensch ohnehin.
+- `freigabe/entscheiden.ts` übersetzt die Abweisung als `vier_augen`, die
+  Entscheidungsseite sagt den Satz dazu.
+- Der Seed legt Nachtrag und Behinderungsanzeige durch die Bauleitung vor und
+  lässt sie von einer zweiten Person der Gesellschaft mit
+  `freigabe.entscheiden` freigeben; gibt es keine, bleiben beide ungesendet.
+
+**Was sich NICHT ändert.** Kein Recht, kein Katalogeintrag; `freigabe.entscheiden`
+hält weiter auch die Leitung. Andere Freigaben (Mahnung, Eingangsrechnung,
+Nachricht an einen Kontakt) bleiben, wie sie sind — für sie ist kein
+Vier-Augen-Prinzip beschlossen (O-183 ist nicht Teil der Runden).
+
+**Beim Lesen aufgefallen.** Der Schichttausch (V-260) hängt seit D-802 auch an
+O-06: die Voreinstellung zu O-925 bietet Partner „mit Betriebsrat nach dessen
+Zustimmung" an, und O-06 behandelt die Plattform so, als gäbe es einen ohne
+Vereinbarung. Die Zeile sagt das jetzt.
+
+**Prüfung.** `tests/isolation/gruppe-nachrichtenfaeden.test.ts`,
+`tests/isolation/bau-vier-augen.test.ts` (in der CI), `tests/kern` komplett,
+`pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-379, V-383, V-260; O-651, O-260; `drizzle/0495_gruppe_ohne_nachrichtenfaeden.sql`, `drizzle/0496_bau_vier_augen.sql`, `src/server/services/freigabe/entscheiden.ts`, `src/app/portal/[mandant]/freigaben/darstellung.ts`, `src/server/db/seed/bau.ts`, `tests/isolation/gruppe-nachrichtenfaeden.test.ts`, `tests/isolation/bau-vier-augen.test.ts` |
+|---|---|

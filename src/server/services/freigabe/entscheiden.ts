@@ -50,7 +50,7 @@ export interface Entschieden {
 
 export type AbweisungsGrund =
   | 'nicht_gefunden' | 'bereits_entschieden' | 'unsichere_felder' | 'ohne_begruendung'
-  | 'nicht_geoeffnet' | 'nutzlast_veraendert' | 'recht_fehlt' | 'abgewiesen';
+  | 'nicht_geoeffnet' | 'nutzlast_veraendert' | 'recht_fehlt' | 'vier_augen' | 'abgewiesen';
 
 /** Eine Abweisung, die ein Mensch lesen soll — kein Programmfehler (409, nie 500). */
 export class FreigabeAbgewiesen extends Error {
@@ -147,6 +147,14 @@ function uebersetze(fehler: unknown): unknown {
   }
   if (/nicht die vorgelegte/u.test(text)) {
     return new FreigabeAbgewiesen('nutzlast_veraendert', text, hinweis);
+  }
+  /*
+   * V-383, O-260 (0496): Behinderungsanzeige und Nachtrag gibt nicht frei,
+   * wer sie vorgelegt hat. Vor `42501`, sonst laese es sich wie ein
+   * fehlendes Recht — und die Person haelt das Recht ja.
+   */
+  if (/Vier-Augen/u.test(text)) {
+    return new FreigabeAbgewiesen('vier_augen', text, hinweis);
   }
   if (/bereits entschieden/u.test(text)) {
     return new FreigabeAbgewiesen('bereits_entschieden', text, hinweis);

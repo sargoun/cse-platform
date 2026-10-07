@@ -61,6 +61,9 @@ export const FEHLER_TEXT: Readonly<Record<string, string>> = {
   unsichere_felder: 'Solange ein Feld unsicher ist, wird nicht freigegeben. Eine Korrektur ist eine neue Freigabe; diese lässt sich nur ablehnen.',
   ohne_begruendung: 'Eine Ablehnung braucht eine Begründung — sie steht später allein in der Kette.',
   recht_fehlt: 'Das für diese Handlung erforderliche Recht fehlt.',
+  vier_augen: 'Vier-Augen-Prinzip (O-260): eine Behinderungsanzeige oder einen Nachtrag gibt '
+    + 'nicht frei, wer sie vorgelegt hat. Die Freigabe entscheidet eine andere Person, die '
+    + 'Freigaben entscheiden darf.',
   nicht_gefunden: 'Diese Freigabe existiert nicht oder ist nicht sichtbar.',
   abgewiesen: 'Die Datenbank hat die Entscheidung abgewiesen.',
   /* Die beiden Wege aus `/api/freigaben/fenster` (APR-05, APR-06). */
