@@ -28,6 +28,10 @@ import { nachSprache } from '@/lib/i18n/verwaltung/basis';
 import { SCHICHT_TEXTE } from '@/lib/i18n/verwaltung/dienstplan-schicht';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import { AUFNAHMEN_TEXTE } from '@/lib/i18n/verwaltung/aufnahmen';
+import { setzeEin } from '@/lib/i18n/vorlage';
+import {
+  leseOffeneKenntnisnahmenDerSchicht, type OffeneKenntnisnahme,
+} from '@/server/services/security/dienstanweisung';
 import { Aufnahmeliste } from '@/components/portal/Aufnahmeliste';
 import { listeSchichtMedien } from '@/server/services/mitarbeiter/medien';
 import { signierteAdressen } from '@/server/services/zeit/medien';
@@ -131,7 +135,8 @@ export default async function Einsatzblatt({
      Ein Verweis auf 404 verraet, was er nicht zeigen darf (Copilot-Runde auf
      PR 16 / D-581). */
   const darf = await haeltRechte(
-    sitzung, 'personal.nachweis_lesen', 'dienstplan.schreiben', 'auftrag.lesen');
+    sitzung, 'personal.nachweis_lesen', 'dienstplan.schreiben', 'auftrag.lesen',
+    'dienstanweisung.lesen');
   /*
    * Nur die Absage unten spricht beide Sprachen (V-013). Der uebrige Rumpf
    * dieser Seite ist deutsch fest verdrahtet und steht dafuer in der
@@ -273,12 +278,29 @@ export default async function Einsatzblatt({
         kontext, await listeSchichtMedien(kontext, id), speicher,
         Math.floor(Date.now() / 1000));
 
-      return { kopf, besetzung, kandidaten, vorschau, leistungen, aufnahmen };
+      /*
+       * V-382: wer hier eingeteilt ist und die geltende Fassung einer
+       * Dienstanweisung dieses Objekts nicht bestätigt hat — nur für den, der
+       * Dienstanweisungen lesen darf (AUT-06), und nicht an einer
+       * stornierten Schicht.
+       */
+      const offeneKenntnis: readonly OffeneKenntnisnahme[] =
+        darf['dienstanweisung.lesen'] === true && kopf.storno_grund === null
+          ? await leseOffeneKenntnisnahmenDerSchicht(kontext, id)
+          : [];
+
+      return { kopf, besetzung, kandidaten, vorschau, leistungen, aufnahmen, offeneKenntnis };
     }));
 
   // AUT-06: eine fremde oder nicht vorhandene Zeile ist 404, nie 403.
   if (daten === null) notFound();
-  const { kopf, besetzung, kandidaten, vorschau, leistungen, aufnahmen } = daten;
+  const { kopf, besetzung, kandidaten, vorschau, leistungen, aufnahmen, offeneKenntnis } = daten;
+  /* Je Anweisung ein Hinweis — die Namen darunter. */
+  const kenntnisJeAnweisung = [...offeneKenntnis.reduce((m, o) => {
+    const g = m.get(o.anweisungId) ?? { titel: o.titel, namen: [] as OffeneKenntnisnahme[] };
+    g.namen.push(o);
+    return m.set(o.anweisungId, g);
+  }, new Map<string, { titel: string; namen: OffeneKenntnisnahme[] }>())];
   const tL = nachSprache(LEISTUNGSANKER_TEXTE, zugang.sprache);
   const speicherVerbunden = speicher.verbunden;
   const tA = nachSprache(AUFNAHMEN_TEXTE, zugang.sprache);
@@ -460,6 +482,29 @@ export default async function Einsatzblatt({
           ))}
         </ul>
       )}
+
+      {/*
+        V-382, O-241: eine offene Kenntnisnahme ist ab Schichtbeginn
+        versäumt — eine Warnung an die Leitung, keine Sperre (K-17).
+      */}
+      {kenntnisJeAnweisung.map(([anweisungId, g]) => (
+        <Hinweis key={anweisungId} art="warnung" cse="kenntnisnahme-offen"
+                 className="mt-s5 max-w-prose">
+          <strong className="block">{t.kenntnisTitel}</strong>
+          <span data-cse={kopf.begonnen ? 'kenntnisnahme-versaeumt' : 'kenntnisnahme-faellig'}>
+            {setzeEin(kopf.begonnen ? t.kenntnisVersaeumt : t.kenntnisOffen, { titel: g.titel })}
+          </span>
+          <ul className="m-0 mt-s2 list-disc pl-s5">
+            {g.namen.map((n) => <li key={n.anstellungId}>{n.name}</li>)}
+          </ul>
+          <Link
+            href={`/portal/${mandant}/security/dienstanweisungen/${anweisungId}/kenntnisnahmen`}
+            className="mt-s2 inline-block text-warning underline decoration-warning underline-offset-4"
+          >
+            {t.kenntnisZurListe}
+          </Link>
+        </Hinweis>
+      ))}
 
       {kopf.storno_grund === null && (
         <section className="mt-s5 rounded-lg border border-line bg-surface p-s5">

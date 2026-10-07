@@ -52,6 +52,15 @@ export interface SchichtTexte {
   readonly abgesagt: string;
   readonly abgesagtAm: string;
 
+  /* ── Kenntnisnahme der Dienstanweisung (V-382, O-241) ─────────────────── */
+  /** Überschrift, wenn Eingeteilte die geltende Fassung nicht bestätigt haben. */
+  readonly kenntnisTitel: string;
+  /** Vor Schichtbeginn: fällig. `{titel}` ist die Anweisung. */
+  readonly kenntnisOffen: string;
+  /** Ab Schichtbeginn: versäumt — eine Feststellung, keine Sperre. */
+  readonly kenntnisVersaeumt: string;
+  readonly kenntnisZurListe: string;
+
   /**
    * Die Überschrift über einem abgewiesenen Formular auf dem Schichtblatt
    * (V-158) — und der Satz für einen Grund, den die Tabelle nicht kennt. Nie
@@ -125,6 +134,16 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     absagen: 'Schicht absagen',
     abgesagt: 'Abgesagt',
     abgesagtAm: 'Abgesagt am',
+
+    kenntnisTitel: 'Dienstanweisung nicht bestätigt',
+    kenntnisOffen:
+      'Diese Eingeteilten haben die geltende Fassung von „{titel}“ noch nicht bestätigt. '
+      + 'Fällig ist die Bestätigung vor Beginn dieser Schicht.',
+    kenntnisVersaeumt:
+      'Diese Eingeteilten haben die geltende Fassung von „{titel}“ nicht bestätigt, und die '
+      + 'Schicht hat begonnen — die Kenntnisnahme ist versäumt. Keine Sperre: die Einteilung '
+      + 'bleibt; bitte die Bestätigung nachholen lassen.',
+    kenntnisZurListe: 'Zu den Kenntnisnahmen',
 
     nichtGespeichert: 'Nichts wurde gespeichert.',
     fehlerSonst:
@@ -239,6 +258,16 @@ export const SCHICHT_TEXTE: Readonly<Record<InternSprache, SchichtTexte>> = {
     absagen: 'Call off shift',
     abgesagt: 'Called off',
     abgesagtAm: 'Called off on',
+
+    kenntnisTitel: 'Post orders not acknowledged',
+    kenntnisOffen:
+      'These assigned staff have not yet acknowledged the current version of “{titel}”. '
+      + 'The acknowledgement is due before this shift starts.',
+    kenntnisVersaeumt:
+      'These assigned staff have not acknowledged the current version of “{titel}”, and the '
+      + 'shift has started — the acknowledgement was missed. No block: the assignment stands; '
+      + 'please have them catch up.',
+    kenntnisZurListe: 'To the acknowledgements',
 
     nichtGespeichert: 'Nothing was saved.',
     fehlerSonst:

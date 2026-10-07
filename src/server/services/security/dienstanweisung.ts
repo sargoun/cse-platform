@@ -35,9 +35,12 @@
  * **Was dieser Dienst NICHT tut: sperren.** SEC-06 verlangt die Kenntnisnahme
  * und nennt keine Folge, wenn sie ausbleibt — anders als SEC-04, wo ein
  * abgelaufener Nachweis die Einteilung hart sperrt. Eine Sperre hier waere
- * eine erfundene Rechtsfolge (K-17), eine Frist ebenso.
+ * eine erfundene Rechtsfolge (K-17). Was er seit V-382 sagt, ist eine
+ * Feststellung: versaeumt ab Beginn der ersten Schicht nach der
+ * Veroeffentlichung (`kenntnisfrist`), sichtbar auf der Kenntnisnahme-Seite
+ * und an der Schicht.
  */
-// TODO(client, O-241): Voreinstellung — keine Sperre (keine erfundene Rechtsfolge, K-17); versaeumt ist die Kenntnisnahme ab Beginn der ersten Schicht auf dem Objekt nach Veroeffentlichung der Fassung, und dann sieht die Leitung eine Warnung. Die Warnung ist nicht gebaut (V-382). D-800.
+// TODO(client, O-241): Voreinstellung — keine Sperre (keine erfundene Rechtsfolge, K-17); versaeumt ist die Kenntnisnahme ab Beginn der ersten Schicht auf dem Objekt nach Veroeffentlichung der geltenden Fassung (bei spaeterer Zuweisung: danach), und dann sieht die Leitung eine Warnung — auf der Kenntnisnahme-Seite und an der Schicht (V-382, D-811). D-800.
 // TODO(client, O-153): Voreinstellung — `neue_version_oeffnet_pflicht = true`: jede neue Fassung verlangt eine neue Bestaetigung; wer die Anweisung veroeffentlicht (`security.schreiben`), kann es je Anweisung abschalten. D-789.
 
 import { randomUUID } from 'node:crypto';
@@ -729,5 +732,134 @@ export async function leseKenntnisstand(
       ? (z.art as KenntnisnahmeArt) : null,
     sprache: istDaSprache(z.sprache) ? z.sprache : null,
     aktuell: z.aktuell,
+  }));
+}
+
+/**
+ * **Wann eine offene Kenntnisnahme versäumt ist** (V-382, O-241, D-811).
+ *
+ * Voreinstellung (D-800): ab Beginn der ersten Schicht auf dem Objekt nach
+ * der Veröffentlichung der geltenden Fassung — bei einer später entstandenen
+ * Pflicht nach deren Zuweisung. Vorher ist sie fällig, nicht versäumt; ohne
+ * eine solche Schicht ist sie offen und hat keinen Zeitpunkt. Eine Schicht,
+ * die genau jetzt beginnt, zählt schon: die Wache steht am Objekt.
+ *
+ * Eine reine Funktion, damit die Grenze ohne Datenbank prüfbar ist; die
+ * Uhrzeit kommt vom Server, nie vom Gerät (Invariante 5).
+ */
+export type Kenntnisfrist =
+  | { readonly art: 'bestaetigt' }
+  | { readonly art: 'ohne_schicht' }
+  | { readonly art: 'faellig'; readonly vor: Date }
+  | { readonly art: 'versaeumt'; readonly seit: Date };
+
+export function kenntnisfrist(
+  aktuell: boolean, ersteSchicht: Date | null, jetzt: Date,
+): Kenntnisfrist {
+  if (aktuell) return { art: 'bestaetigt' };
+  if (ersteSchicht === null) return { art: 'ohne_schicht' };
+  return ersteSchicht.getTime() <= jetzt.getTime()
+    ? { art: 'versaeumt', seit: ersteSchicht }
+    : { art: 'faellig', vor: ersteSchicht };
+}
+
+/** Die erste Schicht einer Pflicht nach der Veröffentlichung. */
+export interface ErsteSchicht {
+  readonly beginn: Date;
+  /** Berliner Ortszeit, fertig aus der Datenbank (Invariante 2). */
+  readonly beginnLokal: string;
+}
+
+/**
+ * Je Pflicht dieser Anweisung die erste Schicht auf ihrem Objekt nach der
+ * Veröffentlichung der geltenden Fassung (und nach der Zuweisung) —
+ * vergangene wie kommende, abgesagte und stornierte nicht.
+ *
+ * Gelesen unter den Rechten des Betrachters: `einsatz` verlangt
+ * `dienstplan.lesen`. Wer das Recht nicht hält, bekommt eine leere Karte —
+ * die Seite sagt dann, dass sie den Schichtbezug nicht zeigen kann, statt
+ * „offen" für „versäumt" auszugeben.
+ */
+export async function leseErsteSchichten(
+  kontext: LeseKontext, anweisungId: string,
+): Promise<ReadonlyMap<string, ErsteSchicht>> {
+  const zeilen = await kontext.abfrage<{
+    anstellung_id: string; beginn: Date; beginn_lokal: string;
+  }>(
+    `select p.anstellung_id,
+            min(e.beginn_zeitpunkt) as beginn,
+            to_char(min(e.beginn_zeitpunkt) at time zone 'Europe/Berlin',
+                    'DD.MM.YYYY HH24:MI') as beginn_lokal
+       from da_pflicht p
+       join dienstanweisung d on d.id = p.dienstanweisung_id and d.mandant_id = p.mandant_id
+       join dienstanweisung_version av
+         on av.id = d.aktive_version_id and av.mandant_id = d.mandant_id
+       join einsatz_zuordnung z
+         on z.anstellung_id = p.anstellung_id and z.mandant_id = p.mandant_id
+       join einsatz e on e.id = z.einsatz_id and e.mandant_id = z.mandant_id
+      where p.dienstanweisung_id = $1::uuid
+        and p.entfallen_am is null
+        and av.veroeffentlicht_am is not null
+        and e.objekt_id = d.objekt_id
+        and e.storniert_am is null
+        and z.entfernt_am is null
+        and z.status <> 'abgesagt'
+        and e.beginn_zeitpunkt >= greatest(av.veroeffentlicht_am, p.zugewiesen_am)
+      group by p.anstellung_id`,
+    [anweisungId],
+  );
+  return new Map(zeilen.map((z) => [z.anstellung_id, {
+    beginn: new Date(z.beginn), beginnLokal: z.beginn_lokal,
+  }]));
+}
+
+/** Wer auf einer Schicht eingeteilt ist und die geltende Fassung nicht bestätigt hat. */
+export interface OffeneKenntnisnahme {
+  readonly anweisungId: string;
+  readonly titel: string;
+  readonly anstellungId: string;
+  readonly name: string;
+}
+
+/**
+ * Die offenen Kenntnisnahmen der Eingeteilten einer Schicht — der Hinweis an
+ * der Schicht (V-382). Dieselbe Bedingung wie der Kenntnisstand
+ * (`ZAEHLT_NOCH`); archivierte und unveröffentlichte Anweisungen und solche
+ * ohne Kenntnisnahmepflicht melden nichts.
+ */
+export async function leseOffeneKenntnisnahmenDerSchicht(
+  kontext: LeseKontext, einsatzId: string,
+): Promise<readonly OffeneKenntnisnahme[]> {
+  const zeilen = await kontext.abfrage<{
+    anweisung_id: string; titel: string; anstellung_id: string; name: string;
+  }>(
+    `select d.id as anweisung_id, d.titel, p.anstellung_id,
+            (pe.vorname || ' ' || pe.nachname) as name
+       from einsatz e
+       join einsatz_zuordnung z
+         on z.einsatz_id = e.id and z.mandant_id = e.mandant_id
+        and z.entfernt_am is null and z.status <> 'abgesagt'
+       join dienstanweisung d
+         on d.objekt_id = e.objekt_id and d.mandant_id = e.mandant_id
+        and d.kenntnisnahme_pflicht and d.archiviert_am is null
+        and d.aktive_version_id is not null
+       join da_pflicht p
+         on p.dienstanweisung_id = d.id and p.anstellung_id = z.anstellung_id
+        and p.entfallen_am is null
+       join person pe on pe.id = p.person_id
+      where e.id = $1::uuid
+        and not exists (
+          select 1 from da_kenntnisnahme k
+           where k.anstellung_id = p.anstellung_id
+             and k.dienstanweisung_version_id in
+                 (select v.id from dienstanweisung_version v
+                   where v.dienstanweisung_id = d.id)
+             and ${ZAEHLT_NOCH})
+      order by d.titel, pe.nachname, pe.vorname`,
+    [einsatzId],
+  );
+  return zeilen.map((z) => ({
+    anweisungId: z.anweisung_id, titel: z.titel,
+    anstellungId: z.anstellung_id, name: z.name,
   }));
 }

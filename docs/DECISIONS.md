@@ -24502,7 +24502,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-189 | Ausschliesslich EUR — Fremdwährung wird abgewiesen, nicht umgerechnet. | `bank/camt.ts`, `eingang/erechnung.ts` |
 | O-300 | Grundstücksbezug einer Leistung führt die Plattform nicht; der Hinweis nach § 14 Abs. 4 Nr. 9 UStG gehört von Hand in den Fußtext. | `ustg14.ts` |
 | O-352 | Nummernkreis eröffnen und Jahreswechsel: die Administration mit `nummernkreis.verwalten`; der Knopf folgt (V-284). | `uebersicht.ts` |
-| O-357 | Empfänger der Kettenmeldung sind Buchhaltung und Geschäftsführung. Die Zustellung ist nicht gebaut (`ProtokollAlarm` schreibt nach stderr, `kettenpruefer` löst keine Empfänger auf) — V-286; bis dahin steht der Befund in der Hashketten-Ansicht und im Betriebsbericht. | `uebersicht.ts` |
+| O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder; die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
 | O-604 | Freistellungsbescheinigungen pflegt die Buchhaltung mit `finanzen.schreiben`; für die steuerliche Lage genügt das Steuer-Leserecht. Der Schreibweg (Hochladen, Gültigkeit, Widerruf) folgt (V-283). | `eingangsrechnungen.ts` |
@@ -25715,7 +25715,7 @@ ab). O-97 ist wortgleich mit O-41 und folgt dessen Voreinstellung (D-782).
 | O-133 | Kein Pflichtfoto je Beweisart ausser dem Messfoto des Aufmaßes (BAU-03, `kern.aufmass_vorlage_pruefen`, wie gebaut); Leistungsnachweis, Wachbuch, Bautagebuch, Schicht und Referenz nehmen Fotos an und verlangen keine, und ein Beweis ohne Foto gilt nicht als unvollständig. | `api/mein/schichten/[zuordnungId]/fotos`, `bau/aufmass.ts` |
 | O-211 | Die Wache sieht Kontrollpunkte und Dienstanweisung ihres laufenden und jedes kommenden Objekts ab der Einteilung und verliert den Zugriff, wenn nach der letzten Schicht auch die Ausstempeltoleranz vorbei ist (`app.eigene_einsatz_objekte()`, 0499, V-326, D-808 — eine Grenze mit der Erfassung, O-740; dieselbe in `app.eigene_einsatz_projekte()`). Die Kenntnisnahmepflicht öffnet weiter nur für Schichten, die noch nicht zu Ende sind (0078). | `drizzle/0069`, `drizzle/0071`, `drizzle/0078` |
 | O-240 | Quittiert wird im Büro über den internen Weg (D-235), von jedem mit `schluessel.schreiben` — Leitung, Administration und die Rolle `mitarbeiter` (0008); eine Bindung an die Objektleitung gibt es nicht. Die Wache vermerkt eine Übergabe vor Ort im Wachbuch (Eintragsart `schluessel`, V-180). Wie gebaut. | `security/schluessel.ts` |
-| O-241 | Keine Sperre der Einteilung (keine erfundene Rechtsfolge, K-17). Versäumt ist die Kenntnisnahme ab Beginn der ersten Schicht auf dem Objekt nach Veröffentlichung der Fassung; dann sieht die Leitung eine Warnung — nicht gebaut (V-382). | `security/dienstanweisung.ts` |
+| O-241 | Keine Sperre der Einteilung (keine erfundene Rechtsfolge, K-17). Versäumt ist die Kenntnisnahme ab Beginn der ersten Schicht auf dem Objekt nach Veröffentlichung der geltenden Fassung (bei späterer Zuweisung: danach); dann sieht die Leitung eine Warnung — auf der Kenntnisnahme-Seite („versäumt seit …“, davor „vor der Schicht am … zu bestätigen“) und an der Schicht. Gebaut mit V-382 (`kenntnisfrist`, D-811). | `security/dienstanweisung.ts` |
 | O-260 | Vier-Augen-Prinzip: wer die Behinderungsanzeige oder den Nachtrag verfasst, gibt ihn nicht selbst frei. Entschieden wird seit 0136 mit `freigabe.entscheiden` (auch `leitung`); dass Verfasser und Entscheider verschieden sind, prüft heute niemand (V-383). Das Register nannte noch `versand.freigeben`. | `api/bau/behinderungen/[id]/versenden`, `api/bau/nachtraege/[id]/einreichen` |
 | O-346 | HEIC wird nicht angenommen: die Ortsdatenbereinigung weist es ab, und die Meldung bittet um JPEG (iPhone: „Maximale Kompatibilität"). Wie gebaut; der veraltete TODO in der Fotoroute ist berichtigt. | `storage/exif.ts`, `api/mein/schichten/[zuordnungId]/fotos` |
 | O-347 | Führungs- und Verwaltungskräfte stehen im Festgehalt ausserhalb der Plattform; ihr `stundensatz_intern` bleibt leer, die Kalkulation rechnet mit den Sätzen der gewerblichen Beschäftigten. Wer einen Satz braucht, trägt ihn unter Personal › Entgelt ein. Wie gebaut. | `db/seed/index.ts` |
@@ -26428,4 +26428,58 @@ die volle Isolationssuite (256 Dateien), `tests/kern/nachweis.test.ts`, `tests/k
 `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-380, V-292, V-321; O-31, O-195, O-165; `drizzle/0504_nachweis_ablauf_empfaenger.sql`, `drizzle/0505_agent_budget_warnschwelle.sql`, `drizzle/0506_nacherfassung_frist.sql`, `src/server/services/nachweis/ablauf.ts`, `src/server/services/nachweis/benachrichtigung.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/agent/budget.ts`, `src/server/agent/benachrichtigung.ts`, `src/server/services/agent/budget-pflege.ts`, `src/server/services/zeit/korrektur.ts`, `src/server/services/zeit/benachrichtigung.ts`, `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/page.tsx`, `src/lib/i18n/konto.ts`, `tests/isolation/berechtigungsfenster.test.ts` |
+|---|---|
+
+### D-811 · Bauwelle 7: der Bruch der Hashkette erreicht Menschen, eine versäumte Kenntnisnahme wird sichtbar (V-286, V-382)
+
+**Der Anlass.** Zwei Voreinstellungen sagten, wer etwas erfährt, und niemand
+erfuhr es: der nächtliche Kettenprüfer warf bei einem Bruch, und der Befund
+stand nur im Lauf und auf stderr (O-357, D-779); eine nicht bestätigte
+Dienstanweisung zeigte „N von M bestätigt“, aber weder Frist noch Warnung
+(O-241, D-800).
+
+**Was gebaut ist.**
+- **Kettenmeldung (V-286).** Vor dem Wurf stellt der Kettenprüfer den ersten
+  Bruch zu (`meldeKettenbruch`): an Buchhaltung und Geschäftsführung der
+  Gesellschaft — Mitglieder mit `buchhaltung.lesen` oder der Rolle `leitung`,
+  jedes Konto einmal (`kern.kette_meldung_empfaenger`, 0507, Definer, das
+  Fenster der Mitgliedschaft am Berliner Tag). `finanzen.lesen` wäre zu weit:
+  das Recht hält auch die Rolle `kunde`. Die globale Super-Administration ohne
+  Mitgliedschaft bekommt nichts — sie hat dort keinen Posteingang, und
+  `waechter_meldung` nimmt sie nicht an. Neue Art
+  `finanzen.kette_gebrochen`: nie sammelbar (SPEC §14 „alert immediately“),
+  Ziel die Hashketten-Ansicht, der Grund im Satz der Ansicht. Einmal je Bruch,
+  nicht jede Nacht: das Gedächtnis ist `waechter_meldung` mit der Rechnung als
+  Gegenstand und dem Grund als Lage — erst die Quittung, dann die Zustellung,
+  die Quittung zurück, wenn nichts ankam. Der Wurf bleibt (`job_lauf_mandant`,
+  Alarm) und nennt, wie viele erreicht wurden.
+- **Versäumte Kenntnisnahme (V-382).** `kenntnisfrist` stellt fest, was eine
+  offene Zeile ist: fällig vor der ersten Schicht auf dem Objekt nach der
+  Veröffentlichung der geltenden Fassung (und nach der Zuweisung), versäumt
+  ab deren Beginn, ohne solche Schicht offen ohne Zeitpunkt. Die erste
+  Schicht liest `leseErsteSchichten` — abgesagte Einteilungen und stornierte
+  Schichten zählen nicht, Schichten auf anderen Objekten auch nicht. Die
+  Kenntnisnahme-Seite zeigt „versäumt seit …“ (rote Zeile, Pille
+  „Überfällig“, Zahl im Kopf) und davor „vor der Schicht am … zu
+  bestätigen“; ohne `dienstplan.lesen` sagt sie, dass sie den Schichtbezug
+  nicht zeigen kann. Das Schichtblatt nennt die Eingeteilten, die die
+  geltende Fassung einer Anweisung des Objekts nicht bestätigt haben — vor
+  Beginn als fällig, ab Beginn als versäumt, mit Verweis auf die
+  Kenntnisnahmen (de/en, nur mit `dienstanweisung.lesen`). Keine Sperre: die
+  Einteilung bleibt (K-17).
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-357 | Die Kettenmeldung geht an Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, in den Posteingang, einmal je Bruch — wie D-779, jetzt gebaut. | `drizzle/0507`, `jobs/kettenpruefer.ts`, `waechter/benachrichtigung.ts` |
+| O-241 | Versäumt ab Beginn der ersten Schicht auf dem Objekt nach der Veröffentlichung, Warnung an die Leitung auf der Kenntnisnahme-Seite und an der Schicht, keine Sperre — wie D-800, jetzt gebaut. | `security/dienstanweisung.ts`, Kenntnisnahmen, Schichtblatt |
+
+**Prüfung.** `tests/isolation/kette-job.test.ts` (Empfänger, einmal je Bruch nach
+drei Läufen), `tests/isolation/dienstanweisung-versaeumt.test.ts` (erste Schicht,
+fremdes Objekt, vor der Veröffentlichung, Bestätigung), `tests/kern/kettenmeldung.test.ts`,
+`tests/kern/kenntnisfrist.test.ts` (Grenze am Schichtbeginn, Rücknacht), `tests/kern`
+komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-286, V-382; O-357, O-241; `drizzle/0507_kette_meldung_empfaenger.sql`, `src/server/jobs/kettenpruefer.ts`, `src/server/jobs/bootstrap.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/lib/i18n/konto.ts`, `src/server/services/security/dienstanweisung.ts`, `src/app/portal/[mandant]/security/dienstanweisungen/[id]/kenntnisnahmen/page.tsx`, `src/app/portal/[mandant]/dienstplan/einsatz/[id]/page.tsx`, `src/lib/i18n/verwaltung/dienstplan-schicht.ts` |
 |---|---|
