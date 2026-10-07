@@ -86,12 +86,12 @@ export function regelFuer(kategorie: Kategorie): AufbewahrungsRegel {
 export const FASSUNG_GESPERRT: readonly Kategorie[] = ['rechnung', 'beleg', 'buchhaltung'];
 
 /**
- * Die übrigen sechs — ein PLATZHALTER, kein Urteil.
+ * Die übrigen sechs — die VOREINSTELLUNG (O-937, D-800).
  *
- * TODO(client, O-937): Welche Dokumentkategorien sollen überhaupt Fassungen
- * führen („where the document type warrants it", DOC-05) — alle übrigen sechs,
- * oder etwa nur Vertrag, Angebot und Projektunterlage? Bis zur Antwort sperrt
- * die Plattform nur, was GoBD sperrt, und lässt die übrigen sechs zu.
+ * TODO(client, O-937): Voreinstellung — alle sechs übrigen Kategorien führen
+ * Fassungen; gesperrt ist nur, was GoBD sperrt (Rechnung, Beleg,
+ * Buchhaltung). Eine engere Liste änderte diese Konstante und den Auslöser
+ * (0488). Wie gebaut. D-800.
  */
 export const FASSUNG_ERLAUBT_PLATZHALTER: readonly Kategorie[] =
   KATEGORIEN.filter((k) => !FASSUNG_GESPERRT.includes(k));

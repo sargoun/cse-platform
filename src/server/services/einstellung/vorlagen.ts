@@ -157,8 +157,11 @@ export function platzhalterIn(text: string): readonly string[] {
  *
  * **`ist_platzhalter` wird `false`.** Wer den Wortlaut eintraegt, bestaetigt
  * ihn; das ist die Antwort auf die Frage, die die Platzhalterzeilen stellen.
- * Der Versand laesst eine Platzhalterzeile nicht hinaus, und genau darum ist
- * die Bestaetigung hier der einzige Weg, ihn zu oeffnen.
+ * Der Versand prueft die Kennzeichnung NICHT — eine Anzeige mit der
+ * Voreinstellung geht nach der Freigabe hinaus (Invariante 7), und das
+ * Formular nennt die Vorlage „unbestaetigter Wert" (O-23, D-800). Hier stand,
+ * der Versand liesse eine Platzhalterzeile nicht hinaus; eine solche Pruefung
+ * gibt es nicht.
  */
 export async function setzeBehinderungsvorlage(
   kontext: SchreibKontext, e: BehinderungsvorlageEingabe,

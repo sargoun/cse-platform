@@ -124,9 +124,8 @@ export const PROJEKT_TEXTE: Readonly<Record<InternSprache, ProjektTexte>> = {
       + '— und das fiele erst auf der Rechnung auf.',
     nummerIstAuftragsnummer:
       'Die Projektnummer ist die Auftragsnummer. Sie kommt damit aus dem '
-      + 'bestätigten Nummernkreis und nicht aus einem erfundenen Format; nach '
-      + 'welchem Schlüssel Bauvorhaben endgültig nummeriert werden, ist noch zu '
-      + 'entscheiden (O-351).',
+      + 'bestätigten Nummernkreis und nicht aus einem erfundenen Format '
+      + '(Voreinstellung O-351).',
     grundlageErklaerung:
       'VOB/B oder BGB entscheidet über Fristen, Abnahme, Mängelrechte und den '
       + 'Umgang mit Nachträgen (§ 2 VOB/B gegen § 631 BGB). Voreinstellung (O-154): '
@@ -195,9 +194,8 @@ export const PROJEKT_TEXTE: Readonly<Record<InternSprache, ProjektTexte>> = {
       + 'shows up on the invoice.',
     nummerIstAuftragsnummer:
       'The project number is the Auftragsnummer (the order number). It therefore '
-      + 'comes from a confirmed number range rather than an invented format; which '
-      + 'key construction projects are finally numbered by is still to be decided '
-      + '(O-351).',
+      + 'comes from a confirmed number range rather than an invented format '
+      + '(default O-351).',
     grundlageErklaerung:
       'VOB/B or BGB decides deadlines, Abnahme (formal acceptance), defect rights '
       + 'and how Nachträge (claims for changed or additional work) are handled '

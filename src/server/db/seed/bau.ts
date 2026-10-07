@@ -561,9 +561,8 @@ export async function seedBau(
     /**
      * Die Projektnummer IST die Auftragsnummer.
      *
-     * // TODO(client, O-351): Nach welchem Schluessel werden Bauprojekte
-     * nummeriert — ein eigener Kreis je Gesellschaft, die Auftragsnummer oder
-     * eine Bauvorhabenskennung des Auftraggebers? Das Projekt IST der Auftrag
+     * // TODO(client, O-351): Voreinstellung — die Projektnummer ist die
+     * Auftragsnummer (D-800). Das Projekt IST der Auftrag
      * (§7.1, `projekt_auftrag_uk`), deshalb ist die Auftragsnummer die
      * Antwort, die am wenigsten erfindet — ein ausgedachtes Format
      * „BV-2026-001“ saehe dagegen aus wie ein bestaetigter Nummernkreis und

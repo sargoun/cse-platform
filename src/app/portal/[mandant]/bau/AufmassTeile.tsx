@@ -73,8 +73,8 @@ export function AufmassZeilenBlock(
       <p className="mt-s2 text-xs text-text-subtle">
         Das Ergebnis wird als ganze Zahl in fester Skala gespeichert
         (10⁻⁴ der Einheit) und aus der Formel berechnet — nicht eingetippt.
-        Abzüge nach VOB/C wendet die Anwendung nicht automatisch an (offene
-        Frage O-23).
+        Abzüge nach VOB/C wendet die Anwendung nicht automatisch an — sie stehen
+        im Rechenansatz, wie die Bauleitung sie einträgt (Voreinstellung O-23).
       </p>
     </section>
   );

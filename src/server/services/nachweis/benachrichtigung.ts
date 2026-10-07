@@ -29,6 +29,14 @@ import { setze, texteFuer } from '../../../lib/i18n/benachrichtigung.js';
  * `ArtFehler`; der Waechter meldet sie dann als nicht zustellbar, statt sie
  * stillschweigend fallen zu lassen.
  */
+/**
+ * TODO(client, O-31): Voreinstellung — Stufen 60, 30 und 7 Tage vor Ablauf
+ * (je Qualifikation aenderbar, `warnung_tage`); die Meldung geht an die
+ * Beschaeftigte selbst, ab 30 Tagen zusaetzlich an die Personalstelle, ab 7
+ * Tagen an die Leitung der Gesellschaft. Gebaut ist die Meldung an die
+ * Beschaeftigte; Personalstelle und Leitung sehen den Ablauf heute im
+ * Nachweisregister und auf der Security-Uebersicht (V-380). D-800.
+ */
 export const WARNSTUFEN = [60, 30, 7] as const;
 
 export type Warnstufe = (typeof WARNSTUFEN)[number];

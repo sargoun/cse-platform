@@ -56,10 +56,10 @@ export class TabellenFehler extends Error {
  *  - und der Dateiname (`.xlsx`, `.xlsm`, `.xls`, `.ods`) fuer den Fall, dass
  *    der Anfang fehlt oder abgeschnitten ist.
  *
- * // TODO(client, O-919): Soll der Import Excel-Arbeitsmappen direkt lesen —
- * und welche Bibliothek darf dafuer ungepruefte ZIP/XML-Dateien entpacken
- * (Formeln: berechneter Wert oder Abweisung; welches Blatt)? Bis zur Antwort
- * wird eine erkannte Tabellenkalkulation abgewiesen, nie halb gelesen.
+ * // TODO(client, O-919): Voreinstellung — CSV bleibt der Weg; eine erkannte
+ * Tabellenkalkulation (.xlsx, .xlsm, .xls, .ods) wird mit dem Hinweis
+ * „Speichern unter › CSV" abgewiesen, nie halb gelesen. Keine
+ * Tabellenbibliothek, die fremde ZIP/XML-Dateien entpackt. Wie gebaut. D-800.
  */
 export function istTabellenkalkulation(dateiname: string, anfang: Uint8Array): boolean {
   if (/\.(xlsx|xlsm|xls|ods)$/iu.test(dateiname.trim())) return true;

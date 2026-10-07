@@ -450,7 +450,7 @@ export function fassungSchluessel(
  * ein altes Angebot mit heute abgelegter Fassung im Kreis des Nachtlaufs und
  * wäre samt der neuen Fassung gelöscht worden.
  *
- * // TODO(client, O-955): Läuft nach einer neuen Fassung jede Fassung für sich ab, oder gilt die längere Frist für das ganze Dokument mit allen Fassungen? Ausgeliefert ist das Zweite als Platzhalter.
+ * // TODO(client, O-955): Voreinstellung — die längere Frist gilt für das ganze Dokument mit allen Fassungen; nichts wird zu früh gelöscht, und der Nachtlauf nimmt das Dokument erst nach der längsten Frist mit (D-758). Wie gebaut. D-800.
  */
 export async function legeFassungAn(
   kontext: SchreibKontext, speicher: Speicher, dokumentId: string, roh: FassungEingabe,

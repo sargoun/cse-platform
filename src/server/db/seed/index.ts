@@ -751,10 +751,11 @@ async function main(): Promise<void> {
    * Er ist bei den sechs gewerblichen Beschaeftigungen ein DEMOWERT und bei
    * den SECHS Fuehrungs- und Verwaltungsstellen `null` — nicht aus
    * Bequemlichkeit:
-   * // TODO(client, O-347): In welcher Beschäftigungsform stehen die
-   * Führungs- und Verwaltungskräfte der drei Gesellschaften, und wird ihre
-   * Vergütung als Stundensatz geführt oder als Festgehalt, das die Plattform
-   * gar nicht trägt?
+   * // TODO(client, O-347): Voreinstellung — Führungs- und Verwaltungskräfte
+   * stehen im Festgehalt ausserhalb der Plattform; ihr `stundensatz_intern`
+   * bleibt leer, und die Kalkulation rechnet nur mit den Sätzen der
+   * gewerblichen Beschäftigten. Wer einen Satz braucht, trägt ihn unter
+   * Personal › Entgelt ein. D-800.
    * Eine erfundene Zahl waere genau der Fall, den `docs/DECISIONS.md`
    * verbietet: sie saehe bestaetigt aus, ginge in jede Kalkulation ein und
    * fiele niemandem mehr auf. `arbeitszeitmodell` bleibt bei allen auf dem
@@ -842,7 +843,7 @@ async function main(): Promise<void> {
   process.stdout.write(
     `  ${menschen.length} Menschen, ${anstellungen.length} Beschäftigungen, `
     + `${anstellungen.length} datierte Konditionen, 1 Dublette `
-    + '(Vergütung der Leitungen offen: O-347)\n');
+    + '(Leitungen ohne Stundensatz: Voreinstellung O-347)\n');
 
   // --------------------------------------------------------- Nummernkreise
   /**

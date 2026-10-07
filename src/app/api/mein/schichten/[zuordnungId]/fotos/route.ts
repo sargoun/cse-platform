@@ -43,9 +43,9 @@ import { internesZiel } from '@/server/auth/ursprung';
  * (0303). `kunde_id` leitet der Ausloeser `kern.einsatz_medien_bezug_pruefen`
  * als Definer aus dem Elternteil ab; diese Route schickt sie nicht mit.
  *
- * **Offen, und deshalb hier nicht erfunden:**
- * // TODO(client, O-133): Wie viele Aufnahmen sind je Beweisart verpflichtend, und ab wann gilt ein Beweis als unvollstaendig?
- * // TODO(client, O-346): Wird HEIC vom Telefon angenommen oder vorher umgewandelt — heute laesst die me_mime-Bedingung es zu, der Browser zeigt es aber nicht ueberall an?
+ * **Voreinstellungen (D-800):**
+ * // TODO(client, O-133): Voreinstellung — kein Pflichtfoto je Beweisart ausser dem Messfoto des Aufmasses (BAU-03, gebaut); Leistungsnachweis, Wachbuch, Bautagebuch und Schicht nehmen Fotos an, verlangen keine, und ein Beweis gilt ohne Foto nicht als unvollstaendig. Wie gebaut. D-800.
+ * // TODO(client, O-346): Voreinstellung — HEIC wird nicht angenommen: `me_mime` laesst es zwar zu, aber die Ortsdatenbereinigung weist es ab (`exif.ts`), und die Seite bittet um JPEG. Wie gebaut. D-800.
  */
 export const dynamic = 'force-dynamic';
 
