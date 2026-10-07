@@ -49,9 +49,9 @@ test.describe('(4) robots.txt, sitemap.xml und llms.txt liefern aus', () => {
     }
     // Die Erklärung ist eine Codeseite und steht in keiner `seite`-Zeile.
     expect(xml).toContain('<loc>http://localhost:3000/barrierefreiheit</loc>');
-    // Der Karrierebereich ebenso (O-512, D-802) — bis V-393 nur deutsch (`NUR_DEUTSCH`).
+    // Der Karrierebereich ebenso (O-512, D-802) — seit V-393 in beiden Sprachen (D-807).
     expect(xml).toContain('<loc>http://localhost:3000/karriere</loc>');
-    expect(xml).not.toContain('/en/karriere');
+    expect(xml).toContain('<loc>http://localhost:3000/en/karriere</loc>');
 
     // `Disallow` ist eine Bitte; eine fehlende Zeile in der Sitemap ist eine
     // Tatsache. Beides, nicht eines.

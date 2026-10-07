@@ -25206,7 +25206,7 @@ hiess. Das Kundenportal nennt sie an sechs Stellen „Voreinstellung" statt
 | O-75 | Den internen Stundensatz liest nur, wer `personal.entgelt_lesen` hält — in der Matrix die Super-Administration (0008); eine Leitung nicht, es sei denn, die Gesellschaft bindet das Recht an ihre Rolle (D-780). Wie gebaut. | `personal/anstellung.ts`, `drizzle/0008`, `drizzle/0193` |
 | O-76 | Die Administration hält `eingang.freigeben`, `finanzen.festschreiben`, `buchhaltung.festschreiben`, `mahnung.freigeben` und `freigabe.entscheiden`; die Leitung `freigabe.entscheiden` und `eingang.schreiben` (0008). Module einer Administration setzt die Super-Administration mit zweitem Faktor (0416). Wie gebaut. | `auth/zugang.ts`, `drizzle/0008` |
 | O-78 | Bautagebuch und Wachbuch bleiben dem Kunden verschlossen (`p_intern_einsatz_decke`, kein `t_kunde`); einen kundensichtbaren Auszug gibt es nicht. Wie gebaut. | `kundenportal/projekt.ts` |
-| O-79 | Zwölf Stunden absolut je Sitzung in allen Portalen (`SITZUNG_MAX_ALTER_SEK`), keine Leerlauffrist; bei Geräteverlust sperrt die Verwaltung das Konto (0379), die laufende Sitzung endet spätestens mit den zwölf Stunden — ein Widerruf einzelner Sitzungen fehlt (V-331). | `auth/sitzung.ts` |
+| O-79 | Zwölf Stunden absolut je Sitzung in allen Portalen (`SITZUNG_MAX_ALTER_SEK`), dazu acht Stunden ohne Aktivität (`auth.leerlauf_minuten`, plattformweit 480); jede Anfrage prüft das Konto mit (Status, Sperre, Deaktivierung — `app.sitzung_aufloesen`). Bei Geräteverlust beendet man unter Konto › Sicherheit einzelne oder alle anderen eigenen Anmeldungen (V-039, „Alle anderen beenden" mit V-331, D-807); die Verwaltung widerruft die Anmeldungen eines fremden Kontos (V-076) oder sperrt es (0379). | `auth/sitzung.ts`, `konto/sitzungen.ts`, Konto › Sicherheit |
 | O-80 | Anmeldung: 10 Fehlversuche je Kennung und 50 je IP in 15 Minuten, dann 30 Minuten Sperre (`auth.max_versuche_kennung`, `auth.max_versuche_ip`, `auth.fenster_minuten`, `auth.sperrdauer_minuten`; 0007/0379), automatisch ablaufend oder durch die Administration entsperrt; der Mensch sieht „zu viele Versuche". Formulare: 5 Einsendungen je Verbindung in 15 Minuten. Wie gebaut. | `lead/annahme.ts`, `drizzle/0007`, `drizzle/0379` |
 | O-81 | Honigtopf-Feld plus Ratenlimit je Verbindung auf den öffentlichen Formularen und den Anmeldeendpunkten; kein Fremd-CAPTCHA (PUB-13). Wie gebaut. | `lead/annahme.ts` |
 | O-83 | Zehn Wiederherstellungscodes je Konto (`CODES_ANZAHL`, als SHA-256 gespeichert); zwei Super-Administrationen je Gruppe; Break-glass: ein Wiederherstellungscode, sonst setzt die zweite Super-Administration den Faktor zurück. Wer welchen Faktor hält, trägt der Betreiber ein. | `auth/kennwort-anmeldung.ts`, `auth/zwei-faktor/einrichten` |
@@ -25568,7 +25568,7 @@ O-28 und O-374 bleiben Betreiberdaten, O-375 ebenso (D-784).
 | O-201 | Je Kriterium (aus den Anforderungen der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der gewichtete Mittelwert in Zehnteln, die Gewichte müssen nicht 100 ergeben, ohne Gewicht ist eine Bewerbung unbewertet. Die Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. | `recruiting/rangfolge.ts`, Recruiting › Bewertung |
 | O-202 | E-Mail zusätzlich für die Arten mit Frist oder Risiko — Agentenbudget, Radar, Nachweisablauf, Wiedervorlage, neuer Lead, Lead-Frist, unbesetzte Schicht, Nachtrag; nur im Portal Schicht ohne Zeiteintrag, Einwandentscheidung und Planveröffentlichung — so, wie die Arten es eintragen (`kanaeleVorgabe`); jede Person ändert es unter Konto › Benachrichtigungen. Zugestellt wird per E-Mail noch nichts (V-367). | `benachrichtigung/registry.ts` |
 | O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter steht in der Adresse (`?bereich=`, gebaut mit V-364, D-806). | `app/(public)/karriere/page.tsx` |
-| O-373 | 180 Tage (sechs Monate), eine Zahl für alle Gesellschaften, änderbar in `recruiting.aufbewahrung_tage`; gezählt ab der Absage, weil § 15 Abs. 4 AGG und die Klagefrist von dort laufen, ohne Entscheidung ab Eingang. Gebaut ist der Eingang (V-365); die Seiten sagen beides. | Recruiting, Recruiting › Datenschutz, `datenschutz/verzeichnis.ts`, `jobs/bewerberLoeschung.ts` |
+| O-373 | 180 Tage (sechs Monate), eine Zahl für alle Gesellschaften, änderbar in `recruiting.aufbewahrung_tage`; gezählt ab der Absage, weil § 15 Abs. 4 AGG und die Klagefrist von dort laufen, ohne Entscheidung ab Eingang. Gebaut mit V-365 (0498, D-807): eine Absage stellt `aufbewahrung_bis` auf den Berliner Entscheidungstag plus Frist, nie früher als ab Eingang; die Seiten sagen beides. | Recruiting, Recruiting › Datenschutz, `datenschutz/verzeichnis.ts`, `jobs/bewerberLoeschung.ts` |
 | O-376 | Die Bewerbung eines Eingestellten wandert in die Personalakte und folgt deren Frist (O-514). Nicht gebaut (V-366); bis dahin hält der Nachtlauf sie zurück und die Datenschutzseite zeigt sie (wie gebaut). | `jobs/bewerberLoeschung.ts`, Recruiting › Datenschutz, `datenschutz/loeschkonzept.ts` |
 | O-954 | Im Prüfprotokoll steht nur, DASS ein Absagegrund erfasst ist; der Wortlaut steht in der Gesprächszeile, geht mit ihr (REC-07) und steht in der Art.-15-Auskunft. Wie gebaut; der Hinweis beim Absagen ist berichtigt. | `recruiting/gespraech.ts`, `lib/i18n/verwaltung/recruiting-gespraech.ts` |
 | O-938 | Postfach, Anbieter, Region und Vertrag trägt der Betreiber ein (Betreiberdaten, wie O-28). Die Frist einer übertragenen Bewerbung beginnt mit der Übernahme (wie gebaut; nach O-373 ab der Absage), und nach der Übernahme wird die Nachricht im Postfach gelöscht — heute von Hand, der Hinweis sagt es. | `integrationen/bewerbungspostfach.ts`, `recruiting/postfach.ts` |
@@ -25838,7 +25838,7 @@ denselben Blöcken gehören nicht hierher: die Rechtsform der CSE Operations
 | O-131 | Erfasst wird von Hand: Notiz, Anruf, E-Mail oder Termin, eingehend oder ausgehend, am Kunden oder am Ansprechpartner (`POST /api/crm/notiz`, V-147); der Verlauf zeigt sie mit den Portalnachrichten zusammen. Ein Kundenpostfach je Gesellschaft ist nicht verbunden — Postfach und Zugang trägt der Betreiber ein, wie beim Bewerbungspostfach (O-938). Wie gebaut. | `api/crm/notiz`, `crm/verlauf.ts` |
 | O-205 | Kein Konformitätsstatus, solange keine Prüfung vorliegt: der Kasten „Noch nicht abgegeben" bleibt und nennt jetzt nur, was wirklich fehlt — Status und Datum der Erstprüfung (die Frage bleibt in `OFFEN_GEBLIEBEN`, `annahmen.test.ts`). Neu steht die Durchsetzungsstelle da: die Marktüberwachungsstelle der Länder für die Barrierefreiheit von Produkten und Dienstleistungen (MLBF) mit Sitz in Magdeburg (de/en). Meldungen gehen über das Formular in den internen Eingang mit Frist (V-032) und an die Adresse der ersten Gesellschaft mit E-Mail (wie gebaut); ein eigenes Postfach für Barrierefreiheit trägt der Betreiber ein, wenn er eines will. | `(public)/barrierefreiheit/Erklaerung.tsx`, `lib/i18n/texte.ts` |
 | O-207 | Die Entwurfstexte sind die Voreinstellung und stehen veröffentlicht da — sachlich, ohne Zahlen, Auszeichnungen, Kundennamen oder Zusagen. Der Betreiber prüft und ergänzt sie in der Website-Pflege. `pnpm content:import` ist das Werkzeug für eine Datenbank ohne Pflege: es setzt jeden Abschnitt, dessen Text vom Seed abweicht, auf den Seed zurück, auch eine Pflege im Portal (V-386); seine Ausgabe sagt das jetzt. | `db/seed/{inhalt,inhalt-en}.ts`, `scripts/content-import.ts` |
-| O-512 | (a) Ja: `/karriere` und jede offene Stelle (`/karriere/<id>`) stehen jetzt in der Sitemap, mit derselben Bedingung wie die Karriereseite (`offeneStellenKennungen` neben `offeneStellen`) — keine zweite Liste; anders als die Seite ohne die 50er-Grenze, gemeldet wird jede veröffentlichte Stelle; ohne `lastModified` (R-11). (b) Englisch, wie D-82 es für die ganze öffentliche Website verlangt: der Karrierebereich bekommt seinen Baum unter `/en/karriere` — **nicht gebaut (V-393)**. Bis dahin steht er in `NUR_DEUTSCH`, der Sprachumschalter bietet dort kein Englisch an, und die Sitemap meldet ihn ohne `hreflang`: ein Verweis auf eine Fassung, die es noch nicht gibt, wäre falsch. | `app/sitemap.ts`, `(public)/karriere/daten.ts`, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
+| O-512 | (a) Ja: `/karriere` und jede offene Stelle (`/karriere/<id>`) stehen jetzt in der Sitemap, mit derselben Bedingung wie die Karriereseite (`offeneStellenKennungen` neben `offeneStellen`) — keine zweite Liste; anders als die Seite ohne die 50er-Grenze, gemeldet wird jede veröffentlichte Stelle; ohne `lastModified` (R-11). (b) Englisch, wie D-82 es für die ganze öffentliche Website verlangt: der Karrierebereich steht unter `/en/karriere` (gebaut mit V-393, D-807) — dieselben Bauteile, die Stellentexte so, wie das Recruiting sie schreibt (deutsch, mit `lang="de"` und einem Satz dazu); die Sitemap meldet beide Sprachen mit gegenseitigem `hreflang`. | `app/sitemap.ts`, `(public)/karriere/daten.ts`, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-652 | Eine Leistungsseite gehört der Gesellschaft, die die Leistung erbringt, und nennt sie als `provider`, sobald die Zeile ihre `mandant_id` trägt (`seitenService`, wie gebaut). Welche Leistungen eine eigene Seite bekommen, entscheidet die Redaktion; bis sie eine anlegt, bleibt es bei der Demonstrationsseite `/leistungen/unterhaltsreinigung`. Sie ist keiner Gesellschaft zugeordnet und nennt keinen Anbieter, weil weder der Import noch die Seitenpflege `seite.mandant_id` setzen (V-293, berichtigt und um diesen Fall ergänzt). Kanonisch bleiben die Leistungen einer Gesellschaft unter `/unternehmen/<bereich>/leistungen` (§2.2). Der Text der Seite sagt es (de/en). | `services/inhalt/jsonld.ts`, `db/seed/{inhalt,inhalt-en}.ts` |
 
 **Was sich NICHT ändert.** Kein Recht, keine Policy, keine Migration, keine
@@ -26103,4 +26103,49 @@ Profil noch eine Prüfung.
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-359, V-364, V-344, V-304, V-288; O-350, O-38, O-663, O-720, O-704; `drizzle/0497_qualitaetspruefung_archiv.sql`, `src/server/services/angebot/index.ts`, `src/app/(public)/karriere/{page,daten}.ts(x)`, `src/server/services/crm/wiedervorlage.ts`, `src/app/portal/[mandant]/kalender/[id]/page.tsx`, `src/server/services/radar/profil.ts`, `src/app/api/radar/profil/route.ts`, `src/app/portal/[mandant]/radar/{daten.ts,profile/**}`, `src/server/services/reinigung/qualitaet.ts`, `src/app/api/qualitaet/pruefungen/route.ts`, `src/app/portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx` |
+|---|---|
+
+### D-807 · Bauwelle 3: Karrierebereich englisch, alle anderen Anmeldungen beenden, Bewerberfrist ab der Absage (V-393, V-331, V-365)
+
+**Der Anlass.** Drei Voreinstellungen standen beschlossen und ungebaut: der
+Karrierebereich englisch wie die übrige Website (O-512 (b), D-802 nach der
+Copilot-Runde auf PR 38), der Weg aus einem verlorenen Gerät (O-79, D-790) und
+die Bewerberfrist ab der Absage (O-373, D-797).
+
+**Was gebaut ist.**
+- **Karriere englisch (V-393).** Fünf Routen unter `/en/karriere`, gebaut aus
+  denselben Bauteilen wie die deutschen (`karriere/Seiten.tsx`), die Sätze in
+  `karriere/texte.ts`. Das Formular bleibt eine Definition (D-83) und schickt
+  `sprache=en`; `POST /api/karriere/bewerbung` führt Abweisung und Dank in die
+  Sprache des Formulars zurück. Die Stellentexte stehen, wie das Recruiting sie
+  schreibt — deutsch, mit `lang="de"` (WCAG 3.1.2) und einem Satz dazu; die
+  Rahmenschrift ist englisch. `/karriere` steht nicht mehr in `NUR_DEUTSCH`,
+  die Gruppenverweise der Hülle bleiben auf Englisch englisch, und die Sitemap
+  meldet beide Sprachen mit gegenseitigem `hreflang`.
+- **Alle anderen Anmeldungen beenden (V-331).** Konto › Sicherheit trägt einen
+  Knopf dafür (de/en/ar/tr); die laufende Anmeldung bleibt, die Policy hält
+  fremde heraus. Was V-331 sonst verlangte, stand schon: einzelne Anmeldungen
+  beenden (V-039), fremde widerrufen (V-076), und `app.sitzung_aufloesen`
+  prüft bei jeder Anfrage Status, Sperre und Deaktivierung. Die Zeile zu O-79
+  sagte das Gegenteil und nannte keine Leerlauffrist, obwohl acht Stunden
+  gelten (`auth.leerlauf_minuten`) — sie ist berichtigt.
+- **Bewerberfrist ab der Absage (V-365).** 0498: der Nachzug der Entscheidung
+  stellt bei einer Absage die Uhr neu — Berliner Entscheidungstag plus
+  `recruiting.aufbewahrung_tage`, nie früher als ab Eingang; eine Einstellung
+  ändert nichts. Formular und Dankesseite sagen es in beiden Sprachen.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-512 | Der Karrierebereich ist englisch wie die übrige Website; die Stellentexte erscheinen in der Sprache, in der das Recruiting sie schreibt (deutsch), mit einem Satz dazu (wie D-802, jetzt gebaut). | `karriere/Seiten.tsx`, `karriere/texte.ts`, `app/sitemap.ts` |
+| O-373 | Frist ab der Absage, ohne Entscheidung ab Eingang (wie D-797, jetzt gebaut). | `drizzle/0498`, `karriere/texte.ts` |
+
+**Prüfung.** `tests/kern/karriere-englisch.test.ts`, `tests/kern/sprachpfade.test.ts`,
+`tests/kern/oeffentliche-navigation.test.ts`, `tests/kern/website-hinweise.test.ts`,
+`tests/kern/konto-sitzung-rueckweg.test.ts`, `tests/isolation/eigene-sitzungen.test.ts`,
+`tests/isolation/recruiting.test.ts` (in der CI), `tests/e2e/seo.spec.ts`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-393, V-331, V-365; O-512, O-79, O-373; `drizzle/0498_bewerberfrist_ab_absage.sql`, `src/app/(public)/karriere/**`, `src/app/(public)/en/karriere/**`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/sitemap.ts`, `src/lib/sprache.ts`, `src/lib/oeffentliche-navigation.ts`, `src/server/services/konto/sitzungen.ts`, `src/app/api/konto/sitzung/route.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/lib/i18n/konto.ts`, `docs/DESIGN.md` |
 |---|---|

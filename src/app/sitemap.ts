@@ -61,21 +61,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   /**
-   * **Der Karrierebereich** (O-512, Voreinstellung D-802). `/karriere` ist eine
+   * **Der Karrierebereich** (O-512, D-802, D-807). `/karriere` ist eine
    * Codeseite wie die Erklärung; die offenen Stellen kommen aus dem Leser der
    * Karriereseite (`offeneStellenKennungen`, dieselbe Bedingung wie
    * `offeneStellen`): die Sichtbarkeitsregel bleibt die der Policy, keine
    * zweite Liste — und ohne die 50er-Grenze der Seite, gemeldet wird jede
-   * Stelle, die es gibt. Nur deutsch, bis der englische Baum steht (V-393,
-   * D-82): ein `hreflang="en"` verwiese auf eine Fassung, die es noch nicht
-   * gibt. Ohne `lastModified`: der Leser trägt keinen Zeitpunkt, und „heute"
-   * wäre jeden Tag eine neue Behauptung (R-11).
+   * Stelle, die es gibt. In beiden Sprachen, seit es `/en/karriere` gibt
+   * (V-393, D-82), mit gegenseitigen `hreflang`-Paaren aus `alternativen` —
+   * dieselbe Quelle wie bei der Erklärung. Ohne `lastModified`: der Leser
+   * trägt keinen Zeitpunkt, und „heute" wäre jeden Tag eine neue Behauptung
+   * (R-11).
    */
   const stellen = await offeneStellenKennungen();
-  const karriere = [
-    { url: `${basis}/karriere` },
-    ...stellen.map((id) => ({ url: `${basis}/karriere/${id}` })),
-  ];
+  const karriere = ['/karriere', ...stellen.map((id) => `/karriere/${id}`)].flatMap((pfad) =>
+    SPRACHEN.map((s) => ({
+      url: `${basis}${mitSprache(pfad, s)}`,
+      alternates: { languages: alternativen(pfad, basis) },
+    })));
 
   return [...seiten, ...detailseiten, ...barrierefreiheit, ...karriere];
 }
