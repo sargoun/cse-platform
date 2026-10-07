@@ -67,17 +67,16 @@ describe('die Gruppenseiten sind verlinkt (V-155)', () => {
     ]);
   });
 
-  it('englisch bleibt englisch — ausser /karriere, das es nur deutsch gibt', () => {
+  it('englisch bleibt englisch — auch /karriere, seit es den englischen Baum gibt (V-393)', () => {
     /*
-     * `/en/karriere` wäre ein 404 (NUR_DEUTSCH). Der Verweis führt deshalb auf
-     * die deutsche Seite und TRÄGT die Sprache: die Hülle setzt daraus
-     * `hrefLang="de"` und „(in German)". Weglassen wäre die schlechtere Wahl —
-     * eine Bewerberin, die auf Englisch liest, erführe nie, dass es Stellen
-     * gibt.
+     * Bis V-393 stand `/karriere` in NUR_DEUTSCH, und der Verweis führte von
+     * einer englischen Seite auf die deutsche (mit `hrefLang="de"` und „(in
+     * German)"). Jetzt gibt es `/en/karriere` — und der Verweis bleibt in
+     * der Sprache, in der jemand liest.
      */
-    expect(NUR_DEUTSCH).toContain('/karriere');
+    expect(NUR_DEUTSCH).not.toContain('/karriere');
     expect(gruppenVerweise('en').map((v) => [v.href, v.sprache])).toEqual([
-      ['/en/ueber-uns', 'en'], ['/en/news', 'en'], ['/karriere', 'de'],
+      ['/en/ueber-uns', 'en'], ['/en/news', 'en'], ['/en/karriere', 'en'],
     ]);
   });
 

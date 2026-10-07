@@ -40,8 +40,8 @@ import {
   aktualisiereEintrag, erfasseEintrag, leseRegister, securityGebucht,
 } from '../../src/server/services/security/bewacherregister.js';
 import {
-  erfassePruefung, findePruefung, ladeBefunde, ladePruefungAuswahl,
-  listePruefungen, listePruefverfahren, RaumPasstNicht,
+  archivierePruefung, erfassePruefung, findePruefung, ladeBefunde, ladeErsatzKandidaten,
+  ladePruefungAuswahl, listePruefungen, listePruefverfahren, RaumPasstNicht,
 } from '../../src/server/services/reinigung/qualitaet.js';
 import {
   findeTurnus, ladeAusnahmen, ladeTurnusEinsaetze, ladeVorschau, legeAusnahmeAn,
@@ -665,6 +665,89 @@ describe('Qualitaetspruefung — der Anker eines Befundes (OPS-11)', () => {
     })).id);
     await expect(sql.unsafe(`delete from qualitaetspruefung where id = $1`, [id]))
       .rejects.toThrow();
+  });
+
+  /** Eine Prüfung mit einem Befund — für die Archivfälle (V-288). */
+  async function einePruefung(): Promise<string> {
+    return alsLeitung(a, async (k) => (await erfassePruefung(k, {
+      objektId: a.objekt, kundeId: a.kunde, pruefverfahrenId: a.verfahren,
+      positionen: [{ kriterium: 'Boden', ergebnis: 'io' }],
+    })).id);
+  }
+
+  it('archiviert mit Grund und Verweis auf die ersetzende Prüfung — danach steht alles fest (V-288)', async () => {
+    const alt = await einePruefung();
+    const neu = await einePruefung();
+    await alsLeitung(a, async (k) => {
+      expect((await ladeErsatzKandidaten(k, alt)).map((z) => z.id)).toContain(neu);
+      await archivierePruefung(k, alt, { grund: 'Falsches Revier erfasst', ersetztDurchId: neu });
+      const kopf = (await findePruefung(k, alt))!;
+      expect(kopf.archiviert).toBe(true);
+      expect(kopf.archiviertGrund).toBe('Falsches Revier erfasst');
+      expect(kopf.ersetztDurchId).toBe(neu);
+      // Der Verweis in Gegenrichtung: die neue nennt die alte.
+      expect((await findePruefung(k, neu))!.ersetztId).toBe(alt);
+      // Eine archivierte Prüfung ersetzt nichts mehr.
+      expect((await ladeErsatzKandidaten(k, neu)).map((z) => z.id)).not.toContain(alt);
+    });
+    const [p] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from audit_log
+        where objekt_id = $1 and aktion = 'qualitaet.pruefung_archiviert'`, [alt]);
+    expect(p!.n).toBe(1);
+
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, alt, { grund: 'Noch einmal' })))
+      .rejects.toMatchObject({ grund: 'schon_archiviert' });
+    // Am Dienst vorbei: Grund und Verweis stehen fest (0497).
+    await expect(alsLeitung(a, (_k, tx) => tx.unsafe(
+      `update qualitaetspruefung set archiviert_grund = 'anders' where id = $1`, [alt])))
+      .rejects.toThrow(/bleibt archiviert/u);
+    await expect(alsLeitung(a, (_k, tx) => tx.unsafe(
+      `update qualitaetspruefung set archiviert_am = null, archiviert_grund = null,
+              ersetzt_durch_id = null where id = $1`, [alt])))
+      .rejects.toThrow(/bleibt archiviert/u);
+  });
+
+  it('ohne Grund, mit sich selbst oder einer unbekannten Prüfung als Ersatz: abgewiesen (V-288)', async () => {
+    const id = await einePruefung();
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, id, { grund: '   ' })))
+      .rejects.toMatchObject({ grund: 'grund_fehlt' });
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, id, { grund: 'x', ersetztDurchId: id })))
+      .rejects.toMatchObject({ grund: 'ersatz_selbst' });
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, id, {
+      grund: 'x', ersetztDurchId: '00000000-0000-4000-8000-000000000000',
+    }))).rejects.toMatchObject({ grund: 'ersatz_unbekannt' });
+    // Am Dienst vorbei ohne Grund: die Datenbank weist ab (0497).
+    await expect(alsLeitung(a, (_k, tx) => tx.unsafe(
+      `update qualitaetspruefung set archiviert_am = now() where id = $1`, [id])))
+      .rejects.toThrow(/nur mit Grund/u);
+    expect((await alsLeitung(a, (k) => findePruefung(k, id)))!.archiviert).toBe(false);
+  });
+
+  it('als Ersatz nur, was die Auswahl anbietet: dasselbe Objekt, nicht früher geprüft (V-288)', async () => {
+    const frueher = await einePruefung();
+    const alt = await einePruefung();
+    const [o2] = await sql.unsafe<{ id: string }[]>(
+      `insert into objekt (mandant_id, kunde_id, objektnummer, bezeichnung, strasse, plz, ort)
+       values ($1,$2,$3,'Nachbarhaus','Teststr. 4','10179','Berlin') returning id`,
+      [a.mandant, a.kunde, `O-${zufall()}`] as never[]);
+    const fremd = await alsLeitung(a, async (k) => (await erfassePruefung(k, {
+      objektId: o2!.id, kundeId: a.kunde, pruefverfahrenId: a.verfahren,
+      positionen: [{ kriterium: 'Boden', ergebnis: 'io' }],
+    })).id);
+
+    await alsLeitung(a, async (k) => {
+      const angeboten = (await ladeErsatzKandidaten(k, alt)).map((z) => z.id);
+      expect(angeboten).not.toContain(frueher);
+      expect(angeboten).not.toContain(fremd);
+    });
+    // Ein zusammengebauter POST kommt an der Auswahl nicht vorbei.
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, alt, {
+      grund: 'x', ersetztDurchId: frueher,
+    }))).rejects.toMatchObject({ grund: 'ersatz_unpassend' });
+    await expect(alsLeitung(a, (k) => archivierePruefung(k, alt, {
+      grund: 'x', ersetztDurchId: fremd,
+    }))).rejects.toMatchObject({ grund: 'ersatz_unpassend' });
+    expect((await alsLeitung(a, (k) => findePruefung(k, alt)))!.archiviert).toBe(false);
   });
 });
 

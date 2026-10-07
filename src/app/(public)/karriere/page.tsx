@@ -1,8 +1,7 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Hinweis } from '@/components/ui/Hinweis';
-import { offeneStellen } from './daten';
 import { bewerbungsMeldung } from './meldung';
+import { karriereListe, karriereMetadaten } from './Seiten';
+import { KARRIERE_TEXTE } from './texte';
 
 /**
  * `/karriere` — die offenen Stellen der Gruppe (REC-03).
@@ -21,25 +20,30 @@ import { bewerbungsMeldung } from './meldung';
  * Initiativbewerbung steht deshalb immer da, und nicht nur dann, wenn nichts
  * ausgeschrieben ist.
  *
+ * **Der Bereichsfilter steht in der Adresse** (`?bereich=<slug>`, V-364): ein
+ * Verweis je Gesellschaft, kein Skript — die Auswahl lässt sich teilen und
+ * zurückblättern. Ein unbekannter Bereich zeigt alle Stellen, eine leere
+ * Auswahl sagt es in einem Satz.
+ *
+ * **Deutsch hier, englisch unter `/en/karriere`** (V-393, D-82) — dieselbe
+ * Seite aus `Seiten.tsx`, die Sätze aus `texte.ts`.
+ *
  * TODO(client, O-38): Voreinstellung — eine Karriereseite der Gruppe mit
- * Bereichsfilter (SEITENKARTE); die Seite ist gebaut, der Filter fehlt
- * (V-364) — bis dahin nennt jede Karte die Gesellschaft. D-797.
+ * Bereichsfilter (SEITENKARTE); gebaut mit V-364, jede Karte nennt weiter die
+ * Gesellschaft. D-797, D-806.
  */
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Karriere — CSE Gruppe',
-  description:
-    'Offene Stellen in Gebäudereinigung, Sicherheitsdienst, Bau und '
-    + 'Digital Operations. Bewerbung direkt über die Seite.',
-};
+export function generateMetadata(): Promise<Metadata> {
+  const t = KARRIERE_TEXTE.de;
+  return karriereMetadaten('de', '/karriere', t.metaTitel, t.metaBeschreibung);
+}
 
 export default async function KarriereSeite(
   { searchParams }: {
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
-  const stellen = await offeneStellen();
   /*
    * V-158: eine Bewerbung auf eine Stelle, die inzwischen geschlossen ist,
    * landet hier — mit einem Satz, statt `{"fehler":"nicht_gefunden"}` auf
@@ -47,78 +51,5 @@ export default async function KarriereSeite(
    * antwortet für eine geschlossene Stelle mit 404.
    */
   const meldung = bewerbungsMeldung((await searchParams)['fehler']);
-
-  return (
-    <main className="mx-auto flex max-w-content flex-col gap-s6 px-s5 py-s7">
-      <header className="flex flex-col gap-s3">
-        <h1 className="m-0 text-display text-text">Karriere</h1>
-        <p className="m-0 max-w-prose text-base text-text-muted">
-          Vier Gesellschaften, ein Bewerbungsweg. An jeder Stelle steht, welche
-          Gesellschaft einstellt — mit ihr kommt der Arbeitsvertrag zustande.
-        </p>
-      </header>
-
-      {meldung !== undefined && (
-        <Hinweis art="warnung" rolle="alert" cse="bewerbung-meldung" className="max-w-[72ch]">
-          {meldung}
-        </Hinweis>
-      )}
-
-      <section className="flex flex-col gap-s4">
-        <h2 className="m-0 text-h2 text-text">
-          {stellen.length === 1 ? 'Eine offene Stelle' : `${String(stellen.length)} offene Stellen`}
-        </h2>
-
-        {stellen.length === 0 ? (
-          <p
-            data-cse="keine-stellen"
-            className="m-0 max-w-prose rounded-lg border border-line bg-surface p-s5 text-base text-text-muted"
-          >
-            Zurzeit ist nichts ausgeschrieben. Das heisst nicht, dass wir
-            niemanden suchen — schicken Sie uns eine Initiativbewerbung.
-          </p>
-        ) : (
-          <ul data-cse="stellenliste" className="m-0 grid list-none grid-cols-1 gap-s4 p-0 md:grid-cols-2">
-            {stellen.map((s) => (
-              <li
-                key={s.id}
-                data-cse="stelle"
-                data-bereich={s.mandantSlug}
-                className="flex flex-col gap-s2 rounded-lg border border-line bg-surface p-s5"
-              >
-                <span className="text-micro uppercase tracking-[0.08em] text-text-subtle">
-                  {s.mandantName}
-                </span>
-                <h3 className="m-0 text-h3 text-text">
-                  <Link href={`/karriere/${s.id}`} className="underline-offset-2 hover:underline">
-                    {s.titel}
-                  </Link>
-                </h3>
-                <p className="m-0 text-sm text-text-muted">
-                  {[s.einsatzort, s.wochenstunden === null ? null
-                    : `${s.wochenstunden.replace('.', ',')} h/Woche`]
-                    .filter((t) => t !== null).join(' · ') || 'Ort und Umfang nach Absprache'}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-s3 rounded-lg border border-line bg-surface p-s5">
-        <h2 className="m-0 text-h3 text-text">Nichts Passendes dabei?</h2>
-        <p className="m-0 max-w-prose text-base text-text-muted">
-          Wir nehmen Initiativbewerbungen entgegen und melden uns, wenn eine
-          Stelle dazu passt.
-        </p>
-        <Link
-          href="/karriere/initiativbewerbung"
-          data-cse="zu-initiativ"
-          className="inline-flex min-h-11 w-fit items-center rounded-md bg-brand px-s5 text-base text-white hover:bg-brand-hover"
-        >
-          Initiativ bewerben
-        </Link>
-      </section>
-    </main>
-  );
+  return karriereListe('de', (await searchParams)['bereich'], meldung);
 }

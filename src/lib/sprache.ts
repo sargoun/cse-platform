@@ -87,24 +87,20 @@ export function mitSprache(pfad: string, sprache: Sprache): string {
  * **Welche Pfade es NUR auf Deutsch gibt.**
  *
  * D-82 sagt: die oeffentliche Website ist deutsch UND englisch, gleiche Pfade.
- * Der Karrierebereich (REC-03, `/karriere/*`) kam in Phase 9 dazu und ist
- * bisher nur deutsch gebaut — der englische Baum kennt ihn nicht
- * (`/en/[seite]` laesst nur `OEFFENTLICHE_ROUTEN` durch). Der
- * Sprachumschalter rechnete den Zielpfad aber allein aus der Adresse: auf
- * `/karriere` bot er `/en/karriere` an, und dahinter lag ein 404. Ein
+ * Der Sprachumschalter rechnete den Zielpfad allein aus der Adresse: auf
+ * einer nur deutschen Seite bot er `/en/…` an, und dahinter lag ein 404. Ein
  * Verweis, der auf 404 fuehrt, ist derselbe Fehler wie im Portal (AUT-06,
  * D-581) — hier trifft er jeden Besucher, nicht nur eine Rolle.
  *
  * **Die Liste ist eine Ansage, keine Vermutung.** `tests/kern/sprachpfade.test.ts`
  * haelt sie gegen den wirklichen Dateibaum: eine neue deutsche Seite ohne
- * englische Entsprechung muss hier stehen, sonst faellt die Pruefung. Wird
- * `/karriere` uebersetzt, verschwindet der Eintrag — und der Umschalter
- * bietet die Sprache von selbst wieder an.
+ * englische Entsprechung muss hier stehen, sonst faellt die Pruefung. Der
+ * Karrierebereich stand hier, bis er seinen englischen Baum bekam (V-393,
+ * D-807) — seitdem bietet der Umschalter dort Englisch an.
  *
  * Gemeldet von der Copilot-Runde auf PR 16.
  */
 export const NUR_DEUTSCH: readonly string[] = [
-  '/karriere',
   /**
    * `/werbewiderspruch` — deutsch, und das ist eine Entscheidung.
    *
@@ -123,8 +119,8 @@ export const NUR_DEUTSCH: readonly string[] = [
 /**
  * Gibt es diesen Inhaltspfad in dieser Sprache?
  *
- * Geprueft wird der Pfad UND sein Baum: `/karriere/berlin/bewerbung` liegt
- * unter `/karriere` und ist damit ebenso deutsch.
+ * Geprueft wird der Pfad UND sein Baum: `/werbewiderspruch/<token>` liegt
+ * unter `/werbewiderspruch` und ist damit ebenso deutsch.
  */
 export function gibtEsIn(pfad: string, sprache: Sprache): boolean {
   if (sprache === VORGABE_SPRACHE) return true;

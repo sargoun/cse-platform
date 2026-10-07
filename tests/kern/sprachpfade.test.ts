@@ -114,9 +114,17 @@ describe('Sprachpfade (D-82, D-583)', () => {
   });
 
   it('gibtEsIn sagt bei einem nur deutschen Baum Nein — auch fuer seine Unterseiten', () => {
-    expect(gibtEsIn('/karriere', 'en')).toBe(false);
-    expect(gibtEsIn('/karriere/eine-stelle/bewerbung', 'en')).toBe(false);
-    expect(gibtEsIn('/karriere', 'de')).toBe(true);
+    expect(gibtEsIn('/werbewiderspruch', 'en')).toBe(false);
+    expect(gibtEsIn('/werbewiderspruch/ein-token', 'en')).toBe(false);
+    expect(gibtEsIn('/werbewiderspruch', 'de')).toBe(true);
     expect(gibtEsIn('/kontakt', 'en')).toBe(true);
+  });
+
+  it('der Karrierebereich ist englisch gebaut, Seite für Seite (V-393, D-82)', () => {
+    for (const p of ['/karriere', '/karriere/[stelle]', '/karriere/[stelle]/bewerbung',
+      '/karriere/initiativbewerbung', '/karriere/danke']) {
+      expect(gibtEsIn(p, 'en'), p).toBe(true);
+      expect(englisch.has(p), `/en${p} fehlt als Datei`).toBe(true);
+    }
   });
 });

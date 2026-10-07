@@ -34,10 +34,10 @@ export interface GruppenVerweis extends SprachVerweis {
 /**
  * Die drei Verweise, so wie eine Seite in `sprache` sie zeigt.
  *
- * `/karriere` ist bisher nur deutsch (`NUR_DEUTSCH`, O-512). Von einer
- * englischen Seite aus führt der Verweis deshalb auf die DEUTSCHE Seite und
- * trägt `sprache: 'de'` — die Hülle setzt daraus `hrefLang` und den Hinweis
- * „(in German)". `/en/karriere` wäre ein 404.
+ * Alle drei gibt es in beiden Sprachen — `/karriere` seit V-393 (D-807). Gäbe
+ * es eine Seite nur deutsch (`NUR_DEUTSCH`), führte der Verweis von einer
+ * englischen Seite auf die DEUTSCHE und trüge `sprache: 'de'`; die Hülle
+ * setzte daraus `hrefLang` und den Hinweis „(in German)".
  */
 export function gruppenVerweise(sprache: Sprache): readonly GruppenVerweis[] {
   return GRUPPEN_SEITEN.map(({ pfad, schluessel }) => ({

@@ -800,9 +800,10 @@ Instead they stand (1) in the overlay menu directly after the four links, same
 row style, before the companies and *Angebot anfragen*; and (2) in the footer as
 their own `nav` headed *Die Gruppe* / *The group*, stacked above *Rechtliches*
 in the third column, same link style as the legal trio (`min-h-11`, `sm`,
-`--text-muted`). A page that exists only in German (`/karriere`, `NUR_DEUTSCH`)
-is linked from an English page to its German address with `hreflang="de"` and
-the visible suffix *(in German)* — never to an `/en/…` address that 404s.
+`--text-muted`). A page that exists only in German (`NUR_DEUTSCH`; today
+`/werbewiderspruch` — *Karriere* has its English tree since V-393) is linked
+from an English page to its German address with `hreflang="de"` and the visible
+suffix *(in German)* — never to an `/en/…` address that 404s.
 **D-649.**
 
 **Portal sidebar:** width `248px`, `--surface`. Active item: `--surface-2` bg +

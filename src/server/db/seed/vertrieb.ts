@@ -376,13 +376,13 @@ export async function seedVertrieb(
       einleitungstext: VERSENDET.einleitung,
       leadId: anfrage.id,
       /**
-       * `gueltigBis` bleibt LEER.
+       * `gueltigBis` bleibt LEER — wie ein Mensch es ohne Eintrag liesse.
        *
        * // TODO(client, O-350): Voreinstellung — ein Angebot bindet vier
        * Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf den
-       * Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je
-       * Gesellschaft änderbar. Nicht gebaut (V-359) — bis dahin bleibt das
-       * Feld hier leer, wie ein Mensch es ohne Eintrag liesse. D-796.
+       * Berliner Versandtag plus 28 Tage, wenn kein Datum eingetragen ist,
+       * je Gesellschaft über `angebot.bindefrist_tage_standard` änderbar
+       * (V-359). D-796, D-806.
        */
     });
     const positionen = await uebernimmKalkulation(db, angebotId, kalkulation, {

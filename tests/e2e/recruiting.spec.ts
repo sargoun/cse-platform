@@ -152,6 +152,22 @@ test('die Karriereseite zeigt nur veröffentlichte Stellen', async ({ page }) =>
   await expect(page.locator('body')).not.toContainText('Trockenbauer');
 });
 
+test('der Bereichsfilter steht in der Adresse und filtert (V-364)', async ({ page }) => {
+  await page.goto('/karriere');
+  const bereiche = await page.locator('[data-cse="stelle"]').evaluateAll(
+    (els) => els.map((e) => e.getAttribute('data-bereich') ?? ''));
+  expect(bereiche.length, 'keine veröffentlichte Stelle auf /karriere').toBeGreaterThan(0);
+  const bereich = bereiche[0]!;
+  await page.locator(`[data-cse="bereich-filter"][data-bereich="${bereich}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/karriere\\?bereich=${bereich}$`, 'u'));
+  await expect(page.locator(`[data-cse="bereich-filter"][data-bereich="${bereich}"]`))
+    .toHaveAttribute('aria-current', 'page');
+  const gefiltert = await page.locator('[data-cse="stelle"]').evaluateAll(
+    (els) => els.map((e) => e.getAttribute('data-bereich') ?? ''));
+  expect(gefiltert.length).toBeGreaterThan(0);
+  expect([...new Set(gefiltert)]).toEqual([bereich]);
+});
+
 test('die Bewerbung über das öffentliche Formular kommt an', async ({ page }) => {
   await page.goto('/karriere');
   /*

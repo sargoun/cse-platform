@@ -510,6 +510,29 @@ export async function seedBau(
      order by b.email limit 1`;
   if (bauleitung === undefined) return LEER;
 
+  /**
+   * **Wer freigibt, ist nicht, wer vorlegt** (V-383, O-260, 0496). Nachtrag
+   * und Behinderungsanzeige legt die Bauleitung vor; freigegeben werden sie
+   * von einer zweiten Person dieser Gesellschaft mit `freigabe.entscheiden`.
+   * Gibt es keine, bleiben beide Erklaerungen im Seed ungesendet — ein
+   * Vier-Augen-Nachweis mit einem Paar Augen waere keiner, und der
+   * Ausloeser liesse ihn auch nicht zu.
+   *
+   * **Wer das Recht HAT, sagt `kern.traeger_des_rechts`** — dieselbe
+   * Aufloesung wie `app.hat_recht` (`app.hat_recht_fuer`, 0149): Vorrang der
+   * Gesellschaftszeile vor der Plattformvorgabe, `gewaehrt = false`,
+   * Gueltigkeitsfenster, Modulbeschraenkung, globale Rolle. Ein blosses
+   * `exists` auf `rolle_berechtigung` traefe auch eine entzogene Bindung, und
+   * der Seed schriebe eine Freigabe einem Menschen zu, dem das Recht
+   * tatsaechlich fehlt.
+   */
+  const [freigeber] = await sql<{ id: string }[]>`
+    select b.id
+      from benutzer b
+     where b.id = any (kern.traeger_des_rechts(${mandantId}::uuid, 'freigabe.entscheiden'))
+       and b.id <> ${bauleitung.id}
+     order by b.email limit 1`;
+
   // LESEN ZUERST: der Auftragskreis vergaebe beim zweiten Lauf eine zweite
   // Nummer, und ein eingereichter Nachtrag bleibt eingereicht.
   const [schonDa] = await sql<{ id: string }[]>`
@@ -763,18 +786,18 @@ export async function seedBau(
        * keine mehr fuer das, was er einreicht.
        */
       const zeile = await findeNachtrag(kontext, nachtrag.id);
-      if (zeile !== null) {
+      if (zeile !== null && freigeber !== undefined) {
         const nutzlast = nachtragNutzlast(kontext.aktiverMandantId, zeile);
         const abdruck = nutzlastHash(nutzlast);
 
         const [freigabe] = await kontext.schreibe<{ id: string }>(
           `insert into freigabe (mandant_id, aktion, status, freigegeben_von, freigegeben_am,
                                  begruendung, erstellt_von)
-           values ($1, $2, 'genehmigt', $3, now(), $4, $3)
+           values ($1, $2, 'genehmigt', $3, now(), $4, $5)
            returning id`,
-          [kontext.aktiverMandantId, nutzlast.aktion, bauleitung.id,
+          [kontext.aktiverMandantId, nutzlast.aktion, freigeber.id,
            'Nachtrag im Bautagesgespräch mit dem Auftraggeber abgestimmt; '
-           + 'Einreichung freigegeben.'],
+           + 'Einreichung freigegeben.', bauleitung.id],
         );
         const [kette] = await kontext.schreibe<{
           kette_nr: string; vorheriger_hash: string;
@@ -799,7 +822,7 @@ export async function seedBau(
              values ($1, $2, $3::bigint, $4::jsonb, $5, $6, $7, 'genehmigt', $8)`,
             [kontext.aktiverMandantId, freigabe.id, kette.kette_nr, nutzlast.inhalt,
              abdruck, kette.vorheriger_hash,
-             berechneHash(bytes, kette.vorheriger_hash), bauleitung.id],
+             berechneHash(bytes, kette.vorheriger_hash), freigeber.id],
           );
 
           await reicheEin(kontext, {
@@ -868,7 +891,7 @@ export async function seedBau(
        * Gegenstand.
        */
       const roh = await findeBehinderung(kontext, angelegt.id);
-      if (roh === null) continue;
+      if (roh === null || freigeber === undefined) continue;
       const nutzlast = behinderungNutzlast(kontext.aktiverMandantId, {
         behinderungId: angelegt.id,
         nummer: angelegt.nummer,
@@ -882,10 +905,11 @@ export async function seedBau(
       const [freigabe] = await kontext.schreibe<{ id: string }>(
         `insert into freigabe (mandant_id, aktion, status, freigegeben_von, freigegeben_am,
                                begruendung, erstellt_von)
-         values ($1, $2, 'genehmigt', $3, now(), $4, $3)
+         values ($1, $2, 'genehmigt', $3, now(), $4, $5)
          returning id`,
-        [kontext.aktiverMandantId, nutzlast.aktion, bauleitung.id,
-         'Behinderungsanzeige im Bautagesgespräch abgestimmt; Versand freigegeben.'],
+        [kontext.aktiverMandantId, nutzlast.aktion, freigeber.id,
+         'Behinderungsanzeige im Bautagesgespräch abgestimmt; Versand freigegeben.',
+         bauleitung.id],
       );
       if (freigabe === undefined) continue;
 
@@ -901,7 +925,7 @@ export async function seedBau(
            values ($1, $2, $3::bigint, $4::jsonb, $5, $6, $7, 'genehmigt', $8)`,
           [kontext.aktiverMandantId, freigabe.id, kette.kette_nr, nutzlast.inhalt,
            abdruck, kette.vorheriger_hash,
-           berechneHash(bytes, kette.vorheriger_hash), bauleitung.id],
+           berechneHash(bytes, kette.vorheriger_hash), freigeber.id],
         );
       }
 
@@ -948,7 +972,7 @@ export async function seedBau(
                   freigegeben_von = $4::uuid,
                   geaendert_von = app.aktueller_benutzer()
             where id = $1`,
-          [angelegt.id, b.empfaenger, freigabe.id, bauleitung.id],
+          [angelegt.id, b.empfaenger, freigabe.id, freigeber.id],
         );
       }
 

@@ -270,7 +270,15 @@ export default async function Termin({ params, searchParams }: {
       </h1>
       <p className="mt-s2 text-sm text-text-muted" data-cse="termin-zeit">{spanne(zeile)}</p>
 
-      {zeile.abgesagt_am !== null && (
+      {/* V-344: eine Wiedervorlage wird nicht abgesagt, sie wird im CRM erledigt. */}
+      {zeile.abgesagt_am !== null && zeile.art === 'wiedervorlage' && (
+        <Hinweis art="hinweis" cse="termin-wiedervorlage-erledigt" className="mt-s4">
+          <strong>Erledigt.</strong> Die Wiedervorlage ist im CRM erledigt. Der Eintrag bleibt
+          durchgestrichen stehen, damit jeder, der ihn im Kalender hat, sieht, dass hier nichts
+          mehr ansteht.
+        </Hinweis>
+      )}
+      {zeile.abgesagt_am !== null && zeile.art !== 'wiedervorlage' && (
         <Hinweis art="warnung" cse="termin-abgesagt" className="mt-s4">
           <strong>Abgesagt.</strong> {zeile.abgesagt_grund}
           {' '}Der Termin bleibt stehen, damit jeder, der ihn im Kalender hat, die Absage

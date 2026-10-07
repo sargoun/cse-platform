@@ -24,6 +24,8 @@
  *     Vorgang an einer Stelle erledigt und an der anderen offen.
  *  5. `verschiebe` zieht die Fälligkeit der Aufgabe mit — und hält die
  *     Verschiebung als eigene Notizzeile fest.
+ *  5a. Beide ziehen auch den Kalendereintrag nach (V-344): erledigt heisst
+ *     durchgestrichen mit Grund, verschoben heisst Beginn und Ende wandern.
  *  6. Ohne Bezug (weder Lead noch Kunde) wird abgewiesen, bevor
  *     `lead_aktivitaet_hat_bezug` es tut.
  */
@@ -205,6 +207,57 @@ describe('erledigen und verschieben fassen den Spiegel mit an', () => {
       `select (faellig_am at time zone 'Europe/Berlin')::date::text as tag
          from aufgabe where id = $1`, [spiegel.aufgabeId]);
     expect(z!.tag).toBe('2026-11-15');
+  });
+
+  it('`erledige` schliesst den gespiegelten Kalendereintrag — durchgestrichen, nicht gelöscht (V-344)', async () => {
+    const k = await kunde(f.reinigung);
+    const spiegel = await alsIntern(f.reinigung, async (tx) =>
+      legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+        betreff: 'Kalender erledigen', faelligAm: '2026-10-01T09:00', kundeId: k,
+      }));
+    await alsIntern(f.reinigung, async (tx) =>
+      erledige(kontextAus(tx, f.reinigung), spiegel.aktivitaetId));
+    const [z] = await sql.unsafe<{ zu: boolean; grund: string | null }[]>(
+      `select abgesagt_am is not null as zu, abgesagt_grund as grund
+         from kalender_eintrag where id = $1`, [spiegel.kalenderId]);
+    expect(z!.zu).toBe(true);
+    expect(z!.grund).toBe('Wiedervorlage erledigt');
+  });
+
+  it('`verschiebe` zieht Beginn und Ende des Kalendereintrags mit — über die Zeitumstellung, die Dauer bleibt (V-344)', async () => {
+    const k = await kunde(f.reinigung);
+    const spiegel = await alsIntern(f.reinigung, async (tx) =>
+      legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+        betreff: 'Kalender verschieben', faelligAm: '2026-10-01T09:00', kundeId: k,
+      }));
+    /* 01.10. ist Sommerzeit, 15.11. Winterzeit: die Berliner Uhrzeit bleibt 09:00. */
+    await alsIntern(f.reinigung, async (tx) =>
+      verschiebe(kontextAus(tx, f.reinigung), spiegel.aktivitaetId,
+        '2026-11-15T09:00', 'Kunde bittet um später'));
+    const [z] = await sql.unsafe<{ beginn: string; ende: string }[]>(
+      `select to_char(beginn at time zone 'Europe/Berlin', 'YYYY-MM-DD HH24:MI') as beginn,
+              to_char(ende at time zone 'Europe/Berlin', 'YYYY-MM-DD HH24:MI') as ende
+         from kalender_eintrag where id = $1`, [spiegel.kalenderId]);
+    expect(z!.beginn).toBe('2026-11-15 09:00');
+    expect(z!.ende).toBe('2026-11-15 09:30');
+  });
+
+  it('der Kalendereintrag zieht nur mit `kalender.schreiben` nach — wie beim Anlegen', async () => {
+    const k = await kunde(f.reinigung);
+    const spiegel = await alsIntern(f.reinigung, async (tx) =>
+      legeWiedervorlageAn(kontextAus(tx, f.reinigung), {
+        betreff: 'Ohne Kalenderrecht erledigen', faelligAm: '2026-10-01T09:00', kundeId: k,
+      }));
+    await entziehe('admin', 'kalender.schreiben', f.reinigung);
+    await alsIntern(f.reinigung, async (tx) =>
+      erledige(kontextAus(tx, f.reinigung), spiegel.aktivitaetId));
+    const [z] = await sql.unsafe<{ zu: boolean }[]>(
+      `select abgesagt_am is not null as zu from kalender_eintrag where id = $1`,
+      [spiegel.kalenderId]);
+    expect(z!.zu).toBe(false);
+    const [a] = await sql.unsafe<{ status: string }[]>(
+      `select status::text as status from aufgabe where id = $1`, [spiegel.aufgabeId]);
+    expect(a!.status, 'die Aufgabe hängt an ihrem eigenen Recht').toBe('erledigt');
   });
 
   it('die Verschiebung steht als eigene Notiz im Verlauf', async () => {

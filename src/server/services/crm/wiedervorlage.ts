@@ -34,7 +34,8 @@ import { istUuid } from '../../../lib/uuid.js';
  * `aufgabe` und `kalender_eintrag` (04-SEITENKARTE §5.2): alle drei Zeilen
  * entstehen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und
  * die Oberfläche sagt, was nicht entstand. Erledigen und Verschieben fassen
- * die Aufgabe mit an, den Kalendereintrag noch nicht (V-344). D-793.
+ * Aufgabe und Kalendereintrag mit an, soweit dieselben Rechte reichen (V-344).
+ * D-793, D-806.
  */
 
 /** Die vier Fächer, in die eine Fälligkeit fällt. */
@@ -423,7 +424,15 @@ export async function legeWiedervorlageAn(
  * Tage falsch.
  *
  * Die gespiegelte `aufgabe` wird mitgeschlossen — sonst stünde derselbe
- * Vorgang an einer Stelle offen und an der anderen erledigt.
+ * Vorgang an einer Stelle offen und an der anderen erledigt. Ebenso der
+ * gespiegelte Kalendereintrag (V-344): er bekommt `abgesagt_am` mit dem Grund
+ * „Wiedervorlage erledigt" und bleibt durchgestrichen stehen — wer ihn
+ * abonniert hat, sieht ihn als abgesagt (`STATUS:CANCELLED`) statt eines
+ * Termins, der noch ansteht, und gelöscht wird nichts (0160).
+ *
+ * Beide nur mit ihrem eigenen Recht (`aufgabe.schreiben`,
+ * `kalender.schreiben`) — wie beim Anlegen. Die Standardrollen mit
+ * `crm.schreiben` halten beide.
  */
 export async function erledige(kontext: SchreibKontext, id: string): Promise<void> {
   const zeilen = await kontext.schreibe<{ id: string }>(
@@ -436,16 +445,35 @@ export async function erledige(kontext: SchreibKontext, id: string): Promise<voi
     throw new CrmFehler('Diese Wiedervorlage gibt es nicht — oder sie ist schon '
       + 'erledigt.', 'nicht_gefunden', 404);
   }
-  const [recht] = await kontext.abfrage<{ darf: boolean }>(
-    `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as darf`);
-  if (recht?.darf !== true) return;
-  await kontext.schreibe(
-    `update aufgabe
-        set status = 'erledigt', erledigt_am = now(),
-            erledigt_von = app.aktueller_benutzer()
-      where mandant_id = app.aktiver_mandant()
-        and bezug_typ = 'lead_aktivitaet' and bezug_id = $1::uuid
-        and status in ('offen', 'in_arbeit')`, [id]);
+  const rechte = await spiegelRechte(kontext);
+  if (rechte.aufgabe) {
+    await kontext.schreibe(
+      `update aufgabe
+          set status = 'erledigt', erledigt_am = now(),
+              erledigt_von = app.aktueller_benutzer()
+        where mandant_id = app.aktiver_mandant()
+          and bezug_typ = 'lead_aktivitaet' and bezug_id = $1::uuid
+          and status in ('offen', 'in_arbeit')`, [id]);
+  }
+  if (rechte.kalender) {
+    await kontext.schreibe(
+      `update kalender_eintrag
+          set abgesagt_am = now(), abgesagt_grund = 'Wiedervorlage erledigt',
+              geaendert_von = app.aktueller_benutzer()
+        where mandant_id = app.aktiver_mandant() and art = 'wiedervorlage'
+          and bezug_typ = 'lead_aktivitaet' and bezug_id = $1::uuid
+          and abgesagt_am is null`, [id]);
+  }
+}
+
+/** Was vom Spiegel diese Sitzung nachziehen darf — dieselben Rechte wie beim Anlegen. */
+async function spiegelRechte(
+  kontext: SchreibKontext,
+): Promise<{ readonly aufgabe: boolean; readonly kalender: boolean }> {
+  const [r] = await kontext.abfrage<{ aufgabe: boolean; kalender: boolean }>(
+    `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as aufgabe,
+            app.hat_recht('kalender.schreiben', app.aktiver_mandant()) as kalender`);
+  return { aufgabe: r?.aufgabe === true, kalender: r?.kalender === true };
 }
 
 /**
@@ -460,6 +488,10 @@ export async function erledige(kontext: SchreibKontext, id: string): Promise<voi
  * Die Verschiebung wird als eigene Notizzeile festgehalten. Ein `update` auf
  * `faellig_am` allein liesse die Kette verschwinden: dann stünde nur noch das
  * letzte Datum da, und dass es das vierte war, wüsste niemand.
+ *
+ * Aufgabe und Kalendereintrag wandern mit (V-344) — der Eintrag mit Beginn
+ * UND Ende, seine Dauer bleibt. Sonst stünde die verschobene Wiedervorlage
+ * im Kalender am alten Tag.
  */
 export async function verschiebe(
   kontext: SchreibKontext, id: string, neuFaellig: string, grund: string,
@@ -531,14 +563,25 @@ export async function verschiebe(
     [z.lead_id, z.kunde_id, z.ansprechpartner_id,
       `Von ${z.alt} verschoben. Grund: ${text}`]);
 
-  const [recht] = await kontext.abfrage<{ darf: boolean }>(
-    `select app.hat_recht('aufgabe.schreiben', app.aktiver_mandant()) as darf`);
-  if (recht?.darf !== true) return;
-  await kontext.schreibe(
-    `update aufgabe
-        set faellig_am = ($2::timestamp at time zone 'Europe/Berlin'),
-            geaendert_von = app.aktueller_benutzer()
-      where mandant_id = app.aktiver_mandant()
-        and bezug_typ = 'lead_aktivitaet' and bezug_id = $1::uuid
-        and status in ('offen', 'in_arbeit')`, [id, neuFaellig]);
+  const rechte = await spiegelRechte(kontext);
+  if (rechte.aufgabe) {
+    await kontext.schreibe(
+      `update aufgabe
+          set faellig_am = ($2::timestamp at time zone 'Europe/Berlin'),
+              geaendert_von = app.aktueller_benutzer()
+        where mandant_id = app.aktiver_mandant()
+          and bezug_typ = 'lead_aktivitaet' and bezug_id = $1::uuid
+          and status in ('offen', 'in_arbeit')`, [id, neuFaellig]);
+  }
+  if (rechte.kalender) {
+    /* `ende - beginn` ist im SET der alte Stand: die Dauer bleibt. */
+    await kontext.schreibe(
+      `update kalender_eintrag
+          set beginn = ($2::timestamp at time zone 'Europe/Berlin'),
+              ende = ($2::timestamp at time zone 'Europe/Berlin') + (ende - beginn),
+              geaendert_von = app.aktueller_benutzer()
+        where mandant_id = app.aktiver_mandant() and art = 'wiedervorlage'
+          and bezug_typ = 'lead_aktivitaet' and bezug_id = $1::uuid
+          and abgesagt_am is null`, [id, neuFaellig]);
+  }
 }

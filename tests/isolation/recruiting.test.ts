@@ -19,6 +19,8 @@
  * (muss durchgehen) und einmal als Agent (muss abgewiesen werden). Ginge der
  * zweite durch, wäre der erste wertlos.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
 import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
@@ -891,5 +893,125 @@ describe('wer zwischendurch eingestellt wird, wird nicht geloescht (O-376)', () 
       `select count(*)::int as n from einstellungsentscheidung where bewerbung_id = $1::uuid`,
       [bewerbungId]))) as unknown as { n: number }[];
     expect(Number(e!.n), 'die Entscheidung steht noch').toBe(1);
+  });
+});
+
+/**
+ * **Die Frist läuft ab der Absage** (V-365, O-373, D-797, D-807, 0498).
+ *
+ * Gesetzt wurde `aufbewahrung_bis` nur beim Eingang. Eine späte Absage
+ * verkürzte damit die Zeit, in der sich das Verfahren belegen lässt — § 15
+ * Abs. 4 AGG gibt der Bewerberin zwei Monate ab Zugang der Ablehnung. Jetzt
+ * stellt der Nachzug die Uhr bei einer Absage neu: Berliner Entscheidungstag
+ * plus dieselbe Frist wie beim Eingang, nie früher als der Eingangswert.
+ */
+describe('die Frist läuft ab der Absage (V-365)', () => {
+  async function entscheide(
+    bewerbungId: string, konto: string, ergebnis: 'abgelehnt' | 'eingestellt',
+  ): Promise<void> {
+    await alsApp({
+      scope: 'mandant', mandantId: f.reinigung, benutzerId: konto,
+      portal: 'intern', readonly: false,
+    }, (tx) => tx.unsafe(
+      `insert into einstellungsentscheidung
+         (mandant_id, bewerbung_id, ergebnis, begruendung, entschieden_von)
+       values ($1::uuid, $2::uuid, $3::bewerbung_status, 'Probe', $4::uuid)`,
+      [f.reinigung, bewerbungId, ergebnis, konto]));
+  }
+
+  async function frist(bewerbungId: string): Promise<string> {
+    const [z] = (await alsRolle('', (tx) => tx.unsafe(
+      `select aufbewahrung_bis::text as bis from bewerbung where id = $1::uuid`,
+      [bewerbungId]))) as unknown as { bis: string }[];
+    return z!.bis;
+  }
+
+  async function inTagen(tage: number): Promise<string> {
+    const [z] = (await alsRolle('', (tx) => tx.unsafe(
+      `select (app.berlin_heute() + $1::int)::text as tag`, [tage]))) as unknown as { tag: string }[];
+    return z!.tag;
+  }
+
+  async function eingangsfrist(): Promise<number> {
+    const [z] = (await alsRolle('', (tx) => tx.unsafe(
+      `select (app.plattform_einstellung('recruiting.aufbewahrung_tage') #>> '{}')::int as tage`,
+    ))) as unknown as { tage: number }[];
+    return z!.tage;
+  }
+
+  it('eine Absage stellt die Uhr neu: Entscheidungstag plus dieselbe Frist wie beim Eingang', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const tage = await eingangsfrist();
+    // Der Eingang liegt lange zurück: nur noch 10 Tage bis zur Löschung.
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 10);
+    await entscheide(bewerbungId, konto, 'abgelehnt');
+    expect(await frist(bewerbungId)).toBe(await inTagen(tage));
+  });
+
+  it('nie kürzer als ab Eingang — eine Absage verlängert, sie verkürzt nicht', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const tage = await eingangsfrist();
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, tage + 40);
+    await entscheide(bewerbungId, konto, 'abgelehnt');
+    expect(await frist(bewerbungId)).toBe(await inTagen(tage + 40));
+  });
+
+  it('eine Einstellung lässt die Frist, wie sie ist', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const { bewerbungId } = await bewerbungAnlegen(f.reinigung, 10);
+    await entscheide(bewerbungId, konto, 'eingestellt');
+    expect(await frist(bewerbungId)).toBe(await inTagen(10));
+  });
+
+  /**
+   * **Der Altbestand** (Copilot-Befund auf PR 39): der Auslöser greift nur bei
+   * künftigen Absagen. Was vor 0498 abgelehnt wurde, zieht die Migration
+   * einmal nach — ab dem Berliner Tag der Entscheidung, mit dem heutigen
+   * Einstellungswert, nie kürzer als ab Eingang.
+   *
+   * Der Zustand VOR der Migration wird hergestellt (Eingangswert zurück,
+   * Entscheidung fünf Tage alt), dann läuft die Anweisung AUS der Migration,
+   * nicht eine Abschrift.
+   */
+  it('der Altbestand: eine frühere Absage bekommt die Frist ab ihrem Entscheidungstag', async () => {
+    const konto = await legeKontoAn(f.reinigung, 'admin');
+    const alt = (await bewerbungAnlegen(f.reinigung, 10)).bewerbungId;
+    const lang = (await bewerbungAnlegen(f.reinigung, 9000)).bewerbungId;
+    const angenommen = (await bewerbungAnlegen(f.reinigung, 10)).bewerbungId;
+    await entscheide(alt, konto, 'abgelehnt');
+    await entscheide(lang, konto, 'abgelehnt');
+    await entscheide(angenommen, konto, 'eingestellt');
+    await alsRolle('', async (tx) => {
+      await tx.unsafe(
+        `update bewerbung set aufbewahrung_bis = app.berlin_heute() + 10
+          where id = any($1::uuid[])`, [[alt, angenommen]]);
+      // Eine Entscheidung trägt den Namen dessen, der sie schreibt — auch beim
+      // Zurückdatieren im Aufbau (`kern.entscheidung_ist_menschlich`, 0166).
+      await tx.unsafe(`select set_config('app.benutzer_id', $1, true)`, [konto]);
+      await tx.unsafe(
+        `update einstellungsentscheidung set entschieden_am = now() - interval '5 days'
+          where bewerbung_id = any($1::uuid[])`, [[alt, lang, angenommen]]);
+    });
+
+    const datei = readFileSync(
+      resolve(import.meta.dirname, '../../drizzle/0498_bewerberfrist_ab_absage.sql'), 'utf8');
+    const anweisung = /update public\.bewerbung b[\s\S]*?;/u.exec(datei)?.[0];
+    expect(anweisung).toBeDefined();
+    await alsRolle('', (tx) => tx.unsafe(anweisung!));
+
+    const [soll] = (await alsRolle('', (tx) => tx.unsafe(
+      `select ((e.entschieden_am at time zone 'Europe/Berlin')::date
+               + (app.plattform_einstellung('recruiting.aufbewahrung_tage') #>> '{}')::int)::text
+                as bis
+         from einstellungsentscheidung e where e.bewerbung_id = $1::uuid`, [alt],
+    ))) as unknown as { bis: string }[];
+    expect(await frist(alt)).toBe(soll!.bis);
+    // Nie kürzer als ab Eingang, und eine Einstellung bleibt unberührt.
+    expect(await frist(lang)).toBe(await inTagen(9000));
+    expect(await frist(angenommen)).toBe(await inTagen(10));
+
+    // Ein zweiter Lauf ändert nichts mehr.
+    await alsRolle('', (tx) => tx.unsafe(anweisung!));
+    expect(await frist(alt)).toBe(soll!.bis);
   });
 });

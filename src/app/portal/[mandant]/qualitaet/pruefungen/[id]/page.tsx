@@ -10,12 +10,14 @@ import { Hinweis } from '@/components/ui/Hinweis';
 import { Recht } from '@/components/ui/Recht';
 import { StatusPill } from '@/components/ui/StatusPill';
 import { Icon } from '@/components/ui/Icon';
+import { Button } from '@/components/ui/Button';
+import { eigenerEintrag } from '@/lib/nachschlagen';
 import type { BereichSchluessel } from '@/lib/design/theme';
 import { haeltRechte } from '@/app/portal/rechte';
 import { kennungOder404 } from '../../../../kennung';
 import { mandantTor, MandantAntwort } from '../../../../unterseite';
 import {
-  ERGEBNIS_TEXT, findePruefung, ladeBefunde,
+  ARCHIV_SAETZE, ERGEBNIS_TEXT, findePruefung, ladeBefunde, ladeErsatzKandidaten,
   type BefundZeile, type PruefungZeile,
 } from '@/server/services/reinigung/qualitaet';
 
@@ -39,13 +41,14 @@ import {
  * **Überfällige Fristen sind farbig UND im Text markiert** (DESIGN §9): ein
  * rotes Datum allein erreicht einen farbenblinden Leser nicht.
  *
- * **Dieses Blatt ist lesend, und das ist eine Entscheidung gegen eine stille.**
- * `qualitaetspruefung` trägt `archiviert_am` und `loeschsperre`, aber kein
- * `ersetzt_durch_id` wie das Wachbuch — wie eine falsch erfasste Prüfung
- * berichtigt wird, ist nicht entschieden. Gelöscht wird sie ohnehin nie
+ * **Dieses Blatt ändert keinen Befund — es archiviert** (V-288, 0497). Eine
+ * falsch erfasste Prüfung wird durch eine neue ersetzt und die alte hier mit
+ * Grund archiviert, auf Wunsch mit Verweis auf die neue (`ersetzt_durch_id`,
+ * wie im Wachbuch); die neue zeigt den Verweis in Gegenrichtung. Danach stehen
+ * Zeitpunkt, Person, Grund und Verweis fest. Gelöscht wird eine Prüfung nie
  * (Invariante 8).
  *
- * // TODO(client, O-704): Wie wird eine falsch erfasste Qualitätsprüfung berichtigt — durch eine ersetzende Prüfung mit Verweis auf die alte (wie im Wachbuch), durch Archivieren mit Grund, oder ist eine Korrektur der Felder zulässig?
+ * // TODO(client, O-704): Voreinstellung — Berichtigung durch eine neue Prüfung, die alte mit Grund archiviert und mit Verweis auf die neue; geändert wird keine (D-780, D-806).
  *
  * **Ein Mangel wird hier nicht zur Reklamation.**
  * `qualitaetspruefung_position` trägt `mangel_beschreibung` und `frist_am`,
@@ -73,6 +76,9 @@ export default async function PruefungBlatt(
   const { mandant, id } = await params;
   const suche = await searchParams;
   const angelegt = typeof suche['angelegt'] === 'string' ? suche['angelegt'] : null;
+  /* V-288: der Rückweg des Archivierens — Schlüssel, nie ein Satz aus der Adresse. */
+  const archivFehler = typeof suche['archiv'] === 'string' ? suche['archiv'] : null;
+  const archiviertMeldung = suche['archiviert'] === '1';
   kennungOder404(id);
   const tor = await mandantTor(
     `/portal/${mandant}/qualitaet/pruefungen/${id}`, mandant,
@@ -86,22 +92,33 @@ export default async function PruefungBlatt(
      und verrät, was er nicht zeigen darf. */
   const darf = await haeltRechte(
     sitzung, 'objekt.lesen', 'reinigung.lesen', 'zeit.lesen', 'dokument.lesen',
+    'qualitaet.schreiben',
   );
+  const darfArchivieren = darf['qualitaet.schreiben'] === true && sitzung.ansicht !== 'gruppe';
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
       const kopf = await findePruefung(kontext, id);
       if (kopf === null) return { kopf: null } as const;
-      return { kopf, befunde: await ladeBefunde(kontext, kopf.id) } as const;
+      return {
+        kopf,
+        befunde: await ladeBefunde(kontext, kopf.id),
+        kandidaten: kopf.archiviert || !darfArchivieren
+          ? [] : await ladeErsatzKandidaten(kontext, kopf.id),
+      } as const;
     })) as Promise<{
       readonly kopf: PruefungZeile | null;
       readonly befunde?: readonly BefundZeile[];
+      readonly kandidaten?: readonly {
+        readonly id: string; readonly nummer: string; readonly geprueftLokal: string;
+      }[];
     }>);
 
   // AUT-06: eine fremde Prüfung ist nicht vorhanden, nicht verboten.
   if (daten.kopf === null) notFound();
   const q = daten.kopf;
   const befunde = daten.befunde ?? [];
+  const kandidaten = daten.kandidaten ?? [];
   const nio = befunde.filter((b) => b.ergebnis === 'nio');
   const ueberfaellig = befunde.filter((b) => b.fristUeberfaellig);
 
@@ -131,6 +148,46 @@ export default async function PruefungBlatt(
           <strong>Prüfung {angelegt} erfasst.</strong> Nummer und Prüfzeitpunkt hat
           die Anwendung vergeben — die Serveruhr, nicht das Gerät (Invariante 5).
         </Hinweis>
+      )}
+      {archiviertMeldung && (
+        <Hinweis art="erfolg" rolle="status" cse="pruefung-archiviert-meldung"
+                 className="mb-s5 max-w-prose">
+          <strong>Archiviert.</strong> Grund und Verweis stehen jetzt fest und im Protokoll;
+          gelöscht ist nichts.
+        </Hinweis>
+      )}
+      {archivFehler !== null && (
+        <Hinweis art="warnung" rolle="alert" cse="pruefung-archiv-fehler"
+                 className="mb-s5 max-w-prose">
+          <strong>Nicht archiviert.</strong>{' '}
+          {eigenerEintrag(ARCHIV_SAETZE, archivFehler) ?? 'Es wurde nichts geändert.'}
+        </Hinweis>
+      )}
+      {q.archiviert && (
+        <Hinweis art="hinweis" cse="pruefung-archiviert" className="mb-s5 max-w-prose">
+          <strong>Archiviert am {q.archiviertLokal ?? '—'}.</strong>{' '}
+          {q.archiviertGrund === null ? 'Ohne Grund — archiviert, bevor es dafür ein Feld gab.'
+            : <>Grund: {q.archiviertGrund}</>}
+          {q.ersetztDurchId !== null && (
+            <>
+              {' '}Ersetzt durch{' '}
+              <Link href={`/portal/${mandant}/qualitaet/pruefungen/${q.ersetztDurchId}`}
+                    data-cse="pruefung-ersetzt-durch" className="underline underline-offset-2">
+                {q.ersetztDurchNummer ?? 'die neue Prüfung'}
+              </Link>.
+            </>
+          )}
+        </Hinweis>
+      )}
+      {q.ersetztId !== null && (
+        <p className="mb-s5 max-w-prose text-sm text-text-muted" data-cse="pruefung-ersetzt">
+          Diese Prüfung ersetzt{' '}
+          <Link href={`/portal/${mandant}/qualitaet/pruefungen/${q.ersetztId}`}
+                className="underline underline-offset-2">
+            {q.ersetztNummer ?? 'eine archivierte Prüfung'}
+          </Link>{' '}
+          (archiviert).
+        </p>
       )}
 
       {/* --- Kopfblatt ------------------------------------------------------ */}
@@ -460,13 +517,56 @@ export default async function PruefungBlatt(
       </section>
 
       <Hinweis art="hinweis" cse="pruefung-lesend" className="mt-s6 max-w-prose">
-        <strong>Dieses Blatt ist lesend.</strong> Voreinstellung (O-704): eine falsch
-        erfasste Prüfung wird nicht geändert — die Berichtigung ist eine neue Prüfung, deren
-        Bemerkung die alte nennt; die alte bleibt stehen und trägt eine Löschsperre. Einen
-        Weg, sie mit Grund zu archivieren, gibt es noch nicht (V-288), und anders als ein
-        Wachbucheintrag verweist sie nicht auf die Prüfung, die sie ersetzt. Gelöscht wird
-        eine Prüfung ohnehin nie (Invariante 8).
+        <strong>Befunde werden hier nicht geändert.</strong> Voreinstellung (O-704): eine
+        falsch erfasste Prüfung wird durch eine neue ersetzt, und die alte wird hier mit Grund
+        archiviert — auf Wunsch mit Verweis auf die neue, wie im Wachbuch. Danach stehen Grund
+        und Verweis fest. Gelöscht wird eine Prüfung nie (Invariante 8).
       </Hinweis>
+
+      {/* --- Archivieren (V-288) -------------------------------------------- */}
+      {!q.archiviert && darfArchivieren && (
+        <section aria-labelledby="archiv-titel" className="mt-s6 max-w-prose"
+                 data-cse="pruefung-archivieren">
+          <h2 id="archiv-titel" className="mb-s3 text-h3 text-text">Archivieren</h2>
+          <details className="rounded-lg border border-line bg-surface p-s5">
+            <summary className="min-h-11 cursor-pointer text-sm font-semibold text-text">
+              Diese Prüfung archivieren …
+            </summary>
+            <form method="post" action="/api/qualitaet/pruefungen"
+                  className="mt-s3 flex flex-col gap-s3">
+              <input type="hidden" name="was" value="archivieren" />
+              <input type="hidden" name="mandant" value={mandant} />
+              <input type="hidden" name="pruefung" value={q.id} />
+              <label className="flex flex-col gap-s2 text-sm text-text" htmlFor="archiv-grund">
+                Grund
+                <textarea id="archiv-grund" name="grund" required maxLength={500} rows={3}
+                          data-cse="pruefung-archiv-grund"
+                          className="w-full rounded-md border border-line bg-surface-3 p-s3 text-sm text-text" />
+              </label>
+              <label className="flex flex-col gap-s2 text-sm text-text" htmlFor="archiv-ersatz">
+                Ersetzt durch (optional)
+                <select id="archiv-ersatz" name="ersetzt_durch" defaultValue=""
+                        data-cse="pruefung-archiv-ersatz"
+                        className="min-h-11 w-full rounded-md border border-line bg-surface-3 px-s4 py-s3 text-base text-text">
+                  <option value="">— keine ersetzende Prüfung —</option>
+                  {kandidaten.map((k) => (
+                    <option key={k.id} value={k.id}>{k.nummer} · {k.geprueftLokal}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="m-0 text-xs text-text-muted">
+                Zur Wahl stehen spätere, nicht archivierte Prüfungen desselben Objekts. Danach
+                stehen Grund und Verweis fest, und das Protokoll hält fest, wer archiviert hat.
+              </p>
+              <div>
+                <Button type="submit" variante="danger" data-cse="pruefung-archivieren-knopf">
+                  Archivieren
+                </Button>
+              </div>
+            </form>
+          </details>
+        </section>
+      )}
     </PortalRahmen>
   );
 }

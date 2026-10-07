@@ -6,10 +6,12 @@ import { db } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { rechtepruefer } from '@/server/auth/zugang';
-import { withTenant } from '@/server/kontext/index';
+import { withTenant, type Sitzung } from '@/server/kontext/index';
 import {
-  erfassePruefung, PRUEFERGEBNISSE, type PruefungEingabe,
+  archivierePruefung, erfassePruefung, PRUEFERGEBNISSE, PruefungArchivFehler,
+  type PruefungEingabe,
 } from '@/server/services/reinigung/qualitaet';
+import { istUuid } from '@/lib/uuid';
 import { alsAntwort } from '../../sicherheit/antwort';
 
 /**
@@ -39,6 +41,11 @@ import { alsAntwort } from '../../sicherheit/antwort';
  * **Die Gerätezeit wird getrennt gespeichert und nie bevorzugt.** Kommt sie
  * leer, bleibt `geraete_zeit` NULL und `zeitabweichung_sek` ebenfalls; die
  * Serverzeit gilt in jedem Fall.
+ *
+ * **`was=archivieren` archiviert eine Prüfung** (V-288, O-704) — mit Grund
+ * und optionalem Verweis auf die ersetzende Prüfung, dasselbe Recht. Zurück
+ * geht es aufs Prüfblatt mit einem Schlüssel (`?archiv=<grund>` oder
+ * `?archiviert=1`), nie mit einem Satz in der Adresse.
  */
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +77,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const daten = await anfrage.formData();
   const mandant = (text(daten, 'mandant') ?? '').replace(/[^a-z0-9-]/gu, '');
   const liste = `/portal/${mandant}/qualitaet/pruefungen`;
+  if (text(daten, 'was') === 'archivieren') return archivieren(anfrage, sitzung, daten, liste);
 
   let nummer: string;
   let neueId: string;
@@ -220,4 +228,45 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
 
   const ziel = `${liste}/${neueId}?angelegt=${encodeURIComponent(nummer)}`;
   return NextResponse.redirect(internesZiel(ziel, liste, anfrage), 303);
+}
+
+/**
+ * `was=archivieren` (V-288): prüfen, den Dienst rufen, aufs Prüfblatt zurück.
+ *
+ * Der Slug der Rückkehr kommt aus der SITZUNG (`app.aktiver_mandant()`), wie
+ * bei `/api/radar/profil`: archiviert wird in der aktiven Gesellschaft, und
+ * dorthin führt auch der Weg zurück. Das Formularfeld gilt nur, solange die
+ * Transaktion den Slug noch nicht kennt.
+ */
+async function archivieren(
+  anfrage: NextRequest, sitzung: Sitzung, daten: FormData, formListe: string,
+): Promise<NextResponse> {
+  const id = text(daten, 'pruefung') ?? '';
+  let liste = formListe;
+  const blatt = (): string => (istUuid(id) ? `${liste}/${id}` : liste);
+  try {
+    await db().begin(async (tx: postgres.TransactionSql) =>
+      withTenant(tx, sitzung, async (kontext) => {
+        await authorize(
+          sitzung, { recht: 'qualitaet.schreiben', schreibend: true },
+          rechtepruefer(kontext.abfrage.bind(kontext)),
+        );
+        const [bereich] = await kontext.abfrage<{ slug: string }>(
+          `select m.slug from mandant m where m.id = app.aktiver_mandant()`);
+        if (bereich !== undefined) liste = `/portal/${bereich.slug}/qualitaet/pruefungen`;
+        await archivierePruefung(kontext, id, {
+          grund: text(daten, 'grund') ?? '',
+          ersetztDurchId: text(daten, 'ersetzt_durch'),
+        });
+      }));
+  } catch (fehler) {
+    if (fehler instanceof PruefungArchivFehler) {
+      return NextResponse.redirect(
+        internesZiel(`${blatt()}?archiv=${fehler.grund}`, liste, anfrage), 303);
+    }
+    const antwort = alsAntwort(fehler, anfrage);
+    if (antwort !== null) return antwort;
+    throw fehler;
+  }
+  return NextResponse.redirect(internesZiel(`${blatt()}?archiviert=1`, liste, anfrage), 303);
 }

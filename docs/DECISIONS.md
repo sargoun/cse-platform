@@ -24567,7 +24567,7 @@ und eine Frist: Reklamationen bekommen beim Anlegen `faellig_am`.
 | O-367 | Stapelweise genehmigen, Einspruch, Rücknahme: die Administration — Plattformbindung `super_admin` (`drizzle/0008`), der Demo-Seed bindet zusätzlich `admin`; eine Leitung erhält die drei Rechte je Gesellschaft über die Rollenrechte, nicht von der Plattform. | Freigaben › Stapel, `drizzle/0008`, `seed/index.ts` |
 | O-502 | Projektmarge aus Lohn (freigegebene Zeiten zum internen Satz) und Fremdleistung (Eingangsrechnungen mit Projektbezug). | Berichte › Projekte |
 | O-671, O-736, O-851 | Dokumentfreigabe nach Kategorie (DOC-01), im Dienst erzwungen (`KUNDENFREIGABE_KATEGORIEN`, `MITARBEITERFREIGABE_KATEGORIEN` in `dokument/kategorie.ts`): an Kunden gehen Kunde, Angebot, Vertrag, Rechnung und Projekt — nie Mitarbeiter, Beleg, Buchhaltung, Unternehmen; an die Belegschaft gehen Unternehmen und Projekt — nie Mitarbeiter, Kunde, Vertrag, Angebot, Rechnung, Beleg, Buchhaltung. `setzeKundenfreigabe`, `setzeMitarbeiterfreigabe` und die Ablage weisen anderes ab (Grund `kategorie` bzw. `kategorie_nicht_freigebbar`); die Rücknahme bleibt für jede Kategorie möglich; die Datenbank prüft weiter nur Recht und Schalter. Der Dokumentzugang des Kunden (Liste, Download) ist noch nicht gebaut und folgt unter V-282. | `dokument/kategorie.ts`, `dokument/kundenfreigabe.ts`, `dokument/mitarbeiterfreigabe.ts`, `dokument/ablage.ts`, Kundenfreigabe, Dokumentblatt, Upload |
-| O-704, O-705 | Eine falsch erfasste Prüfung wird nicht geändert: die Berichtigung ist eine neue Prüfung, deren Bemerkung die alte nennt; die alte bleibt stehen (Löschsperre). Ein Archivieren mit Grund gibt es noch nicht (V-288). Aus einer verstrichenen Mängelfrist folgt nichts von selbst — die Objektleitung entscheidet. | Qualität › Prüfungen |
+| O-704, O-705 | Eine falsch erfasste Prüfung wird nicht geändert: die Berichtigung ist eine neue Prüfung, deren Bemerkung die alte nennt; die alte bleibt stehen (Löschsperre). Archiviert wird die alte mit Grund und auf Wunsch mit Verweis auf die neue, danach stehen beide fest (gebaut mit V-288, D-806). Aus einer verstrichenen Mängelfrist folgt nichts von selbst — die Objektleitung entscheidet. | Qualität › Prüfungen |
 | O-730 | Befunde vor dem Abschluss warnen, sperren nicht; die Buchhaltung sieht sie und entscheidet. | Auftrag › Abschluss |
 | O-732 | Eine erteilte Preisfreigabe wird nicht widerrufen; ein anderer Preis braucht eine neue Angebotsversion. | Angebot › Freigabe |
 | O-734 | Ein abgeschlossener Auftrag wird nicht wieder geöffnet; Korrektur über Nachtrag oder neuen Auftrag. | `auftrag/status.ts`, `auftrag/aendern.ts` |
@@ -24961,7 +24961,7 @@ Voreinstellung nicht gebaut ist, steht es dabei, mit V-Zeile.
 | O-203 | `hoch`, wenn eine Bedingung zutrifft: Betrag über der wirksamen Grenze, öffentlicher Auftraggeber, neue Gegenpartei, unsichere Felder, Injektionsverdacht, personenbezogene Entscheidung (Art. 22 DSGVO), ArbZG-Verdikt, kein Vergleich; `niedrig` für interne Vorgänge und die unveränderte Routine (O-109); sonst `mittel`. Wie gebaut — die Betragsgrenze ist nirgends gesetzt (V-306). | `freigabe/posteingang.ts` |
 | O-204 | Kein Agentenwerkzeug schreibt die Shortlist: die Rangfolge rechnet `recruiting/rangfolge.ts` deterministisch, als Artefakt schreibt sie der Recruiting-Dienst; der Agent liefert höchstens Kriterien mit Satz. Nicht gebaut (V-305). | `recruiting/rangfolge.ts` |
 | O-366 | CPV-Abteilungen 90, 79 und 45, NUTS DE3 und DE4, Zeitfenster 30 Tage (`ABFRAGE_VOREINSTELLUNG`); der Satz der nicht verbundenen Quelle nennt sie. Die Abfrage-Adresse trägt der Betreiber in `RADAR_OEFFENTLICHEVERGABE_URL` und `RADAR_TED_URL` ein (Betreiberdaten); der Code baut sie nicht (V-311). | `radar/quelle.ts`, Radar, Gruppe › Radar, `tests/kern/radar-voreinstellung.test.ts` |
-| O-720 | Abschalten statt Archivieren: `ist_aktiv = false`, die Bewertungen bleiben unter dem Profilnamen lesbar (wie gebaut); ein Archiv-Weg (`geloescht_am`) ist nicht gebaut (V-304). | `radar/profil.ts`, Profilblatt |
+| O-720 | Abschalten für eine Pause (`ist_aktiv = false`), Archivieren setzt `geloescht_am`: der Lauf bewertet nicht mehr damit, die Bewertungen bleiben unter dem Profilnamen lesbar, zurückgeholt wird nicht (Archiv gebaut mit V-304, D-806). | `radar/profil.ts`, Profilblatt |
 | O-940 | Lücke ist jedes leere Feld des eigenen Anfrageformulars ausser Häkchen, Freitext und Datei (`KEINE_LUECKE`); bei einer von Hand erfassten Anfrage nur die fehlende Bedarfsbeschreibung; nichts, wenn nichts leer ist. Wie gebaut (D-724). | `lead/einsendung.ts` |
 
 **Betreiberdaten — keine Voreinstellung.** O-115 (Absenderpostfach und
@@ -25206,7 +25206,7 @@ hiess. Das Kundenportal nennt sie an sechs Stellen „Voreinstellung" statt
 | O-75 | Den internen Stundensatz liest nur, wer `personal.entgelt_lesen` hält — in der Matrix die Super-Administration (0008); eine Leitung nicht, es sei denn, die Gesellschaft bindet das Recht an ihre Rolle (D-780). Wie gebaut. | `personal/anstellung.ts`, `drizzle/0008`, `drizzle/0193` |
 | O-76 | Die Administration hält `eingang.freigeben`, `finanzen.festschreiben`, `buchhaltung.festschreiben`, `mahnung.freigeben` und `freigabe.entscheiden`; die Leitung `freigabe.entscheiden` und `eingang.schreiben` (0008). Module einer Administration setzt die Super-Administration mit zweitem Faktor (0416). Wie gebaut. | `auth/zugang.ts`, `drizzle/0008` |
 | O-78 | Bautagebuch und Wachbuch bleiben dem Kunden verschlossen (`p_intern_einsatz_decke`, kein `t_kunde`); einen kundensichtbaren Auszug gibt es nicht. Wie gebaut. | `kundenportal/projekt.ts` |
-| O-79 | Zwölf Stunden absolut je Sitzung in allen Portalen (`SITZUNG_MAX_ALTER_SEK`), keine Leerlauffrist; bei Geräteverlust sperrt die Verwaltung das Konto (0379), die laufende Sitzung endet spätestens mit den zwölf Stunden — ein Widerruf einzelner Sitzungen fehlt (V-331). | `auth/sitzung.ts` |
+| O-79 | Zwölf Stunden absolut je Sitzung in allen Portalen (`SITZUNG_MAX_ALTER_SEK`), dazu acht Stunden ohne Aktivität (`auth.leerlauf_minuten`, plattformweit 480); jede Anfrage prüft das Konto mit (Status, Sperre, Deaktivierung — `app.sitzung_aufloesen`). Bei Geräteverlust beendet man unter Konto › Sicherheit einzelne oder alle anderen eigenen Anmeldungen (V-039, „Alle anderen beenden" mit V-331, D-807); die Verwaltung widerruft die Anmeldungen eines fremden Kontos (V-076) oder sperrt es (0379). | `auth/sitzung.ts`, `konto/sitzungen.ts`, Konto › Sicherheit |
 | O-80 | Anmeldung: 10 Fehlversuche je Kennung und 50 je IP in 15 Minuten, dann 30 Minuten Sperre (`auth.max_versuche_kennung`, `auth.max_versuche_ip`, `auth.fenster_minuten`, `auth.sperrdauer_minuten`; 0007/0379), automatisch ablaufend oder durch die Administration entsperrt; der Mensch sieht „zu viele Versuche". Formulare: 5 Einsendungen je Verbindung in 15 Minuten. Wie gebaut. | `lead/annahme.ts`, `drizzle/0007`, `drizzle/0379` |
 | O-81 | Honigtopf-Feld plus Ratenlimit je Verbindung auf den öffentlichen Formularen und den Anmeldeendpunkten; kein Fremd-CAPTCHA (PUB-13). Wie gebaut. | `lead/annahme.ts` |
 | O-83 | Zehn Wiederherstellungscodes je Konto (`CODES_ANZAHL`, als SHA-256 gespeichert); zwei Super-Administrationen je Gruppe; Break-glass: ein Wiederherstellungscode, sonst setzt die zweite Super-Administration den Faktor zurück. Wer welchen Faktor hält, trägt der Betreiber ein. | `auth/kennwort-anmeldung.ts`, `auth/zwei-faktor/einrichten` |
@@ -25363,7 +25363,7 @@ was fehlt (V-342 bis V-345).
 | O-660 | Das Tor wird auf die Matrix des § 7 UWG umgestellt: Werbung an `anfrage` nie, an `bestandskunde` nur per E-Mail mit festgestellter ähnlicher Leistung und Abmeldezeile (§ 7 Abs. 3 UWG), an `einwilligung` auf den eingewilligten Kanälen; die Ebene des Kunden prüft das Tor weiter mit. Die Umstellung ist eine Migration von `app.darf_kontaktiert_werden` mit Isolationstest (V-342, in einem Zug mit V-339 aus O-65); bis dahin gilt das heutige Tor (`rechtsgrundlage <> 'keine'` plus Widersprüche), und das Kontaktblatt zeigt beide Antworten mit Nummer. | `crm/uwg-matrix.ts` (`abweichungenVomTor`), CRM › Kontakt, `db/seed/{crm,index}.ts` |
 | O-661 | Das ENGERE Recht `crm.rechtsgrundlage_lesen` trägt den Rechtsgrundlagen-Block — Liste und Blatt (`app.kontakt_rechtsgrundlage_liste`, `…_blatt`, 0247) und der Widerspruchskatalog (0222) prüfen es; `leitung` sieht die Einstufung nur, wo eine Gesellschaft ihr das Recht bindet. Die alte Einzelabfrage `app.rechtsgrundlage_lesen` (0020, `crm.lesen`) hat keinen Aufrufer mehr; sie per Migration auf das engere Recht zu stellen oder zu entfernen ist V-343. Die beiden Hinweise der Kontaktseiten nennen jetzt die Voreinstellung; `tests/kern/katalog-unbenutzt.ts` führt den Schlüssel nicht mehr als unbenutzt. | CRM › Kontakte, Kontaktblatt; `drizzle/0247`, `0222` |
 | O-662 | Bis Supabase Auth verbunden ist (O-501, Betreiberdatum), legt `app.kundenzugang_ausstellen` (0249) das Konto selbst an — `benutzer` im Status `eingeladen`, eine Zeile in der zweispaltigen `auth.users`-Attrappe, den Einladungstoken (`kern.kennwort_token`); das Kennwort setzt die Person über den Link, angemeldet wird gegen `kern.zugangsdaten` — und der Einladungslink wird einmal gezeigt, weil kein Postausgang verbunden ist. Danach entsteht das Konto über die Admin-API, und der Auftragsverarbeitungsvertrag mit Supabase (EU-Region) deckt auch die Konten externer Ansprechpartner; Verantwortliche nach Art. 4 Nr. 7 bleibt die Gesellschaft, die den Zugang ausstellt. Wie gebaut. | `crm/kundenzugang.ts`, `drizzle/0249`, CRM › Kunde › Zugang |
-| O-663 | Eine Wiedervorlage ist zugleich Aufgabe und Kalendereintrag (04-SEITENKARTE §5.2): `legeWiedervorlageAn` schreibt alle drei Zeilen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Seite nennt, was nicht entstand. Erledigen und Verschieben fassen die gespiegelte Aufgabe mit an — den Kalendereintrag noch nicht (V-344); die Listenseite sagte ausserdem, auf dem Leadblatt fehle das Formular, das es seit V-137 gibt. | `crm/wiedervorlage.ts`, CRM › Kontakt, CRM › Wiedervorlagen, `auth/route-manifest.ts` |
+| O-663 | Eine Wiedervorlage ist zugleich Aufgabe und Kalendereintrag (04-SEITENKARTE §5.2): `legeWiedervorlageAn` schreibt alle drei Zeilen, soweit `aufgabe.schreiben` und `kalender.schreiben` reichen, und die Seite nennt, was nicht entstand. Erledigen und Verschieben fassen die gespiegelte Aufgabe und den Kalendereintrag mit an, soweit dieselben Rechte reichen (Kalender gebaut mit V-344, D-806); die Listenseite sagte ausserdem, auf dem Leadblatt fehle das Formular, das es seit V-137 gibt. | `crm/wiedervorlage.ts`, CRM › Kontakt, CRM › Wiedervorlagen, `auth/route-manifest.ts` |
 | O-908 | Ein Widerspruch bindet den MENSCHEN, nicht den Datensatz: Werbewiderspruch und Art.-21-Widerspruch gelten für jeden Kontaktdatensatz derselben E-Mail-Adresse in der Gesellschaft, auch über Kunden hinweg. Gebaut ist das nur für den tokenlosen Weg (`app.werbewiderspruch_formular` stempelt alle Zeilen der Adresse); Token-Einlösung, manueller Werbewiderspruch und Art. 21 stempeln einen Datensatz, und `nimmKontaktMit` hält den Zwilling nur bei Art. 21 zurück, weil das Tor für `vertraglich` den Werbewiderspruch nicht liest (V-345). | `crm/lead-kette.ts`, `drizzle/0222`, `0248` |
 | O-910 | Die Gruppenansicht liest keine Gesprächsinhalte anderer Gesellschaften (Weg c): „letzte Aktivität" kommt, wenn, als Datum je Gesellschaft über eine Definer-Funktion ohne Inhalt (V-150 bleibt offen). `t_aktivitaet_lesen` (0017) öffnet im Gruppen-Scope nur, was die Person als Mitglied einer Gesellschaft mit `crm.lesen` ohnehin lesen darf — kein Gruppenrecht öffnet mehr. Wie gebaut. | `gruppe/uebersicht.ts`, `drizzle/0017` |
 | O-680 | Die Felder eines Anfrageformulars sind Programm: Seed-Vorlage (`db/seed/formulare.ts`) plus englische Fassung (`lib/i18n/formular-en.ts`, D-83); ein neues Feld ist eine Programmänderung mit Übersetzung, kein Portaleintrag, damit `/en/angebot` nie deutsch steht. Im Portal änderbar bleiben Titel, Beschreibung, Zuständigkeit und Zustand; die Feldliste ist lesbar und sagt, warum. Wie gebaut. | `inhalt/formular.ts`, Website › Formulare |
@@ -25374,8 +25374,8 @@ was fehlt (V-342 bis V-345).
 
 **Was sich NICHT ändert.** Kein Recht, keine Policy, keine Migration: das Tor
 `app.darf_kontaktiert_werden` bleibt (V-342 mit V-339), die alte Definer-Funktion
-bleibt ungerufen stehen (V-343), der Kalendereintrag einer Wiedervorlage bleibt
-beim Erledigen stehen (V-344), drei Widerspruchswege stempeln einen Datensatz
+bleibt ungerufen stehen (V-343), der Kalendereintrag einer Wiedervorlage blieb
+beim Erledigen stehen (V-344, mit D-806 nachgezogen), drei Widerspruchswege stempeln einen Datensatz
 (V-345). Die Rollenmatrix (03-AUTH §12) ist unverändert.
 
 **Prüfung.** `tests/kern` komplett (`crm-uwg-matrix.test.ts` prüft weiter, dass
@@ -25529,7 +25529,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut ist die Blattsumme (V-357). | `bau/aufmass.ts`, `drizzle/0107` |
 | O-348 | Eine Position des Leistungsnachweises bei Monatspauschale trägt keinen Einzelpreis je Durchgang: der Nachweis belegt die Leistung, die Rechnung stellt die Pauschale. Wie gebaut; der Satz im Arbeiterportal sagt es jetzt in vier Sprachen statt „offen". | `mitarbeiter/nachweis-schicht.ts`, `lib/i18n/texte.ts`, `db/seed/reinigung.ts` |
 | O-349 | Ein Glasreinigungsrevier rechnet seine Sollzeit auf die Glasfläche mit eigenem Leistungswert je m² Glas aus dem Belagsartenkatalog. Nicht gebaut — die Sollzeit ist heute die des Bodens, der Katalog führt keine Zeile „Glas" (V-358); die Belagsartenseite sagt es. | `reinigung/sollzeit.ts`, Stammdaten › Belagsarten, `db/seed/reinigung.ts` |
-| O-350 | Ein Angebot bindet vier Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je Gesellschaft änderbar. Nicht gebaut (V-359). | `angebot/index.ts`, `db/seed/vertrieb.ts` |
+| O-350 | Ein Angebot bindet vier Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf den Berliner Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je Gesellschaft über `angebot.bindefrist_tage_standard` änderbar. Gebaut mit V-359 (D-806). | `angebot/index.ts`, `db/seed/vertrieb.ts` |
 
 **Was sich NICHT ändert.** Keine Migration, kein Recht, keine Rechenregel; der
 Wortlaut der Auftragspflege, des Löschkonzepts, der Belagsartenseite und des
@@ -25567,8 +25567,8 @@ O-28 und O-374 bleiben Betreiberdaten, O-375 ebenso (D-784).
 | O-200 | Stände wie 0166: Stelle Entwurf → freigegeben → veröffentlicht → geschlossen; Bewerbung eingegangen → in Prüfung → Gespräch → abgelehnt, eingestellt oder zurückgezogen. Beschäftigungsart als Vokabular Vollzeit, Teilzeit, Minijob, Aushilfe — an der Stelle nicht gebaut (V-362), bis dahin trägt sie der Anzeigentext. Schliessen einer Stelle und drei Bewerbungsstände haben keinen Schreibweg (V-363). | `recruiting/dienst.ts`, `drizzle/0166` |
 | O-201 | Je Kriterium (aus den Anforderungen der Stelle) ein Gewicht 0–100 und Punkte 0–10; das Ergebnis ist der gewichtete Mittelwert in Zehnteln, die Gewichte müssen nicht 100 ergeben, ohne Gewicht ist eine Bewerbung unbewertet. Die Entscheidung trifft ein Mensch (Art. 22 DSGVO). Wie gebaut. | `recruiting/rangfolge.ts`, Recruiting › Bewertung |
 | O-202 | E-Mail zusätzlich für die Arten mit Frist oder Risiko — Agentenbudget, Radar, Nachweisablauf, Wiedervorlage, neuer Lead, Lead-Frist, unbesetzte Schicht, Nachtrag; nur im Portal Schicht ohne Zeiteintrag, Einwandentscheidung und Planveröffentlichung — so, wie die Arten es eintragen (`kanaeleVorgabe`); jede Person ändert es unter Konto › Benachrichtigungen. Zugestellt wird per E-Mail noch nichts (V-367). | `benachrichtigung/registry.ts` |
-| O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter fehlt (V-364). | `app/(public)/karriere/page.tsx` |
-| O-373 | 180 Tage (sechs Monate), eine Zahl für alle Gesellschaften, änderbar in `recruiting.aufbewahrung_tage`; gezählt ab der Absage, weil § 15 Abs. 4 AGG und die Klagefrist von dort laufen, ohne Entscheidung ab Eingang. Gebaut ist der Eingang (V-365); die Seiten sagen beides. | Recruiting, Recruiting › Datenschutz, `datenschutz/verzeichnis.ts`, `jobs/bewerberLoeschung.ts` |
+| O-38 | Eine Karriereseite der Gruppe mit Bereichsfilter (SEITENKARTE); die Seite ist gebaut, jede Karte nennt die Gesellschaft, der Filter steht in der Adresse (`?bereich=`, gebaut mit V-364, D-806). | `app/(public)/karriere/page.tsx` |
+| O-373 | 180 Tage (sechs Monate), eine Zahl für alle Gesellschaften, änderbar in `recruiting.aufbewahrung_tage`; gezählt ab der Absage, weil § 15 Abs. 4 AGG und die Klagefrist von dort laufen, ohne Entscheidung ab Eingang. Gebaut mit V-365 (0498, D-807): eine Absage stellt `aufbewahrung_bis` auf den Berliner Entscheidungstag plus Frist, nie früher als ab Eingang; die Seiten sagen beides. | Recruiting, Recruiting › Datenschutz, `datenschutz/verzeichnis.ts`, `jobs/bewerberLoeschung.ts` |
 | O-376 | Die Bewerbung eines Eingestellten wandert in die Personalakte und folgt deren Frist (O-514). Nicht gebaut (V-366); bis dahin hält der Nachtlauf sie zurück und die Datenschutzseite zeigt sie (wie gebaut). | `jobs/bewerberLoeschung.ts`, Recruiting › Datenschutz, `datenschutz/loeschkonzept.ts` |
 | O-954 | Im Prüfprotokoll steht nur, DASS ein Absagegrund erfasst ist; der Wortlaut steht in der Gesprächszeile, geht mit ihr (REC-07) und steht in der Art.-15-Auskunft. Wie gebaut; der Hinweis beim Absagen ist berichtigt. | `recruiting/gespraech.ts`, `lib/i18n/verwaltung/recruiting-gespraech.ts` |
 | O-938 | Postfach, Anbieter, Region und Vertrag trägt der Betreiber ein (Betreiberdaten, wie O-28). Die Frist einer übertragenen Bewerbung beginnt mit der Übernahme (wie gebaut; nach O-373 ab der Absage), und nach der Übernahme wird die Nachricht im Postfach gelöscht — heute von Hand, der Hinweis sagt es. | `integrationen/bewerbungspostfach.ts`, `recruiting/postfach.ts` |
@@ -25838,7 +25838,7 @@ denselben Blöcken gehören nicht hierher: die Rechtsform der CSE Operations
 | O-131 | Erfasst wird von Hand: Notiz, Anruf, E-Mail oder Termin, eingehend oder ausgehend, am Kunden oder am Ansprechpartner (`POST /api/crm/notiz`, V-147); der Verlauf zeigt sie mit den Portalnachrichten zusammen. Ein Kundenpostfach je Gesellschaft ist nicht verbunden — Postfach und Zugang trägt der Betreiber ein, wie beim Bewerbungspostfach (O-938). Wie gebaut. | `api/crm/notiz`, `crm/verlauf.ts` |
 | O-205 | Kein Konformitätsstatus, solange keine Prüfung vorliegt: der Kasten „Noch nicht abgegeben" bleibt und nennt jetzt nur, was wirklich fehlt — Status und Datum der Erstprüfung (die Frage bleibt in `OFFEN_GEBLIEBEN`, `annahmen.test.ts`). Neu steht die Durchsetzungsstelle da: die Marktüberwachungsstelle der Länder für die Barrierefreiheit von Produkten und Dienstleistungen (MLBF) mit Sitz in Magdeburg (de/en). Meldungen gehen über das Formular in den internen Eingang mit Frist (V-032) und an die Adresse der ersten Gesellschaft mit E-Mail (wie gebaut); ein eigenes Postfach für Barrierefreiheit trägt der Betreiber ein, wenn er eines will. | `(public)/barrierefreiheit/Erklaerung.tsx`, `lib/i18n/texte.ts` |
 | O-207 | Die Entwurfstexte sind die Voreinstellung und stehen veröffentlicht da — sachlich, ohne Zahlen, Auszeichnungen, Kundennamen oder Zusagen. Der Betreiber prüft und ergänzt sie in der Website-Pflege. `pnpm content:import` ist das Werkzeug für eine Datenbank ohne Pflege: es setzt jeden Abschnitt, dessen Text vom Seed abweicht, auf den Seed zurück, auch eine Pflege im Portal (V-386); seine Ausgabe sagt das jetzt. | `db/seed/{inhalt,inhalt-en}.ts`, `scripts/content-import.ts` |
-| O-512 | (a) Ja: `/karriere` und jede offene Stelle (`/karriere/<id>`) stehen jetzt in der Sitemap, mit derselben Bedingung wie die Karriereseite (`offeneStellenKennungen` neben `offeneStellen`) — keine zweite Liste; anders als die Seite ohne die 50er-Grenze, gemeldet wird jede veröffentlichte Stelle; ohne `lastModified` (R-11). (b) Englisch, wie D-82 es für die ganze öffentliche Website verlangt: der Karrierebereich bekommt seinen Baum unter `/en/karriere` — **nicht gebaut (V-393)**. Bis dahin steht er in `NUR_DEUTSCH`, der Sprachumschalter bietet dort kein Englisch an, und die Sitemap meldet ihn ohne `hreflang`: ein Verweis auf eine Fassung, die es noch nicht gibt, wäre falsch. | `app/sitemap.ts`, `(public)/karriere/daten.ts`, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
+| O-512 | (a) Ja: `/karriere` und jede offene Stelle (`/karriere/<id>`) stehen jetzt in der Sitemap, mit derselben Bedingung wie die Karriereseite (`offeneStellenKennungen` neben `offeneStellen`) — keine zweite Liste; anders als die Seite ohne die 50er-Grenze, gemeldet wird jede veröffentlichte Stelle; ohne `lastModified` (R-11). (b) Englisch, wie D-82 es für die ganze öffentliche Website verlangt: der Karrierebereich steht unter `/en/karriere` (gebaut mit V-393, D-807) — dieselben Bauteile, die Stellentexte so, wie das Recruiting sie schreibt (deutsch, mit `lang="de"` und einem Satz dazu); die Sitemap meldet beide Sprachen mit gegenseitigem `hreflang`. | `app/sitemap.ts`, `(public)/karriere/daten.ts`, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-652 | Eine Leistungsseite gehört der Gesellschaft, die die Leistung erbringt, und nennt sie als `provider`, sobald die Zeile ihre `mandant_id` trägt (`seitenService`, wie gebaut). Welche Leistungen eine eigene Seite bekommen, entscheidet die Redaktion; bis sie eine anlegt, bleibt es bei der Demonstrationsseite `/leistungen/unterhaltsreinigung`. Sie ist keiner Gesellschaft zugeordnet und nennt keinen Anbieter, weil weder der Import noch die Seitenpflege `seite.mandant_id` setzen (V-293, berichtigt und um diesen Fall ergänzt). Kanonisch bleiben die Leistungen einer Gesellschaft unter `/unternehmen/<bereich>/leistungen` (§2.2). Der Text der Seite sagt es (de/en). | `services/inhalt/jsonld.ts`, `db/seed/{inhalt,inhalt-en}.ts` |
 
 **Was sich NICHT ändert.** Kein Recht, keine Policy, keine Migration, keine
@@ -25888,21 +25888,21 @@ es verbunden.
 
 | Frage | Was die Plattform bis dahin tut | Wo der Betreiber es einträgt |
 |---|---|---|
-| O-01 | Rechtsform der CSE Operations. Bis sie eingetragen ist, stellt Operations keine Rechnung unter eigener Nummer: kein eigener Kreis, die Vorabprüfung und `fin.rechnung_nummer_ziehen` sagen „eine Abteilung fakturiert über eine der drei Gesellschaften". Die Frage bleibt in `OFFEN_GEBLIEBEN` (`annahmen.test.ts`) — jede Vorbelegung wäre eine Behauptung über eine Rechtsform; der Kopf von `annahmen.ts` nennt sie jetzt (er nannte O-05 statt O-01). | `mandant.ist_rechtseinheit`, `eigener_nummernkreis` — ohne Oberfläche (V-390) |
+| O-01 | Rechtsform der CSE Operations. Bis sie eingetragen ist, stellt Operations keine Rechnung unter eigener Nummer: kein eigener Kreis, die Vorabprüfung und `fin.rechnung_nummer_ziehen` sagen „eine Abteilung fakturiert über eine der drei Gesellschaften". Die Frage bleibt in `OFFEN_GEBLIEBEN` (`annahmen.test.ts`) — jede Vorbelegung wäre eine Behauptung über eine Rechtsform; der Kopf von `annahmen.ts` nennt sie jetzt (er nannte O-05 statt O-01). | Einstellungen › Unternehmensdaten, „Eigene Rechtseinheit" (seit D-804; vorher ohne Oberfläche, V-390) |
 | O-09 | Datenmengen für die Migration. Die Plattform legt keine Mengen fest; die Übernahme aus dem Altsystem wartet auf dessen Exportformat (O-128). | im Gespräch zur Migration |
 | O-10 | Plattformkonten für Social Media und Jobbörsen: jeder Kanal nicht verbunden, ein Beitrag bleibt Entwurf. | Konto, Administrator und AV-Vertrag je Plattform; Zugang über Umgebungsvariablen |
 | O-12 | Exaktes CSE-Rot und SVG-Logos: angenommenes Rot `#E30613` (`annahmen.ts`), Platzhalter-Logos, sichtbar gekennzeichnet. | Logos unter Einstellungen › Identität (braucht den Speicher); das Rot in DESIGN §1 |
 | O-13 | Eigene Fotografie mit Freigaben: Motivtafeln und gekennzeichnete CC0-Zwischenbilder (D-383). Die Sperre vor dem Livegang ist nicht verdrahtet (V-389). | Dateien unter `public/bilder/`, `pnpm content:import`; Titelbild unter Einstellungen › Identität |
-| O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | `mandant` ohne Oberfläche (V-390); Bankkonten unter Finanzen › Bankkonten |
+| O-24 | Handelsregister, USt-IdNr. und Bankverbindung: Demowerte, sichtbar „nicht bestätigt" (O-353); ohne Steuernummer oder USt-IdNr. lässt die Pflichtangabenprüfung keine Rechnung zu (§ 14 Abs. 4 Nr. 2 UStG). | Einstellungen › Unternehmensdaten (seit D-804, V-390); Bankkonten für den Kontoauszug unter Finanzen › Bankkonten |
 | O-28 | Bewerbungspostfach: nicht verbunden (O-938, D-797); E-Mail-Bewerbungen überträgt ein Mensch unter Recruiting › Bewerbungen › Aus dem Postfach erfassen. | Postfach, Anbieter, Region und Vertrag; Anbindung über `integrationen/bewerbungspostfach.ts` |
-| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | `plattform_einstellung` `sicherheit.kontakt` — ohne Oberfläche (V-390) |
+| O-35 | Postfach für Sicherheitsmeldungen: `/.well-known/security.txt` antwortet 404, bis eines eingetragen ist. | `plattform_einstellung` `sicherheit.kontakt` — ohne Oberfläche (V-392) |
 | O-82 | SMS-Gateway in der EU mit Ausgabendeckel: nicht verbunden; die Schichtleitung gibt Codes von Hand aus (D-790). | Gateway und Vertrag; Anbindung in `auth/sms.ts` |
 | O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Entwürfe lesen sie noch nicht (V-391), versendet wird ohne Postausgang nichts. | Einstellungen › Identität |
 | O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
 | O-119 | Unabhängige, verschlüsselte Sicherung: gesichert wird beim Anbieter (Supabase, Frankfurt; Verfahrensdokumentation 4.3); ein eigenes Sicherungsziel, seine Frist und der Schlüsselhalter fehlen, der Wiederherstellungstest ist eingeplant und nicht erbracht (Abschnitt 5 nennt jetzt O-119). | Sicherungsziel und Schlüssel; Test in ROADMAP Phase 10 |
 | O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: die Plattform führt Bescheinigungen der Kunden und Lieferanten, nicht die eigenen (V-388). | — (V-388) |
 | O-132 | Karten- und Geokodierungsdienst: nicht verbunden; Objekte stehen als Liste, Koordinaten trägt ein Mensch ein (O-122, D-802). | Anbieter und Vertrag |
-| O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | `mandant` ohne Oberfläche (V-390) |
+| O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | Einstellungen › Unternehmensdaten, danach „Angaben bestätigen" (seit D-804, V-390) |
 | O-374 | Jobbörse und Vertrag: keine verbunden; „Veröffentlichen" vermerkt den Versuch als nicht verbunden. | Vertrag und Kennung je Börse; Anbindung in `versand/stellenboerse.ts` |
 | O-501 | Supabase-Projekt, Auftragsverarbeitungsvertrag, Anmeldeweg: angemeldet wird über die eigene Kennwortprüfung, Administration mit 2FA; ein Firmenverzeichnis (SAML/OIDC) gibt es nicht; E-Mails gehen nicht hinaus. | Projekt und Vertrag; der Codetausch in `auth/callback` kommt mit dem Projekt |
 | O-509 | KI-Endpunkte im Auftragsverarbeitungsvertrag: zugelassen ist `eu.api.openai.com`, jeder andere Host wird abgewiesen. | `OPENAI_EU_HOSTS` |
@@ -25940,4 +25940,230 @@ tragen einen Zeiger auf ihre Voreinstellung (D-779 bis D-803), 21 keinen
 — die zwanzig Betreiberdaten oben und O-183.
 
 | Betrifft | O-01, O-09, O-10, O-12, O-13, O-24, O-28, O-35, O-82, O-115, O-116, O-118, O-119, O-123, O-130, O-132, O-353, O-374, O-375, O-501, O-509, O-596, O-603; V-387 bis V-391; `src/app/portal/[mandant]/einstellungen/{integrationen,import,dpa,identitaet}/page.tsx`, `src/app/portal/[mandant]/nachrichten/page.tsx`, `src/app/portal/[mandant]/objekte/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/app/(public)/karriere/Formular.tsx`, `src/app/api/recruiting/stellen/[id]/veroeffentlichen/route.ts`, `src/app/auth/callback/route.ts`, `src/components/oeffentlich/Gesellschaften.tsx`, `src/lib/{annahmen,placeholder-assets,weiterleitungen}.ts`, `src/server/registry/{integrationen,auftragsverarbeiter}.ts`, `src/server/versand/{email,social-plattform,stellenboerse,modell-openai}.ts`, `src/server/auth/kennwort-anmeldung.ts`, `src/server/services/{angebot/index,betrieb/ueberwachung,buchhaltung/verfahrensdokumentation,finanz/mahnung/index,finanz/rechnung,inhalt/sicherheit-txt}.ts`, `docs/ANNAHMEN.md` |
+|---|---|
+
+### D-804 · Firmenangaben pflegen und bestätigen (V-390)
+
+**Der Anlass.** D-803 fand, dass Register, Steuernummern, Anschrift, Bank und
+Rechtsform einer Gesellschaft keinen Eingabeweg hatten — nur Seed oder SQL —,
+obwohl die Seite Unternehmensdaten sagte, geändert werde über die
+Super-Administration, und das Recht `system.mandant_verwalten` (0008)
+nirgends benutzt wurde. Der Betreiber konnte O-01, O-24 und O-353 nicht
+eintragen, ohne die Datenbank anzufassen (V-390, blockiert).
+
+**Was gebaut ist.**
+- `0494`: `app.mandant_angaben_setzen(jsonb)` und
+  `app.mandant_angaben_bestaetigen()`, beide `security definer` im Eigentum
+  von `cse_definer`, mit dem Tor von `app.mitgliedschaft_module_setzen`
+  (0462): genau eine aktive Gesellschaft, keine Gruppenansicht
+  (Invariante 10), keine lesende Sitzung, `aal2`, `system.mandant_verwalten`.
+  Spaltenrecht UPDATE nur für die pflegbaren Spalten, Policy auf die aktive
+  Gesellschaft. Slug, Markenname, Module, Farbe und Sortierung bleiben
+  draussen; ein unbekanntes Feld weist die Funktion ab. Ändert sich etwas,
+  ist `angaben_bestaetigt_am` wieder leer; unverändert absenden ist kein
+  Fehler und lässt die Bestätigung stehen. Bestätigt wird mit der Serveruhr
+  (Invariante 5). Jede Änderung schreibt `trg_mandant_audit` (0005) mit
+  vorher und nachher ins Protokoll (TEN-09).
+- `services/mandant/angaben.ts`: `pruefeAngaben` sagt die Regeln vorher in
+  Worten — USt-IdNr. DE und neun Ziffern, Postleitzahl, Land, IBAN mit
+  Prüfziffer, BIC, E-Mail, Webadresse, elektronische Adresse nur mit
+  EAS-Schema, ein eigener Nummernkreis nur für eine eigene Rechtseinheit mit
+  den Angaben nach § 14 Abs. 4 UStG. Die CHECKs aus 0001 und 0120 bleiben
+  die letzte Linie und kommen mit demselben Satz zurück, nie als roher
+  Datenbanktext.
+- `POST /api/einstellungen/mandant` (`system.mandant_verwalten`, zweiter
+  Faktor) und auf Einstellungen › Unternehmensdaten „Angaben pflegen" und
+  „Angaben bestätigen" — nur mit dem Recht. Die Administration einer
+  Gesellschaft sieht die Seite weiter lesend.
+- Die Rechtseinheit hat drei Zustände: ja, nein, „nicht eingetragen" (O-01).
+  Der dritte ist der Stand der CSE Operations, kein Fehler; die Seite zeigt
+  NULL nicht mehr als „nein".
+- Der Seed überschreibt bestätigte Angaben nicht mehr (Rechtseinheit,
+  Nummernkreis, USt-IdNr., Register, Rechnungskontakt, elektronische
+  Adresse); Bank, Anschrift und Kontakt hat er nie überschrieben.
+
+**Was sich NICHT ändert.** Festgeschriebene Rechnungen behalten die
+eingefrorenen Angaben (0120, K-12). Kein neues Recht: `system.mandant_verwalten`
+bleibt der Super-Administration vorbehalten. Der Sicherheitskontakt der
+Plattform (O-35) ist eine Plattform-, keine Gesellschaftsangabe und hat
+weiter keinen Eingabeweg (V-392).
+
+**Prüfung.** `tests/kern/mandant-angaben.test.ts` (Normalisierung, die drei
+Zustände der Rechtseinheit, jede Abweisung mit ihrem Grund);
+`tests/isolation/mandant-angaben.test.ts` auf einer eigenen Gesellschaft
+(Pflege mit Protokolleintrag der handelnden Person, unverändert ist kein
+Fehler, Bestätigung und ihr Rücknehmen, Abweisung ohne Recht, ohne zweiten
+Faktor, in der Gruppenansicht, per UPDATE am Weg vorbei, mit unbekanntem
+Feld, die CHECKs als letzte Linie); `tests/e2e/einstellungen.spec.ts` (die
+Super-Administration sieht Formular und Bestätigung, die Administration
+weiter keines); `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`,
+`tests/kern` komplett.
+
+| Betrifft | V-390, V-392; O-01, O-24, O-35, O-353; `drizzle/0494_mandant_angaben_pflege.sql`, `src/server/services/mandant/angaben.ts`, `src/app/api/einstellungen/mandant/route.ts`, `src/app/portal/[mandant]/einstellungen/mandant/page.tsx`, `src/server/auth/route-manifest.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/index.ts`, `src/server/services/inhalt/sicherheit-txt.ts`, `tests/kern/mandant-angaben.test.ts`, `tests/isolation/mandant-angaben.test.ts`, `tests/e2e/einstellungen.spec.ts` |
+|---|---|
+
+### D-805 · Bauwelle 1: keine Nachrichtenfäden in der Gruppenansicht, vier Augen für Bau-Rechtserklärungen (V-379, V-383)
+
+**Der Anlass.** Zwei Voreinstellungen standen beschlossen und ungebaut: die
+Gruppenleitung liest keine Nachrichtenfäden (O-651, D-799, V-379), und eine
+Behinderungsanzeige oder ein Nachtrag wird nicht von der Person freigegeben,
+die sie vorgelegt hat (O-260, D-800, V-383). Beides schliesst eine Lücke im
+Schutz: die eine zu viel Einsicht, die andere eine Kontrolle, die nur auf dem
+Papier stand.
+
+**Was gebaut ist.**
+- `0495`: `t_nachricht_gruppe` (0011) fällt weg; `p_gruppe_kein_personenbezug`
+  liegt restriktiv auf `nachricht`, `nachricht_anhang` und
+  `nachricht_empfaenger`, in der Bauart von 0370. Der Schlüssel
+  `gruppe.nachricht.lesen` bleibt im Katalog und öffnet auf diesen Tischen
+  nichts mehr — sichtbar im Kommentar an der Decke, nicht still.
+- `0496`: `kern.freigabe_vier_augen` mit `trg_freigabe_vier_augen` an der
+  Freigabe, für Einfügen und Statuswechsel: `behinderung_senden` und
+  `nachtrag_einreichen` genehmigt nicht, wer sie vorgelegt hat
+  (`erstellt_von`). Die Regel steht an der Freigabe und nicht im Dienst, damit
+  sie für jeden Weg gilt, der genehmigt. Eine Freigabe ohne `erstellt_von`
+  (Nachtlauf, Agent) hat keinen menschlichen Verfasser; dort entscheidet ein
+  Mensch ohnehin.
+- `freigabe/entscheiden.ts` übersetzt die Abweisung als `vier_augen`, die
+  Entscheidungsseite sagt den Satz dazu.
+- Der Seed legt Nachtrag und Behinderungsanzeige durch die Bauleitung vor und
+  lässt sie von einer zweiten Person der Gesellschaft mit
+  `freigabe.entscheiden` freigeben; gibt es keine, bleiben beide ungesendet.
+
+**Was sich NICHT ändert.** Kein Recht, kein Katalogeintrag; `freigabe.entscheiden`
+hält weiter auch die Leitung. Andere Freigaben (Mahnung, Eingangsrechnung,
+Nachricht an einen Kontakt) bleiben, wie sie sind — für sie ist kein
+Vier-Augen-Prinzip beschlossen (O-183 ist nicht Teil der Runden).
+
+**Beim Lesen aufgefallen.** Der Schichttausch (V-260) hängt seit D-802 auch an
+O-06: die Voreinstellung zu O-925 bietet Partner „mit Betriebsrat nach dessen
+Zustimmung" an, und O-06 behandelt die Plattform so, als gäbe es einen ohne
+Vereinbarung. Die Zeile sagt das jetzt.
+
+**Prüfung.** `tests/isolation/gruppe-nachrichtenfaeden.test.ts`,
+`tests/isolation/bau-vier-augen.test.ts` (in der CI), `tests/kern` komplett,
+`pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-379, V-383, V-260; O-651, O-260; `drizzle/0495_gruppe_ohne_nachrichtenfaeden.sql`, `drizzle/0496_bau_vier_augen.sql`, `src/server/services/freigabe/entscheiden.ts`, `src/app/portal/[mandant]/freigaben/darstellung.ts`, `src/server/db/seed/bau.ts`, `tests/isolation/gruppe-nachrichtenfaeden.test.ts`, `tests/isolation/bau-vier-augen.test.ts` |
+|---|---|
+
+### D-806 · Bauwelle 2: Bindefrist beim Versand, Karrierefilter, Wiedervorlage im Kalender, Archiv für Suchprofil und Qualitätsprüfung (V-359, V-364, V-344, V-304, V-288)
+
+**Der Anlass.** Fünf Voreinstellungen standen beschlossen und ungebaut — jede
+mit einer Folge, die man im Betrieb bemerkt: ein Angebot ohne Frist lief nie
+ab (O-350), die Karriereseite filterte nicht (O-38), eine erledigte oder
+verschobene Wiedervorlage stand im Kalender am alten Tag offen (O-663), ein
+Suchprofil und eine falsch erfasste Qualitätsprüfung liessen sich nicht aus dem
+Weg räumen (O-720, O-704).
+
+**Was gebaut ist.**
+- **Bindefrist (V-359).** `versendeAngebot` setzt `gueltig_bis` im selben
+  UPDATE wie `versendet_am` — danach friert 0024 es ein. Berliner Versandtag
+  plus `bindefristTage`: aus `angebot.bindefrist_tage_standard`, ohne sie 28
+  Tage (`BINDEFRIST_VOREINSTELLUNG_TAGE`). Ein Wert, der keine ganze Zahl von 1
+  bis 9999 ist, gilt als nicht gesetzt — an einer verstellten Einstellung
+  scheitert kein Versand. Ein eingetragenes Datum bleibt; das Ergebnis meldet
+  `gueltigBis`.
+- **Karrierefilter (V-364).** `/karriere?bereich=<slug>`, ein Verweis je
+  Gesellschaft, gefiltert in der Abfrage (`offeneStellen(bereich)`), damit keine
+  Stelle hinter den neuesten 50 der Gruppe herausfällt.
+- **Wiedervorlage im Kalender (V-344).** `erledige` setzt am Spiegel
+  `abgesagt_am` mit dem Grund „Wiedervorlage erledigt" — durchgestrichen, im
+  Abonnement abgesagt, nichts gelöscht; `verschiebe` zieht Beginn und Ende mit,
+  die Dauer bleibt. Das Terminblatt sagt „Erledigt" statt „Abgesagt".
+- **Suchprofil archivieren (V-304).** `archiviereProfil` mit Protokoll, ein
+  zweiter Klick am Profilblatt; archivierte Profile unter `?archiv=1`.
+- **Qualitätsprüfung archivieren (V-288).** 0497: `archiviert_grund`,
+  `ersetzt_durch_id` (wie im Wachbuch) und `kern.qualitaetspruefung_archiv_pruefen`
+  — kein Archiv ohne Grund, danach stehen Zeitpunkt, Person, Grund und Verweis
+  fest, für jeden Weg. `archivierePruefung` sagt dieselben Regeln vorher als
+  Satz; das Prüfblatt archiviert mit Grund und optionaler ersetzender Prüfung
+  und zeigt den Verweis in beiden Richtungen.
+
+**Was sich NICHT ändert.** Kein neues Recht, kein Katalogeintrag. Der Spiegel
+einer Wiedervorlage zieht nur mit dem eigenen Recht nach (`aufgabe.schreiben`,
+`kalender.schreiben`), wie beim Anlegen — die Standardrollen mit
+`crm.schreiben` halten beide; einer eigenen Rolle ohne Kalenderrecht bleibt der
+Eintrag stehen (Isolationstest hält es fest). Zurückgeholt wird weder ein
+Profil noch eine Prüfung.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-350 | Bindefrist vier Wochen ab dem Berliner Versandtag, je Gesellschaft über `angebot.bindefrist_tage_standard` (wie D-796, jetzt gebaut). | `angebot/index.ts` |
+| O-720 | Archivieren setzt `geloescht_am`; die Bewertungen bleiben unter dem Profilnamen lesbar; zurückgeholt wird nicht. | `radar/profil.ts`, Profilblatt |
+| O-704 | Berichtigung durch eine neue Prüfung; die alte wird mit Grund archiviert, auf Wunsch mit Verweis auf die neue; danach steht beides fest. | `reinigung/qualitaet.ts`, Prüfblatt, 0497 |
+
+**Prüfung.** `tests/isolation/angebot-bindefrist.test.ts`,
+`tests/isolation/crm-wiedervorlage.test.ts`,
+`tests/isolation/radar-profil-schreiben.test.ts`,
+`tests/isolation/reinigung-security-qualitaet.test.ts` (in der CI),
+`tests/e2e/recruiting.spec.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-359, V-364, V-344, V-304, V-288; O-350, O-38, O-663, O-720, O-704; `drizzle/0497_qualitaetspruefung_archiv.sql`, `src/server/services/angebot/index.ts`, `src/app/(public)/karriere/{page,daten}.ts(x)`, `src/server/services/crm/wiedervorlage.ts`, `src/app/portal/[mandant]/kalender/[id]/page.tsx`, `src/server/services/radar/profil.ts`, `src/app/api/radar/profil/route.ts`, `src/app/portal/[mandant]/radar/{daten.ts,profile/**}`, `src/server/services/reinigung/qualitaet.ts`, `src/app/api/qualitaet/pruefungen/route.ts`, `src/app/portal/[mandant]/qualitaet/pruefungen/[id]/page.tsx` |
+|---|---|
+
+### D-807 · Bauwelle 3: Karrierebereich englisch, alle anderen Anmeldungen beenden, Bewerberfrist ab der Absage (V-393, V-331, V-365)
+
+**Der Anlass.** Drei Voreinstellungen standen beschlossen und ungebaut: der
+Karrierebereich englisch wie die übrige Website (O-512 (b), D-802 nach der
+Copilot-Runde auf PR 38), der Weg aus einem verlorenen Gerät (O-79, D-790) und
+die Bewerberfrist ab der Absage (O-373, D-797).
+
+**Was gebaut ist.**
+- **Karriere englisch (V-393).** Fünf Routen unter `/en/karriere`, gebaut aus
+  denselben Bauteilen wie die deutschen (`karriere/Seiten.tsx`), die Sätze in
+  `karriere/texte.ts`. Das Formular bleibt eine Definition (D-83) und schickt
+  `sprache=en`; `POST /api/karriere/bewerbung` führt Abweisung und Dank in die
+  Sprache des Formulars zurück. Die Stellentexte stehen, wie das Recruiting sie
+  schreibt — deutsch, mit `lang="de"` (WCAG 3.1.2) und einem Satz dazu; die
+  Rahmenschrift ist englisch. `/karriere` steht nicht mehr in `NUR_DEUTSCH`,
+  die Gruppenverweise der Hülle bleiben auf Englisch englisch, und die Sitemap
+  meldet beide Sprachen mit gegenseitigem `hreflang`.
+- **Alle anderen Anmeldungen beenden (V-331).** Konto › Sicherheit trägt einen
+  Knopf dafür (de/en/ar/tr); die laufende Anmeldung bleibt, die Policy hält
+  fremde heraus. Was V-331 sonst verlangte, stand schon: einzelne Anmeldungen
+  beenden (V-039), fremde widerrufen (V-076), und `app.sitzung_aufloesen`
+  prüft bei jeder Anfrage Status, Sperre und Deaktivierung. Die Zeile zu O-79
+  sagte das Gegenteil und nannte keine Leerlauffrist, obwohl acht Stunden
+  gelten (`auth.leerlauf_minuten`) — sie ist berichtigt.
+- **Bewerberfrist ab der Absage (V-365).** 0498: der Nachzug der Entscheidung
+  stellt bei einer Absage die Uhr neu — Berliner Entscheidungstag plus
+  `recruiting.aufbewahrung_tage`, nie früher als ab Eingang; eine Einstellung
+  ändert nichts. Formular und Dankesseite sagen es in beiden Sprachen.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-512 | Der Karrierebereich ist englisch wie die übrige Website; die Stellentexte erscheinen in der Sprache, in der das Recruiting sie schreibt (deutsch), mit einem Satz dazu (wie D-802, jetzt gebaut). | `karriere/Seiten.tsx`, `karriere/texte.ts`, `app/sitemap.ts` |
+| O-373 | Frist ab der Absage, ohne Entscheidung ab Eingang (wie D-797, jetzt gebaut). | `drizzle/0498`, `karriere/texte.ts` |
+
+**Copilot-Runde auf PR 39.** Fünf Befunde, alle berechtigt und behoben:
+- 0498 zieht auch die Bewerbungen nach, die VOR der Migration abgelehnt
+  wurden — ab dem Berliner Tag der Entscheidung, mit dem Einstellungswert zum
+  Zeitpunkt der Migration (einen Verlauf der Einstellung gibt es nicht), nie
+  kürzer als ab Eingang; schon gelöschte bleiben, wie sie sind. Sonst löschte
+  der Nachtlauf eine frühe Absage vor Ablauf der neuen Frist.
+- Qualitätsprüfung archivieren (V-288, D-806): als Ersatz nimmt der Dienst nur,
+  was das Prüfblatt anbietet — dasselbe Objekt, nicht früher geprüft
+  (`ersatz_unpassend`). Der Fremdschlüssel hält allein den Mandanten.
+- `POST /api/karriere/bewerbung` antwortet auch als JSON in der Sprache des
+  Formulars.
+- Der Seed wählt den Freigebenden der Bau-Erklärungen (V-383, D-805) über
+  `kern.traeger_des_rechts` — dieselbe Auflösung wie `app.hat_recht` — statt
+  über das blosse Bestehen einer Rollenbindung.
+- Der Seed füllt nach der Bestätigung (V-390, D-804) auch IBAN, BIC und Bank
+  nicht mehr nach.
+
+**Prüfung.** `tests/kern/karriere-englisch.test.ts`, `tests/kern/sprachpfade.test.ts`,
+`tests/kern/oeffentliche-navigation.test.ts`, `tests/kern/website-hinweise.test.ts`,
+`tests/kern/konto-sitzung-rueckweg.test.ts`, `tests/isolation/eigene-sitzungen.test.ts`,
+`tests/isolation/recruiting.test.ts`, `tests/isolation/seed.test.ts` und
+`tests/isolation/reinigung-security-qualitaet.test.ts` (in der CI), `tests/e2e/seo.spec.ts`,
+`tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-393, V-331, V-365; O-512, O-79, O-373; `drizzle/0498_bewerberfrist_ab_absage.sql`, `src/app/(public)/karriere/**`, `src/app/(public)/en/karriere/**`, `src/app/api/karriere/bewerbung/route.ts`, `src/app/sitemap.ts`, `src/lib/sprache.ts`, `src/lib/oeffentliche-navigation.ts`, `src/server/services/konto/sitzungen.ts`, `src/app/api/konto/sitzung/route.ts`, `src/app/portal/konto/sicherheit/page.tsx`, `src/lib/i18n/konto.ts`, `docs/DESIGN.md`, `src/server/services/reinigung/qualitaet.ts`, `src/server/db/seed/{bau,index}.ts` |
 |---|---|

@@ -18,6 +18,7 @@
  */
 import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { rechteImKontext } from '../../auth/kontext-rechte.js';
+import { istUuid } from '../../../lib/uuid.js';
 
 export type Bewertung = 'bestanden' | 'nicht_bestanden' | 'unbestimmt';
 
@@ -446,6 +447,15 @@ export interface PruefungZeile {
   readonly befundeNio: number;
   readonly fristenUeberfaellig: number;
   readonly archiviert: boolean;
+  /** Berliner Ortszeit der Archivierung (V-288) — `null` für eine laufende Prüfung. */
+  readonly archiviertLokal: string | null;
+  readonly archiviertGrund: string | null;
+  /** Die Prüfung, die diese ersetzt — Kennung und Nummer (V-288, wie im Wachbuch). */
+  readonly ersetztDurchId: string | null;
+  readonly ersetztDurchNummer: string | null;
+  /** Die Prüfung, die DIESE ersetzt hat — der Verweis in Gegenrichtung. */
+  readonly ersetztId: string | null;
+  readonly ersetztNummer: string | null;
 }
 
 interface PruefungRoh {
@@ -480,6 +490,12 @@ interface PruefungRoh {
   befunde_nio: string;
   fristen_ueberfaellig: string;
   archiviert: boolean;
+  archiviert_lokal: string | null;
+  archiviert_grund: string | null;
+  ersetzt_durch_id: string | null;
+  ersetzt_durch_nummer: string | null;
+  ersetzt_id: string | null;
+  ersetzt_nummer: string | null;
 }
 
 /**
@@ -534,7 +550,18 @@ const PRUEFUNG_SPALTEN = `
     where p.qualitaetspruefung_id = q.id and p.ergebnis = 'nio'
       and p.frist_am is not null and p.frist_am < app.berlin_heute())::text
                                                                      as fristen_ueberfaellig,
-  (q.archiviert_am is not null) as archiviert`;
+  (q.archiviert_am is not null) as archiviert,
+  to_char(q.archiviert_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI') as archiviert_lokal,
+  q.archiviert_grund,
+  q.ersetzt_durch_id,
+  (select e.nummer from qualitaetspruefung e
+    where e.mandant_id = q.mandant_id and e.id = q.ersetzt_durch_id)          as ersetzt_durch_nummer,
+  (select v.id from qualitaetspruefung v
+    where v.mandant_id = q.mandant_id and v.ersetzt_durch_id = q.id
+    order by v.archiviert_am limit 1)                                         as ersetzt_id,
+  (select v.nummer from qualitaetspruefung v
+    where v.mandant_id = q.mandant_id and v.ersetzt_durch_id = q.id
+    order by v.archiviert_am limit 1)                                         as ersetzt_nummer`;
 
 function alsPruefung(z: PruefungRoh): PruefungZeile {
   return {
@@ -569,6 +596,12 @@ function alsPruefung(z: PruefungRoh): PruefungZeile {
     befundeNio: Number(z.befunde_nio),
     fristenUeberfaellig: Number(z.fristen_ueberfaellig),
     archiviert: z.archiviert,
+    archiviertLokal: z.archiviert_lokal,
+    archiviertGrund: z.archiviert_grund,
+    ersetztDurchId: z.ersetzt_durch_id,
+    ersetztDurchNummer: z.ersetzt_durch_nummer,
+    ersetztId: z.ersetzt_id,
+    ersetztNummer: z.ersetzt_nummer,
   };
 }
 
@@ -692,6 +725,142 @@ export async function findePruefung(
     `select ${PRUEFUNG_SPALTEN} ${PRUEFUNG_QUELLE} where q.id = $1::uuid`, [id],
   );
   return z === undefined ? null : alsPruefung(z);
+}
+
+/* ------------------------------------------------------------ Archivieren */
+
+/**
+ * Warum ein Archivieren abgewiesen wurde (V-288) — als Schlüssel; die Seite
+ * schlägt den Satz nach, in der Adresse steht kein Text.
+ */
+export const ARCHIV_GRUENDE = [
+  'grund_fehlt', 'grund_zu_lang', 'nicht_gefunden', 'schon_archiviert',
+  'ersatz_unbekannt', 'ersatz_selbst', 'ersatz_unpassend',
+] as const;
+export type ArchivGrund = (typeof ARCHIV_GRUENDE)[number];
+
+export const ARCHIV_SAETZE: Readonly<Record<ArchivGrund, string>> = {
+  grund_fehlt: 'Eine Prüfung wird nur mit Grund archiviert — er steht später bei jedem, der das '
+    + 'Prüfblatt öffnet.',
+  grund_zu_lang: 'Der Grund ist zu lang: höchstens 500 Zeichen.',
+  nicht_gefunden: 'Diese Prüfung gibt es hier nicht — oder diese Sitzung darf sie nicht ändern.',
+  schon_archiviert: 'Diese Prüfung ist schon archiviert; Grund und Verweis stehen fest.',
+  ersatz_unbekannt: 'Die ersetzende Prüfung gibt es in dieser Gesellschaft nicht, oder sie ist '
+    + 'selbst archiviert.',
+  ersatz_selbst: 'Eine Prüfung ersetzt sich nicht selbst.',
+  ersatz_unpassend: 'Ersetzen kann nur eine Prüfung desselben Objekts, die nicht vor dieser '
+    + 'geprüft wurde — dieselbe Auswahl, die das Prüfblatt anbietet.',
+};
+
+export class PruefungArchivFehler extends Error {
+  constructor(readonly grund: ArchivGrund) {
+    super(ARCHIV_SAETZE[grund]);
+    this.name = 'PruefungArchivFehler';
+  }
+}
+
+export interface ArchivEingabe {
+  readonly grund: string;
+  /** Die Prüfung, die diese ersetzt — optional, aus derselben Gesellschaft. */
+  readonly ersetztDurchId?: string | null;
+}
+
+/**
+ * **Eine Prüfung archivieren** (V-288, O-704, D-780, D-806).
+ *
+ * Mit Grund, mit Protokoll, ohne Löschung (Invariante 8) — und optional mit
+ * dem Verweis auf die Prüfung, die sie ersetzt, wie im Wachbuch
+ * (`ersetzt_durch_id`, 0497). Die Datenbank hält dieselben Regeln für jeden
+ * Weg (`kern.qualitaetspruefung_archiv_pruefen`): kein Archiv ohne Grund, und
+ * danach stehen Zeitpunkt, Person, Grund und Verweis fest. Dieser Dienst sagt
+ * sie vorher als Satz.
+ *
+ * Die Zeile wird zuerst gesperrt: `select … for update` wendet das `using`
+ * der Policy an, also findet ein fremder Bereich nichts; das Schreibrecht
+ * (`qualitaet.schreiben`) fragt die Route, und die Policy fragt es beim
+ * UPDATE noch einmal.
+ *
+ * TODO(client, O-704): Voreinstellung — eine falsch erfasste Prüfung wird
+ * durch eine neue ersetzt und die alte mit Grund archiviert, mit Verweis auf
+ * die neue; geändert wird keine (D-780, D-806).
+ */
+export async function archivierePruefung(
+  kontext: SchreibKontext, id: string, e: ArchivEingabe,
+): Promise<void> {
+  const grund = e.grund.trim();
+  if (grund === '') throw new PruefungArchivFehler('grund_fehlt');
+  if (grund.length > 500) throw new PruefungArchivFehler('grund_zu_lang');
+  const ersatz = e.ersetztDurchId === undefined || e.ersetztDurchId === null
+    || e.ersetztDurchId === '' ? null : e.ersetztDurchId;
+  if (ersatz !== null && ersatz === id) throw new PruefungArchivFehler('ersatz_selbst');
+  if (!istUuid(id)) throw new PruefungArchivFehler('nicht_gefunden');
+  if (ersatz !== null && !istUuid(ersatz)) throw new PruefungArchivFehler('ersatz_unbekannt');
+
+  const [z] = await kontext.schreibe<{ archiviert: boolean }>(
+    `select archiviert_am is not null as archiviert
+       from qualitaetspruefung
+      where id = $1::uuid and mandant_id = app.aktiver_mandant()
+      for update`, [id]);
+  if (z === undefined) throw new PruefungArchivFehler('nicht_gefunden');
+  if (z.archiviert) throw new PruefungArchivFehler('schon_archiviert');
+  if (ersatz !== null) {
+    /*
+     * Dieselben Bedingungen wie `ladeErsatzKandidaten` — nicht nur „gibt es
+     * sie in dieser Gesellschaft". Der Fremdschlüssel hält allein den
+     * Mandanten (0497); ohne diese Prüfung verbände ein zusammengebauter POST
+     * die Prüfung unwiderruflich mit einem fremden Objekt oder einer älteren
+     * Prüfung, und der Verweis stünde danach fest.
+     */
+    const [r] = await kontext.abfrage<{ id: string; passt: boolean }>(
+      `select k.id,
+              (k.objekt_id is not distinct from q.objekt_id
+               and k.geprueft_am >= q.geprueft_am) as passt
+         from qualitaetspruefung k
+         join qualitaetspruefung q on q.mandant_id = k.mandant_id and q.id = $2::uuid
+        where k.id = $1::uuid and k.mandant_id = app.aktiver_mandant()
+          and k.archiviert_am is null`,
+      [ersatz, id]);
+    if (r === undefined) throw new PruefungArchivFehler('ersatz_unbekannt');
+    if (!r.passt) throw new PruefungArchivFehler('ersatz_unpassend');
+  }
+
+  const [neu] = await kontext.schreibe<{ id: string }>(
+    `update qualitaetspruefung
+        set archiviert_am = now(), archiviert_von = app.aktueller_benutzer(),
+            archiviert_grund = $2, ersetzt_durch_id = $3::uuid,
+            geaendert_von_art = 'mensch', geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid and mandant_id = app.aktiver_mandant() and archiviert_am is null
+      returning id`,
+    [id, grund, ersatz]);
+  if (neu === undefined) throw new PruefungArchivFehler('nicht_gefunden');
+  await kontext.schreibe(
+    `select app.protokolliere('qualitaet.pruefung_archiviert', 'qualitaetspruefung', $1, null,
+                              $2::jsonb, app.aktiver_mandant())`,
+    [id, { grund, ersetztDurchId: ersatz }]);
+}
+
+/**
+ * Die Prüfungen, die eine archivierte ersetzen können (V-288): dieselbe
+ * Gesellschaft, dasselbe Objekt, nicht archiviert, nicht sie selbst, und
+ * nicht früher erfasst — eine Berichtigung entsteht nach dem Fehler.
+ */
+export async function ladeErsatzKandidaten(
+  kontext: LeseKontext, id: string,
+): Promise<readonly { readonly id: string; readonly nummer: string; readonly geprueftLokal: string }[]> {
+  if (!istUuid(id)) return [];
+  const zeilen = await kontext.abfrage<{ id: string; nummer: string; geprueft_lokal: string }>(
+    `select k.id, k.nummer,
+            to_char(k.geprueft_am at time zone 'Europe/Berlin', 'DD.MM.YYYY HH24:MI')
+              as geprueft_lokal
+       from qualitaetspruefung q
+       join qualitaetspruefung k on k.mandant_id = q.mandant_id and k.id <> q.id
+      where q.id = $1::uuid
+        and k.archiviert_am is null
+        and k.objekt_id is not distinct from q.objekt_id
+        and k.geprueft_am >= q.geprueft_am
+      order by k.geprueft_am desc, k.nummer desc
+      limit 20`, [id]);
+  return zeilen.map((z) => ({ id: z.id, nummer: z.nummer, geprueftLokal: z.geprueft_lokal }));
 }
 
 export interface BefundZeile {

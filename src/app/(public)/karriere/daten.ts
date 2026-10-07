@@ -30,14 +30,23 @@ const FELDER = `
   m.slug                    as "mandantSlug",
   m.name                    as "mandantName"`;
 
-export async function offeneStellen(): Promise<readonly OffeneStelle[]> {
+/**
+ * Die offenen Stellen, die neuesten 50 — mit `bereich` nur die einer
+ * Gesellschaft (V-364). Gefiltert wird in der Abfrage und nicht danach: sonst
+ * fielen die Stellen einer Gesellschaft heraus, die hinter den neuesten 50
+ * der ganzen Gruppe stehen.
+ */
+export async function offeneStellen(
+  bereich: string | null = null,
+): Promise<readonly OffeneStelle[]> {
   return oeffentlichLesen((kontext) => kontext.abfrage<OffeneStelle>(
     `select ${FELDER}
        from stelle s
        join mandant m on m.id = s.mandant_id and m.archiviert_am is null
       where s.status = 'veroeffentlicht' and s.geschlossen_am is null
+        and ($1::text is null or m.slug = $1::text)
       order by s.veroeffentlicht_am desc
-      limit 50`));
+      limit 50`, [bereich]));
 }
 
 /**
