@@ -440,6 +440,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
         einwand_entschieden: 'Entscheidung über Ihre Zeitmeldung',
         nacherfassung_spaet: 'Späte Nacherfassung (§ 17 MiLoG)',
         abwesenheit_zurueckgenommen: 'Abwesenheit zurückgenommen',
+        bewacher_pruefung_faellig: 'Zuverlässigkeitsüberprüfung fällig (§ 34a GewO)',
       },
     },
     en: {

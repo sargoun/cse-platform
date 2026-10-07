@@ -2108,6 +2108,13 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'personal', pfad: 'security/bewacherregister',
     schreibend: true, schreibRecht: 'personal.bewacher_verwalten',
   },
+  /**
+   * V-320 — die Wiedervorlage der Zuverlässigkeitsüberprüfung. Ein Wächter
+   * wie `waechter/dienstplan`: er liest und meldet; geschrieben wird nur die
+   * Quittung in `waechter_meldung`, und die schreibt `cse_job` über seine
+   * Policy — kein Recht aus dem Katalog, weil hier kein Mensch handelt.
+   */
+  { modul: 'personal', pfad: 'security/zuverlaessigkeit', schreibend: false },
   { modul: 'security', pfad: 'security/uebersicht', schreibend: false },
   { modul: 'security', pfad: 'security/veranstaltung', schreibend: false },
   /**

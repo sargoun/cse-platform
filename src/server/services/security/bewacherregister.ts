@@ -97,6 +97,20 @@ export const REGISTERVERBINDUNG = 'nicht_verbunden' as const;
 export const BEWACHER_VORWARNUNG_TAGE = 60;
 
 /**
+ * Die Wiedervorlage der Zuverlässigkeitsüberprüfung (V-320, O-140, D-815).
+ *
+ * Fehlt die nächste Prüfung, leitet `app.bewacher_naechste_pruefung` (0511)
+ * sie beim LESEN aus der letzten ab: plus diese Zahl Jahre. Gespeichert wird
+ * nur, was jemand einträgt — ein Voreinstellungswert in der Zeile sähe aus
+ * wie eine Mitteilung der Behörde.
+ *
+ * TODO(client, O-140): Voreinstellung — fünf Jahre nach der letzten Prüfung
+ * (§ 34a Abs. 1 GewO: spätestens nach fünf Jahren); eingetragen wird, was die
+ * Behörde mitteilt, und dann gilt das eingetragene Datum. D-788, D-815.
+ */
+export const ZUVERLAESSIGKEIT_JAHRE = 5;
+
+/**
  * Warum ein Registereintrag NICHT erfasst oder fortgeschrieben wurde — als
  * Schlüssel (V-275, D-773, D-769). `POST /api/security/bewacherregister`
  * schickt ihn als `?fehler=<grund>` zurück auf die Liste, und die Seite
@@ -155,7 +169,19 @@ export interface RegisterZeile {
   /** Tage bis zum Ablauf; negativ heisst „seit so vielen Tagen abgelaufen". */
   readonly restTage: number | null;
   readonly letztePruefungAm: string | null;
+  /** Wie eingetragen — `null`, wenn niemand eine nächste Prüfung eingetragen hat. */
   readonly naechstePruefungAm: string | null;
+  /**
+   * Die Wiedervorlage der Zuverlässigkeitsüberprüfung (V-320): die
+   * eingetragene nächste Prüfung, sonst die letzte plus
+   * `ZUVERLAESSIGKEIT_JAHRE` (`app.bewacher_naechste_pruefung`, 0511).
+   * `null` nur, wenn beide Daten fehlen.
+   */
+  readonly wiedervorlageAm: string | null;
+  /** Ist die Wiedervorlage abgeleitet (Voreinstellung O-140) statt eingetragen? */
+  readonly wiedervorlageAbgeleitet: boolean;
+  /** Tage bis zur Wiedervorlage; negativ heisst „seit so vielen Tagen überschritten". */
+  readonly wiedervorlageRestTage: number | null;
   readonly registerauszugDokumentId: string | null;
   readonly bemerkung: string | null;
   /** Immer `'manuell'` — die Prüfbedingung der Tabelle lässt nichts anderes zu. */
@@ -183,6 +209,8 @@ interface RegisterRoh {
   rest_tage: number | null;
   letzte_pruefung_am: string | null;
   naechste_pruefung_am: string | null;
+  wiedervorlage_am: string | null;
+  wiedervorlage_rest_tage: number | null;
   registerauszug_dokument_id: string | null;
   bemerkung: string | null;
   quelle: string | null;
@@ -205,6 +233,10 @@ function alsZeile(z: RegisterRoh): RegisterZeile {
     restTage: z.rest_tage === null ? null : Number(z.rest_tage),
     letztePruefungAm: z.letzte_pruefung_am,
     naechstePruefungAm: z.naechste_pruefung_am,
+    wiedervorlageAm: z.wiedervorlage_am,
+    wiedervorlageAbgeleitet: z.naechste_pruefung_am === null && z.wiedervorlage_am !== null,
+    wiedervorlageRestTage: z.wiedervorlage_rest_tage === null
+      ? null : Number(z.wiedervorlage_rest_tage),
     registerauszugDokumentId: z.registerauszug_dokument_id,
     bemerkung: z.bemerkung,
     quelle: z.quelle,
@@ -267,6 +299,12 @@ export async function leseRegister(
                  else (b.gueltig_bis - $1::date) end::int as rest_tage,
             to_char(b.letzte_pruefung_am, 'YYYY-MM-DD')   as letzte_pruefung_am,
             to_char(b.naechste_pruefung_am, 'YYYY-MM-DD') as naechste_pruefung_am,
+            to_char(app.bewacher_naechste_pruefung(
+                      b.letzte_pruefung_am, b.naechste_pruefung_am, $2::int),
+                    'YYYY-MM-DD')                         as wiedervorlage_am,
+            (app.bewacher_naechste_pruefung(
+               b.letzte_pruefung_am, b.naechste_pruefung_am, $2::int)
+             - $1::date)::int                             as wiedervorlage_rest_tage,
             b.registerauszug_dokument_id,
             b.bemerkung,
             b.quelle,
@@ -300,7 +338,7 @@ export async function leseRegister(
         b.gueltig_bis asc nulls last,
         p.nachname, p.vorname
       limit 500`,
-    [stichtag],
+    [stichtag, ZUVERLAESSIGKEIT_JAHRE],
   );
   return {
     zeilen: zeilen.map(alsZeile),
@@ -471,10 +509,11 @@ function pruefeFelder(e: EintragEingabe): {
 /**
  * Einen Eintrag erfassen.
  *
- * **Keine Frist wird abgeleitet.** `naechste_pruefung_am` bleibt leer, wenn
- * niemand sie einträgt: in welchem Abstand das Register nachzuprüfen ist,
- * steht in der GewO-Durchführung und nicht in dieser Anwendung (O-40). Eine
- * abgeleitete Frist wäre ein Versprechen über eine behördliche Pflicht.
+ * **Gespeichert wird, was eingetragen ist.** `naechste_pruefung_am` bleibt
+ * leer, wenn niemand sie einträgt — die Wiedervorlage leitet
+ * `app.bewacher_naechste_pruefung` erst beim Lesen ab (die letzte Prüfung plus
+ * `ZUVERLAESSIGKEIT_JAHRE`, Voreinstellung O-140, V-320). Eine abgeleitete
+ * Frist in der Zeile sähe aus wie eine Mitteilung der Behörde.
  *
  * Die INSERT-Politik `be_schreiben` verlangt `personal.bewacher_verwalten` und
  * `app.person_sichtbar(person_id)` — eine Migration braucht es dafür nicht,

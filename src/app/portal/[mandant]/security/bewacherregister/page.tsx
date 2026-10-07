@@ -16,7 +16,7 @@ import { haeltRechte } from '@/app/portal/rechte';
 import { mandantTor, MandantAntwort } from '../../../unterseite';
 import {
   BEWACHER_STATUS, BEWACHER_VORWARNUNG_TAGE, bewacherregisterErreichbar, leseRegister,
-  STATUS_TEXT, type BewacherStatus, type RegisterAusschnitt,
+  STATUS_TEXT, ZUVERLAESSIGKEIT_JAHRE, type BewacherStatus, type RegisterAusschnitt,
 } from '@/server/services/security/bewacherregister';
 import { Recht } from '@/components/ui/Recht';
 import { BEWACHERREGISTER_TEXTE } from '@/lib/i18n/verwaltung/security';
@@ -174,12 +174,14 @@ export default async function Bewacherregister(
 
       <Hinweis art="hinweis" cse="register-o40" className="mb-s5 max-w-prose">
         <strong>Voreinstellung (O-40):</strong> die Bewacher-ID wird so übernommen, wie
-        die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung), das
-        Statusvokabular ist das hinterlegte, und keine Frist wird aus einem Datum
-        abgeleitet — die nächste Prüfung trägt ein, wer die Mitteilung der Behörde hat.
-        Eine geratene Prüfziffernregel würde eine echte Kennung abweisen — in dem
-        Register, das über die Einsetzbarkeit eines Menschen entscheidet. Ein Abgleich
-        mit dem Register ist nicht verbunden.
+        die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung), und das
+        Statusvokabular ist das hinterlegte. Eine geratene Prüfziffernregel würde eine
+        echte Kennung abweisen — in dem Register, das über die Einsetzbarkeit eines
+        Menschen entscheidet. <strong>Voreinstellung (O-140):</strong> ist keine nächste
+        Prüfung eingetragen, gilt als Wiedervorlage die letzte plus{' '}
+        {ZUVERLAESSIGKEIT_JAHRE} Jahre (§ 34a Abs. 1 GewO: spätestens nach fünf Jahren);
+        gespeichert wird sie nicht, und {BEWACHER_VORWARNUNG_TAGE} Tage vorher meldet der
+        Wächter sie. Ein Abgleich mit dem Register ist nicht verbunden.
       </Hinweis>
 
       {erfolgText !== null && (
@@ -339,7 +341,18 @@ export default async function Bewacherregister(
                         Prüfung: letzte{' '}
                         <span className="tabular-nums">{z.letztePruefungAm ?? '—'}</span>
                         {', nächste '}
-                        <span className="tabular-nums">{z.naechstePruefungAm ?? '—'}</span>
+                        <span
+                          className={z.wiedervorlageRestTage !== null && z.wiedervorlageRestTage < 0
+                            ? 'tabular-nums text-danger' : 'tabular-nums'}
+                          data-cse="bewacher-wiedervorlage"
+                        >
+                          {z.wiedervorlageAm ?? '—'}
+                        </span>
+                        {z.wiedervorlageAbgeleitet && (
+                          <span data-cse="bewacher-wiedervorlage-abgeleitet">
+                            {` (abgeleitet: ${String(ZUVERLAESSIGKEIT_JAHRE)} Jahre nach der letzten, Voreinstellung)`}
+                          </span>
+                        )}
                         {' · Stand '}
                         {z.quelle ?? 'manuell'}, nicht verbunden
                         {' · Registerauszug '}
@@ -448,7 +461,7 @@ export default async function Bewacherregister(
                       </label>
                       <label className="block">
                         <span className="mb-s1 block text-xs text-text-muted">
-                          Nächste Prüfung (wird nicht abgeleitet)
+                          Nächste Prüfung (leer = letzte plus {ZUVERLAESSIGKEIT_JAHRE} Jahre)
                         </span>
                         <input
                           name="naechste_pruefung"

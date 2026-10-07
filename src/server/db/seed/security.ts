@@ -323,9 +323,12 @@ export interface RegisterErgebnis {
  * Behoerdennummer im Seed waere die schlechtere Wahl: irgendwann haelt sie
  * jemand fuer echt.
  *
- * **Und keine Frist wird abgeleitet.** `naechste_pruefung_am` steht nur da, wo
- * der Seed sie ausdruecklich setzt; in welchem Abstand das Register
- * nachzupruefen ist, steht in der GewO-Durchfuehrung und nicht hier.
+ * **Und keine Frist wird gespeichert, die niemand eingetragen hat.**
+ * `naechste_pruefung_am` bleibt leer; die Wiedervorlage leitet die Plattform
+ * beim Lesen aus der letzten Pruefung ab (V-320, Voreinstellung O-140: fuenf
+ * Jahre). Die erste Lage liegt deshalb mit ihrer letzten Pruefung knapp fuenf
+ * Jahre zurueck — ihre Wiedervorlage steht im Vorlauf, und der Waechter
+ * meldet sie (`meldeFaelligeUeberpruefungen`).
  */
 async function seedBewacherRegister(
   sql: Sql, mandantId: string, planerId: string, heute: string,
@@ -348,18 +351,22 @@ async function seedBewacherRegister(
     readonly registriertSeit: number;
     readonly gueltigBis: number | null;
     readonly bemerkung: string | null;
+    /** Tage zurück bis zur letzten Zuverlässigkeitsüberprüfung. */
+    readonly letztePruefung: number;
   }[] = [
-    // Gueltig und weit weg vom Ablauf.
-    { status: 'registriert', registriertSeit: -800, gueltigBis: 900, bemerkung: null },
+    // Gueltig und weit weg vom Ablauf — aber die Zuverlaessigkeitsueberpruefung
+    // steht in rund vierzig Tagen an (fuenf Jahre nach der letzten, V-320).
+    { status: 'registriert', registriertSeit: -800, gueltigBis: 900, bemerkung: null,
+      letztePruefung: -1786 },
     // Im Vorwarnfenster: laeuft in 24 Tagen ab.
     { status: 'registriert', registriertSeit: -1100, gueltigBis: 24,
-      bemerkung: 'Verlängerung beantragt' },
+      bemerkung: 'Verlängerung beantragt', letztePruefung: -180 },
     // ABGELAUFEN — SEC-04 ist eine harte Sperre, nicht eine Warnung.
     { status: 'registriert', registriertSeit: -1500, gueltigBis: -12,
-      bemerkung: 'Verlängerung liegt der Behörde vor' },
+      bemerkung: 'Verlängerung liegt der Behörde vor', letztePruefung: -180 },
     // Beantragt, noch ohne Gueltigkeit: auch das sperrt die Einteilung.
     { status: 'beantragt', registriertSeit: -20, gueltigBis: null,
-      bemerkung: 'Antrag beim Ordnungsamt eingegangen' },
+      bemerkung: 'Antrag beim Ordnungsamt eingegangen', letztePruefung: -180 },
   ];
 
   let eintraege = 0;
@@ -380,7 +387,7 @@ async function seedBewacherRegister(
               ${lage.status}::bewacher_status,
               ${tagePlus(heute, lage.registriertSeit)}::date,
               ${lage.gueltigBis === null ? null : tagePlus(heute, lage.gueltigBis)}::date,
-              ${tagePlus(heute, -180)}::date,
+              ${tagePlus(heute, lage.letztePruefung)}::date,
               ${lage.bemerkung}, 'manuell', ${planerId})`;
     eintraege += 1;
   }

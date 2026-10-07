@@ -24756,7 +24756,7 @@ zwingend eingetragen hat. Die Riegel und ihre Prüfungen bleiben.
 |---|---|---|
 | O-148 | Postenarten: Objektschutz, Empfang und Pforte, Revier- und Streifendienst, Veranstaltungsschutz, Baustellenbewachung, Alarmverfolgung und Intervention; Schlüsselarten: Mechanischer Schlüssel, Generalschlüssel, Gruppenschlüssel, Transponder, Chipkarte — je mit en/ar/tr, unbestätigt (`ist_platzhalter`), per Knopf in den leeren Katalog (idempotent, wettlauffest, archivierte kommen nicht zurück), im Prüfprotokoll; die Gesellschaft bestätigt, archiviert oder ergänzt im Katalogblock der Postenliste und der Schlüsselseite (`Artenkatalog`) — eine eigene Art gilt als bestätigt, ihr Schlüssel entsteht aus der Bezeichnung. | `security/arten.ts`, `api/sicherheit/{posten,schluessel,arten}`, `security/Artenkatalog.tsx`, Posten, Posten › Neu, Schlüssel, `seed/security.ts`, `tests/isolation/security-arten.test.ts`, `tests/kern/security-voreinstellung.test.ts` |
 | O-342 | Ein Posten verlangt die Unterrichtung nach § 34a Abs. 1a GewO für jede eingesetzte Kraft; eine Veranstaltung dazu mindestens eine Kraft mit Sachkundeprüfung (Zugangskontrolle, § 34a Abs. 1a Satz 5). Angelegt per Knopf auf dem Posten- bzw. Veranstaltungsblatt als unbestätigte Warnung (`zwingend: false`, `bestaetigt: false`); die Sperre stellt die Gesellschaft scharf, wenn der Vertrag es sagt. | `security/anforderung.ts` (`ANFORDERUNG_VOREINSTELLUNG`), `Anforderungsblock.tsx`, `api/sicherheit/anforderungen`, `seed/security.ts`, `tests/isolation/anforderung-pflege.test.ts` |
-| O-40 | Bewacherregister: die Bewacher-ID wird so übernommen, wie die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung, keine Prüfziffer); das Statusvokabular ist das hinterlegte; keine Frist wird aus einem Datum abgeleitet — die nächste Prüfung trägt ein, wer die Mitteilung der Behörde hat; ein Abgleich mit dem Register ist nicht verbunden. | Security › Bewacherregister, `security/bewacherregister.ts` |
+| O-40 | Bewacherregister: die Bewacher-ID wird so übernommen, wie die Behörde sie ausgestellt hat (1 bis 32 Zeichen, keine Formatprüfung, keine Prüfziffer); das Statusvokabular ist das hinterlegte; gespeichert wird keine Frist, die niemand eingetragen hat — ohne eingetragene nächste Prüfung gilt als Wiedervorlage die letzte plus fünf Jahre, beim Lesen abgeleitet (O-140, V-320, D-815); ein Abgleich mit dem Register ist nicht verbunden. | Security › Bewacherregister, `security/bewacherregister.ts` |
 | O-707 | Vorwarnvorlauf für eine ablaufende Bewacher-Erlaubnis: 60 Tage (`BEWACHER_VORWARNUNG_TAGE`) — die Zahl steht im Dienst, nicht in der Seite. | `security/bewacherregister.ts`, Security › Bewacherregister |
 | O-706 | Der Modulkopf zeigt alle Nachweise mit Frist und markiert die Bewacherqualifikationen (wie gebaut); ob eine Zeile sperrt, entscheidet die Anforderung des Postens. | Security › Übersicht |
 | O-703 | Ein Veranstaltungsauftrag wird von der Wachleitung von Hand erfasst (Veranstaltungen › Neu, Schreibrecht der Sicherheit) und mit der Auftragsleistung verbunden, sobald der Vertrieb sie angelegt hat; Pflicht sind Objekt, Zeitraum und Stärke, die Position ist freiwillig. | Veranstaltungen, `security.ts` (i18n) |
@@ -25106,7 +25106,7 @@ gebaut ist, steht es dabei (V-319 bis V-322).
 | O-136 | Tarifbindung je Gesellschaft: Reinigung nach dem RTV Gebäudereinigung, Security nach dem Manteltarifvertrag Wach- und Sicherheitsgewerbe Berlin/Brandenburg, Bau nach dem BRTV — unbestätigt. Der Tarif selbst ist kein Feld: die Tarifgruppe steht als Text an der Kondition (`anstellung_kondition.tarifgruppe`, K-05), die Pausenregel in `tarifvereinbarung` (O-50, D-781), das Entgelt rechnet das Lohnsystem (D-06). Wie gebaut. | `personal/anstellung.ts`, Einstellungen › Arbeitszeit |
 | O-137 | Zwei gleichzeitige Beschäftigungen desselben Menschen bei derselben Gesellschaft (Hauptvertrag plus Minijob) sind zulässig: `anstellung` kennt keine Eindeutigkeit über (Gesellschaft, Person); die ArbZG-Last zählt je Mensch über alle Beschäftigungen (Invariante 9). Wie gebaut. | `personal/einstellung.ts` |
 | O-138 | Krankheitstage im genehmigten Urlaub werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG) — von Hand: `ab_keine_dublette` lässt keine zweite Abwesenheit über den Urlaub, also kürzt ein Mensch den Urlaub und erfasst die Krankheit. Automatisch geschieht nichts (V-319). | `abwesenheit/antrag.ts` |
-| O-140 | Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet (`laeuft_ab = false`, Katalog); die behördliche Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) ist der einzige Anlass einer Nachprüfung und hat keine Wiedervorlage in der Plattform (V-320). | `nachweis/aufnahme.ts`, `seed/qualifikation.ts` |
+| O-140 | Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet (`laeuft_ab = false`, Katalog); die behördliche Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) ist der einzige Anlass einer Nachprüfung; ihre Wiedervorlage ist die eingetragene nächste Prüfung, sonst die letzte plus fünf Jahre (`ZUVERLAESSIGKEIT_JAHRE`), 60 Tage vorher gemeldet — gebaut mit V-320 (D-815). | `nachweis/aufnahme.ts`, `seed/qualifikation.ts` |
 | O-141 | Der Anker bleibt: `app.person_sichtbar` sieht einen Menschen, solange in der Gesellschaft eine nicht gelöschte Beschäftigung steht — auch eine beendete (Personalakte); die Sicht fällt erst mit dem Löschen der Beschäftigung. Wie gebaut (0030). | `personal/einstellung.ts` |
 | O-143 | Ein Stundenkonto ist offen oder gesperrt; `vorlaeufig` steht im Enum und setzt kein Weg — der Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`). Wie gebaut. | `zeit/stundenkonto.ts`, `zeit/einwand.ts` |
 | O-162 | Zeiteinträge werden nicht gelöscht (Invariante 8); die zwei Jahre des § 17 Abs. 1 MiLoG sind damit immer eingehalten. Käme je ein Löschlauf, zählt die Frist ab dem Ende des Kalenderjahres der Aufzeichnung (wie § 147 Abs. 4 AO). | `zeit/milog.ts` |
@@ -26672,4 +26672,54 @@ validiertem CHECK), `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-394; NOT-03; `drizzle/0510_benachrichtigung_ziel_intern.sql`, `src/server/benachrichtigung/registry.ts`, `src/app/api/benachrichtigungen/[id]/oeffnen/route.ts`, `tests/kern/benachrichtigung.test.ts`, `tests/kern/benachrichtigung-oeffnen-route.test.ts`, `tests/isolation/benachrichtigung.test.ts` |
+|---|---|
+
+### D-815 · Bauwelle 12: Die Zuverlässigkeitsüberprüfung hat eine Wiedervorlage (V-320)
+
+**Der Anlass.** Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet;
+der einzige Anlass einer Nachprüfung ist die Zuverlässigkeitsüberprüfung der
+Behörde, spätestens nach fünf Jahren (O-140, D-788). `bewacher_eintrag` trägt
+`letzte_pruefung_am` und `naechste_pruefung_am` seit 0031 — gelesen hat sie
+kein Wächter, und eine leere nächste Prüfung fiel nie auf. Die Registerseite
+sagte ausdrücklich, keine Frist werde abgeleitet.
+
+**Was gebaut ist.**
+- **Die Wiedervorlage wird beim Lesen abgeleitet, nicht gespeichert.**
+  `app.bewacher_naechste_pruefung` (0511): die eingetragene nächste Prüfung,
+  sonst die letzte plus `ZUVERLAESSIGKEIT_JAHRE` (fünf). Ein
+  Voreinstellungswert in der Zeile sähe aus wie eine Mitteilung der Behörde;
+  so bleibt er als solcher erkennbar. Ein 29. Februar plus fünf Jahre ist der
+  28. Februar.
+- **Security › Bewacherregister** zeigt die Wiedervorlage mit dem Zusatz
+  „abgeleitet: 5 Jahre nach der letzten, Voreinstellung", überschritten rot;
+  das Feld heisst „Nächste Prüfung (leer = letzte plus 5 Jahre)", und der
+  Hinweis zu O-40/O-140 sagt, was gilt.
+- **Der Wächter meldet sie** (SEC-02, im Nachtlauf `nachweis_warnungen` und im
+  Seed): fällig ist, was bis heute plus 60 Tage ansteht — derselbe Vorlauf
+  wie für die Bewacher-Erlaubnis (`BEWACHER_VORWARNUNG_TAGE`, O-707) —, auch
+  Überschrittenes. Gemeldet wird in jeder Gesellschaft, in der die Person
+  aktiv beschäftigt ist und Security gebucht hat (`modulAktiv`, dieselbe
+  Regel wie die Seite), an die Mitglieder mit `personal.bewacher_verwalten`,
+  dem Recht der Registerseite (`kern.bewacher_pruefung_empfaenger`, 0511,
+  Definer, Mitgliedschaft am Berliner Tag). Einmal je Konto und Datum
+  (`waechter_meldung`, die Lage ist das Datum): wer eine neue Prüfung
+  einträgt, bekommt für das neue Datum wieder eine Meldung. Neue Art
+  `personal.bewacher_pruefung_faellig` (sammelbar, Ziel das Register); sie
+  sagt, ob das Datum eingetragen oder abgeleitet ist, und dass das Register
+  nicht verbunden ist.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-140 | Ohne eingetragene nächste Prüfung gilt als Wiedervorlage die letzte plus fünf Jahre (§ 34a Abs. 1 GewO: spätestens nach fünf Jahren), beim Lesen abgeleitet — wie D-788, jetzt gebaut. | `drizzle/0511`, `security/bewacherregister.ts`, `security/zuverlaessigkeit.ts` |
+| O-707 | Derselbe Vorlauf von 60 Tagen auch für die Wiedervorlage der Zuverlässigkeitsüberprüfung. | `security/zuverlaessigkeit.ts` |
+
+**Prüfung.** `tests/isolation/bewacher-wiedervorlage.test.ts` (Ableitung samt
+29. Februar, Register ohne gespeichertes Datum, Empfänger nur mit Security und
+Recht, einmal je Datum, neues Datum meldet wieder, ohne Anstellung niemand),
+`tests/kern/zuverlaessigkeit.test.ts`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-320; O-140, O-707, O-40; `drizzle/0511_bewacher_pruefung_wiedervorlage.sql`, `src/server/services/security/bewacherregister.ts`, `src/server/services/security/zuverlaessigkeit.ts`, `src/server/jobs/nachweisWarnungen.ts`, `src/server/benachrichtigung/bootstrap.ts`, `src/server/db/seed/security.ts`, `src/server/db/seed/benachrichtigung.ts`, `src/server/registry/dienste.ts`, `src/lib/i18n/konto.ts`, `src/app/portal/[mandant]/security/bewacherregister/page.tsx` |
 |---|---|

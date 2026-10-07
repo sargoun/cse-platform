@@ -15,6 +15,7 @@
 import { registriere, type JobDefinition } from './registry.js';
 import { meldeAblaufwarnungen } from '../services/nachweis/ablauf.js';
 import { stelleZu, stelleZuAnKonto, type Abfrage } from '../benachrichtigung/ablage.js';
+import { meldeFaelligeUeberpruefungen } from '../services/security/zuverlaessigkeit.js';
 
 export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
   return registriere({
@@ -53,6 +54,12 @@ export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
         objektId: t.nachweisId,
       })));
 
+      /*
+       * Die Wiedervorlage der Zuverlässigkeitsüberprüfung (V-320, O-140) —
+       * derselbe Wächter (SEC-02), derselbe Stichtag aus der Datenbank.
+       */
+      const ueberpruefung = await meldeFaelligeUeberpruefungen(db, heute);
+
       /**
        * Beides steht im Kennzahlensatz, und zwar einzeln.
        *
@@ -68,6 +75,9 @@ export function registriereNachweisWarnungen(db: Abfrage): JobDefinition {
         ohne_empfaenger: zustellung.ohneEmpfaenger,
         an_personalstelle_und_leitung: team.zugestellt,
         unzustellbar: bericht.unzustellbar,
+        ueberpruefung_faellig: ueberpruefung.faellig,
+        ueberpruefung_zugestellt: ueberpruefung.zugestellt,
+        ueberpruefung_ohne_empfaenger: ueberpruefung.ohneEmpfaenger,
       };
     },
   });
