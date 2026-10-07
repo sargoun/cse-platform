@@ -35,3 +35,23 @@ comment on constraint fsb_hoechstens_ein_traeger on freistellungsbescheinigung i
   'V-388, D-846: Kunde ODER Lieferant ODER keiner von beiden — dann ist es die eigene '
   'Bescheinigung der Gesellschaft, die bei Ausgangsrechnungen ueber Bauleistungen zaehlt '
   '(Paragraph 48 Abs. 2 EStG).';
+
+-- 3. Der Nachtlauf freistellung_ablauf (V-388, O-130) liest die eigenen
+--    Bescheinigungen ueber alle Gesellschaften als cse_job (alsJobRolle,
+--    nur lesend) — nicht unter der Rolle, die in DATABASE_URL steht (D-378).
+--    Er bekommt genau die Spalten, die der Hinweis braucht, und nur die
+--    eigenen Bescheinigungen: die eines Kunden oder Lieferanten sieht er nicht.
+grant select (id, mandant_id, kunde_id, lieferant_id, bescheinigung_nummer, gueltig_von,
+              gueltig_bis, widerrufen_am, umfang, auftrag_id)
+  on freistellungsbescheinigung to cse_job;
+
+create policy j_eigene_freistellung_lesen on freistellungsbescheinigung for select to cse_job
+  using (kunde_id is null and lieferant_id is null);
+
+-- Von der Gesellschaft liest er Kennung und Slug schon (j_mandant_lesen);
+-- dazu, ob sie archiviert ist — eine archivierte erinnert er nicht.
+grant select (archiviert_am) on mandant to cse_job;
+
+comment on policy j_eigene_freistellung_lesen on freistellungsbescheinigung is
+  'V-388, D-846: der Nachtlauf freistellung_ablauf liest die eigenen Bescheinigungen aller '
+  'Gesellschaften (Kunde und Lieferant leer) — und nur sie.';

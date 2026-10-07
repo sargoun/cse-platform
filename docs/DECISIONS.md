@@ -28546,7 +28546,12 @@ hingehören: an den Nachunternehmer (Lieferanten).
   60, 30 und 7 Tage vor dem Ablauf der eigenen, einmal je Stufe
   (`waechter_meldung`), nicht mit erfasster Nachfolgerin, nie für fremde.
   Neue Art `finanzen.freistellung_laeuft_ab` (Portal und E-Mail, nicht
-  sammelbar). `TODO(client, O-130)` am Dienst.
+  sammelbar). `TODO(client, O-130)` am Dienst. Gelesen wird als `cse_job`
+  (`alsJobRolle`; 0531 gibt ihm die Spalten der eigenen Bescheinigungen und
+  `mandant.archiviert_am`, keine fremde Bescheinigung), zugestellt je
+  Gesellschaft in EINER Transaktion wie beim Kettenbruch: bricht die
+  Zustellung ab, fällt die Quittung mit, und der nächste Lauf meldet
+  (Copilot-Runde PR #46, mit Isolationsprüfung).
 - **Das Steuerblatt des Kunden** zeigt im Lagekasten die eigene Bescheinigung
   am Stichtag („dieser Kunde behält nichts ein" bzw. „behält 15 % ein") und
   verweist auf die Pflege; die Bescheinigungen des Kunden stehen darunter mit

@@ -594,6 +594,37 @@ describe('(9) der Nachtlauf erinnert vor dem Ablauf der eigenen (O-130)', () => 
     expect(await meldungen(leitung)).toHaveLength(2);
   });
 
+  it('bricht die Zustellung ab, fällt die Quittung mit — der nächste Lauf meldet', async () => {
+    /*
+     * Quittung und Zustellung stehen in EINER Transaktion je Gesellschaft (wie
+     * beim Kettenbruch). Ohne sie bliebe die Quittung einer Zustellung, die nie
+     * ankam, stehen — und jeder weitere Lauf zählte „schon gemeldet".
+     */
+    const leitung = await konto(f.bau, 'leitung');
+    await eigene(f.bau, 'FB-ABBRUCH', tagePlus(heute, -300), tagePlus(heute, 20));
+    await sql.unsafe(
+      `create function public.test_zustellung_verweigern() returns trigger
+       language plpgsql as $$ begin raise exception 'Zustellung verweigert (Test)'; end $$`);
+    await sql.unsafe(
+      `create trigger test_zustellung_verweigern before insert on benachrichtigung
+       for each row when (new.art = 'finanzen.freistellung_laeuft_ab')
+       execute function public.test_zustellung_verweigern()`);
+    try {
+      await expect(meldeFreistellungsAblaeufe(sql, heute)).rejects.toThrow(/Zustellung verweigert/u);
+    } finally {
+      await sql.unsafe(`drop trigger test_zustellung_verweigern on benachrichtigung`);
+      await sql.unsafe(`drop function public.test_zustellung_verweigern()`);
+    }
+    const [q] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from waechter_meldung where waechter = 'freistellung_ablauf'`);
+    expect(q!.n).toBe(0);
+
+    const danach = await meldeFreistellungsAblaeufe(sql, heute);
+    expect(danach.schonGemeldet).toBe(0);
+    expect(danach.zugestellt).toBeGreaterThanOrEqual(1);
+    expect(await meldungen(leitung)).toHaveLength(1);
+  });
+
   it('mit erfasster Nachfolgerin, weit vor dem Ablauf und für fremde: keine Erinnerung', async () => {
     const leitung = await konto(f.bau, 'leitung');
     await eigene(f.bau, 'FB-ALT', tagePlus(heute, -300), tagePlus(heute, 20));
