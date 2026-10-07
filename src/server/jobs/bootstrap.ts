@@ -25,6 +25,7 @@ import { registriereWiedervorlageErinnerung } from './wiedervorlageErinnerung.js
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
 import { registriereAuditKette } from './auditKette.js';
+import { registriereBetriebsprotokolle } from './betriebsprotokolle.js';
 import { registriereStundenkontoAbgleich } from './stundenkontoAbgleich.js';
 import {
   registriereAngebotAblauf, registriereEinsatzAbschluss, registriereNachweisAblauf,
@@ -91,6 +92,7 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereNachweisWarnungen(db);
     registriereKettenpruefer(db);
     registriereAuditKette(db);
+    registriereBetriebsprotokolle(db);
     registriereStundenkontoAbgleich(db);
     registriereAngebotAblauf(db);
     registriereNachweisAblauf(db);

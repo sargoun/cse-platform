@@ -25217,7 +25217,7 @@ hiess. Das Kundenportal nennt sie an sechs Stellen „Voreinstellung" statt
 | O-89 | Die Gegenzeichnung des Leistungsnachweises erfolgt vor Ort (Name, Serverzeit, Prüfsumme — O-741); eine Gegenzeichnung oder Ablehnung im Kundenportal gibt es nicht. Wie gebaut. | Kundenportal › Nachweise |
 | O-90 | Festschreibung, Storno und DATEV-Export verlangen keinen zweiten Faktor im Moment der Handlung (`aal2 = false` im Manifest); der zweite Faktor der Verwaltungsrollen gilt für die Sitzung (AUT-02). Wie gebaut. | `auth/zugang.ts`, `registry/routen.generiert.ts` |
 | O-91 | Kunden sehen nur festgeschriebene Rechnungen; ein Entwurf ist im Kundenportal strukturell unerreichbar (`t_kunde` auf `rechnung`, 0075). Wie gebaut. | `kundenportal/rechnung.ts` |
-| O-92 | Aufbewahrung: Anmeldeversuche 30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll (`job_lauf`) ein Jahr, Prüfprotokoll (`audit_log`) zehn Jahre; Rechtsgrundlage Art. 6 Abs. 1 Buchst. c (GoBD) und f DSGVO. Löschläufe fehlen für alle vier (V-330). | Einstellungen › Protokoll › Export |
+| O-92 | Aufbewahrung: Anmeldeversuche 30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll (`job_lauf`) ein Jahr, Prüfprotokoll (`audit_log`) zehn Jahre; Rechtsgrundlage Art. 6 Abs. 1 Buchst. c (GoBD) und f DSGVO. Gebaut mit V-330 (D-822): der Nachtlauf `betriebsprotokolle_aufraeumen` löscht Anmeldeversuche und abgeschlossene Läufe nach ihrer Frist (`datenschutz.anmeldeversuch_tage`, `betrieb.job_lauf_tage`, vorläufige Einstellungen); das Prüfprotokoll hat keinen Löschpfad (Invariante 8), und eine eigene Tabelle für Sicherheitsvorfälle gibt es nicht — Anmeldung, Sperre und zweiter Faktor stehen als Plattformzeilen im Prüfprotokoll. | Einstellungen › Protokoll › Export, `jobs/betriebsprotokolle.ts`, `drizzle/0518` |
 | O-500 | Einladungslink 168 Stunden (`auth.einladung_stunden`, 0372), zehn Wiederherstellungscodes, Kennwort mindestens zwölf Zeichen ohne weitere Zusammensetzungsregel (`KENNWORT_MIN`). Wie gebaut. | `auth/kennwort-anmeldung.ts`, `drizzle/0372` |
 
 **Betreiberdaten — keine Voreinstellung.** O-82 (das EU-gehostete SMS-Gateway
@@ -27036,4 +27036,48 @@ die echte Route mit beiden Aktionen, Keks, Schlüssel, Sätze de/en),
 `tests/kern` komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-302; O-980, O-981; `drizzle/0517_verwaltungskonto_link_und_rolle.sql`, `src/server/services/system/verwaltungskonto.ts`, `src/app/api/system/verwaltungskonto/route.ts`, `src/app/portal/[mandant]/einstellungen/benutzer/[id]/page.tsx`, `src/app/portal/[mandant]/einstellungen/benutzer/VerwaltungskontoPflege.tsx`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto.ts`, `src/lib/i18n/verwaltung/einstellungen/verwaltungskonto-pflege.ts` |
+|---|---|
+
+### D-822 · Bauwelle 19: Anmeldeversuche und Nachtlauf-Protokoll werden gelöscht (V-330)
+
+**Der Anlass.** `kern.anmeldeversuch` trägt seit 0007 einen Index für genau
+diesen Zweck — gelöscht hat nie etwas; `job_lauf` und `job_lauf_mandant`
+wuchsen ebenso unbegrenzt. Voreinstellung zu O-92 (D-790): Anmeldeversuche
+30 Tage, Sicherheitsvorfälle drei Jahre, Nachtlauf-Protokoll ein Jahr,
+Prüfprotokoll zehn Jahre.
+
+**Was gebaut ist.**
+- **Zwei vorläufige Einstellungen** (0518): `datenschutz.anmeldeversuch_tage`
+  (30) und `betrieb.job_lauf_tage` (365), änderbar ohne Code; eine Frist unter
+  einem Tag gilt als ein Tag — ein Tippfehler löscht nicht alles.
+- **`kern.betriebsprotokolle_aufraeumen`** (nur `cse_job`): löscht
+  Anmeldeversuche älter als ihre Frist und abgeschlossene Läufe, die vor ihrer
+  Frist begonnen haben, samt ihren Ergebnissen je Gesellschaft; ein noch
+  laufender Lauf bleibt. `cse_definer` bekommt dafür `delete` mit Policies, die
+  nur abgeschlossene Läufe treffen; `cse_app` löscht weiterhin nichts.
+- **Der Job** `betriebsprotokolle_aufraeumen` (`jobs/betriebsprotokolle.ts`,
+  04:30 UTC, übergreifend — die drei Tabellen tragen keinen Mandanten)
+  schreibt je Tabelle Frist und Zahl ins Nachtlauf-Protokoll;
+  `docs/JOB-AUSLOESER.sql` führt ihn.
+- **Was nicht gelöscht wird und warum.** Das Prüfprotokoll bleibt zehn Jahre
+  und kennt keinen Löschpfad (Invariante 8, GoBD, die Kette 0204/0516). Eine
+  eigene Tabelle für Sicherheitsvorfälle gibt es nicht: Anmeldung, Sperre und
+  zweiter Faktor stehen als Plattformzeilen im Prüfprotokoll — die drei Jahre
+  aus O-92 haben deshalb keinen eigenen Gegenstand.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-92 | Anmeldeversuche 30 Tage, Nachtlauf-Protokoll ein Jahr — als vorläufige Einstellungen, nächtlich gelöscht; Prüfprotokoll zehn Jahre ohne Löschlauf — wie D-790, jetzt gebaut. | `drizzle/0518`, `jobs/betriebsprotokolle.ts` |
+
+**Prüfung.** `tests/isolation/betriebsprotokolle-aufraeumen.test.ts` (4, unter
+der echten Jobrolle: alt geht, jung und laufend bleiben, die zweite Nacht
+findet nichts; die Frist ist eine Einstellung, unter einem Tag wird ein Tag;
+nur `cse_job` ruft den Einstieg, `cse_app` löscht nichts; das Prüfprotokoll
+bleibt auch elf Jahre alt), `tests/kern/jobs-bootstrap.test.ts`,
+`definer-eigentum`, `sql-schema`, `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-330; O-92; `drizzle/0518_betriebsprotokolle_aufraeumen.sql`, `src/server/jobs/betriebsprotokolle.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql`, `tests/isolation/betriebsprotokolle-aufraeumen.test.ts`, `tests/kern/jobs-bootstrap.test.ts` |
 |---|---|

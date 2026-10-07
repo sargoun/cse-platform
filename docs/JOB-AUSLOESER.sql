@@ -66,6 +66,18 @@ select cron.schedule('cse_belegarchiv_ausgangsrechnung', '50 3 * * *', $cse$
   );
 $cse$);
 
+-- Anmeldeversuche und Nachtlauf-Protokoll nach ihrer Frist löschen (O-92) (uebergreifend)
+select cron.unschedule('cse_betriebsprotokolle_aufraeumen')
+  where exists (select 1 from cron.job where jobname = 'cse_betriebsprotokolle_aufraeumen');
+select cron.schedule('cse_betriebsprotokolle_aufraeumen', '30 4 * * *', $cse$
+  select net.http_post(
+    url     := 'https://basis-einsetzen.invalid/api/jobs/betriebsprotokolle_aufraeumen',
+    headers := jsonb_build_object('content-type', 'application/json',
+                                  'x-job-token', current_setting('cse.job_token')),
+    body    := '{}'::jsonb
+  );
+$cse$);
+
 -- Bewerberdaten nach Ablauf der Aufbewahrung löschen (REC-07) (uebergreifend)
 select cron.unschedule('cse_bewerber_loeschung')
   where exists (select 1 from cron.job where jobname = 'cse_bewerber_loeschung');

@@ -66,6 +66,8 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
        */
       'audit_kette_nachtlauf',
       'basiszinssatz_pruefen', 'belegarchiv_ausgangsrechnung',
+      /* `betriebsprotokolle_aufraeumen` kam mit V-330 dazu (O-92, D-822). */
+      'betriebsprotokolle_aufraeumen',
       'bewerber_loeschung', 'dokument_aufbewahrung',
       /*
        * `einsatz_abschluss` kam mit V-082 dazu und ist der einzige Lauf der
