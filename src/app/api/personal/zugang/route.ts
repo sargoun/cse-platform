@@ -26,9 +26,9 @@ import {
  * **Das Sperren ist der Notknopf und braucht deshalb keinen zweiten
  * Schlüssel.** Ein verlorenes Diensttelefon wird gemeldet, während jemand im
  * Treppenhaus steht; eine Sperre, die auf ein zweites Augenpaar wartet, ist
- * eine Sperre, die zu spät kommt. Ob umgekehrt das UMSCHREIBEN der Nummer
- * vier Augen braucht, ist offen (O-86) und wird hier nicht erfunden — die
- * Seite sagt, dass jede Änderung im Protokoll steht.
+ * eine Sperre, die zu spät kommt. Auch das UMSCHREIBEN der Nummer braucht
+ * keine vier Augen — Voreinstellung (O-86, D-781): jede Änderung steht mit
+ * alter und neuer Nummer im Protokoll, und die Seite sagt es.
  */
 export const dynamic = 'force-dynamic';
 

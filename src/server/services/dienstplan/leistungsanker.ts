@@ -27,8 +27,9 @@
  * Enkel-Schlüssel `einsatz_leistung_fk`. Welche Zeile zu welcher Schicht
  * gehört, entscheidet ein Mensch; die Datei schlägt nichts vor. Damit er es
  * entscheiden kann, nennt jede Zeile Kunde und Objekt ihres Auftrags (V-192).
- * OB der Kunde des Auftrags der des Objekts sein muss, fragt O-927 — die
- * Datei prüft es nicht.
+ * Der Kunde des Auftrags darf ein anderer sein als der des Objekts
+ * (Voreinstellung O-927: die Hausverwaltung bestellt für den Eigentümer) — die
+ * Datei prüft es nicht, die Auswahl nennt beide.
  *
  * Gelesen wird unter der RLS des Aufrufers: Leistungszeilen sieht, wer
  * `auftrag.lesen` hält. Wer das nicht hält, bekommt keine Auswahl — und kein
@@ -40,21 +41,21 @@ import type { LeseKontext } from '../../kontext/index.js';
 export type AuftragStatus = 'angelegt' | 'aktiv' | 'pausiert' | 'abgeschlossen' | 'storniert';
 
 /**
- * PLATZHALTER — in welchen Zuständen ein Auftrag NEUE Zeit an eine seiner
- * Leistungszeilen bekommt (V-192, O-927).
+ * VOREINSTELLUNG (O-927, D-795) — in welchen Zuständen ein Auftrag NEUE Zeit
+ * an eine seiner Leistungszeilen bekommt (V-192).
  *
  * `storniert` nie: der Vertrag kommt nicht zustande, und der Zustand ist
- * einwegig (0389). `abgeschlossen` nicht, solange O-734 offen ist: der
- * Abschluss ist einwegig und stellt die FIN-18-Warnung scharf (0296, D-366);
- * Zeit, die danach an ihm hinge, fände keine Rechnung mehr. OFFEN sind
- * `angelegt` (heute steht ein neuer Auftrag dort, bis jemand ihn aktiviert)
- * und `pausiert`. Bis zur Antwort gilt dieselbe Menge wie in der
+ * einwegig (0389). `abgeschlossen` nicht: der Abschluss ist einwegig (O-734)
+ * und stellt die FIN-18-Warnung scharf (0296, D-366); Zeit, die danach an ihm
+ * hinge, fände keine Rechnung mehr. `pausiert` ja — ein ruhender Vertrag wird
+ * wieder aufgenommen —, `angelegt` nein: ein Auftrag wird erst aktiviert,
+ * dann bebucht. Dieselbe Menge wie in der
  * Auftragsauswahl der Einzelschicht (`dienstplan/einsatz/neu`, V-013) —
  * EINE Stelle für beide Felder derselben Maske, die vorher auseinandergingen
  * (die Zeile nahm auch `angelegt` und `abgeschlossen`). Die Antwort ersetzt
  * nur diese Liste.
  *
- * TODO(client, O-927): In welchen Zuständen nimmt ein Auftrag neue Zeit an — auch `angelegt` (noch nicht aktiviert) und `pausiert`?
+ * TODO(client, O-927): Voreinstellung — (1) Zeit ohne Leistungszeile wird nachträglich zugeordnet, solange der Monat offen und die Zeit nicht abgerechnet ist, als Korrekturfassung (V-351); (2) ein Turnus ohne eigene Zeile übernimmt die seines Reviers, sind beide gesetzt, gilt die des Turnus (V-352); (3) der Auftrag darf einem anderen Kunden gehören als das Objekt; (4) neue Zeit nehmen `aktiv` und `pausiert` an, `angelegt`, `abgeschlossen` und `storniert` nicht. (3) und (4) wie gebaut. D-795.
  */
 export const ANKERBARE_AUFTRAGSZUSTAENDE: readonly AuftragStatus[] = ['aktiv', 'pausiert'];
 

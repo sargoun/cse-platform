@@ -19,7 +19,7 @@ import { SPRACH_KEKS_SEKUNDEN } from '@/lib/i18n/geraetesprache';
  * - `sameSite: 'lax'`: er reist mit, wenn die Kraft den Check-in-Link aus der
  *   SMS öffnet — das ist ein Aufruf von aussen, und genau für ihn ist er da.
  * - `secure` wie jeder Keks dieser Installation (`keksSicher`).
- * - **Kein `maxAge`, solange O-928 offen ist** (`SPRACH_KEKS_SEKUNDEN = null`):
+ * - **Kein `maxAge` — Voreinstellung O-928** (`SPRACH_KEKS_SEKUNDEN = null`):
  *   ein Sitzungskeks, der mit dem Browser endet.
  */
 export function sprachKeksOptionen(umgebung: Umgebung = process.env): {

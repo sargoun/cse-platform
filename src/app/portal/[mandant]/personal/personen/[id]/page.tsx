@@ -35,7 +35,7 @@ import {
  * `personen/[id]/stammdaten`), der Stundensatz (K-05, als Spaltenrecht
  * entzogen) und die Beschäftigungen der Schwestergesellschaften — die
  * Mandantenwand hat genau eine gesanktionierte Durchlässigkeit, und das ist
- * die ArbZG-Belastung (K-06). Die Frage steht als O-220 offen.
+ * die ArbZG-Belastung (K-06). Voreinstellung (O-220, D-795): so bleibt es.
  */
 export const dynamic = 'force-dynamic';
 
@@ -303,9 +303,9 @@ export default async function Personenblatt(
         Beschäftigungen in anderen Gesellschaften der Gruppe stehen hier nicht.
         Das ist keine Lücke der Seite, sondern die Mandantenwand: sie hat genau
         eine gesanktionierte Durchlässigkeit — die Arbeitszeitbelastung, die
-        Dauern und Grenzen zurückgibt und sonst nichts (K-06). Ob die
-        Personalstelle mehr sehen darf, ist eine Rechtsfrage und steht als
-        O-220 offen.
+        Dauern und Grenzen zurückgibt und sonst nichts (K-06). Die Personalstelle
+        sieht nur ihre Gesellschaft; wer in der Gruppe wo beschäftigt ist, zeigt
+        die Gruppenansicht (Voreinstellung O-220).
       </p>
     </PortalRahmen>
   );

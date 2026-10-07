@@ -12,7 +12,7 @@
  *
  * **Die Reihenfolge**: der Sprachkeks (gesetzt von der Sprachwahl auf diesen
  * Flächen und beim Speichern der Sprache im Profil der Arbeiterhülle; ein
- * Sitzungskeks, bis O-928 beantwortet ist), dann `Accept-Language`
+ * Sitzungskeks — Voreinstellung O-928), dann `Accept-Language`
  * — die Sprache, auf die das Telefon eingestellt ist —, dann Deutsch.
  *
  * Diese Datei ist rein: sie liest keinen Keks und keinen Kopf selbst. Die
@@ -25,8 +25,8 @@ import { istPortalSprache, type PortalSprache } from './texte.js';
 export const SPRACH_KEKS = 'cse_sprache';
 
 /**
- * Wie lange der Sprachkeks lebt — **OFFEN (O-928)**, und bis zur Antwort so
- * kurz wie möglich: `null` heisst Sitzungskeks (kein `Max-Age`), er endet,
+ * Wie lange der Sprachkeks lebt — **Voreinstellung (O-928, D-795): so kurz
+ * wie möglich**: `null` heisst Sitzungskeks (kein `Max-Age`), er endet,
  * wenn der Browser geschlossen wird.
  *
  * Hier stand ein Jahr, begründet mit „eine Spracheinstellung ist keine
@@ -38,9 +38,9 @@ export const SPRACH_KEKS = 'cse_sprache';
  * (Seed de/en) beschreibt genau diesen Platzhalter; wer ihn ändert, ändert
  * dort den Satz mit (D-751).
  *
- * PLATZHALTER — die Antwort auf O-928 ändert diesen Wert (Sekunden) und den
+ * VOREINSTELLUNG — eine andere Entscheidung zu O-928 ändert diesen Wert (Sekunden) und den
  * Satz der Datenschutzerklärung, nicht die Aufrufer.
- * TODO(client, O-928): Darf der Sprachkeks „cse_sprache" (nur de/en/ar/tr, gesetzt auf ausdrückliche Wahl der Beschäftigten auf Anmeldung/Stempeluhr oder beim Speichern der Sprache im Profil der Arbeiterhülle) als technisch notwendig nach § 25 Abs. 2 Nr. 2 TDDDG über die Browsersitzung hinaus bestehen — und wenn ja, wie lange (etwa ein Jahr)?
+ * TODO(client, O-928): Voreinstellung — der Sprachkeks „cse_sprache" ist ein Sitzungskeks (§ 25 Abs. 2 Nr. 2 TDDDG: ohne Einwilligung nur, was für den ausdrücklich gewünschten Dienst unbedingt erforderlich ist); `Accept-Language` trägt die Sprache des Telefons ohnehin, und die Datenschutzerklärung nennt das Gesetz mit seinem heutigen Namen. Wie gebaut. D-795.
  */
 export const SPRACH_KEKS_SEKUNDEN: number | null = null;
 

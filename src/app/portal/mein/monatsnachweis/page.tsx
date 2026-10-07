@@ -43,10 +43,11 @@ import { meinTexte, PORTAL_BCP47 } from '@/lib/i18n/texte';
  * gepraegten Artefakt beantwortet (D-152). `quelle` sagt, woher die Zeilen
  * kommen: `artefakt`, `live` (vorlaeufig) oder `ungepraegt`.
  *
- * // TODO(client, O-51): Muss der Stundennachweis in der Sprache des
- * Menschen ausgestellt werden, oder ist Deutsch die verlangte Form fuer eine
- * § 17-MiLoG-Aufzeichnung? Bis zur Antwort ist das Dokument DEUTSCH, mit einer
- * uebersetzten Kopfzeile darueber.
+ * // TODO(client, O-51): Voreinstellung — das Blatt steht in der Sprache des
+ * Menschen (`person.sprache`, Lesehilfe); die Aufzeichnung nach § 17 MiLoG ist
+ * die im System (Daten und Pruefsumme, sprachunabhaengig), die Fundstellen
+ * bleiben deutsch, und fuer eine Pruefung erzeugt die Verwaltung den deutschen
+ * Nachweis (`/zeiten/milog`). Wie gebaut (O-886). D-795.
  */
 export const dynamic = 'force-dynamic';
 
@@ -145,7 +146,7 @@ export default async function Monatsnachweis({
   const blattSprache = basis.sprache;
   const t = meinTexte(blattSprache);
   /*
-   * TODO(client, O-886): Darf das Blatt, das die Arbeiterin abruft, in ihrer Sprache stehen — oder muss die Aufzeichnung nach § 17 MiLoG deutsch sein, um als Nachweis zu gelten?
+   * TODO(client, O-886): Voreinstellung — das Blatt steht in der Sprache der Arbeiterin; als Aufzeichnung nach § 17 MiLoG gilt die im System, nicht das Blatt. Wie gebaut. D-795.
    *
    * Gebaut ist die Lesehilfe: Spalten und Erklaerungen folgen
    * `person.sprache`, die Fundstellen (`§ 17 MiLoG`) bleiben unuebersetzt, und
@@ -214,8 +215,9 @@ export default async function Monatsnachweis({
       `}</style>
 
       {/*
-        Die uebersetzte Kopfzeile ueber dem deutschen Dokument (O-51). Sie
-        traegt `dir`/`lang` der Person, das Blatt darunter bleibt deutsch.
+        Die Kopfzeile in der Sprache der Person (O-51); sie wird nicht gedruckt
+        (`cse-nicht-drucken`). Das Blatt darunter steht ebenfalls in ihrer
+        Sprache (Voreinstellung O-51, O-886), die Fundstellen bleiben deutsch.
       */}
       <p
         className="cse-nicht-drucken leise"

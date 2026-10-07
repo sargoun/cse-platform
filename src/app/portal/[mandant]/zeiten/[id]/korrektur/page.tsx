@@ -52,7 +52,11 @@ export const dynamic = 'force-dynamic';
 const ART_TEXT: readonly { readonly wert: string; readonly text: string }[] = [
   { wert: 'zeit_korrektur', text: 'Zeit korrigieren — Beginn oder Ende stimmt nicht' },
   { wert: 'pause_korrektur', text: 'Pause korrigieren' },
-  { wert: 'zuordnung_korrektur', text: 'Zuordnung korrigieren — falsches Objekt, falscher Auftrag' },
+  {
+    wert: 'zuordnung_korrektur',
+    text: 'Zuordnung korrigieren — falsches Objekt, falscher Auftrag (vermerkt den Grund; '
+      + 'die Zuordnung selbst ändert eine Korrektur noch nicht)',
+  },
   { wert: 'nacherfassung', text: 'Nacherfassung — die Aufzeichnung war unvollständig' },
   { wert: 'storno', text: 'Storno — die Aufzeichnung gehört ganz weg' },
 ];

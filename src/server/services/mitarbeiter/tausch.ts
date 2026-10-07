@@ -110,8 +110,8 @@ export interface TauschpartnerWahl {
 /**
  * Woher die Auswahl der Tauschpartner kommt — die austauschbare Stelle.
  *
- * `festgelegt: false` heisst: niemand hat entschieden, wen eine Kraft sehen
- * darf. Dann gibt es keine Auswahl, und der Dienst nimmt keinen Partner an
+ * `festgelegt: false` heisst: die Lesefunktion der Voreinstellung (O-925) ist
+ * nicht gebaut. Dann gibt es keine Auswahl, und der Dienst nimmt keinen Partner an
  * (`reicheAntragEin`) — auch keinen, den eine nachgebaute Anfrage mitschickt.
  */
 export type TauschpartnerQuelle =
@@ -125,17 +125,17 @@ export type TauschpartnerQuelle =
   };
 
 /**
- * PLATZHALTER — die Frage ist offen, und bis zur Antwort wird niemand
- * angeboten.
+ * VOREINSTELLUNG (O-925, D-795) — beschlossen, nicht gebaut (V-260): bis die
+ * Lesefunktion steht, wird niemand angeboten.
  *
- * TODO(client, O-925): Wen darf eine Beschäftigte beim Schichttausch als Tauschpartner sehen und wählen — alle aktiven Beschäftigten derselben Gesellschaft, nur die am selben Objekt oder Revier Eingesetzten, nur die mit derselben Qualifikation —, in welcher Namensform, und braucht die Liste eine Einwilligung oder eine Betriebsvereinbarung (EMP-13, O-06)?
+ * TODO(client, O-925): Voreinstellung — angeboten werden aktive Beschäftigte derselben Gesellschaft, die in den letzten 90 Tagen am selben Objekt eingesetzt waren und die Pflichtqualifikationen der Schicht halten, mit Vorname und Initial des Nachnamens; Grundlage § 26 Abs. 1 BDSG (Durchführung des Beschäftigungsverhältnisses), mit Betriebsrat nach dessen Zustimmung (O-06). Die Lesefunktion fehlt (V-260). D-795.
  */
 export const TAUSCHPARTNER_NICHT_FESTGELEGT: TauschpartnerQuelle = {
   festgelegt: false,
   offeneFrage: 'O-925',
 };
 
-/** Die Quelle, die Formular und Dienst fragen. Die Antwort auf O-925 ersetzt nur diese Zeile. */
+/** Die Quelle, die Formular und Dienst fragen. Die Lesefunktion der Voreinstellung (O-925, V-260) ersetzt nur diese Zeile. */
 export const TAUSCHPARTNER_QUELLE: TauschpartnerQuelle = TAUSCHPARTNER_NICHT_FESTGELEGT;
 
 /**

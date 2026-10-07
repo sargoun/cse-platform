@@ -2819,8 +2819,8 @@ export const ROUTEN: readonly RouteEintrag[] = [
      * **Das Sperren braucht ausdruecklich keinen zweiten Schluessel.** Ein
      * verlorenes Diensttelefon wird gemeldet, waehrend jemand im Treppenhaus
      * steht; eine Sperre, die auf ein zweites Augenpaar wartet, kommt zu
-     * spaet. Ob umgekehrt das UMSCHREIBEN vier Augen braucht, ist offen
-     * (O-86) und wird nicht erfunden.
+     * spaet. Auch das UMSCHREIBEN braucht keine vier Augen — Voreinstellung
+     * (O-86, D-781): das Protokoll mit alter und neuer Nummer genuegt.
      */
     pfad: 'api/personal/zugang',
     recht: 'personal.zugang_verwalten',

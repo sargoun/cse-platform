@@ -32,7 +32,8 @@ export interface BenachrichtigungsKontext {
   readonly objektId: string;
   readonly daten: Record<string, unknown>;
   /**
-   * Die Sprache der EMPFÄNGERIN — `person.sprache` (V-102, O-889).
+   * Die Sprache der EMPFÄNGERIN — `person.sprache` (V-102; Voreinstellung
+   * O-889, D-795).
    *
    * **Nur die drei Arten lesen sie, die in `/portal/mein` landen.** Die
    * Meldungen an die Verwaltung bleiben deutsch: das interne Portal ist

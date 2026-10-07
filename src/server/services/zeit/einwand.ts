@@ -56,8 +56,12 @@ export const ENTSCHIEDEN: readonly EinwandStatus[] = [
  * ist schlimmer als keiner: er laesst eine Oberflaeche bauen, die an einer
  * Regel scheitert, die niemand gesucht haette.
  *
- * Ob es so bleiben soll, ist offen — siehe **O-901**. Erfunden wird hier
- * nichts; gebaut ist der Weg, den die Datenbank heute erlaubt.
+ * Voreinstellung (**O-901**, D-795): so bleibt es — die Person erklärt den
+ * Rückzug, die Planung vermerkt ihn mit Begründung; einen Selbst-Rückzug gibt
+ * es nicht (Beweiswert der Aufzeichnung, EMP-07).
+ * // TODO(client, O-901): Voreinstellung — der Rückzug eines Zeit-Einwands ist
+ * ein Vermerk der Planung auf Erklärung der Person, kein Schreibweg der Person
+ * (0052). Wie gebaut. D-795.
  */
 export const ENTSCHEIDUNG: readonly EinwandStatus[] = [
   'anerkannt', 'teilweise_anerkannt', 'abgelehnt',
@@ -309,9 +313,11 @@ export async function entscheideEinwand(
    * Dieselbe Bedingung wie `kern.zeit_einwand_status`, Zeichen fuer Zeichen:
    * sie gilt fuer `anerkannt`, `teilweise_anerkannt` und `abgelehnt` — nicht
    * fuer `in_pruefung` (das ist keine Entscheidung) und nicht fuer
-   * `zurueckgezogen` (das zieht die Person selbst zurueck, und genau das darf
-   * sie). Eine strengere Pruefung hier waere schlimmer als keine: sie naehme
-   * dem Menschen den einen Weg, den er hat.
+   * `zurueckgezogen`: den Rueckzug erklaert die Person, die Planung vermerkt
+   * ihn nur (Voreinstellung O-901) — wer ihn fuer sich selbst vermerkt,
+   * entscheidet nichts gegen sich. Eine strengere Pruefung hier waere
+   * schlimmer als keine: sie naehme einer Planerin den Vermerk ihres eigenen
+   * Rueckzugs.
    */
   if (ENTSCHEIDUNG.includes(eingabe.status)) {
     const [selbst] = await kontext.abfrage<{ eigener: boolean }>(
@@ -364,8 +370,8 @@ export async function entscheideEinwand(
    * weil `entschieden_am` dabei ungesetzt bleibt. Eine Meldung „es wurde
    * entschieden", waehrend geprueft wird, waere falsch.
    *
-   * **`zurueckgezogen` meldet sich auch nicht** — das tut die Person selbst,
-   * und niemand muss sich selbst mitteilen, was er gerade getan hat.
+   * **`zurueckgezogen` meldet sich auch nicht** — den Rueckzug hat die Person
+   * selbst erklaert, und niemand muss ihr mitteilen, was sie erklaert hat.
    *
    * **Die Zustellung schreibt `cse_app` nicht selbst.** `benachrichtigung`
    * hat fuer diese Rolle keine INSERT-Policy, mit Absicht: wer dem

@@ -20,8 +20,8 @@ import { PORTAL_SPRACHEN, type PortalSprache } from './texte.js';
  * **Welche Sprache — und warum diese** (O-889).
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Die Frage ist gestellt und nicht beantwortet: die Sprache der EMPFÄNGERIN
- * (`person.sprache`) oder die der Gesellschaft, die sendet? **Ausgeliefert
+ * Voreinstellung (O-889, D-795): die Sprache der EMPFÄNGERIN
+ * (`person.sprache`), nicht die der Gesellschaft, die sendet. **Ausgeliefert
  * ist die Sprache der Empfängerin**, und der Grund ist der Zweck der
  * Meldung: sie soll gelesen werden. Eine Sperrankündigung, die ihr Adressat
  * nicht versteht, hat ihren Zweck verfehlt, und der Schaden trägt einen
@@ -31,6 +31,8 @@ import { PORTAL_SPRACHEN, type PortalSprache } from './texte.js';
  * reichen die Sprache herein, sie steht nicht in diesen Texten fest. Ändert
  * sich die Sprache eines Menschen SPÄTER, bleibt eine zugestellte Meldung
  * wie sie ist — was zugestellt ist, ist zugestellt.
+ * // TODO(client, O-889): Voreinstellung — Meldungen ins Arbeiterportal in der
+ * Sprache der Empfängerin, alle übrigen deutsch. Wie gebaut. D-795.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Was hier NICHT übersetzt wird.**
