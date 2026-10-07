@@ -1,6 +1,6 @@
 import type postgres from 'postgres';
 import { NextResponse, type NextRequest } from 'next/server';
-import { db } from '@/server/db/pool';
+import { db, SCHNAPPSCHUSS } from '@/server/db/pool';
 import { aktuelleSitzung } from '@/server/auth/anfrage-sitzung';
 import { authorize } from '@/server/auth/authorize';
 import { autorisierungsAntwort, ohneSitzungAntwort } from '@/server/auth/antwort';
@@ -22,10 +22,14 @@ import { WirtschaftsjahrFehler } from '@/server/services/buchhaltung/wirtschafts
  * D-837).
  *
  * **Gezeichnet wird, was in DIESER Transaktion entsteht.** Die Route erzeugt
- * die Dokumentation neu und gibt ihren Hash und Schemastand an `zeichne`;
- * das Formular schickt nur Funktion und Bemerkung. Ein Hash aus dem Formular
- * wäre eine Behauptung über eine Fassung, die der Zeichnende vielleicht nie
- * gesehen hat.
+ * die Dokumentation neu und gibt ihren Hash und Schemastand an `zeichne` —
+ * unter `repeatable read` (`SCHNAPPSCHUSS`): die Dokumentation entsteht aus
+ * vielen Abfragen, und unter `read committed` könnte eine Änderung zwischen
+ * zwei davon einen Hash über einen Stand ergeben, den es so nie gab. Das
+ * Formular schickt Funktion, Bemerkung und den Hash, den der Mensch gesehen
+ * hat (`fassung`); weicht er von der erzeugten Fassung ab, wird nichts
+ * gezeichnet (`fassung_geaendert`). Gezeichnet wird nie der Hash aus dem
+ * Formular, nur die erzeugte Fassung, die ihm gleicht.
  *
  * `buchhaltung_konfiguration.verwalten` prüft `authorize` (mit zweitem
  * Faktor) und noch einmal die Policy `t_vdz_zeichnen` (0526). Zurück geht nur
@@ -46,11 +50,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
   const daten = await anfrage.formData();
   const funktion = daten.get('funktion');
   const bemerkung = daten.get('bemerkung');
+  const gesehen = daten.get('fassung');
   let ziel = '/portal';
 
   try {
     const jobs = alleJobs(db());
-    await db().begin(async (tx: postgres.TransactionSql) =>
+    await db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
       withTenant(tx, sitzung, async (kontext) => {
         await authorize(
           sitzung,
@@ -65,6 +70,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         return zeichne(kontext, fassungVon(doku), {
           funktion: typeof funktion === 'string' ? funktion : '',
           bemerkung: typeof bemerkung === 'string' ? bemerkung : null,
+          gesehen: typeof gesehen === 'string' ? gesehen : '',
         });
       }));
     return zurueck(anfrage, ziel, 'gezeichnet');

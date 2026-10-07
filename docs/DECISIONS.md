@@ -27335,6 +27335,19 @@ Isolationstests um Generator, Serien, Leistungsanker, Reinigung,
 Abrechnungsart, Definer-Eigentum und Seed, `tests/kern` komplett,
 `pnpm guards`, `pnpm typecheck`.
 
+**Nachtrag (Copilot-Runde PR #44).** Das Formular „Preis anpassen" stand
+nur an Zeilen ohne Ende; eine befristete Zeile, die noch läuft, ließ sich so
+nicht anpassen, obwohl `passePreisAn` es kann und ihr Ende an der Nachfolgerin
+festhält. Die Zeile trägt jetzt `preisAnpassbar` (nicht ersetzt, nicht schon
+beendet), das Formular folgt ihm; „Beenden" bleibt an Zeilen ohne Ende. Und die
+Vertragszeile eines Abrufs wählt aus den Zeilen, die an SEINEM Tag galten
+(`zeilenAmTag`), beendete eingeschlossen — nach einer Preisanpassung ist das
+für einen älteren Abruf die Vorgängerin; ein neuer Abruf bekommt die nicht
+beendeten (`zeilenNichtBeendet`). Mit `auftrag.lesen` steht das Feld auch,
+wenn an diesem Tag keine Zeile gilt — eine falsche Zuordnung lässt sich dann
+wenigstens lösen. Prüfung: `tests/isolation/leistungskette.test.ts`,
+`tests/kern/abruf-vertragszeile.test.ts`.
+
 | Betrifft | V-360, V-352, V-325, O-921, O-927, O-708, D-825, D-796, D-795, D-789; `drizzle/0519_leistungszeile_nachfolgerin_revieranker.sql`, `src/server/services/auftrag/leistung.ts`, `src/server/services/reinigung/{revier,sonderleistung}.ts`, `src/app/api/{auftrag/leistungen,reinigung/reviere,reinigung/sonderleistungen}/route.ts`, `src/app/portal/[mandant]/{auftraege/[id]/leistungen,reinigung/reviere/[id],reinigung/sonderleistungen,reinigung/turnus/neu,dienstplan/serien/neu,dienstplan/serien/[id]}/page.tsx`, `src/app/portal/[mandant]/reinigung/daten.ts`, `src/components/portal/LeistungsankerFeld.tsx`, `src/lib/i18n/verwaltung/{auftrag-leistungen,leistungsanker,reinigung}.ts`, `src/server/db/seed/{auftrag,reinigung,index}.ts`, `tests/isolation/leistungskette.test.ts`, `tests/kern/{rueckweg-sonderleistung,auftrag-leistung-texte}.test.ts` |
 |---|---|
 
@@ -27388,6 +27401,12 @@ Monat, abgerechnet und Rechnungsentwurf über eine frühere Fassung der Kette
 führt hin), die Isolationstests der Korrektur, `tests/kern` komplett,
 `pnpm guards`, `pnpm typecheck`.
 
+**Nachtrag (Copilot-Runde PR #44).** `pruefeZuordnung` prüfte die
+Leistungszeile am Tag des ALTEN Beginns, gespeichert wurde der neue. Korrigiert
+dieselbe Korrektur den Beginn über Mitternacht, gilt jetzt die Zeile am Tag der
+neuen Fassung. Prüfung: `tests/isolation/zeit-zuordnung.test.ts` (31.05.
+23:30 Uhr → 01.06. 00:15 Uhr mit der Zeile „ab Juni").
+
 | Betrifft | V-351, O-927, O-891, D-795; `drizzle/0520_zeit_in_rechnung.sql`, `src/server/services/zeit/korrektur.ts`, `src/server/services/dienstplan/leistungsanker.ts` (`listeLeistungenAmTag`), `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/{page,korrektur/page}.tsx`, `tests/isolation/zeit-zuordnung.test.ts`, `tests/kern/zeit-korrektur-weg.test.ts` |
 |---|---|
 
@@ -27422,6 +27441,12 @@ eine Absicht, D-782); die Übernahme zeigen die Isolationstests.
 echte Abnahme: Übernahme von Frist und Abnahmetag, die Maske geht vor, ohne
 Abnahme und ohne Projekt bleibt alles leer), `tests/isolation/bau-abnahme`,
 `auftrag-akte`, `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+**Nachtrag (Copilot-Runde PR #44).** Frist und Abnahme kommen als Paar:
+nennt der Auftrag — in der Maske oder schon in der Zeile — eine andere Abnahme
+als die, von der die Frist des Projekts läuft, wird die Frist nicht still
+übernommen (`frist_andere_abnahme`); der Mensch trägt sie in der Maske ein.
+Prüfung: `tests/isolation/auftrag-gewaehrleistung.test.ts`.
 
 | Betrifft | V-341, O-68, D-792, D-782; `src/server/services/auftrag/abschluss.ts`, `src/app/portal/[mandant]/auftraege/[id]/abschluss/{page,daten}.tsx`, `src/server/services/kundenportal/auftrag.ts`, `src/server/db/seed/bau.ts`, `tests/isolation/auftrag-gewaehrleistung.test.ts` |
 |---|---|
@@ -27754,6 +27779,14 @@ Isolationsdateien um CRM, Akquise, Lead, Nachricht, Datenschutz, Recruiting,
 Behinderung, Seed und Definer, `tests/kern` komplett, `pnpm guards`,
 `pnpm typecheck`, `pnpm lint`.
 
+**Nachtrag (Copilot-Runde PR #44).** Die Grundlage `anfrage` hängt am
+Kontakt, nicht am Lead: einem anderen Lead zugeordnet — etwa einem aus der
+Akquise —, machte sie dessen Werbung zur „Antwort". `zweckGegenueber` verlangt
+deshalb zusätzlich Eingehendes von diesem Kontakt AM LEAD selbst (die Anfrage,
+auf die geantwortet wird); die Sätze am Leadblatt sagen es. Prüfung:
+`tests/isolation/crm-kette.test.ts` (derselbe Kontakt an einem zweiten Lead
+bleibt Werbung), `tests/kern/crm-kette.test.ts`.
+
 | Betrifft | V-339, V-342, O-65, O-660, O-907, D-792, D-793; `drizzle/0524_tor_nach_uwg_matrix.sql`, `src/server/services/crm/{lead-kontakt,uwg-matrix}.ts`, `src/server/services/datenschutz/werbewiderspruch.ts`, `src/server/services/bau/behinderung.ts`, `src/server/registry/dienste.ts`, `src/server/db/seed/{crm,index}.ts`, `src/lib/i18n/verwaltung/crm-lead.ts`, `src/app/(public)/werbewiderspruch/[token]/page.tsx`, `src/app/portal/[mandant]/crm/kontakte/[id]/page.tsx`, `src/app/portal/[mandant]/datenschutz/{[id],widersprueche}/page.tsx`, `tests/isolation/{uwg,crm-kette,crm-kontakt-grundlage,nachricht-an-kontakt,uwg-widerspruchslink}.test.ts`, `tests/kern/{crm-kette,crm-uwg-matrix}.test.ts` |
 |---|---|
 
@@ -27991,6 +28024,16 @@ Administration sieht Stand und Recht, aber kein Formular; die
 Super-Administration zeichnet, und gezeichnet ist der Hash der Seite). Dazu
 `tests/kern` komplett, `pnpm guards`, `pnpm db:triggers --check`,
 `pnpm typecheck`, `pnpm lint`.
+
+**Nachtrag (Copilot-Runde PR #44).** Die Route erzeugt und zeichnet unter
+`repeatable read` (`SCHNAPPSCHUSS`): die Dokumentation entsteht aus vielen
+Abfragen, und unter `read committed` ergäbe eine Änderung dazwischen einen Hash
+über einen Stand, den es nie gab. Und gezeichnet wird nur die Fassung, die der
+Mensch gesehen hat: das Formular schickt ihren Hash als Probe (`fassung`);
+weicht die erzeugte Fassung ab, wird nichts gezeichnet (`fassung_geaendert`),
+und er prüft die neue. Gezeichnet wird nie der Hash aus dem Formular. Prüfung:
+`tests/isolation/verfahrensdokumentation-zeichnung.test.ts` (1b),
+`tests/kern/verfahrensdokumentation-zeichnung.test.ts`.
 
 | Betrifft | V-316, O-188, D-787, D-485, ACC-10; `drizzle/0526_verfahrensdokumentation_zeichnung.sql`, `src/server/db/schema/rls.ts`, `src/server/db/triggers/no-hard-delete.sql`, `scripts/generate-triggers.ts`, `src/server/services/buchhaltung/{verfahrensdokumentation,verfahrensdokumentation-zeichnung}.ts`, `src/server/registry/dienste.ts`, `src/server/auth/route-manifest.ts`, `src/app/api/buchhaltung/verfahrensdokumentation/zeichnung/route.ts`, `src/app/portal/[mandant]/buchhaltung/verfahrensdokumentation/{page,Zeichnungsvermerk}.tsx`, `src/lib/i18n/verwaltung/verfahrensdokumentation-zeichnung.ts`, `tests/isolation/verfahrensdokumentation-zeichnung.test.ts`, `tests/kern/verfahrensdokumentation-zeichnung.test.ts`, `tests/e2e/z3-verfahrensdokumentation.spec.ts` |
 |---|---|

@@ -112,11 +112,22 @@ export const LEAD_ZWECK_REGEL: LeadZweckRegel = PLATZHALTER_LEAD_ZWECK;
  *
  * Jede andere Grundlage lässt den Zweck der Herkunft stehen: eine
  * Einwilligung oder ein Bestandskunde macht aus Werbung keine Antwort.
+ *
+ * **Die Anfrage muss zu DIESEM Lead gehören** (Copilot-Runde PR #44). Die
+ * Grundlage hängt am Kontakt, nicht am Lead: wer denselben Kontakt einem
+ * anderen Lead zuordnet — etwa einem aus der Akquise —, machte sonst dessen
+ * Werbung zur „Antwort", vorbei an Einwilligung und Werbewiderspruch.
+ * Deshalb zählt sie nur, wenn am Lead selbst etwas Eingehendes von diesem
+ * Kontakt festgehalten ist: die Anfrage, auf die geantwortet wird. Das gilt
+ * auch für einen Lead aus der Akquise — fragt der Kontakt dort selbst an,
+ * ist die Antwort darauf keine Werbung mehr.
  */
 export function zweckGegenueber(
   zweckDerHerkunft: AusgehenderZweck, grundlageDesKontakts: string | null,
+  eingehendVomKontakt: boolean,
 ): AusgehenderZweck {
   return zweckDerHerkunft === 'werbung' && grundlageDesKontakts === 'anfrage'
+    && eingehendVomKontakt
     ? 'vertraglich' : zweckDerHerkunft;
 }
 
@@ -384,8 +395,8 @@ export function betreffAus(inhalt: string, betreff?: string | null): string {
  * Ein ausgehender Anruf oder eine ausgehende E-Mail geht an den
  * Ansprechpartner der Anfrage und durch das UWG-Tor (0020), mit dem Zweck,
  * den `LEAD_ZWECK_REGEL` für ihre Herkunft nennt — es sei denn, am Kontakt
- * ist eine Anfrage festgehalten: dann ist er die Antwort darauf
- * (`zweckGegenueber`). Die erste ausgehende
+ * ist eine Anfrage festgehalten und an diesem Lead etwas Eingehendes von ihm:
+ * dann ist er die Antwort darauf (`zweckGegenueber`). Die erste ausgehende
  * Aktivität hält die Reaktionsuhr an (0017, REQ-05). Eingehendes geht am Tor
  * vorbei — es verlässt das Haus nicht — und bleibt `vertraglich` wie bisher.
  */
@@ -415,13 +426,18 @@ export async function halteLeadAktivitaetFest(
    */
   const herkunft = richtung === 'ausgehend'
     ? LEAD_ZWECK_REGEL.zweckAusgehend(lead.quelle).zweck : null;
-  const grundlage = herkunft === 'werbung' && ansprechpartner !== null
-    ? (await kontext.abfrage<{ grundlage: string | null }>(
-      `select app.rechtsgrundlage_von($1::uuid, app.aktiver_mandant())::text as grundlage`,
-      [ansprechpartner]))[0]?.grundlage ?? null
+  const beleg = herkunft === 'werbung' && ansprechpartner !== null
+    ? (await kontext.abfrage<{ grundlage: string | null; eingehend: boolean }>(
+      `select app.rechtsgrundlage_von($1::uuid, app.aktiver_mandant())::text as grundlage,
+              exists (select 1 from lead_aktivitaet a
+                       where a.mandant_id = app.aktiver_mandant() and a.lead_id = $2::uuid
+                         and a.richtung = 'eingehend' and a.ansprechpartner_id = $1::uuid)
+                as eingehend`,
+      [ansprechpartner, leadId]))[0] ?? null
     : null;
   const zweck = richtung === 'intern' ? 'intern'
-    : herkunft !== null ? zweckGegenueber(herkunft, grundlage)
+    : herkunft !== null
+      ? zweckGegenueber(herkunft, beleg?.grundlage ?? null, beleg?.eingehend === true)
       : 'vertraglich';
   if (richtung === 'ausgehend' && ansprechpartner === null
       && (eingabe.typ === 'anruf' || eingabe.typ === 'email')) {

@@ -162,8 +162,7 @@ export default async function Leistungszeilen(
                     {z.beschreibung !== null && (
                       <span className="block text-xs text-text-muted">{z.beschreibung}</span>
                     )}
-                    {darfSchreiben && pflegbar && z.gueltigBis === null && (
-                      <>
+                    {darfSchreiben && pflegbar && z.preisAnpassbar && (
                         <form method="post" action="/api/auftrag/leistungen"
                               data-cse="leistungszeile-preis"
                               aria-label={`${t.preisTitel}: ${z.bezeichnung}`}
@@ -182,6 +181,8 @@ export default async function Leistungszeilen(
                           </label>
                           <Button type="submit" variante="secondary">{t.preisKnopf}</Button>
                         </form>
+                    )}
+                    {darfSchreiben && pflegbar && z.gueltigBis === null && (
                         <form method="post" action="/api/auftrag/leistungen"
                               data-cse="leistungszeile-beenden"
                               aria-label={`${t.beendenTitel}: ${z.bezeichnung}`}
@@ -197,7 +198,6 @@ export default async function Leistungszeilen(
                           </label>
                           <Button type="submit" variante="ghost">{t.beendenKnopf}</Button>
                         </form>
-                      </>
                     )}
                   </td>
                   <td className="p-s2 text-right tabular-nums">

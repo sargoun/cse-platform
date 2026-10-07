@@ -89,6 +89,9 @@ export const ZEICHNUNG_TEXTE: Readonly<Record<InternSprache, ZeichnungTexte>> = 
     zeichnenRechtNach: 'hält.',
     gezeichnet: 'Gezeichnet. Die Zeichnung steht unten im Verlauf und im Prüfprotokoll.',
     fehler: {
+      fassung_geaendert:
+        'Die Dokumentation hat sich geändert, seit Sie diese Seite geöffnet haben — gezeichnet '
+        + 'wurde nichts. Bitte die Fassung oben prüfen und dann zeichnen.',
       funktion_fehlt: 'Die Funktion fehlt — etwa „Geschäftsführung".',
       funktion_zu_lang: 'Die Funktion ist länger als 200 Zeichen.',
       bemerkung_zu_lang: 'Die Bemerkung ist länger als 2000 Zeichen.',
@@ -143,6 +146,9 @@ export const ZEICHNUNG_TEXTE: Readonly<Record<InternSprache, ZeichnungTexte>> = 
     zeichnenRechtNach: 'may sign off.',
     gezeichnet: 'Signed off. The sign-off is listed below and in the audit log.',
     fehler: {
+      fassung_geaendert:
+        'The documentation has changed since you opened this page — nothing was signed. Please '
+        + 'review the version above, then sign off.',
       funktion_fehlt: 'The position is missing — for example “Managing director”.',
       funktion_zu_lang: 'The position is longer than 200 characters.',
       bemerkung_zu_lang: 'The remark is longer than 2000 characters.',

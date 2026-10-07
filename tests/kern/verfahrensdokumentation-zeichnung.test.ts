@@ -11,8 +11,9 @@
  *  2. `zeichnungsStand` ordnet die Gründe: ungezeichnet, Schemastand
  *     gewechselt, Turnus abgelaufen, Inhalt geändert, aktuell — der Prüftag
  *     selbst ist schon fällig.
- *  3. Die Route zeichnet, was SIE erzeugt — nach `authorize` mit zweitem
- *     Faktor; das Formular schickt keinen Hash.
+ *  3. Die Route zeichnet, was SIE erzeugt — unter `repeatable read`, nach
+ *     `authorize` mit zweitem Faktor; der Hash des Formulars ist nur die
+ *     Probe, ob es die gesehene Fassung ist.
  *  4. Die Wörter: jeder Grund hat einen Satz in beiden Sprachen, und die
  *     genannten Grenzen sind die des Dienstes.
  */
@@ -124,17 +125,29 @@ describe('die Route zeichnet, was sie selbst erzeugt', () => {
     expect(zeichnet, 'gezeichnet wird die eben erzeugte Fassung').toBeGreaterThan(erzeugt);
   });
 
-  it('aus dem Formular kommen nur Funktion und Bemerkung — kein Hash, kein Schemastand', () => {
+  it('aus dem Formular kommen Funktion, Bemerkung und die gesehene Fassung — kein Schemastand', () => {
     const felder = [...ROUTE.matchAll(/daten\.get\('([a-z_]+)'\)/gu)].map((m) => m[1]);
-    expect(felder.sort()).toEqual(['bemerkung', 'funktion']);
+    expect(felder.sort()).toEqual(['bemerkung', 'fassung', 'funktion']);
     const namen = [...FORMULAR.matchAll(/\bname="([a-z_]+)"/gu)].map((m) => m[1]);
-    expect(namen.sort()).toEqual(['bemerkung', 'funktion']);
+    expect(namen.sort()).toEqual(['bemerkung', 'fassung', 'funktion']);
+    // Die gesehene Fassung ist die Probe, nicht das, was gezeichnet wird.
+    expect(ROUTE).toContain('gesehen: typeof gesehen === \'string\' ? gesehen : \'\'');
+    expect(FORMULAR).toContain('name="fassung" value={aktuellerHash}');
+  });
+
+  it('die Dokumentation entsteht und wird gezeichnet unter repeatable read (SCHNAPPSCHUSS)', () => {
+    /*
+     * Sie entsteht aus vielen Abfragen; unter `read committed` ergäbe eine
+     * Änderung zwischen zweien einen Hash über einen Stand, den es nie gab.
+     */
+    expect(ROUTE).toContain('db().begin(SCHNAPPSCHUSS,');
   });
 });
 
 describe('die Wörter des Vermerks', () => {
   const GRUENDE: readonly (ZeichnungFehlerGrund | 'wirtschaftsjahr')[] =
-    ['funktion_fehlt', 'funktion_zu_lang', 'bemerkung_zu_lang', 'wirtschaftsjahr'];
+    ['fassung_geaendert', 'funktion_fehlt', 'funktion_zu_lang', 'bemerkung_zu_lang',
+      'wirtschaftsjahr'];
 
   it('jeder Grund der Route hat einen Satz — deutsch und englisch', () => {
     for (const sprache of ['de', 'en'] as const) {

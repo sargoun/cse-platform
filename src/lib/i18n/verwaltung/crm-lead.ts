@@ -210,16 +210,18 @@ export const LEAD_TEXTE: Readonly<Record<InternSprache, LeadTexte>> = {
       + 'Empfehlung oder eine Bekanntmachung selbst schon eine Anfrage ist: Voreinstellung '
       + '(O-907) nein — eine Anfrage begründet nur, was der Kontakt selbst an die Gesellschaft '
       + 'gerichtet hat (Formular, E-Mail, Anruf mit Datum und Quelle). Ist am Ansprechpartner '
-      + 'eine solche Anfrage festgehalten, geht ein ausgehender Anruf oder eine ausgehende '
-      + 'E-Mail als Antwort darauf durch das Tor. Sonst ist er Werbung (§ 7 UWG) und braucht '
+      + 'eine solche Anfrage festgehalten und an dieser Anfrage als eingehende Aktivität '
+      + 'vermerkt, geht ein ausgehender Anruf oder eine ausgehende E-Mail als Antwort darauf '
+      + 'durch das Tor. Sonst ist er Werbung (§ 7 UWG) und braucht '
       + 'eine Einwilligung für diesen Kanal — beim Bestandskunden genügt die E-Mail mit '
       + 'festgestellter ähnlicher eigener Leistung (§ 7 Abs. 3 UWG).',
     kontaktWerbungAkquise:
       'Diese Anfrage stammt aus der Akquise — niemand hat angefragt. Ein ausgehender Anruf oder '
       + 'eine ausgehende E-Mail ist Werbung (§ 7 UWG) und braucht eine Einwilligung für diesen '
       + 'Kanal — beim Bestandskunden genügt die E-Mail mit festgestellter ähnlicher eigener '
-      + 'Leistung (§ 7 Abs. 3 UWG). Erst wenn der Kontakt selbst anfragt und das mit Quelle und '
-      + 'Datum festgehalten ist, geht die Antwort darauf durch.',
+      + 'Leistung (§ 7 Abs. 3 UWG). Erst wenn der Kontakt selbst anfragt — mit Quelle und Datum '
+      + 'am Kontakt festgehalten und als eingehende Aktivität an dieser Anfrage vermerkt —, geht '
+      + 'die Antwort darauf durch.',
     kontaktFehler: {
       kontakt_unbekannt: 'Diesen Ansprechpartner gibt es in dieser Gesellschaft nicht.',
       kontakt_fremd: 'Dieser Ansprechpartner gehört nicht zum Kunden dieser Anfrage.',
@@ -383,16 +385,17 @@ export const LEAD_TEXTE: Readonly<Record<InternSprache, LeadTexte>> = {
       'This enquiry did not come in through the website form. Whether an entry by hand, a '
       + 'referral or a tender notice is itself an enquiry: default (O-907) no — only what the '
       + 'contact addressed to the company themselves (form, e-mail, call with date and source) '
-      + 'counts as an enquiry. If such an enquiry is recorded at the contact person, an outgoing '
-      + 'call or e-mail passes the gate as the reply to it. Otherwise it is advertising '
+      + 'counts as an enquiry. If such an enquiry is recorded at the contact person and noted on '
+      + 'this enquiry as an incoming activity, an outgoing call or e-mail passes the gate as the '
+      + 'reply to it. Otherwise it is advertising '
       + '(§ 7 UWG) and needs consent for that channel — for an existing customer, e-mail with an '
       + 'established similar own service is enough (§ 7(3) UWG).',
     kontaktWerbungAkquise:
       'This enquiry comes from Akquise (prospecting) — nobody asked. An outgoing call or e-mail '
       + 'is advertising (§ 7 UWG) and needs consent for that channel — for an existing customer, '
       + 'e-mail with an established similar own service is enough (§ 7(3) UWG). Only once the '
-      + 'contact enquires themselves and this is recorded with source and date does the reply '
-      + 'pass.',
+      + 'contact enquires themselves — recorded at the contact with source and date and noted '
+      + 'on this enquiry as an incoming activity — does the reply pass.',
     kontaktFehler: {
       kontakt_unbekannt: 'There is no such contact person in this Mandant (company).',
       kontakt_fremd: 'This contact person does not belong to this enquiry’s customer.',

@@ -92,6 +92,14 @@ export interface Leistungszeile {
   readonly ersetztPosition: number | null;
   /** Die Position, die diese Zeile ab ihrem Ende ersetzt — sonst `null`. */
   readonly ersetztDurchPosition: number | null;
+  /**
+   * Lässt sich ihr Preis noch ab einem Stichtag anpassen? Nicht ersetzt und
+   * nicht schon beendet — auch eine befristete Zeile, solange sie läuft oder
+   * noch beginnt (`passePreisAn` hält das Ende der Vorgängerin an der
+   * Nachfolgerin fest). Den Stichtag selbst prüft der Dienst (Copilot-Runde
+   * PR #44).
+   */
+  readonly preisAnpassbar: boolean;
 }
 
 /** Alle Zeilen eines Auftrags, laufende und beendete, nach Position. */
@@ -104,6 +112,7 @@ export async function leseLeistungszeilen(
     gesamtpreis_cent: string; steuersatz_bp: number; steuer_kennzeichen: string;
     gueltig_ab: string; gueltig_bis: string | null; lebt: boolean; aus_angebot: boolean;
     ersetzt_position: number | null; ersetzt_durch_position: number | null;
+    preis_anpassbar: boolean;
   }>(
     `select al.id, al.position_nr, al.bezeichnung, al.beschreibung,
             al.menge::text as menge, al.einheit, al.einzelpreis_cent::text as einzelpreis_cent,
@@ -113,7 +122,9 @@ export async function leseLeistungszeilen(
             (al.gueltig_ab <= app.berlin_heute()
               and (al.gueltig_bis is null or al.gueltig_bis >= app.berlin_heute())) as lebt,
             al.angebotsposition_id is not null as aus_angebot,
-            vor.position_nr as ersetzt_position, nach.position_nr as ersetzt_durch_position
+            vor.position_nr as ersetzt_position, nach.position_nr as ersetzt_durch_position,
+            (nach.id is null
+              and (al.gueltig_bis is null or al.gueltig_bis >= app.berlin_heute())) as preis_anpassbar
        from auftrag_leistung al
        left join auftrag_leistung vor
          on vor.mandant_id = al.mandant_id and vor.id = al.ersetzt_id
@@ -140,6 +151,7 @@ export async function leseLeistungszeilen(
     ersetztPosition: z.ersetzt_position === null ? null : Number(z.ersetzt_position),
     ersetztDurchPosition:
       z.ersetzt_durch_position === null ? null : Number(z.ersetzt_durch_position),
+    preisAnpassbar: z.preis_anpassbar,
   }));
 }
 

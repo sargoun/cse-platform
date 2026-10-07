@@ -242,18 +242,29 @@ describe('der Zweck eines ausgehenden Kontakts folgt der Herkunft (O-907)', () =
 });
 
 describe('die Antwort auf eine festgehaltene Anfrage ist keine Werbung (O-907, V-342)', () => {
-  it('Werbung gegenüber einem Kontakt mit Anfrage wird zur Antwort', () => {
-    expect(zweckGegenueber('werbung', 'anfrage')).toBe('vertraglich');
+  it('Werbung gegenüber einem Kontakt mit Anfrage AN DIESEM LEAD wird zur Antwort', () => {
+    expect(zweckGegenueber('werbung', 'anfrage', true)).toBe('vertraglich');
+  });
+
+  it('ohne Eingehendes von ihm an diesem Lead bleibt sie Werbung (Copilot-Runde PR #44)', () => {
+    /*
+     * Die Grundlage hängt am Kontakt, nicht am Lead: einem anderen Lead
+     * zugeordnet, machte sie sonst dessen Werbung zur „Antwort".
+     */
+    expect(zweckGegenueber('werbung', 'anfrage', false)).toBe('werbung');
   });
 
   it.each([null, 'keine', 'bestandskunde', 'einwilligung', 'erfunden'])(
-    'jede andere Grundlage (%s) lässt Werbung Werbung', (grundlage) => {
-      expect(zweckGegenueber('werbung', grundlage)).toBe('werbung');
+    'jede andere Grundlage (%s) lässt Werbung Werbung — auch mit Eingehendem', (grundlage) => {
+      expect(zweckGegenueber('werbung', grundlage, true)).toBe('werbung');
     });
 
   it('was schon vertraglich ist, bleibt es — auch ohne Grundlage', () => {
     for (const grundlage of [null, 'keine', 'anfrage', 'bestandskunde', 'einwilligung']) {
-      expect(zweckGegenueber('vertraglich', grundlage), String(grundlage)).toBe('vertraglich');
+      for (const eingehend of [true, false]) {
+        expect(zweckGegenueber('vertraglich', grundlage, eingehend), String(grundlage))
+          .toBe('vertraglich');
+      }
     }
   });
 });

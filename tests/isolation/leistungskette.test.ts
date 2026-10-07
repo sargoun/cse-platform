@@ -210,6 +210,30 @@ beforeAll(async () => {
 afterAll(schliessen);
 
 describe('D-826 — die Preisanpassung ist eine Nachfolgerin', () => {
+  it('eine befristete Zeile, die läuft, bietet die Preisanpassung an — eine ersetzte oder beendete nicht', async () => {
+    /*
+     * Copilot-Runde PR #44: das Formular stand nur an Zeilen ohne Ende. Eine
+     * befristete Zeile, die noch läuft, liess sich so nicht anpassen, obwohl
+     * `passePreisAn` es kann und das Ende an der Nachfolgerin festhält.
+     */
+    const bau = await baue();
+    const ende = await tagePlus(60);
+    const befristet = await bau.zeile('2026-01-01', ende);
+    const vorbei = await bau.zeile('2026-01-01', '2026-02-28');
+    const offen = await bau.zeile();
+    const anpassbar = async (): Promise<Record<string, boolean>> => Object.fromEntries(
+      (await als(admin, (k) => leseLeistungszeilen(k, bau.auftrag)))
+        .map((z) => [z.id, z.preisAnpassbar]));
+    expect(await anpassbar()).toMatchObject({ [befristet]: true, [vorbei]: false, [offen]: true });
+
+    const stichtag = await tagePlus(10);
+    const neu = await als(admin, (k) => passePreisAn(k, bau.auftrag, befristet, {
+      einzelpreis: '35,00', stichtag,
+    }));
+    expect(await zeileRoh(neu)).toMatchObject({ bis: ende, preis: '3500' });
+    expect(await anpassbar()).toMatchObject({ [befristet]: false, [neu]: true });
+  });
+
   it('die neue Zeile übernimmt alles ausser dem Preis, die bisherige endet am Vortag', async () => {
     const bau = await baue();
     const alt = await bau.zeile();

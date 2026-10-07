@@ -22,6 +22,7 @@
  */
 import { cent, parseGeld, type Cent } from '../finanz/geld.js';
 import { prozentInBasispunkteOderGrund } from '../finanz/prozent.js';
+import { tagDeutsch } from '../../../lib/datum/kalendertag.js';
 
 export interface Abfrage {
   abfrage<T>(sql: string, werte?: readonly unknown[]): Promise<readonly T[]>;
@@ -31,7 +32,7 @@ export class AbschlussFehler extends Error {
   constructor(nachricht: string, readonly grund:
     | 'nicht_gefunden' | 'schon_abgeschlossen' | 'storniert'
     | 'gewaehrleistung_ohne_abnahme' | 'einbehalt_doppelt' | 'zahl_unlesbar'
-    | 'kein_recht') {
+    | 'frist_andere_abnahme' | 'kein_recht') {
     super(nachricht);
     this.name = 'AbschlussFehler';
   }
@@ -322,6 +323,22 @@ export async function schliesseAuftragAb(
   const ausProjekt = leer(eingabe.gewaehrleistungBis) === null
     && vorher.gewaehrleistung_bis === null
     ? await projektFrist(db, auftragId) : null;
+  /*
+   * **Frist und Abnahme kommen als Paar** (Copilot-Runde PR #44). Nennt der
+   * Auftrag — in der Maske oder schon in der Zeile — eine ANDERE Abnahme als
+   * die, von der die Frist des Projekts läuft, wird sie nicht still daneben
+   * gestellt: eine Frist ab dem 10.09. neben einer Abnahme vom 12.09. wäre
+   * eine Frist, die von keiner Abnahme läuft. Dann trägt der Mensch die Frist
+   * in der Maske ein.
+   */
+  const eigeneAbnahme = leer(eingabe.abnahmeAm) ?? vorher.abnahme_am;
+  if (ausProjekt !== null && eigeneAbnahme !== null && eigeneAbnahme !== ausProjekt.abnahmeAm) {
+    throw new AbschlussFehler(
+      `Die Gewährleistungsfrist des Bauprojekts (bis ${tagDeutsch(ausProjekt.gewaehrleistungBis)}) `
+      + `läuft von der Abnahme am ${tagDeutsch(ausProjekt.abnahmeAm)}, der Auftrag nennt die Abnahme `
+      + `am ${tagDeutsch(eigeneAbnahme)}. Bitte die Frist in der Maske eintragen.`,
+      'frist_andere_abnahme');
+  }
   const abnahme = leer(eingabe.abnahmeAm)
     ?? (ausProjekt !== null && vorher.abnahme_am === null ? ausProjekt.abnahmeAm : null);
   const gewaehrleistung = leer(eingabe.gewaehrleistungBis) ?? ausProjekt?.gewaehrleistungBis ?? null;

@@ -748,12 +748,41 @@ export interface AbrufAuswahl {
    * Gruppe — sie wegzulassen hiesse, genau die Zeilen zu verstecken, unter
    * denen ein Abruf ueblicherweise laeuft.
    */
-  readonly vertragszeilen: readonly {
-    readonly id: string; readonly auftragNummer: string; readonly positionNr: number;
-    readonly bezeichnung: string; readonly einheit: string | null;
-    readonly objektId: string | null;
-  }[];
+  readonly vertragszeilen: readonly Vertragszeile[];
   readonly geprueft: Readonly<Record<string, boolean>>;
+}
+
+/** Eine Vertragszeile zur Auswahl — mit ihrem Zeitraum, auch beendet. */
+export interface Vertragszeile {
+  readonly id: string; readonly auftragNummer: string; readonly positionNr: number;
+  readonly bezeichnung: string; readonly einheit: string | null;
+  readonly objektId: string | null;
+  readonly gueltigAb: string;
+  readonly gueltigBis: string | null;
+}
+
+/**
+ * Die Zeilen, die am Tag eines Abrufs gelten — derselbe Massstab wie
+ * `ordneVertragszeileZu`: Ausführung, sonst Beauftragung. Beendete Zeilen
+ * zählen, wenn sie an diesem Tag liefen: nach einer Preisanpassung ist das für
+ * einen älteren Abruf die Vorgängerin, nicht die Nachfolgerin (Copilot-Runde
+ * PR #44).
+ */
+export function zeilenAmTag<Z extends Pick<Vertragszeile, 'gueltigAb' | 'gueltigBis'>>(
+  zeilen: readonly Z[], tag: string,
+): readonly Z[] {
+  return zeilen.filter((z) => z.gueltigAb <= tag && (z.gueltigBis === null || z.gueltigBis >= tag));
+}
+
+/**
+ * Die Zeilen, die an `tag` noch nicht beendet sind — für einen NEUEN Abruf,
+ * dessen Tag erst im Formular steht: laufende und kommende, wie bisher, und
+ * jetzt auch befristete, die noch laufen.
+ */
+export function zeilenNichtBeendet<Z extends Pick<Vertragszeile, 'gueltigBis'>>(
+  zeilen: readonly Z[], tag: string,
+): readonly Z[] {
+  return zeilen.filter((z) => z.gueltigBis === null || z.gueltigBis >= tag);
 }
 
 /**
@@ -808,20 +837,24 @@ export async function ladeAbrufAuswahl(kontext: LeseKontext): Promise<AbrufAuswa
    * Bedienende legte weiter Abrufe an, die niemand abrechnen kann. Deshalb
    * traegt `geprueft` das Recht mit, und die Seite sagt „nicht geprueft".
    */
+  /*
+   * Auch beendete Zeilen — ein Abruf gehört zu der Zeile, die an SEINEM Tag
+   * galt, und das ist nach einer Preisanpassung die Vorgängerin
+   * (`zeilenAmTag`). Ein stornierter Auftrag nimmt keinen Abruf.
+   */
   const vertragszeilen = geprueft['auftrag.lesen'] === true
-    ? await kontext.abfrage<{
-      id: string; auftragNummer: string; positionNr: number;
-      bezeichnung: string; einheit: string | null; objektId: string | null;
-    }>(
+    ? await kontext.abfrage<Vertragszeile>(
       `select al.id,
               a.auftragsnummer             as "auftragNummer",
               al.position_nr::int          as "positionNr",
               al.bezeichnung,
               al.einheit,
-              al.objekt_id                 as "objektId"
+              al.objekt_id                 as "objektId",
+              al.gueltig_ab::text          as "gueltigAb",
+              al.gueltig_bis::text         as "gueltigBis"
          from auftrag_leistung al
          join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
-        where al.gueltig_bis is null
+        where a.status <> 'storniert'
         order by a.auftragsnummer, al.position_nr
         limit 500`,
     )

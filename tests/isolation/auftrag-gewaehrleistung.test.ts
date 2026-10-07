@@ -110,6 +110,36 @@ describe('V-341 — die Projektfrist ist die Auftragsfrist (O-68)', () => {
     expect(await fristAmAuftrag(a.auftrag)).toEqual({ abnahme: '2026-09-12', bis: '2031-09-12' });
   });
 
+  it('nennt der Auftrag eine ANDERE Abnahme, wird die Projektfrist nicht still daneben gestellt', async () => {
+    /*
+     * Copilot-Runde PR #44: die Frist des Projekts läuft vom 10.09.; nennt der
+     * Auftrag den 12.09. (in der Maske oder schon in der Zeile), wäre die
+     * übernommene Frist eine, die von keiner Abnahme läuft. Abgewiesen, und
+     * nichts geschrieben — der Mensch trägt die Frist ein.
+     */
+    const a = await auftrag(true);
+    await nimmAb(a.projekt!, '2026-09-10');
+    await expect(als((k) => schliesseAuftragAb(k, a.auftrag, { abnahmeAm: '2026-09-12' })))
+      .rejects.toMatchObject({ grund: 'frist_andere_abnahme' });
+    expect(await fristAmAuftrag(a.auftrag)).toEqual({ abnahme: null, bis: null });
+
+    const b = await auftrag(true);
+    await nimmAb(b.projekt!, '2026-09-10');
+    await sql.unsafe(`update auftrag set abnahme_am = '2026-09-12' where id = $1`, [b.auftrag]);
+    await expect(als((k) => schliesseAuftragAb(k, b.auftrag, {})))
+      .rejects.toMatchObject({ grund: 'frist_andere_abnahme' });
+
+    // Dieselbe Abnahme wie die des Projekts: das Paar bleibt beisammen.
+    await als((k) => schliesseAuftragAb(k, b.auftrag, {
+      abnahmeAm: '2026-09-12', gewaehrleistungBis: '2030-09-12' }));
+    expect(await fristAmAuftrag(b.auftrag)).toEqual({ abnahme: '2026-09-12', bis: '2030-09-12' });
+
+    const c = await auftrag(true);
+    await nimmAb(c.projekt!, '2026-09-10');
+    await als((k) => schliesseAuftragAb(k, c.auftrag, { abnahmeAm: '2026-09-10' }));
+    expect(await fristAmAuftrag(c.auftrag)).toEqual({ abnahme: '2026-09-10', bis: '2030-09-10' });
+  });
+
   it('ohne Abnahme am Projekt und ohne Projekt gibt es nichts zu übernehmen', async () => {
     const ohneAbnahme = await auftrag(true);
     expect(await als((k) => projektFrist(k, ohneAbnahme.auftrag))).toBeNull();

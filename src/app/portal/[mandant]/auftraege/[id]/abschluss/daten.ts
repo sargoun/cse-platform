@@ -34,6 +34,10 @@ export const FEHLERTEXT: Readonly<Record<string, string>> = {
   storniert: 'Ein stornierter Auftrag wird nicht abgeschlossen.',
   gewaehrleistung_ohne_abnahme:
     'Eine Gewährleistungsfrist braucht ein Abnahmedatum — von ihm läuft sie.',
+  frist_andere_abnahme:
+    'Die Gewährleistungsfrist des Bauprojekts läuft von einer anderen Abnahme als der, die '
+    + 'der Auftrag nennt. Sie wird nicht still übernommen — bitte die Frist in der Maske '
+    + 'eintragen (V-341).',
   einbehalt_doppelt:
     'Der Sicherheitseinbehalt ist ein Satz ODER ein Betrag, nicht beides (O-20).',
   zahl_unlesbar:

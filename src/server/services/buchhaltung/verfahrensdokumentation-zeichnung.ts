@@ -34,7 +34,8 @@ export const FUNKTION_MINDESTENS = 3;
 export const FUNKTION_HOECHSTENS = 200;
 export const BEMERKUNG_HOECHSTENS = 2000;
 
-export type ZeichnungFehlerGrund = 'funktion_fehlt' | 'funktion_zu_lang' | 'bemerkung_zu_lang';
+export type ZeichnungFehlerGrund =
+  | 'fassung_geaendert' | 'funktion_fehlt' | 'funktion_zu_lang' | 'bemerkung_zu_lang';
 
 export class ZeichnungFehler extends Error {
   readonly status = 422;
@@ -159,6 +160,12 @@ export async function ladeZeichnungsvermerk(
  * Zeichnet die übergebene Fassung — Hash und Schemastand der Dokumentation,
  * die der Aufrufer in DIESER Transaktion erzeugt hat.
  *
+ * **Und nur, wenn es die ist, die der Mensch gesehen hat.** `gesehen` ist der
+ * Hash der Seite, auf der er geprüft hat. Hat sich die Konfiguration seither
+ * geändert, ist die erzeugte Fassung eine andere — gezeichnet wird dann
+ * nichts, und er prüft die neue. Der Hash aus dem Formular ersetzt die
+ * Erzeugung nie; er hält nur eine veraltete Seite auf (Copilot-Runde PR #44).
+ *
  * Das Recht (`buchhaltung_konfiguration.verwalten`) prüft die Route und die
  * Policy `t_vdz_zeichnen` (0526); Zeichner und Zeit setzt der Auslöser. Eine
  * Protokollzeile nennt Fassung und Funktion.
@@ -166,8 +173,15 @@ export async function ladeZeichnungsvermerk(
 export async function zeichne(
   kontext: SchreibKontext,
   fassung: Fassung,
-  eingabe: { readonly funktion: string; readonly bemerkung?: string | null },
+  eingabe: {
+    readonly funktion: string; readonly bemerkung?: string | null; readonly gesehen: string;
+  },
 ): Promise<{ readonly id: string }> {
+  if (eingabe.gesehen.trim() !== fassung.sha256) {
+    throw new ZeichnungFehler(
+      'Die Dokumentation hat sich geändert, seit sie geöffnet wurde — gezeichnet wird nur, '
+      + 'was geprüft wurde.', 'fassung_geaendert');
+  }
   const funktion = eingabe.funktion.trim();
   if (funktion.length < FUNKTION_MINDESTENS) {
     throw new ZeichnungFehler(

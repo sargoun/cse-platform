@@ -228,11 +228,13 @@ interface EintragZeile {
  *   andere Schicht. Das Revier bleibt nur, wenn es am neuen Objekt liegt.
  * - **Leistungszeile**: sie muss am Berliner Tag der Zeit gelten, und ihr
  *   Auftrag muss neue Zeit annehmen (`ANKERBARE_AUFTRAGSZUSTAENDE`) — eine
- *   Korrektur ist für die Abrechnung neue Zeit.
+ *   Korrektur ist für die Abrechnung neue Zeit. Der Tag ist der der NEUEN
+ *   Fassung (`beginn`): korrigiert dieselbe Korrektur auch den Beginn über
+ *   Mitternacht, gilt die Zeile, die an diesem Tag läuft (Copilot-Runde PR #44).
  */
 async function pruefeZuordnung(
   kontext: SchreibKontext, alt: EintragZeile, art: KorrekturArt,
-  z: NonNullable<KorrekturEingabe['zuordnung']>,
+  z: NonNullable<KorrekturEingabe['zuordnung']>, beginn: Date,
 ): Promise<{ objektId: string | null; auftragLeistungId: string | null; revierId: string | null }> {
   if (art !== 'zuordnung_korrektur') throw new ZuordnungsFehler('zuordnung_falsche_art');
   const objektNeu = z.objektId !== undefined && z.objektId !== alt.objekt_id;
@@ -272,7 +274,7 @@ async function pruefeZuordnung(
          join auftrag a on a.mandant_id = al.mandant_id and a.id = al.auftrag_id
          cross join (select ($2::timestamptz at time zone 'Europe/Berlin')::date as tag) t
         where al.id = $1::uuid and al.mandant_id = app.aktiver_mandant()`,
-      [z.auftragLeistungId, alt.beginn_zeitpunkt.toISOString(), [...ANKERBARE_AUFTRAGSZUSTAENDE]]);
+      [z.auftragLeistungId, beginn.toISOString(), [...ANKERBARE_AUFTRAGSZUSTAENDE]]);
     if (l === undefined) throw new ZuordnungsFehler('leistung_unbekannt');
     if (!l.laeuft) throw new ZuordnungsFehler('leistung_auftrag_laeuft_nicht');
     if (!l.gilt) throw new ZuordnungsFehler('leistung_ausserhalb');
@@ -352,7 +354,7 @@ export async function korrigiereZeiteintrag(
       && eingabe.zuordnung.auftragLeistungId === undefined)
     ? { objektId: alt.objekt_id, auftragLeistungId: alt.auftrag_leistung_id,
       revierId: alt.revier_id }
-    : await pruefeZuordnung(kontext, alt, eingabe.art, eingabe.zuordnung);
+    : await pruefeZuordnung(kontext, alt, eingabe.art, eingabe.zuordnung, beginn);
 
   /**
    * Die Ersatzfassung — `quelle_* = 'planer_entscheidung'`, weil ein benannter

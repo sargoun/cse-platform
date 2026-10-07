@@ -20,8 +20,9 @@ import {
  *
  * Er sagt zuerst, ob die letzte Zeichnung noch gilt (`zeichnungsStand`),
  * dann, wer bisher gezeichnet hat, und gibt dem, der zeichnen darf, das
- * Formular. Hash und Schemastand stehen NICHT im Formular: die Route erzeugt
- * die Dokumentation beim Zeichnen neu und zeichnet, was dann entsteht.
+ * Formular. Das Formular trägt den Hash der Fassung, die hier steht, nur als
+ * Probe: die Route erzeugt die Dokumentation beim Zeichnen neu, zeichnet, was
+ * dann entsteht — und nichts, wenn es nicht die Fassung dieser Seite ist.
  */
 export const ZEICHNUNG_RECHT = 'buchhaltung_konfiguration.verwalten';
 
@@ -113,6 +114,7 @@ export function Zeichnungsvermerk({
       {darfZeichnen ? (
         <form method="post" action="/api/buchhaltung/verfahrensdokumentation/zeichnung"
               className="flex flex-col gap-s4" data-cse="vd-zeichnung-formular">
+          <input type="hidden" name="fassung" value={aktuellerHash} />
           <h3 className="m-0 text-h3 text-text">{t.formular}</h3>
           <p className="m-0 text-sm text-text-muted">{t.formularErklaerung}</p>
           <FormField label={t.funktion} name="funktion" type="text" required minLength={FUNKTION_MINDESTENS}

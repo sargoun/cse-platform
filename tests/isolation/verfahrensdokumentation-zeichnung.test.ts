@@ -84,7 +84,7 @@ async function zeichneJetzt(mandant: string, wer: string, funktion = 'Geschäfts
   return alsApp(sitzung(mandant, wer), async (tx) => {
     const k = kontext(tx, mandant, wer);
     const doku = await erstelleVerfahrensdokumentation(k, { jobs: JOBS, auslieferung: AUSLIEFERUNG });
-    const z = await zeichne(k, fassungVon(doku), { funktion, bemerkung: '  ' });
+    const z = await zeichne(k, fassungVon(doku), { funktion, bemerkung: '  ', gesehen: doku.sha256 });
     return { doku, id: z.id };
   });
 }
@@ -144,7 +144,8 @@ describe('(1) zeichnen', () => {
   it('ohne Funktion, mit zu langer Funktion oder Bemerkung: ein Grund, keine Zeile', async () => {
     const versuch = (funktion: string, bemerkung: string | null = null) =>
       alsApp(sitzung(f.reinigung, chef), (tx) =>
-        zeichne(kontext(tx, f.reinigung, chef), { sha256: HASH, schemastand: null }, { funktion, bemerkung }));
+        zeichne(kontext(tx, f.reinigung, chef), { sha256: HASH, schemastand: null },
+          { funktion, bemerkung, gesehen: HASH }));
     await expect(versuch('  GF ')).rejects.toSatisfy(
       (e: unknown) => e instanceof ZeichnungFehler && e.grund === 'funktion_fehlt');
     await expect(versuch('x'.repeat(201))).rejects.toSatisfy(
@@ -165,6 +166,30 @@ describe('(1) zeichnen', () => {
       `insert into verfahrensdokumentation_zeichnung (mandant_id, sha256, funktion)
        values ($1, 'kein-hash', 'Geschäftsführung')`, [f.reinigung])))
       .rejects.toThrow(/vdz_sha256_form/u);
+  });
+});
+
+describe('(1b) gezeichnet wird nur die Fassung, die der Mensch gesehen hat', () => {
+  it('hat sich die Dokumentation seit dem Öffnen geändert, wird nichts gezeichnet', async () => {
+    /* Die Seite zeigte diese Fassung … */
+    const gesehen = (await vermerk(f.reinigung, chef)).doku.sha256;
+    /* … dann ändert jemand die Konfiguration (ein neuer Nummernkreis). */
+    await sql.unsafe(
+      `insert into nummernkreis
+         (mandant_id, kreis_typ, kontext_id, jahr, bezeichnung, lueckenlos, format_maske,
+          zuruecksetzung, geoeffnet_am, ist_platzhalter, erstellt_von_art, erstellt_von_dienst)
+       values ($1, 'eingangsrechnung_beleg', null, 0, 'Eingangsbelege', true, 'EB-{nr:6}', 'nie',
+               '2026-01-01', true, 'system', 'job:test')`, [f.reinigung]);
+    await expect(alsApp(sitzung(f.reinigung, chef), async (tx) => {
+      const k = kontext(tx, f.reinigung, chef);
+      const doku = await erstelleVerfahrensdokumentation(k, { jobs: JOBS, auslieferung: AUSLIEFERUNG });
+      return zeichne(k, fassungVon(doku), { funktion: 'Geschäftsführung', gesehen });
+    })).rejects.toSatisfy(
+      (e: unknown) => e instanceof ZeichnungFehler && e.grund === 'fassung_geaendert');
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from verfahrensdokumentation_zeichnung where mandant_id = $1`,
+      [f.reinigung]);
+    expect(n!.n).toBe(0);
   });
 });
 
@@ -259,7 +284,7 @@ describe('(4) Rechte', () => {
   it('eine lesende Sitzung zeichnet nicht, auch mit dem Recht', async () => {
     await expect(alsApp(sitzung(f.reinigung, chef, true), (tx) =>
       zeichne(kontext(tx, f.reinigung, chef), { sha256: HASH, schemastand: null },
-        { funktion: 'Geschäftsführung' })))
+        { funktion: 'Geschäftsführung', gesehen: HASH })))
       .rejects.toThrow();
     const [n] = await sql.unsafe<{ n: number }[]>(
       `select count(*)::int as n from verfahrensdokumentation_zeichnung`);

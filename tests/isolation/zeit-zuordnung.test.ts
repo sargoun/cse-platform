@@ -217,6 +217,44 @@ describe('V-351 — die Korrektur setzt Leistungszeile und Objekt', () => {
     expect(await fassung(z)).toMatchObject({ ersetzt: false, leistung: null });
   });
 
+  it('ändert dieselbe Korrektur den Beginn über Mitternacht, gilt der Tag der NEUEN Fassung', async () => {
+    /*
+     * Copilot-Runde PR #44: geprüft wurde die Zeile am Tag des ALTEN Beginns,
+     * gespeichert der neue. Eine Zeit vom 31.05. 23:30 Uhr (Berlin), korrigiert
+     * auf den 01.06. 00:15 Uhr, gehört zur Zeile „ab Juni" — und nicht mehr
+     * zu einer, die am 31.05. endet.
+     */
+    const bau = await baue();
+    const [z] = await sql.unsafe<{ id: string }[]>(
+      `insert into zeiteintrag
+         (mandant_id, anstellung_id, person_id, objekt_id, revier_id,
+          beginn_zeitpunkt, ende_zeitpunkt, pause_minuten,
+          erfassungsart_beginn, erfassungsart_ende, quelle_beginn, quelle_ende,
+          status, erstellt_von_art)
+       values ($1,$2,$3,$4,$5,'2026-05-31T21:30:00Z','2026-06-01T01:00:00Z',0,
+               'import','import','import','import','abgeschlossen','system')
+       returning id`,
+      [f.reinigung, f.jonasReinigung, f.jonas, bau.objektA, bau.revierA] as never[]);
+    // Am alten Tag (31.05.) gilt „ab Juni" nicht — ohne neuen Beginn bleibt die Abweisung.
+    expect(await grund(() => korrigiere({ zeiteintragId: z!.id, zuordnung: { auftragLeistungId: bau.abJuni } })))
+      .toBe('leistung_ausserhalb');
+    const neu = await korrigiere({
+      zeiteintragId: z!.id, zuordnung: { auftragLeistungId: bau.abJuni },
+      beginnZeitpunkt: new Date('2026-05-31T22:15:00Z'),
+    });
+    expect(await fassung(neu.neueFassungId)).toMatchObject({ leistung: bau.abJuni, ersetzt: false });
+    const [b] = await sql.unsafe<{ tag: string }[]>(
+      `select (beginn_zeitpunkt at time zone 'Europe/Berlin')::date::text as tag
+         from zeiteintrag where id = $1`, [neu.neueFassungId]);
+    expect(b!.tag).toBe('2026-06-01');
+
+    // Und geprüft wird weiter: eine Zeile, die am neuen Tag nicht gilt, bleibt abgewiesen.
+    expect(await grund(() => korrigiere({
+      zeiteintragId: neu.neueFassungId, zuordnung: { auftragLeistungId: bau.bisMaerz },
+      beginnZeitpunkt: new Date('2026-05-31T22:30:00Z'),
+    }))).toBe('leistung_ausserhalb');
+  });
+
   it('nur mit der Art „Zuordnung korrigieren", und nur wenn sich etwas ändert', async () => {
     const bau = await baue();
     const z = await zeitOhneSchicht(bau);
