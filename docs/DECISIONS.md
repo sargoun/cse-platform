@@ -2927,7 +2927,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | # | Question |
 |---|---|
 | O-145 | A Turnus missed on a public holiday: brought forward, made up, or dropped? · **Voreinstellung → D-789** |
-| O-146 | Is a missed Turnus credited against a monthly flat, and at what amount? · **Voreinstellung → D-789** |
+| O-146 | Is a missed Turnus credited against a monthly flat, and at what amount? · **Voreinstellung → D-789; gerechnet → D-850** |
 | O-147 | Are Leistungsnachweise numbered gaplessly and sequentially, and from which step is the number assigned? · **Voreinstellung → D-781** |
 | O-148 | Which Postenarten and which Schlüsselarten are kept? · **Voreinstellung → D-783** |
 | O-149 | Which qualification is required for guard duties with no fixed post — events, floaters, short-notice cover? · **Voreinstellung → D-789** |
@@ -25155,7 +25155,7 @@ nicht gebaut ist (V-323 bis V-328). Jede Zeile ist gegen den Dienst gelesen.
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-145 | Ein Turnus am gesetzlichen Feiertag entfällt (`feiertagsregel = ausfall`, Spaltenvorgabe 0029) — weder vorgezogen noch nachgeholt; `unveraendert` ist je Serie wählbar, die Vorschau rechnet beides. Wie gebaut. | `reinigung/turnus.ts`, `reinigung/turnusvorschau.ts` |
-| O-146 | Ein ausgefallener Turnus mindert die Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des Monats); so ist die Ausnahme vorbelegt (`abrechnungsrelevant`, O-700, D-783). Gerechnet wird die Minderung nirgends — die Monatspauschale rechnet aus der Pauschale allein (V-327). | `reinigung/turnus.ts`, `finanz/abrechnungsart/monatspauschale.ts` |
+| O-146 | Ein ausgefallener Turnus mindert die Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des Monats); so ist die Ausnahme vorbelegt (`abrechnungsrelevant`, O-700, D-783). Gerechnet seit V-327 (D-850): je abrechnungsrelevantem Ausfall an einem Regeltermin eine Minderungszeile, je Zusatztermin eine Zuschlagszeile zum selben Satz; Nenner sind die Regeltermine des Monats nach der Feiertagsregel. | `reinigung/turnus.ts`, `finanz/abrechnungsart/{monatspauschale,turnusausfall}.ts` |
 | O-149 | Wie D-783 (O-342): für Kräfte ohne festen Posten (Veranstaltung, Springer, kurzfristige Vertretung) gilt die mandantenweite Grundanforderung § 34a-Unterrichtung, bei Veranstaltungen dazu die Sachkunde — auf Knopfdruck angelegt, unbestätigt, als Warnung; ohne Zeile meldet das Tor `anforderungenGefunden = 0`. | `nachweis/tor.ts`, `security/anforderung.ts` |
 | O-150 | Massgeblich ist der Berliner Kalendertag des Schichtbeginns (`stichtagVon`): ein Nachweis, der um Mitternacht abläuft, deckt die begonnene Nachtschicht; die nächste Schicht braucht einen gültigen. Wie gebaut. | `nachweis/gueltigkeit.ts` |
 | O-151 | Die Übergabe zeigt die Einträge der letzten zwölf Stunden am selben Objekt — gerechnet ab jetzt, das Fenster gleitet (`app.uebergabe_sichtbar`, 0302); zu Schichtbeginn sind es die zwölf Stunden davor (berichtigt mit D-808). Ausgeliefert ist das Fenster mit 0 (`wachbuch.uebergabe_fenster`, 0033), gesetzt wird es je Gesellschaft auf Security › Wachbuch (0 bis 24 Stunden, `system.einstellung_verwalten`, protokolliert — gebaut mit V-323, D-808); die Wachbuchseite der Kraft nennt die Voreinstellung in vier Sprachen. | `mitarbeiter/schichtbuch.ts`, `texte.ts`, Mein › Wachbuch |
@@ -28788,4 +28788,64 @@ misst, fällt. Ohne 0533 fallen alle vier (geprüft). Die Zwei-Raten-Prüfung
 30.870".
 
 | Betrifft | V-357, O-340, D-796, D-362, D-700, BAU-02, FIN-07, FIN-08, § 16 VOB/B; `drizzle/0533_aufmass_obergrenze_je_lv_position.sql`, `src/server/services/bau/aufmass.ts`, `src/server/services/finanz/abrechnungsart/einheitspreis-aufmass.ts`, `tests/isolation/rechnung-herkunft.test.ts` |
+|---|---|
+
+### D-850 · Bauwelle 47: Ausfall und Zusatztermin eines Turnus ändern die Monatspauschale (V-327, O-146, O-700)
+
+**Der Anlass.** `turnus_ausnahme.abrechnungsrelevant` ist „ja" vorbelegt
+(O-700, D-783): ein Ausfall mindert die Pauschale, ein Zusatztermin wird
+berechnet. Die Monatspauschale las die Ausnahmen nicht — die Rechnung
+verlangte die volle Pauschale auch für ausgefallene Termine. Voreinstellung
+(O-146, D-789): Minderung um den Anteil des Termins, Pauschale geteilt durch
+die Termine des Monats; ein Zusatztermin als eigene Zeile.
+
+**Was gebaut ist.**
+- **`finanz/abrechnungsart/turnusausfall.ts`** (rein bis auf den Lader):
+  `turnusImAbschnitt` entfaltet je Turnus der Vereinbarung die Regeltermine
+  des ganzen Monats mit derselben Funktion wie das Turnusblatt
+  (`turnusVorschau`) — nach Feiertagsregel und Gültigkeit, vor den
+  Ausnahmen, mit den Berliner Feiertagen (wie die Arbeitstage, D-843; das
+  Land am Objekt fehlt noch, V-396). Ein Ausfall zählt nur an einem Tag mit
+  Regeltermin, nur abrechnungsrelevant, je Turnus und Tag einmal (zwei
+  Regeltermine an einem Tag fallen beide aus, wie im Generator); ein
+  Zusatztermin zählt für sich; eine Verschiebung nie; „ohne Angabe" wird
+  gezählt, nicht gerechnet. `TODO(client, O-146)` am Dienst.
+- **Die Zeilen** (`monatspauschale.ts`): nach jeder Pauschalzeile eines
+  Abschnitts „Minderung Turnusausfall <Monat>" (Menge minus Ausfälle) und
+  „Zusatztermin <Monat>" (Menge Zusatztermine), beide mit den Regelterminen
+  des Monats als `preis_basismenge` und der Pauschale als Preis — der Anteil
+  eines Termins ist so exakt, gerundet wird einmal je Zeile
+  (`berechneNetto`, kaufmännisch, mit Vorzeichen). Oktober 2026, Mo/Mi/Fr,
+  1.890,00 €: 13 Regeltermine; zwei Ausfälle −290,77 €, ein Zusatztermin
+  +145,38 €. Einheit `stk` (H87): „Einsatz" trägt keinen UN/ECE-Code.
+- **Die Prüfung** sagt vorher: ein Zusatztermin in einem Monat ohne
+  Regeltermin hat keinen Satz (Fehler, O-146 — die Zeile wirft dann auch);
+  eine Ausnahme ohne Angabe ändert die Pauschale nicht (Warnung, O-700).
+- **`fin.turnusse_der_abrechnung`** (0534, Definer): `turnus` und
+  `turnus_ausnahme` liest `cse_app` nur mit `reinigung.lesen`; wer abrechnet,
+  hält `abrechnung.lesen` — eine Buchhaltung mit Modulbeschränkung (AUT-01)
+  nicht unbedingt beides, und RLS filterte die Ausnahmen still. Die Funktion
+  prüft aktive Gesellschaft, `abrechnung.lesen` und die Zugehörigkeit der
+  Vereinbarung und gibt Regel, Gültigkeit sowie Tag, Art und
+  Abrechnungsrelevanz der Ausnahmen zurück — keinen Grundtext (Spaltenliste
+  der Policy), keine Person. Turnusse: die an der Leistungszeile der
+  Vereinbarung; gilt sie für den ganzen Auftrag, die an seinen
+  Leistungszeilen ohne eigene Vereinbarung im Zeitraum; archivierte nicht.
+- **Seed.** Der Seed legt keine Pauschalvereinbarung an (die Reinigung rechnet
+  dort nach Stunden und Abruf); die Ausnahme im Dienstplan-Seed hat keinen
+  Preis zu ändern. Den Weg prüft die Isolationsprüfung.
+
+**Prüfung.** `tests/kern/turnusausfall.test.ts` (Regeltermine: 13 im Oktober,
+12 im Dezember mit Weihnachten, 13 mit „unverändert", Gültigkeit, zwei
+Turnusse, angebrochener Abschnitt; welche Ausnahmen zählen; das Geld;
+die Prüfung mit O-146 und O-700; Verdrahtung).
+`tests/isolation/abrechnungsart.test.ts` (1b): drei Zeilen auf dem Entwurf
+mit −29.077 und +14.538 Cent und 174.461 Cent netto; ohne Ausnahme eine Zeile;
+ein Konto mit Modulbeschränkung sieht über RLS keine Ausnahme und die
+Funktion liefert sie doch, ohne Grundtext; ohne `abrechnung.lesen` 42501;
+eine fremde Vereinbarung 42501. Die kern-Doppel der Pauschalprüfung
+(`abrechnungsart.test.ts`, `arbeitstage-teilmonat.test.ts`) beantworten die
+neue Turnusfrage mit „keine" und werfen weiter bei jeder anderen Abfrage.
+
+| Betrifft | V-327, O-146, O-700, D-783, D-789, D-843, V-396, CLN-02, FIN-01; `drizzle/0534_turnus_fuer_abrechnung.sql`, `src/server/services/finanz/abrechnungsart/{turnusausfall,monatspauschale}.ts`, `src/server/registry/dienste.ts`, `tests/kern/{turnusausfall,abrechnungsart,arbeitstage-teilmonat}.test.ts`, `tests/isolation/abrechnungsart.test.ts` |
 |---|---|

@@ -1313,6 +1313,8 @@ export const DIENSTE: readonly DienstEintrag[] = [
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/register', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/stunden', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/monatspauschale', schreibend: false },
+  /** V-327 — Ausfall und Zusatztermin eines Turnus an der Pauschale (O-146, D-850); liest nur. */
+  { modul: 'finanzen', pfad: 'finanz/abrechnungsart/turnusausfall', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/festpreis-los', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/einheitspreis-aufmass', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/abrechnungsart/einzelabruf', schreibend: false },
