@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 import { Hinweis } from '@/components/ui/Hinweis';
+import { mitSprache, type Sprache } from '@/lib/sprache';
 import { EMAIL_MUSTER } from './meldung';
+import { KARRIERE_TEXTE } from './texte';
 
 /**
  * Das Bewerbungsformular — einmal geschrieben, an zwei Stellen benutzt
@@ -26,8 +29,13 @@ import { EMAIL_MUSTER } from './meldung';
  * nach § 34a GewO oder Arbeitserlaubnis klärt das Gespräch, wenn die Stelle
  * sie verlangt; nachgewiesen werden sie bei der Einstellung.
  * // TODO(client, O-199): Voreinstellung — nur Name, E-Mail, Telefon (freiwillig), Nachricht und bei der Initiativbewerbung der Bereich; keine Merkmale, die eine Benachteiligung nach dem AGG nahelegen. Wie gebaut. D-797.
+ *
+ * **Deutsch und englisch, dieselben Felder** (V-393, D-82, D-83): nur die
+ * Beschriftungen kommen aus `KARRIERE_TEXTE`; das Feld `sprache` sagt der
+ * Route, auf welche Seite die Antwort zurückführt.
  */
-export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldung }: {
+export function Bewerbungsformular(
+  { stelleId, aufbewahrungTage, bereiche, meldung, sprache = 'de' }: {
   readonly stelleId: string | null;
   readonly aufbewahrungTage: number;
   /** Nur bei der Initiativbewerbung: der Bereich ist dort eine Wahl. */
@@ -38,7 +46,9 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
    * Angebotsformular (D-599, DESIGN §5 „Notices").
    */
   readonly meldung?: string | undefined;
+  readonly sprache?: Sprache;
 }) {
+  const t = KARRIERE_TEXTE[sprache];
   const eingabe = 'mt-s1 w-full rounded-md border border-line bg-surface px-s4 py-s3 '
     + 'text-base text-text';
   const beschriftung = 'text-sm text-text-muted';
@@ -61,6 +71,7 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
         * mit und bekommt JSON wie bisher.
         */}
       <input type="hidden" name="antwort" value="seite" />
+      {sprache !== 'de' && <input type="hidden" name="sprache" value={sprache} />}
       {stelleId !== null && <input type="hidden" name="stelle" value={stelleId} />}
       {/*
         * Der Honigtopf — dieselbe Idee wie beim Angebotsformular: ein Feld,
@@ -73,9 +84,9 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
 
       {bereiche !== undefined && (
         <div>
-          <label className={beschriftung} htmlFor="bereich">Bereich</label>
+          <label className={beschriftung} htmlFor="bereich">{t.bereichLabel}</label>
           <select id="bereich" name="bereich" required className={eingabe} defaultValue="">
-            <option value="" disabled>— bitte wählen —</option>
+            <option value="" disabled>{t.bitteWaehlen}</option>
             {bereiche.map((b) => (
               <option key={b.slug} value={b.slug}>{b.name}</option>
             ))}
@@ -84,12 +95,12 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
       )}
 
       <div>
-        <label className={beschriftung} htmlFor="name">Name</label>
+        <label className={beschriftung} htmlFor="name">{t.nameLabel}</label>
         <input id="name" name="name" type="text" required autoComplete="name"
                className={eingabe} />
       </div>
       <div>
-        <label className={beschriftung} htmlFor="email">E-Mail</label>
+        <label className={beschriftung} htmlFor="email">{t.emailLabel}</label>
         {/*
           * `pattern` aus der Regel des Dienstes (V-158): `type="email"` allein
           * nimmt `name@firma` an, der Dienst nicht — und eine Abweisung NACH
@@ -98,38 +109,33 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
           */}
         <input id="email" name="email" type="email" required autoComplete="email"
                pattern={EMAIL_MUSTER}
-               title="Eine E-Mail-Adresse mit Punkt nach dem @, etwa name@firma.de"
+               title={t.emailTitel}
                className={eingabe} />
       </div>
       <div>
-        <label className={beschriftung} htmlFor="telefon">Telefon (freiwillig)</label>
+        <label className={beschriftung} htmlFor="telefon">{t.telefonLabel}</label>
         <input id="telefon" name="telefon" type="tel" autoComplete="tel"
                className={eingabe} />
       </div>
       <div>
         <label className={beschriftung} htmlFor="nachricht">
-          Was Sie uns sagen möchten
+          {t.nachrichtLabel}
         </label>
         <textarea id="nachricht" name="nachricht" rows={6} className={eingabe} />
       </div>
 
       {/* TODO(client, O-375): Voreinstellung — Unterlagen in den privaten Belegspeicher, gelöscht mit der Bewerbung; das Dateifeld ist nicht gebaut (V-387), den Speicher verbindet der Betreiber (D-803). */}
       <p className="m-0 max-w-prose rounded-md border border-line bg-surface-2 p-s4 text-sm text-text-muted">
-        <strong className="text-text">Noch kein Datei-Upload.</strong> Der
-        Dokumentenspeicher ist nicht verbunden; ein Feld, das eine Datei annimmt
-        und sie nirgends ablegt, wäre schlimmer als keines. Schreiben Sie uns
-        Ihren Werdegang bitte in das Feld oben — wir fragen nach Unterlagen,
-        wenn es passt.
+        <strong className="text-text">{t.uploadTitel}</strong> {t.uploadText}
       </p>
 
       <p className="m-0 max-w-prose text-sm text-text-muted" data-cse="datenschutz-hinweis">
-        Ihre Angaben werden für dieses Bewerbungsverfahren verarbeitet und nach{' '}
-        <strong className="text-text">{aufbewahrungTage} Tagen</strong> gelöscht,
-        sofern kein Arbeitsverhältnis zustande kommt. Über Einladung oder Absage
-        entscheidet ein Mensch; eine automatische Auswahl findet nicht statt.
-        Mehr dazu in der{' '}
-        <Link href="/datenschutz" className="underline underline-offset-2">
-          Datenschutzerklärung
+        {t.datenschutzVor}{' '}
+        <strong className="text-text">{t.datenschutzTage(aufbewahrungTage)}</strong>{' '}
+        {t.datenschutzNach}{' '}
+        <Link href={mitSprache('/datenschutz', sprache) as Route}
+              className="underline underline-offset-2">
+          {t.datenschutzLink}
         </Link>.
       </p>
 
@@ -138,7 +144,7 @@ export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldu
         data-cse="bewerbung-absenden"
         className="inline-flex min-h-11 w-fit items-center rounded-md bg-brand px-s5 text-base font-semibold text-white hover:bg-brand-hover"
       >
-        Bewerbung absenden
+        {t.absenden}
       </button>
     </form>
   );

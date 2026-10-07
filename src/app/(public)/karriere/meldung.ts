@@ -1,4 +1,5 @@
 import { eigenerEintrag } from '@/lib/nachschlagen';
+import type { Sprache } from '@/lib/sprache';
 import { BEWERBUNG_EMAIL } from '@/server/services/recruiting/dienst';
 
 /**
@@ -15,9 +16,10 @@ import { BEWERBUNG_EMAIL } from '@/server/services/recruiting/dienst';
  * Angebotsformular als Fehler festgestellt und behoben — für die Bewerbung
  * nicht.
  *
- * **Deutsch, weil `/karriere` deutsch ist** (`NUR_DEUTSCH`, O-512). Wird der
- * Karrierebereich übersetzt, wird diese Tabelle eine je Sprache — die
- * Schlüssel bleiben.
+ * **Eine Tabelle je Sprache, dieselben Schlüssel** (V-393, D-82): der
+ * Karrierebereich steht deutsch unter `/karriere` und englisch unter
+ * `/en/karriere`. `BEWERBUNG_MELDUNG` bleibt die deutsche — und die, die ein
+ * Programm als `meldung` im JSON bekommt.
  *
  * **Die eingegebenen Werte reisen NICHT zurück.** Name, E-Mail, Telefon und
  * Nachricht in einer Adresse stünden in jedem Zugriffsprotokoll und im
@@ -41,9 +43,30 @@ export const BEWERBUNG_MELDUNG: Readonly<Record<string, string>> = {
     + 'Unten stehen die offenen Stellen — oder Sie bewerben sich initiativ.',
 };
 
+/**
+ * Dieselben Gründe englisch — die Schlüssel der deutschen Tabelle, keiner mehr
+ * (`tests/kern/karriere-englisch.test.ts` hält beide gleich).
+ */
+export const BEWERBUNG_MELDUNG_EN: Readonly<Record<string, string>> = {
+  unvollstaendig:
+    'Your application has not arrived: a name and an email address at which we can '
+    + 'reach you (such as name@company.com) are required. Please fill in the form again.',
+  zu_viele:
+    'A great many applications came from this connection in a short time. Yours has '
+    + 'not arrived — please try again later.',
+  kein_bereich:
+    'Your application has not arrived: please choose the company you would like to '
+    + 'work for.',
+  stelle_geschlossen:
+    'This position is no longer advertised, and your application has not arrived. The '
+    + 'open positions are listed below — or you can apply without a vacancy.',
+};
+
 /** Der Satz, wenn der Grund keiner der bekannten ist. Nie der rohe Grund. */
 export const BEWERBUNG_MELDUNG_SONST =
   'Ihre Bewerbung ist nicht angekommen. Bitte versuchen Sie es noch einmal.';
+const BEWERBUNG_MELDUNG_SONST_EN =
+  'Your application has not arrived. Please try again.';
 
 /**
  * Der Satz zu einem Grund aus der Adresse — oder `undefined`, wenn keiner da ist.
@@ -55,9 +78,11 @@ export const BEWERBUNG_MELDUNG_SONST =
  * `/karriere/initiativbewerbung` und `/karriere/<id>/bewerbung` antworteten
  * mit einer Fehlerseite — auf eine Adresse, die jeder tippen kann.
  */
-export function bewerbungsMeldung(grund: unknown): string | undefined {
+export function bewerbungsMeldung(grund: unknown, sprache: Sprache = 'de'): string | undefined {
   if (typeof grund !== 'string' || grund === '') return undefined;
-  return eigenerEintrag(BEWERBUNG_MELDUNG, grund) ?? BEWERBUNG_MELDUNG_SONST;
+  return sprache === 'en'
+    ? eigenerEintrag(BEWERBUNG_MELDUNG_EN, grund) ?? BEWERBUNG_MELDUNG_SONST_EN
+    : eigenerEintrag(BEWERBUNG_MELDUNG, grund) ?? BEWERBUNG_MELDUNG_SONST;
 }
 
 /**

@@ -109,7 +109,8 @@ describe('(1) am Quelltext: kein Kasten der Website ist mehr nachgebaut', () => 
     ['src/app/(public)/datenschutz/anfrage/Anfrage.tsx', 'anfrage-meldung', 'warnung', 'alert'],
     ['src/app/(public)/barrierefreiheit/feedback/Feedback.tsx', 'barriere-meldung', 'warnung', 'alert'],
     ['src/app/(public)/barrierefreiheit/feedback/Feedback.tsx', 'barriere-danke', 'erfolg', 'status'],
-    ['src/app/(public)/karriere/page.tsx', 'bewerbung-meldung', 'warnung', 'alert'],
+    // Seit V-393 baut `Seiten.tsx` die Liste für beide Sprachen; `page.tsx` ruft sie.
+    ['src/app/(public)/karriere/Seiten.tsx', 'bewerbung-meldung', 'warnung', 'alert'],
     ['src/app/(public)/karriere/Formular.tsx', 'bewerbung-meldung', 'warnung', 'alert'],
   ] as const)('%s: „%s" ist ein Hinweis %s mit role="%s"', (datei, cse, art, rolle) => {
     const q = readFileSync(join(WURZEL, datei), 'utf8');

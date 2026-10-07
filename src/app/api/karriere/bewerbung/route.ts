@@ -9,6 +9,7 @@ import { ipHash, istBot, pruefeRatenlimit, RatenlimitFehler }
   from '@/server/services/lead/annahme';
 import { nimmBewerbungAn, RecruitingFehler } from '@/server/services/recruiting/dienst';
 import { bewerbungsMeldung } from '@/app/(public)/karriere/meldung';
+import { mitSprache, type Sprache } from '@/lib/sprache';
 
 /**
  * `POST /api/karriere/bewerbung` — die öffentliche Bewerbung (REC-03).
@@ -27,6 +28,10 @@ import { bewerbungsMeldung } from '@/app/(public)/karriere/meldung';
  * Bei der Initiativbewerbung gibt es keine Stelle; dort ist der Bereich eine
  * Wahl aus einer Liste, und der Slug wird gegen `mandant` aufgelöst — auch das
  * serverseitig, nicht als Kennung aus dem Rumpf.
+ *
+ * **Die Antwort führt in die Sprache des Formulars zurück** (V-393): das
+ * englische Formular schickt `sprache=en`, und Danke- wie Formularseite liegen
+ * dann unter `/en/karriere/…`. Ein unbekannter Wert ist Deutsch.
  */
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +77,8 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ fehler: 'fremder_ursprung' }, { status: 403 });
   }
   const daten = await anfrage.formData();
+  const sprache: Sprache = feld(daten, 'sprache') === 'en' ? 'en' : 'de';
+  const pfad = (p: string): string => mitSprache(p, sprache);
 
   /*
    * Der Honigtopf antwortet mit ERFOLG und schreibt nichts. Ein sichtbares
@@ -79,7 +86,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * verbessert.
    */
   if (istBot(feld(daten, 'webseite'))) {
-    return NextResponse.redirect(internesZiel(null, '/karriere/danke', anfrage), 303);
+    return NextResponse.redirect(internesZiel(null, pfad('/karriere/danke'), anfrage), 303);
   }
 
   const stelleRoh = feld(daten, 'stelle');
@@ -98,12 +105,12 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
    * E-Mail und Nachricht gehören in keine Adresse.
    */
   const alsSeite = feld(daten, 'antwort') === 'seite';
-  const formularPfad = stelleId === null
-    ? '/karriere/initiativbewerbung' : `/karriere/${stelleId}/bewerbung`;
+  const formularPfad = pfad(stelleId === null
+    ? '/karriere/initiativbewerbung' : `/karriere/${stelleId}/bewerbung`);
   const abgewiesen = (grund: string, status: number, ziel = formularPfad): NextResponse =>
     alsSeite
       ? NextResponse.redirect(internesZiel(
-        `${ziel}?fehler=${encodeURIComponent(grund)}`, '/karriere', anfrage), 303)
+        `${ziel}?fehler=${encodeURIComponent(grund)}`, pfad('/karriere'), anfrage), 303)
       : NextResponse.json({ fehler: grund, meldung: bewerbungsMeldung(grund) }, { status });
 
   if (stelleId === null && !SLUG.test(bereich)) {
@@ -125,7 +132,7 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         { fehler: 'nicht_gefunden', meldung: bewerbungsMeldung(grund) }, { status: 404 });
     }
-    return abgewiesen(grund, 404, stelleId === null ? formularPfad : '/karriere');
+    return abgewiesen(grund, 404, stelleId === null ? formularPfad : pfad('/karriere'));
   }
 
   const { ip } = await herkunft(anfrage.headers);
@@ -161,5 +168,5 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
     throw fehler;
   }
 
-  return NextResponse.redirect(internesZiel(null, '/karriere/danke', anfrage), 303);
+  return NextResponse.redirect(internesZiel(null, pfad('/karriere/danke'), anfrage), 303);
 }
