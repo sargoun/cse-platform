@@ -25655,7 +25655,7 @@ Voreinstellung tragen — der Wortlaut folgt jetzt.
 
 | Frage | Voreinstellung | Wo |
 |---|---|---|
-| O-354 | Ein Alarm je endgültig gescheitertem Lauf (nach den Wiederholungen des Runners) und je Lauf mit fehlerhaften Mandanten; geweckt wird niemand, die Gruppe hat keinen Bereitschaftsdienst. Der Alarm steht in der Betriebsansicht, im Funktionsprotokoll (`JOB-ALARM`) und in `job_lauf` (wie gebaut); eine E-Mail an das Betriebspostfach braucht Versanddienst (O-116) und Adresse und fehlt (V-374). | `jobs/alarm.ts`, Einstellungen › Betrieb |
+| O-354 | Ein Alarm je endgültig gescheitertem Lauf (nach den Wiederholungen des Runners) und je Lauf mit fehlerhaften Mandanten; geweckt wird niemand, die Gruppe hat keinen Bereitschaftsdienst. Der Alarm steht in der Betriebsansicht, im Funktionsprotokoll (`JOB-ALARM`) und in `job_lauf` (wie gebaut); die E-Mail an das Betriebspostfach ist als zweiter Empfänger gebaut (V-374, D-823) und geht hinaus, sobald ein Postausgang verbunden (O-116, O-501) und `CSE_ALARM_POSTFACH` eingetragen ist — bis dahin sagt die Betriebsansicht „nicht verbunden" und warum. | `jobs/alarm.ts`, Einstellungen › Betrieb |
 | O-356 | Jede Gesellschaft bucht genau ihr Gewerk aus CLAUDE.md (wie im Seed); eine Überschneidung — Bauendreinigung bei der REALTIME Service, Veranstaltungsreinigung bei der SSE Security — bucht die Super-Administration als weiteres Modul (O-355) unter Einstellungen › Module (V-298, D-809). | `db/seed/index.ts`, Einstellungen › Module |
 | O-359 | Vollständige CSP mit Nonce je Anfrage aus der Middleware, ohne `'unsafe-inline'`, zuerst im Berichtsmodus, dann erzwungen; neben `'self'` nur der Supabase-Speicher der EU-Region (signierte Adressen), Rückrufe des SMS-Dienstes gehen Server an Server. Nicht gebaut (V-375); bis dahin `frame-ancestors 'none'` (wie gebaut). | `lib/sicherheitskoepfe.ts` |
 | O-360 | Keine Karte in der Gruppenansicht, bis ein Kartendienst in der EU mit Auftragsverarbeitungsvertrag eingetragen ist (O-132, Betreiberdaten); bis dahin die Anschriftenliste (D-475). Wie gebaut. | Gruppe › Objekte |
@@ -27080,4 +27080,43 @@ bleibt auch elf Jahre alt), `tests/kern/jobs-bootstrap.test.ts`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
 | Betrifft | V-330; O-92; `drizzle/0518_betriebsprotokolle_aufraeumen.sql`, `src/server/jobs/betriebsprotokolle.ts`, `src/server/jobs/bootstrap.ts`, `docs/JOB-AUSLOESER.sql`, `tests/isolation/betriebsprotokolle-aufraeumen.test.ts`, `tests/kern/jobs-bootstrap.test.ts` |
+|---|---|
+
+### D-823 · Bauwelle 20: Der Alarm eines gescheiterten Laufs hat einen Weg nach draussen (V-374)
+
+**Der Anlass.** `ProtokollAlarm` schrieb eine `JOB-ALARM`-Zeile auf `stderr`,
+der Runner `job_lauf.ergebnis = 'fehler'`, und die Betriebsansicht zeigte
+beides — eine Nachricht an einen Menschen ging nicht hinaus. Voreinstellung zu
+O-354 (D-799): ein Alarm je endgültig gescheitertem Lauf, niemand wird
+geweckt, eine E-Mail an das Betriebspostfach der Gruppe.
+
+**Was gebaut ist.**
+- **`PostfachAlarm`** (`jobs/alarm.ts`): der zweite Empfänger. Er sendet nur
+  über einen VERBUNDENEN Postausgang (`EmailDienst.verbunden`) und nur an eine
+  eingetragene Adresse (`CSE_ALARM_POSTFACH`, Betreiberdaten, `.env.example`).
+  Der Entwicklungsdienst zählt nicht als verbunden — kein Versand wird
+  vorgetäuscht. Ein Fehler beim Senden fällt nicht auf den Lauf zurück; er
+  steht als `JOB-ALARM-POSTFACH` im Funktionsprotokoll.
+- **`MehrfachAlarm`** und **`alarmFuerLauf`**: Funktionsprotokoll immer,
+  Betriebspostfach, wo verbunden; ein scheiternder Empfänger hält die übrigen
+  nicht auf. `/api/jobs/[schluessel]` benutzt ihn statt `ProtokollAlarm` allein.
+- **Die Betriebsansicht sagt, wohin der Alarm geht** (`alarmKanal`): an welche
+  Adresse über welchen Dienst — oder „nicht verbunden", weil kein Postausgang
+  angeschlossen ist (O-501) bzw. kein Betriebspostfach eingetragen ist.
+
+**Voreinstellungen** (Regel 1, D-778).
+
+| Frage | Voreinstellung | Wo |
+|---|---|---|
+| O-354 | Ein Alarm je endgültig gescheitertem Lauf, niemand wird geweckt; per E-Mail an das Betriebspostfach, sobald Postausgang und `CSE_ALARM_POSTFACH` eingetragen sind — wie D-799, jetzt als Empfänger gebaut. | `jobs/alarm.ts`, `.env.example`, Einstellungen › Betrieb |
+
+**Prüfung.** `tests/kern/job-alarm.test.ts` (9: Adresse aus der Umgebung,
+`.env.example`; ohne Postausgang und mit dem Entwicklungsdienst kein Versand;
+ohne Postfach kein Versand; mit beidem eine E-Mail mit Lauf, Versuchen und
+Fehler; ein Sendefehler fällt nicht auf den Lauf zurück; ein scheiternder
+Empfänger hält die übrigen nicht auf; das Funktionsprotokoll immer; die Route
+benutzt diesen Alarm), `tests/kern` komplett, `pnpm guards`,
+`pnpm katalog:check`, `pnpm typecheck`.
+
+| Betrifft | V-374; O-354, O-116, O-501; `src/server/jobs/alarm.ts`, `src/app/api/jobs/[schluessel]/route.ts`, `src/app/portal/[mandant]/einstellungen/betrieb/page.tsx`, `.env.example`, `tests/kern/job-alarm.test.ts` |
 |---|---|
