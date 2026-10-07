@@ -7,7 +7,8 @@
  * physical trust fails the moment anyone looks closely.
  *
  * `pnpm guards` does not fail on these — they are legitimate during
- * development. The production build does, via `assertKeinePlatzhalter()`.
+ * development. The production build does not check them yet either:
+ * `assertKeinePlatzhalter()` below has no caller (V-389).
  */
 export interface Platzhalter {
   readonly pfad: string;

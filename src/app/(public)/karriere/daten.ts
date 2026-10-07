@@ -41,6 +41,24 @@ export async function offeneStellen(): Promise<readonly OffeneStelle[]> {
 }
 
 /**
+ * Die Kennungen ALLER offenen Stellen — für die Sitemap (O-512, D-802).
+ *
+ * Ohne die 50er-Grenze von `offeneStellen`: die Seite zeigt höchstens 50,
+ * erreichbar ist aber jede veröffentlichte Stelle, und die Sitemap meldet,
+ * was es gibt. Dieselbe Bedingung wie dort — die Auswahl bleibt die der
+ * Policy, keine zweite Liste.
+ */
+export async function offeneStellenKennungen(): Promise<readonly string[]> {
+  const zeilen = await oeffentlichLesen((kontext) => kontext.abfrage<{ id: string }>(
+    `select s.id
+       from stelle s
+       join mandant m on m.id = s.mandant_id and m.archiviert_am is null
+      where s.status = 'veroeffentlicht' and s.geschlossen_am is null
+      order by s.veroeffentlicht_am desc`));
+  return zeilen.map((z) => z.id);
+}
+
+/**
  * Die Form einer Kennung — **geprüft, bevor sie in ein `::uuid` geht.**
  *
  * `/karriere/not-a-uuid` reichte das Segment ungeprüft an `$1::uuid` weiter;
