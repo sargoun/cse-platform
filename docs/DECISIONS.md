@@ -2915,7 +2915,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-65 | Which communication counts as contractually necessary rather than advertising (§7 UWG)? · **Voreinstellung → D-792** |
 | O-66 | Standard payment term per entity, and does it also apply to public clients? · **Voreinstellung → D-779** |
 | O-67 | Is the §48b certificate held per customer, per order or per subcontractor — who records it, who checks it? · **Voreinstellung → D-780** |
-| O-68 | Which warranty period is agreed — VOB/B §13 or BGB §634a — and from which event does it run? Does it vary per order? · **Voreinstellung → D-792** |
+| O-68 | Which warranty period is agreed — VOB/B §13 or BGB §634a — and from which event does it run? Does it vary per order? · **Voreinstellung → D-792** · Übernahme beim Abschluss → D-828 |
 | O-69 | Controlled vocabulary for `gebaeudetyp`, or does it stay free text? · **Voreinstellung → D-792** |
 | O-70 | A building served for two customers of the same entity: one `objekt` or two? · **Voreinstellung → D-792** |
 | O-71 | Erasure concept (Art. 17): which personal data is anonymised, on which trigger? · **Voreinstellung → D-792** |
@@ -27389,4 +27389,39 @@ führt hin), die Isolationstests der Korrektur, `tests/kern` komplett,
 `pnpm guards`, `pnpm typecheck`.
 
 | Betrifft | V-351, O-927, O-891, D-795; `drizzle/0520_zeit_in_rechnung.sql`, `src/server/services/zeit/korrektur.ts`, `src/server/services/dienstplan/leistungsanker.ts` (`listeLeistungenAmTag`), `src/app/api/zeit/korrektur/route.ts`, `src/app/portal/[mandant]/zeiten/[id]/{page,korrektur/page}.tsx`, `tests/isolation/zeit-zuordnung.test.ts`, `tests/kern/zeit-korrektur-weg.test.ts` |
+|---|---|
+
+### D-828 · Bauwelle 25: Die Gewährleistungsfrist des Bauprojekts kommt an den Auftrag (V-341, O-68)
+
+**Der Anlass.** Die Abnahme (`bau/abnahme.ts`) rechnet die
+Gewährleistungsfrist und schreibt sie an das PROJEKT
+(`projekt.gewaehrleistung_bis`, D-782); der Abschluss eines Auftrags nahm
+`auftrag.gewaehrleistung_bis` nur von Hand, und das Kundenportal zeigt die
+Spalte des AUFTRAGS. Ein abgenommenes Bauprojekt zeigte dem Kunden damit
+keine Frist, solange niemand sie abtippte. Voreinstellung (O-68, D-792): die
+Projektfrist ist die Auftragsfrist, von Hand überschreibbar.
+
+**Was gebaut ist.**
+- **`projektFrist`** (`auftrag/abschluss.ts`): die Frist des Bauprojekts des
+  Auftrags mit dem Abnahmetag, von dem sie läuft — der Tag der Abnahme, die
+  sie gesetzt hat (`gewaehrleistung_aus_abnahme_id`, 0493), sonst der
+  späteste Tag einer wirksamen, angenommenen Gesamtabnahme. Ohne einen
+  solchen Tag gibt es nichts zu übernehmen
+  (`auftrag_gewaehrleistung_nach_abnahme`). Gelesen unter der RLS des
+  Aufrufers; wer das Projekt nicht sieht, trägt die Frist von Hand ein.
+- **Der Abschluss** (`schliesseAuftragAb`) übernimmt Frist und — wenn der
+  Auftrag noch keinen hat — Abnahmetag, wenn weder die Maske noch der Auftrag
+  eine eigene Frist nennen. Eine Angabe in der Maske geht vor.
+- **Die Maske** (Auftrag › Abschluss) belegt beide Felder aus dem Projekt vor
+  und sagt, dass der Wert aus der Abnahme kommt und überschreibbar ist.
+
+**Seed.** Kein Demoprojekt ist gesamtabgenommen (die Teilabnahme ist dort
+eine Absicht, D-782); die Übernahme zeigen die Isolationstests.
+
+**Prüfung.** `tests/isolation/auftrag-gewaehrleistung.test.ts` (über die
+echte Abnahme: Übernahme von Frist und Abnahmetag, die Maske geht vor, ohne
+Abnahme und ohne Projekt bleibt alles leer), `tests/isolation/bau-abnahme`,
+`auftrag-akte`, `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-341, O-68, D-792, D-782; `src/server/services/auftrag/abschluss.ts`, `src/app/portal/[mandant]/auftraege/[id]/abschluss/{page,daten}.tsx`, `src/server/services/kundenportal/auftrag.ts`, `src/server/db/seed/bau.ts`, `tests/isolation/auftrag-gewaehrleistung.test.ts` |
 |---|---|

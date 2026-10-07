@@ -17,6 +17,8 @@ export interface AbschlussKopf {
   readonly abnahme_am_iso: string | null;
   readonly abnahme_am: string | null;
   readonly gewaehrleistung_bis: string | null;
+  /** ISO der eigenen Frist — Vorbelegung des Feldes (V-341). */
+  readonly gewaehrleistung_bis_iso: string | null;
   readonly sicherheitseinbehalt_bp: number | null;
   readonly sicherheitseinbehalt_cent: string | null;
   readonly abgeschlossen_am: string | null;

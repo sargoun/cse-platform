@@ -61,12 +61,13 @@ import {
  * Voreinstellung (O-68 wie O-154, D-782): vier Jahre ab Abnahme bei VOB/B,
  * fuenf bei BGB, gerechnet von der Gesamtabnahme am Projekt und je Auftrag
  * ueberschreibbar; Dienstleistungsauftraege (Reinigung, Sicherheit) fuehren
- * keine. Die Spalte hier ist `auftrag.gewaehrleistung_bis`, die der Abschluss
- * von Hand eintraegt — die am Projekt gerechnete Frist kommt noch nicht an
- * den Auftrag (V-341). Sie zeigt, was vereinbart WURDE, und erfindet nichts.
+ * keine. Die Spalte hier ist `auftrag.gewaehrleistung_bis`; der Abschluss
+ * uebernimmt die am Projekt gerechnete Frist samt Abnahmetag, wenn die Maske
+ * keine eigene nennt (`projektFrist`, V-341, D-828). Sie zeigt, was
+ * vereinbart WURDE, und erfindet nichts.
  * // TODO(client, O-68): Voreinstellung — VOB/B vier, BGB fuenf Jahre ab
- * Abnahme (D-782), je Auftrag ueberschreibbar; die Uebernahme der am Projekt
- * gerechneten Frist an den Auftrag fehlt (V-341). D-792.
+ * Abnahme (D-782), je Auftrag ueberschreibbar; die Projektfrist ist die
+ * Auftragsfrist (V-341, D-828). D-792.
  */
 
 export interface Kundenauftrag extends Gesellschaft {

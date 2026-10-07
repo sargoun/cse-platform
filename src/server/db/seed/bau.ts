@@ -684,9 +684,9 @@ export async function seedBau(
      * // TODO(client, O-68): Voreinstellung — die Gewaehrleistungsfrist rechnet
      * die Gesamtabnahme am Projekt (`bau/abnahme.ts`, D-782): vier Jahre ab
      * Abnahme bei VOB/B, fuenf bei BGB, je Auftrag ueberschreibbar;
-     * `auftrag.gewaehrleistung_bis` traegt der Abschluss von Hand ein, wenn der
-     * Vertrag sie nennt (V-341). Hier bleibt sie LEER, weil kein Demoprojekt
-     * gesamtabgenommen ist. D-792.
+     * `auftrag.gewaehrleistung_bis` uebernimmt der Abschluss aus dem Projekt,
+     * wenn die Maske keine eigene nennt (V-341, D-828). Hier bleibt sie LEER,
+     * weil kein Demoprojekt gesamtabgenommen ist. D-792.
      */
     await kontext.schreibe(
       `update projekt set auftragssumme_netto_cent = $2,
