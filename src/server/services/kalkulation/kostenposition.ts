@@ -1,6 +1,6 @@
 /**
- * Material und Gerät in der Kalkulation — erfasst von einem Menschen, nie
- * vorbelegt (V-174, OPS-07).
+ * Material, Gerät und Nachunternehmerleistung in der Kalkulation — erfasst
+ * von einem Menschen, nie vorbelegt (V-174, V-338, OPS-07).
  *
  * TODO(client, O-180): Voreinstellung — kein Lagerbestand; Material und Gerät
  * werden je Auftrag beschafft, hier als Kostenposition erfasst und über die
@@ -12,10 +12,9 @@
  * (`reverseChargeLage`) und bei Bauleistungen den Abzug nach § 48 EStG
  * (`abzugLage`) ausloesen und gehoert in der Preisbegruendung getrennt
  * ausgewiesen — die Kostenart ist kein Steuerkennzeichen, sie verweist auf
- * die Pruefungen, die es schon gibt.
- * Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und
- * Rechenweg fehlen (V-338). Bis dahin ist Fremdleistung in der Kalkulation
- * nicht erfassbar, und die Kalkulationsseite sagt es. D-792.
+ * die Pruefungen, die es schon gibt. Gebaut seit V-338 (0536): eigene
+ * Zeilen, eigene Summe `summe_nachunternehmer_cent`, Einzelkosten im Preis
+ * wie Material und Geraet. D-792, D-852.
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * **Der Befund.**
@@ -62,8 +61,8 @@ import {
   KalkulationFehler, rechneKalkulationNeu, type Abfrage,
 } from './bestaetigung.js';
 
-export type Kostenart = 'material' | 'geraet';
-export const KOSTENARTEN: readonly Kostenart[] = ['material', 'geraet'];
+export type Kostenart = 'material' | 'geraet' | 'nachunternehmer';
+export const KOSTENARTEN: readonly Kostenart[] = ['material', 'geraet', 'nachunternehmer'];
 
 /** Eine Anzeigegrenze, keine Fachregel: eine Einheit ist ein Kürzel. */
 export const EINHEIT_LAENGE = 20;
@@ -248,7 +247,7 @@ export async function setzeKostenposition(
               einzelbetrag_cent::text as einzelbetrag_cent, betrag_cent::text as betrag_cent
          from kalkulation_position
         where id = $1::uuid and kalkulation_id = $2
-          and kostenart in ('material', 'geraet')`, [eingabe.positionId, kopf.id]);
+          and kostenart in ('material', 'geraet', 'nachunternehmer')`, [eingabe.positionId, kopf.id]);
     if (alt === undefined) {
       throw new KalkulationFehler('Diese Kostenzeile gibt es nicht', 'nicht_gefunden');
     }

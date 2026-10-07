@@ -313,7 +313,9 @@ export interface PositionEingabe {
   readonly bestaetigt?: boolean;
 }
 
-const KOSTENARTEN = ['lohn', 'material', 'geraet', 'gemeinkosten', 'wagnis_gewinn'] as const;
+const KOSTENARTEN = [
+  'lohn', 'material', 'geraet', 'nachunternehmer', 'gemeinkosten', 'wagnis_gewinn',
+] as const;
 const KENNZEICHEN = ['regelsatz', 'ermaessigt', 'steuerfrei', 'reverse_charge_13b'] as const;
 
 /**

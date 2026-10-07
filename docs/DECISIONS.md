@@ -2904,7 +2904,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-54 | How is the service period derived per billing type — calendar month, per Leistungsnachweis, per Aufmaß? · **Voreinstellung → D-792** |
 | O-55 | Which cleaning classes are used (DIN 77400, own scheme, per customer), and do they drive frequency, price or quality? · **Voreinstellung → D-780** |
 | O-56 | How is a Turnus converted into a frequency factor? · **Voreinstellung → D-780** |
-| O-57 | Is subcontracted work a cost type of its own beside the five of OPS-07? · **Voreinstellung → D-792** |
+| O-57 | Is subcontracted work a cost type of its own beside the five of OPS-07? · **Voreinstellung → D-792; gebaut → D-852** |
 | O-58 | Must a Kalkulation exist before every offer is sent, or may catalogue and small orders go out without one? · **Voreinstellung → D-792** |
 | O-59 | Time values and list prices per service — confirm or supply · **Voreinstellung → D-792** |
 | O-60 | Do intra-Community supplies (§4 Nr. 1b UStG) or the §19 UStG small-business rule occur in any entity? · **Voreinstellung → D-780** |
@@ -25305,7 +25305,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 |---|---|---|
 | O-53 | Ja — ein Auftrag trägt Positionen verschiedener Abrechnungsarten (Monatspauschale und Sonderreinigung nach Stunden im selben Vertrag); die Konfiguration hängt deshalb an der Leistungszeile (`auftrag_leistung_id`), `null` ist der Sonderfall einer Pauschale über den ganzen Auftrag, und eine auftragsweite Pauschale über Zeilen mit verschiedenen Steuersätzen wird abgewiesen. Wie gebaut. | `finanz/abrechnungsart/index.ts`, `typen.ts` (`steuergruppeDesAuftrags`) |
 | O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Seit V-337 (D-838) gebaut: beschnitten auf den Abschnitt; ein Nachweis zählt, wenn er unterschrieben ist und im Kopf oder in einer Zeile eine Leistungszeile des Auftrags nennt; blockiert wird nur noch der Abschnitt ohne einen solchen Nachweis. | `finanz/abrechnungsart/typen.ts` (`zeitraumAusNachweisen`, `ladeSignierteNachweise`, `pruefeNachweisZeitraum`), die fünf Strategien |
-| O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie kann je nach Leistung und Empfänger die Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 EStG auslösen (`reverseChargeLage`, `abzugLage` prüfen das schon) und gehört in der Preisbegründung getrennt ausgewiesen; die Kostenart ist kein Steuerkennzeichen. Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und Rechenweg fehlen (V-338); die Kalkulationsseite sagt es zweisprachig. | `kalkulation/kostenposition.ts`, Angebot › Kalkulation |
+| O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie kann je nach Leistung und Empfänger die Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 EStG auslösen (`reverseChargeLage`, `abzugLage` prüfen das schon) und gehört in der Preisbegründung getrennt ausgewiesen; die Kostenart ist kein Steuerkennzeichen. Gebaut seit V-338 (D-852): Enum-Wert und Summenspalte (0536), erfassbar wie Material und Gerät, als Einzelkosten im Preis und eigener Block auf der Kalkulationsseite. | `kalkulation/{kostenposition,index,bestaetigung}.ts`, Angebot › Kalkulation |
 | O-58 | Ein Angebot aus dem Raumbuch trägt seine Kalkulation und geht erst mit bestätigten Werten hinaus (`kern.angebot_versand_pruefen`); ein Angebot von Hand (Katalog, Kleinauftrag, Pauschale) hat keine Kalkulation und geht ohne hinaus — die Verantwortung für den Preis trägt, wer freigibt (O-920). Wie gebaut. | `angebot/index.ts`, `angebot/von-hand.ts` |
 | O-59 | Die Zeitwerte und Listenpreise des Leistungskatalogs sind die Voreinstellung jeder Kalkulation (`ist_platzhalter`); bestätigt werden sie je Kalkulation mit den Zahlen des Angebots (`kalkulation/bestaetigung.ts`), nicht gruppenweit. Ein Weg, Katalogwerte im Katalog zu bestätigen, fehlt und ist bis zu den Richtwerten des Betreibers (O-16, O-17) nicht vorgesehen. Wie gebaut. | `kalkulation/bestaetigung.ts` |
 | O-61 | Das Formular für CSE Operations fragt Anliegen (Prozessanalyse, Software, Automatisierung, Migration, Schulung), betroffene Mitarbeitende, eingesetzte Systeme und Zeitrahmen — plus die gemeinsamen Felder. So steht es im Seed und ist veröffentlicht; `Angebot.tsx` sagte noch, Operations habe keines. | `db/seed/formulare.ts`, `/angebot/operations` |
@@ -28889,4 +28889,48 @@ eine echte Änderung wird erkannt) laufen unverändert;
 `tests/isolation/{inhalt,website-pflege}.test.ts` ebenso.
 
 | Betrifft | V-386, O-207, D-802, PUB-08; `drizzle/0535_inhalt_importstand.sql`, `src/server/services/inhalt/import.ts`, `scripts/content-import.ts`, `tests/isolation/inhalt-import.test.ts` |
+|---|---|
+
+### D-852 · Bauwelle 49: Nachunternehmerleistung ist eine eigene Kostenart der Kalkulation (V-338, O-57)
+
+**Der Anlass.** `kostenart` (0022) kannte Lohn, Material, Gerät,
+Gemeinkosten und Wagnis/Gewinn. Fremdleistung war in der Kalkulation nicht
+erfassbar; ein Angebot mit Nachunternehmer trug ihren Anteil nicht in der
+Preisbegründung, und die Kalkulationsseite musste das sagen. Voreinstellung
+(O-57, D-792): eine eigene Kostenart, getrennt ausgewiesen; § 13b UStG und
+§ 48 EStG gelten je nach Leistung und Empfänger — die Kostenart ist kein
+Steuerkennzeichen.
+
+**Was gebaut ist.**
+- **0536**: `alter type kostenart add value 'nachunternehmer'` (nach
+  `geraet`; in dieser Migration nur in Funktionsrümpfen genannt, die erst bei
+  der Ausführung binden), `kalkulation.summe_nachunternehmer_cent`,
+  `kern.aktualisiere_kalkulation_summen` mit der neuen Summe (die
+  Angebotssumme enthält sie) und `kern.kalkulation_eingefroren` mit der
+  neuen Spalte — festgeschrieben heißt auch sie. `TODO(client, O-57)` in
+  0536 und am Dienst.
+- **`kalkuliere`**: Einzelkosten sind Lohn + Material + Gerät +
+  Nachunternehmer (`Einzelkosten.nachunternehmer`, ohne Angabe null); die
+  Basis „Einzelkosten" (`selbstkosten`) rechnet die Gemeinkosten auch auf
+  ihn, die Basis „Lohn" nicht; negativ ist er nie; `verteileNetto` verteilt
+  ihn wie Material nach dem Lohngewicht (O-208, keine eigene
+  Angebotsposition). `rechneKalkulationNeu` liest seine Summe aus der
+  Datenbank; ohne Lohnzeile wird er wie Material abgewiesen.
+- **Erfassen**: `kostenposition.ts` nimmt `nachunternehmer` an (Menge ×
+  Einzelpreis, dieselben Sperren nach Festschreibung und Preisfreigabe);
+  die Kalkulationsseite zeigt den eigenen Block „Nachunternehmer" in der
+  Zusammensetzung und bietet die Art beim Erfassen und Berichtigen an
+  (beide Sprachen); der Hinweis sagt, dass die Art kein Steuerkennzeichen
+  ist und die Rechnung § 13b/§ 48 je Leistung und Empfänger prüft. Der
+  Leistungskatalog kennt die Kostenart ebenfalls.
+
+**Prüfung.** `tests/kern/kalkulation-material.test.ts` (2b): im Preis mit
+Basis Lohn (111,30 €) und Basis Einzelkosten (115,50 €), ohne Angabe null,
+negativ abgewiesen, Verteilung exakt, erfassbar, Wörter in beiden Sprachen,
+Migration. `tests/isolation/kalkulation-kostenposition.test.ts` (1b): eine
+Nachunternehmerzeile über 480,00 € steht als eigene Summe in der Kalkulation,
+im Angebotspreis, und Kalkulationssumme, Angebotssumme und Positionen sagen
+dasselbe.
+
+| Betrifft | V-338, O-57, D-792, OPS-07, O-16, O-208; `drizzle/0536_kostenart_nachunternehmer.sql`, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/server/services/katalog/index.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/app/portal/[mandant]/leistungskatalog/daten.ts`, `src/lib/i18n/verwaltung/kalkulation.ts`, `tests/kern/kalkulation-material.test.ts`, `tests/isolation/kalkulation-kostenposition.test.ts` |
 |---|---|

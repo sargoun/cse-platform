@@ -181,6 +181,29 @@ describe('(1) eine Materialzeile geht in den Preis — und beide Summen sagen da
   });
 });
 
+describe('(1b) Nachunternehmer ist ein eigener Block (V-338, O-57, D-852)', () => {
+  it('480,00 € Fremdleistung: eigene Summe, im Preis, und die Summen sagen dasselbe', async () => {
+    const angebotId = await angebotMitKalkulation();
+    const vorher = await summen(angebotId);
+    await alsChef((db) => setzeKostenposition(db, angebotId, {
+      kostenart: 'nachunternehmer', bezeichnung: 'Glasreinigung (Fremdfirma)', menge: '1',
+      einheit: 'psch', einzelpreisEuro: '480,00',
+    }));
+    const s = await summen(angebotId);
+    const [nu] = await sql.unsafe<{ nu: string }[]>(
+      `select k.summe_nachunternehmer_cent::text as nu
+         from kalkulation k where k.angebot_id = $1`, [angebotId]);
+    expect(nu!.nu).toBe('48000');
+    expect(s).toMatchObject({ material: '0', geraet: '0' });
+    expect(BigInt(s.angebot_netto) - BigInt(vorher.angebot_netto)).toBeGreaterThanOrEqual(48_000n);
+    expect(s.positionen).toBe(s.angebot_netto);
+    expect(s.kalk_netto).toBe(s.angebot_netto);
+    expect(BigInt(s.kalk_netto)).toBe(
+      BigInt(s.lohn) + BigInt(s.material) + BigInt(s.geraet) + 48_000n
+      + BigInt(s.gk) + BigInt(s.wg));
+  });
+});
+
 describe('(2) die Gemeinkostenbasis WIRKT', () => {
   it('Selbstkosten: 15 % auf Lohn + Material + Gerät, Lohn: 15 % auf den Lohn allein', async () => {
     const a = await angebotMitKalkulation();

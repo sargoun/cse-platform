@@ -57,11 +57,12 @@ export const KENNZEICHEN: readonly { readonly wert: string; readonly text: strin
   { wert: 'reverse_charge_13b', text: '§ 13b UStG (Reverse Charge)' },
 ];
 
-/** Die fünf Kostenarten. */
+/** Die Kostenarten — die fünf aus OPS-07 und die Nachunternehmerleistung (V-338, O-57). */
 export const KOSTENARTEN: readonly { readonly wert: string; readonly text: string }[] = [
   { wert: 'lohn', text: 'Lohn' },
   { wert: 'material', text: 'Material' },
   { wert: 'geraet', text: 'Gerät' },
+  { wert: 'nachunternehmer', text: 'Nachunternehmer' },
   { wert: 'gemeinkosten', text: 'Gemeinkosten' },
   { wert: 'wagnis_gewinn', text: 'Wagnis und Gewinn' },
 ];
