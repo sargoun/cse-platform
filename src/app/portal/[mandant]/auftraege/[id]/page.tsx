@@ -12,6 +12,7 @@ import { WEGE, ZUSTAND_TEXT, type Auftragszustand } from '@/server/services/auft
 import { cent, formatiereGeld } from '@/server/services/finanz/geld';
 import { formatiereMenge, mengeAusPostgresOderNull } from '@/server/services/finanz/menge';
 import { AUFTRAG_TEXTE } from '@/lib/i18n/verwaltung/auftrag';
+import { AUFTRAG_LEISTUNGEN_TEXTE } from '@/lib/i18n/verwaltung/auftrag-leistungen';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { portalZugang } from '../../../zugang';
 import { slugTor } from '../../../unterseite';
@@ -332,6 +333,18 @@ export default async function AuftragDetail(
             {nachSprache(AUFTRAG_TEXTE, zugang.sprache).bearbeiten}
           </Link>
         )}
+        {/*
+          * V-360: die Leistungszeilen — der Anker für Turnus, Schichten, Zeiten
+          * und Rechnung. Lesen trägt dasselbe Recht wie dieses Blatt; anlegen
+          * und beenden verlangt die Seite selbst (`auftrag.schreiben`).
+          */}
+        <Link
+          href={`/portal/${mandant}/auftraege/${id}/leistungen`}
+          data-cse="zu-den-leistungen"
+          className="inline-flex min-h-11 items-center rounded-md border border-line px-s4 text-sm text-text hover:bg-surface-2"
+        >
+          {nachSprache(AUFTRAG_LEISTUNGEN_TEXTE, zugang.sprache).titel}
+        </Link>
         {darf['auftrag.abschliessen'] === true && (
           <Link
             href={`/portal/${mandant}/auftraege/${id}/abschluss`}

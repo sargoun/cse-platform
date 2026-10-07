@@ -3343,7 +3343,7 @@ Beantworten helfen:
 | O-914 | **Darf auch ein LAUFENDER Auftrag mit geltender Kundenfreigabe zur öffentlichen Referenz werden — oder nur ein abgeschlossener?** SPEC PRO-05 sagt es wörtlich: „a reference is a completed `auftrag` with customer release on file, not a marketing entry typed by hand". Seit V-161 gilt genau das (`REFERENZFAEHIGE_ZUSTAENDE = ['abgeschlossen']` in `services/auftrag/kundenfreigabe.ts`, geprüft in `legeReferenzAn`). In der Gebäudereinigung und im Objektschutz laufen Aufträge aber als Dauerauftrag oder Rahmenvertrag über Jahre, und „wir reinigen seit 2019 die Zentrale der X AG" ist dort die übliche Referenz — nach der wörtlichen Lesart entsteht sie erst mit dem Ende des Vertrags. Dazu die Nachbarfrage: ein Projekt aus der Zeit vor der Plattform wird heute als Auftrag angelegt, mit Kundenfreigabe versehen und abgeschlossen, bevor daraus eine Referenz werden kann; reicht dem Auftraggeber dieser Weg? **Ausgeliefert ist die wörtliche Lesart:** nur ein abgeschlossener Auftrag; laufende stehen unter `/website/referenzen/neu` sichtbar als „noch nicht abgeschlossen", ein stornierter nie. Die Antwort ist eine Zeile (die Liste der Zustände), keine Umbauarbeit. | PRO-05, V-161, D-654, O-913, `src/server/services/auftrag/kundenfreigabe.ts` (`REFERENZFAEHIGE_ZUSTAENDE`, `referenzHindernis`), `src/app/portal/[mandant]/website/referenzen/neu/page.tsx` · **Voreinstellung → D-793** |
 | O-919 | **Soll der Raumbuch-Import Excel-Arbeitsmappen (.xlsx, gegebenenfalls .xls/.ods) direkt lesen — und welche Bibliothek darf dafür fremde Dateien entpacken?** OPS-04 sagt „Excel/CSV". Gebaut ist CSV (UTF-8 und die Windows-1252-CSV eines deutschen Excel); eine Arbeitsmappe wird am Inhalt erkannt und mit dem Weg über „Speichern unter › CSV" abgewiesen (D-665). Die Plattform bringt keine Bibliothek dafür mit, und ein selbstgebauter Leser für ein ZIP mit XML ist genau der halbe Leser, der Formeln und verbundene Zellen übersieht und Erfolg meldet. **Zu entscheiden sind vier Dinge:** (1) ob eine Bibliothek aufgenommen wird und welche (Lizenz, Pflege, Prüfung gegen präparierte ZIP-/XML-Dateien), (2) was mit einer Formelzelle geschieht — berechneten Wert übernehmen oder abweisen, (3) welches Blatt gilt, wenn die Mappe mehrere hat, (4) ob das alte `.xls` aus Altsystemen überhaupt vorkommt. Bis dahin bleibt CSV der Weg, und die Seite sagt es. | OPS-04, D-665, V-171, `src/server/services/raumbuch/tabelle.ts`, `src/app/api/raumbuch-import/route.ts` · **Voreinstellung → D-800** |
 | O-920 | **Sollen Angebote von Hand (Sicherheit, Bau) eine Kalkulation mit den fünf Kostenblöcken aus OPS-07 bekommen — und wenn ja, woraus entsteht der Lohn?** OPS-07 nennt Lohn, Material, Gerät, Gemeinkosten und Wagnis/Gewinn. Das Angebot der Reinigung entsteht aus dem Raumbuch und rechnet alle fünf (D-668). Ein Angebot von Hand (`angebot/von-hand.ts`, V-005) trägt je Position den Einzelpreis, den ein Mensch einträgt; woraus er entstanden ist, weiss die Plattform nicht, und sie rechnet ihn nicht nach. **Zu entscheiden:** (1) ob Sicherheit und Bau überhaupt eine Kalkulation in der Plattform führen oder ihre Preise weiter ausserhalb bilden; (2) wenn ja, die Grundlage des Lohns — in der Sicherheit etwa Stunden je Posten und Schicht mal Stundenverrechnungssatz, mit welchen Zuschlägen für Nacht, Sonn- und Feiertag; im Bau Einheitspreise je Position des Leistungsverzeichnisses; (3) welche Zuschläge je Bereich gelten (das ist O-16). **Ausgeliefert ist der ehrliche Zustand:** keine Kalkulation, und Maske wie Kalkulationsblatt sagen das mit dieser Nummer (`HAND_ANGEBOT_KALKULATION`). Eine erfundene Formel wäre eine Preisregel, die niemand aufgestellt hat, und ein Preis sähe dann geprüft aus, der es nicht ist. | OPS-07, O-16, D-668, D-671, V-238, `src/server/services/angebot/von-hand.ts`, `src/app/portal/[mandant]/angebote/{neu,[id]/kalkulation}/page.tsx` · **Voreinstellung → D-800** |
-| O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` · **Voreinstellung → D-796** |
+| O-921 | **Wie wird der Vertragswert eines Auftrags aus einem angenommenen Angebot in Reinigung und Sicherheit berichtigt oder angepasst?** Der Wert eines solchen Auftrags ist `angebot.netto_cent`; die Auftragspflege überschreibt ihn nicht (D-667 Punkt 5), weil sie sonst eine zweite Wahrheit über den Betrag führte, den der Kunde angenommen hat. Im Bau ändert ein Nachtrag nach § 2 VOB/B den Vertrag (0080). **Reinigung und Sicherheit kennen keinen Nachtrag** — ein Tippfehler im Angebot, eine Preisanpassung nach einer Tariferhöhung oder ein geänderter Leistungsumfang hat dort heute keinen Weg in den Auftrag. Drei Wege sind denkbar: (a) eine neue Angebotsfassung und ein neuer Auftrag; (b) eine eigene Vertragsänderung am Auftrag mit Betrag, Grund, Datum und Zustimmung des Kunden, wie der Nachtrag im Bau; (c) eine Berichtigung in der Auftragspflege mit Grund und Protokoll. Und: gilt für eine Preisanpassung derselbe Weg wie für einen Tippfehler? **Ausgeliefert ist der gesperrte Wert mit dem ehrlichen Satz:** die Pflegeseite sagt im Bau „Nachtrag", sonst „noch nicht entschieden (O-921)". Die Antwort ändert `wertAenderungsweg`, nicht ihre Aufrufer. | OPS-05, D-667, D-732, V-239, `src/server/services/auftrag/aendern.ts` (`wertAenderungsweg`), `src/app/portal/[mandant]/auftraege/[id]/bearbeiten/page.tsx`, `drizzle/0080` · **Voreinstellung → D-796** · Leistungszeilen → D-825 |
 | O-922 | **Darf der Nachtlauf das DWD-Wetter an einen Bautag heften, der schon abgeschlossen ist — oder soll das Wetter vor dem Abschluss angeheftet werden?** BAU-08 verlangt das Wetter automatisch; `wetter_zuordnung` (V-183, D-677) heftet es nachts an die Tage bis gestern, weil erst dann ein ganzer Tag vorliegt. `0082` sagt aber: ab dem Abschluss bewegt sich am Bautag nichts mehr (der Auslöser `bautagebuch_einfrieren` nennt die Wetterspalten zwar nicht, der Dienst hält es trotzdem so). Wer den Tag am Abend abschließt — der übliche Fall —, bekommt deshalb heute kein automatisches Wetter; der Lauf zählt solche Tage (`abgeschlossen_ohne_wetter`). **Zu entscheiden:** (a) das Wetter ist vom Einfrieren ausgenommen, weil es eine Messung Dritter und keine Aussage der Bauleitung ist, und der Lauf heftet es auch an abgeschlossene Tage (dann gehört es ausdrücklich in den Auslöser und in die Policy); (b) der Abschluss holt das Wetter vorher selbst, mit dem, was bis dahin gemessen ist; (c) es bleibt beim Knopf vor dem Abschluss. **Ausgeliefert ist (c) plus der Lauf für offene Tage** — der Tag bleibt unverändert, und die Tagesseite sagt, dass der Nachtlauf nur offene Tage erreicht. | BAU-07, BAU-08, D-677, V-183, `src/server/services/bau/wetter.ts` (`ordneWetterZu`), `drizzle/0468_wetter_zuordnung_job.sql`, `drizzle/0082` · **Voreinstellung → D-800** |
 | O-931 | **Wird Material aus einer Ausgabe zum Einstandspreis weiterberechnet oder mit Aufschlag — und wenn mit Aufschlag, mit welchem Satz, je Gesellschaft, je Kunde oder je Vertrag?** Seit V-206 hat eine weiterberechenbare, freigegebene Ausgabe einen Weg auf die Rechnung: eine Materialzeile mit der Ausgabe als Beleg (FIN-07, Quelle `material`, höchstens eine wirksame Zeile je Ausgabe über `quelle_ausgabe_uk`). Welcher PREIS darauf steht, ist eine Kalkulationsregel, die niemand festgelegt hat: ein vorbelegter Einstand wäre die stille Antwort „ohne Aufschlag“, ein vorbelegter Aufschlag eine erfundene Marge. **Bis zur Antwort setzt der Mensch den Einzelpreis selbst**; die Maske zeigt den Einstand (Netto der Ausgabe) daneben nur als Auskunft, und `MATERIAL_PREISREGEL` steht als Platzhalter `offen`. Die Antwort ist eine Preisregel hinter dieser Konstante (und gegebenenfalls ein Feld an Gesellschaft, Kunde oder Abrechnungsvereinbarung), plus ein Test. | FIN-07, V-206, D-699, `src/server/services/finanz/entwurf.ts` (`MATERIAL_PREISREGEL`, `fuegeMaterialPositionHinzu`), `src/app/portal/[mandant]/finanzen/rechnungen/[id]/page.tsx`, `drizzle/0107` (`quelle_ausgabe_uk`) · **Voreinstellung → D-779** |
 | O-932 | **Ist der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung der GESAMTSTAND der Leistung (bisher Berechnetes wird abgezogen) oder der ZUWACHS seit der letzten Rechnung?** Seit V-206 lässt sich ein Pauschalpreis-Los mit `teilleistung = anteilig` über das Rechnungsblatt abrechnen; der Grad kommt von einem Menschen (O-04: er wird nicht geschätzt). Bis V-207 rechnete jede Rechnung Grad × Festpreis, ohne bisher Berechnetes abzuziehen — 30 % und danach 60 % ergaben 90 % des Festpreises. **Ausgeliefert ist der Gesamtstand** (`anteiligerRest`): die Zeile trägt `anteil(Festpreis, Grad) − Summe der wirksamen Zeilen derselben Vereinbarung`, einmal gerundet über den ganzen Stand, und ein Stand ohne Zuwachs blockiert mit einem Befund. Diese Lesart macht aus einer Verwechslung eine sichtbare Unterberechnung (die Vorschau zeigt das bisher Berechnete), die andere eine stille Doppelberechnung. Eine Schlussrechnung zählt die festgeschriebenen Abschläge ihres Auftrags nicht mit, weil sie sie abzieht (FIN-08, D-700 Nr. 5). Zu bestätigen: (1) Gesamtstand oder Zuwachs; (2) ob eine Abschlagsrechnung den Abschlag als kumulierten Stand mit Abzug der Vorabschläge ausweisen soll (§ 16 VOB/B lässt beides zu) — dann gehört die Aufstellung auf den Beleg und nicht nur in die Vorschau. Die Antwort ändert `anteiligerRest` und den Satz der Maske, nicht ihre Aufrufer. | FIN-01, FIN-08, O-04, V-207, D-700, `src/server/services/finanz/abrechnungsart/festpreis-los.ts` (`anteiligerRest`), `src/lib/i18n/verwaltung/finanzen/rechnung-entwurf.ts` (`abrFertigstellung`) · **Voreinstellung → D-796** |
@@ -25522,7 +25522,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | O-114 | Die Tarif- bzw. Zuschlagsgruppe ist ein Attribut der Rechnungsposition, nicht Teil ihrer Identität: Objekt, Leistung und Einheit bestimmen sie, eine geänderte Zuschlagsgruppe erscheint als Änderung derselben Zeile mit Delta. Wie gebaut (`ZUSAETZLICHE_SCHLUESSEL_MERKMALE = []`). | `freigabe/vergleich-schluessel.platzhalter.ts`, `freigabe/diff.ts` |
 | O-99 | Preise in ganzen Cent; ein Preis unter einem Cent je Einheit wird über die Bezugsmenge ausgedrückt — an der Rechnungsposition `preis_basismenge` (BT-149/150, etwa 1,25 € je 100 m²), in Angebot und Leistungszeile über die Einheit. Wie gebaut. | `finanz/rechnung.ts` (`berechneNetto`), `finanz/geld.ts` |
 | O-208 | Gemeinkosten, Wagnis und Gewinn (wie Material und Gerät) stecken im Einzelpreis der Leistungszeilen, der Langtext nennt sie; eigene Zuschlagszeilen gibt es nicht, die Kalkulation bleibt intern (K-05). Wie gebaut. | `kalkulation/index.ts` (`verteileNetto`), `angebot/index.ts` |
-| O-921 | Der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: Berichtigung oder geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag, eine Preisanpassung (Tariferhöhung) eine neue datierte Leistungszeile ab dem Stichtag; im Bau der Nachtrag. Die Auftragspflege sagt das jetzt (de/en). Leistungszeilen haben keinen Schreibweg (V-360). | `auftrag/aendern.ts`, `lib/i18n/verwaltung/auftrag.ts` |
+| O-921 | Der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: Berichtigung oder geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag, eine Preisanpassung (Tariferhöhung) eine neue datierte Leistungszeile ab dem Stichtag; im Bau der Nachtrag. Die Auftragspflege sagt das jetzt (de/en). Leistungszeilen hatten bis D-825 keinen Schreibweg (V-360). | `auftrag/aendern.ts`, `lib/i18n/verwaltung/auftrag.ts` |
 | O-932 | Der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung ist der Gesamtstand (bisher Berechnetes wird abgezogen), nicht der Zuwachs; die Position nennt Stand und Abzug. Wie gebaut (`anteiligerRest`). | `finanz/abrechnungsart/festpreis-los.ts` |
 | O-45 | Z3 (Datenträgerüberlassung) ist der Regelweg und gebaut; Z1 und Z2 gewährt die Gesellschaft auf Verlangen der Prüfung über ein befristetes, ausschliesslich lesendes Konto — eine Prüferrolle dafür fehlt (V-355). | `buchhaltung/z3.ts` |
 | O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Nicht gebaut; heute bleibt nur, den Entwurf zu verwerfen (V-356). | `finanz/rechnung.ts` |
@@ -27156,4 +27156,77 @@ Agentenrichtlinien mit dem Slug der Sitzung, `tests/kern` komplett,
 `pnpm guards`, `pnpm typecheck`.
 
 | Betrifft | V-278; `src/server/auth/aktiver-slug.ts`, `src/app/api/{stammdaten/*,einstellungen/{arbeitszeit,mahnwesen,agent-richtlinien,vorlagen,identitaet,identitaet/bild,mandant},lead,finanzen/{eingangsrechnungen,zahlungen,mahnungen},abrechnung,angebot,nachrichten,rechnungen/*,aufgaben}/route.ts`, `tests/kern/slug-aus-sitzung.test.ts`, `tests/kern/lead-route.test.ts` |
+|---|---|
+
+### D-825 · Bauwelle 22: Die Leistungszeilen eines Auftrags haben einen Schreibweg (V-360, O-921)
+
+**Der Anlass.** `auftrag_leistung` (0050) ist der Anker, auf den Turnus,
+Schicht, Zeiteintrag, Aufmass, LV-Position und Rechnungszeile zeigen
+(FIN-07, TIM-12) — und entstand bis hierher nur im Seed. `wandleInAuftrag`
+legte aus einem angenommenen Angebot den Auftragskopf an und keine Zeile:
+ohne Zeile setzte niemand einen Leistungsanker (V-191), die Zeit eines neuen
+Auftrags erreichte keine Abrechnungsart, und die Preisanpassung, die D-796
+als neue datierte Zeile voreinstellt, hatte keinen Ort.
+
+**Was gebaut ist.**
+- **Übernahme bei der Annahme** (`src/server/services/auftrag/leistung-uebernahme.ts`,
+  gerufen aus `wandleInAuftrag`): jede Angebotsposition des Typs `leistung`
+  wird eine Zeile, in der Reihenfolge des Angebots, ab dem Start des
+  Auftrags, mit Menge, Einheit, Einzelpreis, Steuersatz, Steuerkennzeichen,
+  Erlöskonto, Objekt, Katalogposition und dem Verweis auf die
+  Angebotsposition (OPS-09). Alternativ- und Bedarfspositionen sind nicht
+  beauftragt, Text und Zwischensumme keine Leistung. Gerechnet wird nichts:
+  der Gesamtpreis ist die generierte Spalte aus 0050, der Auftragswert
+  bleibt `angebot.netto_cent` (D-732).
+- **Anlegen** (`legeLeistungszeileAn`, `src/server/services/auftrag/leistung.ts`):
+  eine nachträglich vereinbarte Leistung am Ende der Positionsliste, ab einem
+  Stichtag — nicht vor dem Start, nicht nach der Laufzeit des Auftrags. Menge
+  und Preis liest derselbe Leser wie das Angebot von Hand (höchstens drei
+  Nachkommastellen, nicht null; deutscher Betrag, nicht negativ); die Einheit
+  kommt aus `masseinheit`, der Steuersatz am Stichtag aus
+  `steuersatz_gruppe`, nie als Zahl aus dem Formular.
+- **Beenden** (`beendeLeistungszeile`): `gueltig_bis` einschliesslich; die
+  Zeile bleibt mit Zeiten, Nachweisen und Rechnungen stehen (Invariante 8).
+  Abgewiesen wird ein Ende vor dem ersten Tag, ein Ende, das ein schon
+  gesetztes hinausschöbe, und ein Ende vor einer erfassten Zeit oder einer
+  geplanten (nicht stornierten) Schicht an dieser Zeile — am Berliner Tag
+  gemessen. Erst der Auftrag, dann die Zeile, beide gesperrt gelesen: zwei
+  gleichzeitige „Beenden" sehen das Ende des jeweils anderen.
+- **Ein abgeschlossener oder stornierter Auftrag** vereinbart nichts mehr
+  (`angelegt`, `aktiv`, `pausiert` sind pflegbar).
+- **Die Seite** `/portal/[mandant]/auftraege/[id]/leistungen` (de/en): alle
+  Zeilen mit Herkunft (aus dem Angebot / nachträglich vereinbart), Gültigkeit
+  und Steuer; je laufender Zeile „Beenden", darunter „Leistung anlegen" mit
+  dem Satz zur Preisanpassung. Lesen mit `auftrag.lesen`, schreiben mit
+  `auftrag.schreiben` (die Policy aus 0050); ohne Schreibrecht steht ein Satz
+  statt der Formulare. Das Blatt des Auftrags verlinkt die Seite.
+- **Die Route** `POST /api/auftrag/leistungen` (`fuehreUebergangAus`):
+  Vorgänge `anlegen` und `beenden`, Abweisung als Grund mit den Eingaben auf
+  die Maske, Erfolg als Schlüssel.
+- **Der Satz der Auftragspflege** zu O-921 sagte „Leistungszeilen lassen
+  sich hier noch nicht anlegen oder beenden"; er nennt jetzt die Seite.
+
+**Voreinstellung (O-921, unverändert aus D-796).** Der Wert eines Auftrags
+aus einem Angebot bleibt der angenommene; eine Preisanpassung ist eine neue
+Zeile ab dem Stichtag — die bisherige endet am Vortag. Turnus und künftige
+Schichten hängt die Planung danach über den Leistungsanker (V-191) an die
+neue Zeile; die beendete Zeile nimmt `pruefeLeistungsanker` nicht mehr an.
+`// TODO(client, O-921)` steht im Kopf von `auftrag/leistung.ts`.
+
+**Seed.** Der Demoauftrag aus dem versendeten Angebot trägt jetzt die
+Leistungszeilen aus dem Angebot; die Zusammenfassung zählt sie.
+
+**Prüfung.** `tests/isolation/auftrag-leistung.test.ts` (Übernahme über den
+echten Angebotsweg — Leistungspositionen ja, Alternativ- und Textposition
+nein, Preis/Steuer/Verweis/Stichtag; Anlegen mit Position, Steuer am
+Stichtag und jeder Abweisung; stornierter Auftrag; ohne `auftrag.schreiben`
+keine Zeile; Beenden mit Ende vor Beginn, zweitem Ende, fremder Zeile,
+geplanter Schicht und erfasster Zeit; zwei gleichzeitige „Beenden" —
+schlägt auf dem Stand ohne Sperre fehl; Anker lebend und beendet),
+`tests/kern/auftrag-leistung-texte.test.ts` (jeder Grund und jeder Erfolg
+de/en, Übernahme im Quelltext, TODO an der Stelle), die
+Isolationstests um Angebot, Auftrag, Leistungsanker, Abrechnungsart,
+Rechnung und Seed, `tests/kern` komplett, `pnpm guards`, `pnpm typecheck`.
+
+| Betrifft | V-360, O-921, D-796, D-732, V-191; `src/server/services/auftrag/{leistung,leistung-uebernahme,aendern}.ts`, `src/server/services/angebot/index.ts`, `src/app/api/auftrag/leistungen/route.ts`, `src/app/portal/[mandant]/auftraege/[id]/{page,leistungen/page}.tsx`, `src/lib/i18n/verwaltung/{auftrag-leistungen,auftrag}.ts`, `src/server/db/seed/{vertrieb,index}.ts`, `tests/isolation/auftrag-leistung.test.ts`, `tests/kern/auftrag-leistung-texte.test.ts` |
 |---|---|

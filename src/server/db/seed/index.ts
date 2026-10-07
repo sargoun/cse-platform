@@ -1975,6 +1975,7 @@ async function main(): Promise<void> {
       `  ${String(vertrieb.angebote)} Angebote mit ${String(vertrieb.positionen)} `
       + `Positionen aus der Kalkulation (${vertrieb.angebotsnummer ?? 'ohne Nummer'} `
       + `versendet → Auftrag ${vertrieb.auftragsnummer ?? '—'} `
+      + `mit ${String(vertrieb.leistungszeilen)} Leistungszeilen aus dem Angebot (V-360) `
       + `aus Anfrage ${vertrieb.anfrage ?? '—'}, `
       + `${String(vertrieb.entwuerfe)} Entwurf ohne Nummer — den sieht der Kunde nicht, `
       + `mit ${String(vertrieb.kostenzeilen)} Material-/Gerätezeilen aus Demodaten)\n`,

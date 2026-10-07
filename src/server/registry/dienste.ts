@@ -1546,6 +1546,19 @@ export const DIENSTE: readonly DienstEintrag[] = [
     modul: 'auftrag', pfad: 'auftrag/aendern',
     schreibend: true, schreibRecht: 'auftrag.schreiben',
   },
+  /**
+   * V-360 — die Leistungszeilen eines Auftrags: anlegen und beenden unter
+   * `auftrag.schreiben` (`t_mandant`, 0050), die Übernahme aus dem Angebot
+   * in `wandleInAuftrag` unter demselben Recht wie der Auftrag selbst.
+   */
+  {
+    modul: 'auftrag', pfad: 'auftrag/leistung',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
+  {
+    modul: 'auftrag', pfad: 'auftrag/leistung-uebernahme',
+    schreibend: true, schreibRecht: 'auftrag.schreiben',
+  },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/aus-snapshot', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/pruefstand', schreibend: false },
   { modul: 'finanzen', pfad: 'finanz/xrechnung/dienst', schreibend: false },

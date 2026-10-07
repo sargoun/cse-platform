@@ -104,7 +104,7 @@ export type WertAenderungsweg = 'nachtrag' | 'offen';
  * VOREINSTELLUNG (O-921, D-796) — eine andere Entscheidung ändert diese
  * Funktion, nicht ihre Aufrufer.
  *
- * TODO(client, O-921): Voreinstellung — der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: eine Berichtigung oder ein geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag; eine Preisanpassung (etwa nach einer Tariferhöhung) ist eine neue datierte Leistungszeile ab dem Stichtag. Leistungszeilen haben heute keinen Schreibweg (V-360). D-796.
+ * TODO(client, O-921): Voreinstellung — der Wert eines Auftrags aus einem angenommenen Angebot bleibt der angenommene: eine Berichtigung oder ein geänderter Umfang ist eine neue Angebotsfassung und ein Folgeauftrag; eine Preisanpassung (etwa nach einer Tariferhöhung) ist eine neue datierte Leistungszeile ab dem Stichtag. Leistungszeilen legt `auftrag/leistung.ts` an und beendet sie (V-360, D-825). D-796.
  */
 export function wertAenderungsweg(module: readonly string[]): WertAenderungsweg {
   return module.includes('bau') ? 'nachtrag' : 'offen';

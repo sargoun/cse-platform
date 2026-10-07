@@ -20,6 +20,7 @@ import { vergebeNummer, type Abfrage as NummernAbfrage }
   from '../finanz/nummernkreis.js';
 import { formatiereGeld } from '../finanz/geld.js';
 import { lebendeLeistungenZahl } from './lebend.js';
+import { uebernehmeAngebotspositionen } from '../auftrag/leistung-uebernahme.js';
 import { formatiereMenge, mengeNachPostgres, type MilliMenge } from '../finanz/menge.js';
 import { alsStundenText, stundenNachPostgres } from '../kalkulation/richtzeit.js';
 import type { Frequenz, Tarif } from '../kalkulation/tarif.js';
@@ -639,6 +640,14 @@ export async function wandleInAuftrag(
   if (auftrag === undefined) {
     throw new AngebotFehler('Der Auftrag wurde nicht angelegt', 'nicht_gefunden');
   }
+
+  /*
+   * **Die Leistungspositionen werden Zeilen des Auftrags** (V-360, D-825) —
+   * ab seinem Start, mit dem Verweis auf die Angebotsposition (OPS-09). Ohne
+   * sie setzte niemand einen Leistungsanker, und die Zeit des neuen Auftrags
+   * erreichte keine Abrechnungsart.
+   */
+  await uebernehmeAngebotspositionen(db, angebotId, auftrag.id, eingabe.startDatum);
 
   await db.abfrage(
     `update angebot
