@@ -315,6 +315,298 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
                  au_bis, bemerkung, urlaub_gutgeschrieben_tage
             from app.auskunft_abwesenheitsgruende($1::uuid)`,
   },
+  /*
+   * **Elf Abschnitte des Personenzweigs** (V-334, O-648, D-791, D-856). Sie
+   * standen bis D-856 im Sammelabschnitt „offen". Voreinstellung (O-648):
+   * alle gehören hinein — Zuordnungen, abgeleitete Befunde (eine Folgerung
+   * über einen Menschen ist selbst personenbezogen) und Zugangsdaten ohne
+   * Geheimnisse: kein Kennwort-Hash (der liegt ohnehin nicht in `benutzer`),
+   * kein Markenwert (`checkin_token.token_hash` ist cse_app nicht gewährt),
+   * keine Rohnutzlast eines Offline-Ereignisses (sie kann die Marke tragen).
+   * Jeder Abschnitt liest über die Policy seines Fachrechts; fehlt es, ist er
+   * gesperrt, nicht leer.
+   * // TODO(client, O-648): Voreinstellung — Zuordnungen, abgeleitete Befunde und Zugangsdaten ohne Geheimnisse gehören in die Art.-15-Auskunft, je Tabelle ein Abschnitt mit eigenem Recht (D-791, D-856).
+   */
+  {
+    schluessel: 'einsatz_zuordnung',
+    titel: 'Einsätze (Zuordnungen im Dienstplan)',
+    verarbeitung: 'V-03',
+    quelle: 'einsatz_zuordnung',
+    tabellen: ['einsatz_zuordnung'],
+    leseweg: 'policy',
+    recht: 'dienstplan.lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Beginn', feld: 'beginn_zeitpunkt' },
+      { kopf: 'Ende', feld: 'ende_zeitpunkt' },
+      { kopf: 'Funktion', feld: 'funktion' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Qualifikation geprüft', feld: 'qualifikation_geprueft_am' },
+      { kopf: 'Zugesagt', feld: 'zugesagt_am' },
+      { kopf: 'Abgesagt', feld: 'abgesagt_am' },
+      { kopf: 'Absagegrund', feld: 'absage_grund' },
+      { kopf: 'Entfernt', feld: 'entfernt_am' },
+    ],
+    sql: `select beginn_zeitpunkt, ende_zeitpunkt, funktion, status::text as status,
+                 qualifikation_geprueft_am, zugesagt_am, abgesagt_am, absage_grund, entfernt_am
+            from einsatz_zuordnung
+           where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by beginn_zeitpunkt desc`,
+  },
+  {
+    schluessel: 'zeitnachweis',
+    titel: 'Monatsnachweise der Arbeitszeit (§ 17 MiLoG)',
+    verarbeitung: 'V-02',
+    quelle: 'zeitnachweis',
+    tabellen: ['zeitnachweis'],
+    leseweg: 'policy',
+    recht: 'zeit.lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Monat', feld: 'monat' },
+      { kopf: 'Zeilen', feld: 'zeilen_anzahl' },
+      { kopf: 'Brutto (Min.)', feld: 'summe_brutto_minuten' },
+      { kopf: 'Netto (Min.)', feld: 'summe_netto_minuten' },
+      { kopf: 'Prüfsumme', feld: 'hash' },
+      { kopf: 'Gesperrt', feld: 'gesperrt_am' },
+    ],
+    // Die Zeilen des Nachweises stehen schon im Abschnitt „Arbeitszeitaufzeichnungen".
+    sql: `select monat, zeilen_anzahl, summe_brutto_minuten, summe_netto_minuten, hash, gesperrt_am
+            from zeitnachweis
+           where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by monat desc`,
+  },
+  {
+    schluessel: 'team_mitglied',
+    titel: 'Teams',
+    verarbeitung: 'V-03',
+    quelle: 'team_mitglied, team',
+    tabellen: ['team_mitglied'],
+    leseweg: 'policy',
+    recht: 'kalender.lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Team', feld: 'team' },
+      { kopf: 'Rolle', feld: 'rolle' },
+      { kopf: 'Seit', feld: 'erstellt_am' },
+      { kopf: 'Beendet', feld: 'beendet_am' },
+    ],
+    sql: `select t.name as team, m.rolle, m.erstellt_am, m.beendet_am
+            from team_mitglied m
+            left join team t on t.id = m.team_id
+           where m.person_id = $1::uuid and m.mandant_id = app.aktiver_mandant()
+           order by m.erstellt_am desc`,
+  },
+  {
+    schluessel: 'bewacher_eintrag',
+    titel: 'Bewacherregister (§ 34a GewO)',
+    verarbeitung: 'V-01',
+    quelle: 'bewacher_eintrag',
+    tabellen: ['bewacher_eintrag'],
+    leseweg: 'policy',
+    recht: 'personal.nachweis_lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Bewacher-ID', feld: 'bewacher_id' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Registriert seit', feld: 'registriert_seit' },
+      { kopf: 'Gültig bis', feld: 'gueltig_bis' },
+      { kopf: 'Letzte Prüfung', feld: 'letzte_pruefung_am' },
+      { kopf: 'Nächste Prüfung', feld: 'naechste_pruefung_am' },
+      { kopf: 'Bemerkung', feld: 'bemerkung' },
+      { kopf: 'Quelle', feld: 'quelle' },
+      { kopf: 'Erloschen', feld: 'erloschen_am' },
+    ],
+    // Ohne `mandant_id` — der Eintrag gehört dem Menschen (D-09), wie `nachweis`.
+    sql: `select bewacher_id, status::text as status, registriert_seit, gueltig_bis,
+                 letzte_pruefung_am, naechste_pruefung_am, bemerkung, quelle, erloschen_am
+            from bewacher_eintrag
+           where person_id = $1::uuid
+           order by registriert_seit desc nulls last`,
+  },
+  {
+    schluessel: 'arbeitszeit_verstoss',
+    titel: 'Befunde zur Arbeitszeit (ArbZG)',
+    verarbeitung: 'V-02',
+    quelle: 'arbeitszeit_verstoss',
+    tabellen: ['arbeitszeit_verstoss'],
+    leseweg: 'policy',
+    recht: 'dienstplan.arbzg_lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Regel', feld: 'regel' },
+      { kopf: 'Schwere', feld: 'schwere' },
+      { kopf: 'Von', feld: 'zeitraum_beginn' },
+      { kopf: 'Bis', feld: 'zeitraum_ende' },
+      { kopf: 'Ist (Min.)', feld: 'ist_minuten' },
+      { kopf: 'Grenze (Min.)', feld: 'grenzwert_minuten' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Quittiert', feld: 'quittiert_am' },
+      { kopf: 'Begründung der Quittierung', feld: 'quittierung_begruendung' },
+      { kopf: 'Erkannt', feld: 'erkannt_am' },
+    ],
+    sql: `select regel::text as regel, schwere::text as schwere, zeitraum_beginn, zeitraum_ende,
+                 ist_minuten, grenzwert_minuten, status::text as status, quittiert_am,
+                 quittierung_begruendung, erkannt_am
+            from arbeitszeit_verstoss
+           where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by zeitraum_beginn desc`,
+  },
+  {
+    schluessel: 'planungs_konflikt',
+    titel: 'Planungskonflikte',
+    verarbeitung: 'V-03',
+    quelle: 'planungs_konflikt',
+    tabellen: ['planungs_konflikt'],
+    leseweg: 'policy',
+    recht: 'dienstplan.lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Art', feld: 'art' },
+      { kopf: 'Schwere', feld: 'schwere' },
+      { kopf: 'Von', feld: 'zeitraum_beginn' },
+      { kopf: 'Bis', feld: 'zeitraum_ende' },
+      { kopf: 'Blockiert', feld: 'blockiert' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Quittiert', feld: 'quittiert_am' },
+      { kopf: 'Begründung der Quittierung', feld: 'quittierung_begruendung' },
+      { kopf: 'Erkannt', feld: 'erkannt_am' },
+    ],
+    sql: `select art::text as art, schwere::text as schwere, zeitraum_beginn, zeitraum_ende,
+                 blockiert, status::text as status, quittiert_am, quittierung_begruendung,
+                 erkannt_am
+            from planungs_konflikt
+           where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by zeitraum_beginn desc`,
+  },
+  {
+    schluessel: 'nachweis_warnung',
+    titel: 'Warnungen zum Ablauf von Nachweisen',
+    verarbeitung: 'V-01',
+    quelle: 'nachweis_warnung',
+    tabellen: ['nachweis_warnung'],
+    leseweg: 'policy',
+    recht: 'personal.nachweis_lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Tage vor Ablauf', feld: 'stufe_tage' },
+      { kopf: 'Nachweis gültig bis', feld: 'gueltig_bis' },
+      { kopf: 'Ausgelöst', feld: 'ausgeloest_am' },
+    ],
+    sql: `select stufe_tage, gueltig_bis, ausgeloest_am
+            from nachweis_warnung
+           where person_id = $1::uuid
+           order by ausgeloest_am desc`,
+  },
+  {
+    schluessel: 'da_pflicht',
+    titel: 'Pflichten aus Dienstanweisungen',
+    verarbeitung: 'V-09',
+    quelle: 'da_pflicht, dienstanweisung',
+    tabellen: ['da_pflicht'],
+    leseweg: 'policy',
+    recht: 'dienstanweisung.lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Dienstanweisung', feld: 'titel' },
+      { kopf: 'Quelle', feld: 'quelle' },
+      { kopf: 'Aus der Zuordnung', feld: 'aus_zuordnung' },
+      { kopf: 'Zugewiesen', feld: 'zugewiesen_am' },
+      { kopf: 'Entfallen', feld: 'entfallen_am' },
+    ],
+    sql: `select d.titel, p.quelle::text as quelle, p.aus_zuordnung, p.zugewiesen_am, p.entfallen_am
+            from da_pflicht p
+            left join dienstanweisung d on d.id = p.dienstanweisung_id
+           where p.person_id = $1::uuid and p.mandant_id = app.aktiver_mandant()
+           order by p.zugewiesen_am desc`,
+  },
+  {
+    schluessel: 'benutzer',
+    titel: 'Konto für die Anmeldung',
+    verarbeitung: 'V-10',
+    quelle: 'benutzer',
+    tabellen: ['benutzer'],
+    leseweg: 'policy',
+    recht: 'system.benutzer_lesen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'E-Mail', feld: 'email' },
+      { kopf: 'Name', feld: 'name' },
+      { kopf: 'Sprache', feld: 'sprache' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Letzte Anmeldung', feld: 'letzter_login_am' },
+      { kopf: 'Letzte IP-Adresse', feld: 'letzte_ip' },
+      { kopf: 'Deaktiviert', feld: 'deaktiviert_am' },
+      { kopf: 'Angelegt', feld: 'erstellt_am' },
+    ],
+    // Kein Kennwort, kein zweiter Faktor: die liegen nicht in `benutzer`, und Geheimnisse gehören nicht in eine Auskunft.
+    sql: `select email, name, sprache::text as sprache, status::text as status, letzter_login_am,
+                 letzte_ip::text as letzte_ip, deaktiviert_am, erstellt_am
+            from benutzer
+           where person_id = $1::uuid
+           order by erstellt_am`,
+  },
+  {
+    schluessel: 'checkin_token',
+    titel: 'Check-in-Marken',
+    verarbeitung: 'V-02',
+    quelle: 'checkin_token',
+    tabellen: ['checkin_token'],
+    leseweg: 'policy',
+    recht: 'zeit.checkin_verwalten',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Zweck', feld: 'zweck' },
+      { kopf: 'Gültig ab', feld: 'gueltig_ab' },
+      { kopf: 'Gültig bis', feld: 'gueltig_bis' },
+      { kopf: 'Kanal', feld: 'ausgabe_kanal' },
+      { kopf: 'Ausgegeben', feld: 'ausgegeben_am' },
+      { kopf: 'Eingelöst', feld: 'eingeloest_am' },
+      { kopf: 'Versuche', feld: 'versuche' },
+      { kopf: 'Widerrufen', feld: 'widerrufen_am' },
+      { kopf: 'Widerrufsgrund', feld: 'widerruf_grund' },
+      { kopf: 'IP-Adresse', feld: 'ip_adresse' },
+      { kopf: 'Gerät', feld: 'user_agent' },
+    ],
+    // Ohne `token_hash` — der Markenwert ist ein Geheimnis und cse_app nicht gewährt.
+    sql: `select zweck::text as zweck, gueltig_ab, gueltig_bis, ausgabe_kanal, ausgegeben_am,
+                 eingeloest_am, versuche, widerrufen_am, widerruf_grund,
+                 ip_adresse::text as ip_adresse, user_agent
+            from checkin_token
+           where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by ausgegeben_am desc nulls last`,
+  },
+  {
+    schluessel: 'offline_ereignis',
+    titel: 'Offline erfasste Ereignisse',
+    verarbeitung: 'V-02',
+    quelle: 'offline_ereignis',
+    tabellen: ['offline_ereignis'],
+    leseweg: 'policy',
+    recht: 'zeit.nacherfassung_pruefen',
+    fuer: ['person'],
+    spalten: [
+      { kopf: 'Art', feld: 'art' },
+      { kopf: 'Behauptete Zeit', feld: 'behauptete_zeit' },
+      { kopf: 'Empfangen', feld: 'empfangen_am' },
+      { kopf: 'Abweichung der Geräteuhr (Sek.)', feld: 'zeitabweichung_sek' },
+      { kopf: 'Breite', feld: 'geo_lat' },
+      { kopf: 'Länge', feld: 'geo_lon' },
+      { kopf: 'Ortsstatus', feld: 'geo_status' },
+      { kopf: 'Status', feld: 'status' },
+      { kopf: 'Ablehnungsgrund', feld: 'ablehnungsgrund' },
+      { kopf: 'IP-Adresse', feld: 'ip_adresse' },
+      { kopf: 'Gerät', feld: 'user_agent' },
+    ],
+    // Ohne Rohnutzlast: sie kann den Markenwert tragen (O-648 — keine Geheimnisse).
+    sql: `select art::text as art, behauptete_zeit, empfangen_am, zeitabweichung_sek,
+                 geo_lat, geo_lon, geo_status::text as geo_status, status::text as status,
+                 ablehnungsgrund::text as ablehnungsgrund, ip_adresse::text as ip_adresse,
+                 user_agent
+            from offline_ereignis
+           where person_id = $1::uuid and mandant_id = app.aktiver_mandant()
+           order by empfangen_am desc`,
+  },
   {
     schluessel: 'antrag',
     titel: 'Anträge (Urlaub, Tausch, Änderung)',
@@ -772,18 +1064,18 @@ const ABSCHNITTE: readonly AbschnittDefinition[] = [
       { kopf: 'Status', feld: 'status' },
       { kopf: 'Nächste Aktion', feld: 'naechste_aktion_text' },
       { kopf: 'Verloren, Grund', feld: 'verloren_grund' },
+      { kopf: 'Bewertung', feld: 'punktzahl' },
+      { kopf: 'Begründung der Bewertung', feld: 'punktzahl_begruendung' },
     ],
     /*
-     * **Noch ohne `punktzahl` und `punktzahl_begruendung`.** Die Bewertung ist
-     * eine Folgerung über den Vorgang, und nach der Voreinstellung zu O-642 und
-     * O-648 gehören auch Folgerungen in die Auskunft, wenn sie an einem
-     * Menschen hängen; der Abschnitt bekommt sie mit den übrigen abgeleiteten
-     * Angaben (V-334). Bis dahin nennt er die Tabelle, die Spalten sind
-     * gewählt.
+     * **Mit `punktzahl` und `punktzahl_begruendung`** (V-334, D-856). Die
+     * Bewertung ist eine Folgerung über den Vorgang, und nach der
+     * Voreinstellung zu O-648 gehören auch Folgerungen in die Auskunft, wenn
+     * sie an einem Menschen hängen.
      */
     sql: `select leadnummer, erstellt_am, quelle::text as quelle, betreff,
                  bedarf_zusammenfassung, status::text as status,
-                 naechste_aktion_text, verloren_grund
+                 naechste_aktion_text, verloren_grund, punktzahl, punktzahl_begruendung
             from lead
            where ansprechpartner_id = $1::uuid
              and mandant_id = app.aktiver_mandant()
@@ -1004,57 +1296,7 @@ const OFFENE_ABSCHNITTE: readonly {
     fuer: ['person', 'ansprechpartner', 'bewerbung'],
     frage: 'O-113',
   },
-  {
-    /*
-     * **Zwölf Tabellen des Personenzweigs, benannt statt weggelassen.**
-     *
-     * Sie tragen `person_id` und sind heute KEIN eigener Abschnitt. Der Grund
-     * ist nicht, dass sie nichts enthalten — er ist, dass der Umfang eine
-     * rechtliche Entscheidung ist und keine Programmierentscheidung: ein
-     * abgeleiteter Befund (`arbeitszeit_verstoss`, `planungs_konflikt`,
-     * `nachweis_warnung`, `da_pflicht`) rechnet aus Daten, die weiter oben
-     * schon vollständig stehen, und ihn ein zweites Mal auszugeben macht die
-     * Auskunft länger, nicht richtiger. Ein technischer Datensatz
-     * (`checkin_token`, `offline_ereignis`, `benutzer`) ist die Mechanik des
-     * Zugangs, nicht die Beschäftigung.
-     *
-     * Das ist eine These, keine Entscheidung — also steht sie HIER, in der
-     * Auskunft, die die betroffene Person liest, und nicht in einem Kommentar,
-     * den nur wir lesen. Vorher fehlten diese Tabellen schlicht, und die
-     * Auskunft trug darüber das Wort „Vollständig".
-     */
-    schluessel: 'personenzweig_offen',
-    titel: 'Abgeleitete Befunde, Zugangsdaten und Zuordnungen',
-    quelle:
-      'arbeitszeit_verstoss · planungs_konflikt · nachweis_warnung · da_pflicht '
-      + '· benutzer · checkin_token · offline_ereignis · einsatz_zuordnung '
-      + '· zeitnachweis · team_mitglied · bewacher_eintrag',
-    tabellen: [
-      'arbeitszeit_verstoss', 'planungs_konflikt', 'nachweis_warnung',
-      'da_pflicht', 'benutzer', 'checkin_token', 'offline_ereignis',
-      'einsatz_zuordnung', 'zeitnachweis', 'team_mitglied', 'bewacher_eintrag',
-    ],
-    fuer: ['person'],
-    frage: 'O-648',
-  },
 ];
-
-/*
- * Voreinstellung (O-648, D-791; Pruefstand PR #35) fuer die elf Tabellen des
- * Abschnitts oben: ALLE gehoeren in die Auskunft, je als eigener Abschnitt.
- *  - Zuordnungen — `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`,
- *    `bewacher_eintrag` — sagen, WO und WANN der Mensch eingesetzt war.
- *  - Abgeleitete Befunde — `arbeitszeit_verstoss`, `planungs_konflikt`,
- *    `nachweis_warnung`, `da_pflicht` — sind selbst Angaben ueber den
- *    Menschen (eine Folgerung ist ein personenbezogenes Datum), auch wenn sie
- *    aus schon ausgegebenen Daten rechnen.
- *  - Zugangsdaten — `benutzer`, `checkin_token`, `offline_ereignis` — betreffen
- *    den Menschen ebenso; ausgegeben wird, was sie ueber ihn sagen (Kennung,
- *    Status, Zeitpunkte), ohne Geheimnisse (Kennwort-Hash, Markenwert).
- * Gebaut sind die Abschnitte noch nicht (V-334); bis dahin nennt der Abschnitt
- * oben alle elf, statt sie auszulassen.
- * // TODO(client, O-648): Voreinstellung — alle elf Tabellen gehoeren in die Auskunft (Zugangsdaten ohne Geheimnisse); die Abschnitte fehlen (V-334).
- */
 
 /**
  * Jede Tabelle, über die diese Auskunft etwas sagt — auch die, über die sie

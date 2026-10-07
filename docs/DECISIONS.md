@@ -3203,7 +3203,7 @@ Beantworten helfen:
 | O-645 | Should the one-click objection link expire, and after how long? § 7 Abs. 3 Nr. 4 UWG says "jederzeit", so `werbewiderspruch_token.gueltig_bis` is NULL today — the choice that is safe for the data subject, not a decided rule. · **Voreinstellung → D-791** |
 | O-646 | Which recipients under Art. 19 DSGVO exist per data class (payroll office, client, authority), and by which route are they informed? The platform holds no recipient list; `berichtigung_feld.art19_empfaenger` records whoever a human names. · **Voreinstellung → D-791** |
 | O-647 | How is a restriction under Art. 18 DSGVO implemented technically — a per-record restriction flag, or organisationally? The data model carries no "restricted" marker: there is no column that pauses processing without ending it, and a checkbox that blocks nothing would be the worse answer. **The same decision governs an Art. 21 objection raised by an employee or an applicant**: `widerspruch_am` exists only on `ansprechpartner` and `kunde` (the advertising side), so for those groups the objection is today decided by a human, implemented organisationally and recorded in the closing text of the request. `/datenschutz/[id]` says both on the screen. · **Voreinstellung → D-784** |
-| O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) · **Voreinstellung → D-791** |
+| O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) · **Voreinstellung → D-791; gebaut → D-856** |
 | O-649 | Who sends the confirmation of a tokenless advertising objection (`/werbewiderspruch`), and what does it say when the address is not in our records at all? A confirmation that says "removed" would disclose that the address was held; one that says nothing is not a confirmation. No outbound mail is connected today, and the page says so instead of claiming a send. · **Voreinstellung → D-791** |
 
 **Aufgaben, Nachrichten, öffentliche Seiten**
@@ -25268,7 +25268,7 @@ gebaut ist (V-332 bis V-336); zwei Seiten sagen „Voreinstellung" statt „offe
 | O-644 | Vollzug der Löschvormerkung durch eine Anonymisierungsprozedur (`app.person_anonymisieren`) im Nachtlauf, erst nach Freigabe eines zweiten Menschen (Vier-Augen), je Tabelle mit Protokollzeile, Tombstone wo eine Aufbewahrungspflicht überlagert. Nichts davon ist gebaut (V-333); die Seite nennt die Voreinstellung und bleibt bei „Vormerkung". | Datenschutz › Vorgang › Löschung, `datenschutz/loeschentscheidung.ts` |
 | O-645 | Der Widerspruchslink läuft nicht ab (`werbewiderspruch_token.gueltig_bis` NULL) — § 7 Abs. 3 Nr. 4 UWG sagt „jederzeit"; ungültig wird er nur durch Einlösung oder Widerruf. Wie gebaut. | `datenschutz/werbewiderspruch.ts` |
 | O-646 | Keine Empfängerliste nach Art. 19 im System: die Empfänger benennt ein Mensch je Vorgang, unterrichtet sie auf dem Weg, auf dem die Daten zu ihnen kamen, und trägt hier ein, wen und wann (`berichtigung_feld.art19_empfaenger`). Wie gebaut. | `datenschutz/berichtigung.ts` |
-| O-648 | Alle elf Tabellen des Personenzweigs gehören in die Auskunft, je als eigener Abschnitt: Zuordnungen (`einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`), abgeleitete Befunde (`arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` — eine Folgerung über einen Menschen ist selbst ein personenbezogenes Datum) und Zugangsdaten (`benutzer`, `checkin_token`, `offline_ereignis`) ohne Geheimnisse (Kennwort-Hash, Markenwert). Nicht gebaut (V-334); bis dahin nennt der Sammelabschnitt alle elf. Berichtigt im Prüfstand PR #35: hier standen Zugangsdaten und Befunde als „keine Auskunft". | `datenschutz/auskunft.ts`, Datenschutz › Auskunft |
+| O-648 | Alle elf Tabellen des Personenzweigs gehören in die Auskunft, je als eigener Abschnitt: Zuordnungen (`einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`), abgeleitete Befunde (`arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` — eine Folgerung über einen Menschen ist selbst ein personenbezogenes Datum) und Zugangsdaten (`benutzer`, `checkin_token`, `offline_ereignis`) ohne Geheimnisse (Kennwort-Hash, Markenwert). Gebaut (V-334, D-856): je Tabelle ein Abschnitt mit eigenem Recht, der Sammelabschnitt entfällt; die Leadbewertung steht im Abschnitt Leads. Berichtigt im Prüfstand PR #35: hier standen Zugangsdaten und Befunde als „keine Auskunft". | `datenschutz/auskunft.ts`, Datenschutz › Auskunft |
 | O-649 | Die Bestätigung des tokenlosen Widerspruchs geht über den Postausgang der gewählten Gesellschaft, neutral („Ihr Widerspruch ist eingegangen"), ohne Aussage, ob die Adresse im Bestand war. Der Postausgang ist Betreiberdatum; der Versandschritt fehlt (V-335); die Seite sagt bis dahin, dass keine Bestätigung gesendet wird. | `api/werbewiderspruch`, `/werbewiderspruch` (de/en) |
 
 **Was sich NICHT ändert.** Kein Recht, keine Sperre, kein Versand; O-65
@@ -29082,4 +29082,45 @@ Bemerkung, mit Mitgabe ohne Recht gesperrt; je Abruf eine Protokollzeile mit
 dem Zweck; beide Definer am Dienst vorbei 42501.
 
 | Betrifft | V-332, O-642, O-643, D-791, D-853, LEG-09; `drizzle/0538_auskunft_entgelt_abwesenheitsart.sql`, `src/server/services/datenschutz/auskunft.ts`, `src/app/api/datenschutz/auskunft/route.ts`, `src/app/portal/[mandant]/datenschutz/[id]/auskunft/page.tsx`, `tests/kern/{auskunft-art9,datenschutz-fristen}.test.ts`, `tests/isolation/auskunft-entgelt-art9.test.ts` |
+|---|---|
+
+### D-856 · Bauwelle 53: Elf Abschnitte des Personenzweigs und die Leadbewertung in der Art.-15-Auskunft (V-334, O-648)
+
+**Der Anlass.** `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`,
+`bewacher_eintrag`, `arbeitszeit_verstoss`, `planungs_konflikt`,
+`nachweis_warnung`, `da_pflicht`, `benutzer`, `checkin_token` und
+`offline_ereignis` tragen `person_id` und standen nur im Sammelabschnitt
+„offen (O-648)"; im Abschnitt Leads fehlte die Bewertung. Voreinstellung
+(O-648, D-791; Prüfstand PR #35): alle gehören hinein — Zuordnungen,
+abgeleitete Befunde (eine Folgerung über einen Menschen ist selbst
+personenbezogen) und Zugangsdaten ohne Geheimnisse.
+
+**Was gebaut ist.** `auskunft.ts` führt je Tabelle einen Abschnitt mit
+Spaltenwahl, Verarbeitungstätigkeit (für Zweck und Frist) und dem Recht
+seiner Policy: Einsätze (`dienstplan.lesen`, V-03), Monatsnachweise
+(`zeit.lesen`, V-02), Teams mit Teamnamen (`kalender.lesen`, V-03),
+Bewacherregister (`personal.nachweis_lesen`, V-01, ohne `mandant_id` wie
+`nachweis`), Befunde zur Arbeitszeit (`dienstplan.arbzg_lesen`, V-02),
+Planungskonflikte (`dienstplan.lesen`, V-03), Warnungen zum Nachweisablauf
+(`personal.nachweis_lesen`, V-01), Pflichten aus Dienstanweisungen mit Titel
+(`dienstanweisung.lesen`, V-09), Konto für die Anmeldung
+(`system.benutzer_lesen`, V-10 — kein Kennwort, kein zweiter Faktor, die
+liegen nicht in `benutzer`), Check-in-Marken (`zeit.checkin_verwalten`,
+V-02 — ohne `token_hash`, der cse_app ohnehin nicht gewährt ist) und
+Offline-Ereignisse (`zeit.nacherfassung_pruefen`, V-02 — ohne Rohnutzlast,
+die den Markenwert tragen kann). Ohne Recht ist ein Abschnitt gesperrt und
+die Auskunft unvollständig, wie überall. Der Abschnitt Leads trägt
+`punktzahl` und `punktzahl_begruendung`. Der Sammelabschnitt und sein
+Sonderhinweis auf der Seite entfallen. `TODO(client, O-648)` an den
+Abschnitten.
+
+**Prüfung.** `tests/isolation/auskunft-entgelt-art9.test.ts` (5): alle elf
+als eigene Abschnitte, keiner gesperrt, kein Sammelabschnitt; echte Zeilen
+(eine Teamzugehörigkeit mit Teamnamen und Rolle); keine Geheimnisse in den
+Köpfen; ohne `zeit.checkin_verwalten` (in der Gesellschaft entzogen) genau
+die Check-in-Marken gesperrt und die Auskunft unvollständig.
+`datenschutz-abdeckung.test.ts` hält die Abdeckung in beiden Richtungen,
+`datenschutz-dienste.test.ts` lässt jeden Zweig gegen echtes Postgres laufen.
+
+| Betrifft | V-334, O-648, D-791, LEG-09; `src/server/services/datenschutz/auskunft.ts`, `src/app/portal/[mandant]/datenschutz/[id]/auskunft/page.tsx`, `tests/isolation/auskunft-entgelt-art9.test.ts` |
 |---|---|

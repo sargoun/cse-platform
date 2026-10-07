@@ -17,6 +17,9 @@
  *     `zeit.abwesenheit_grund_lesen` ist der Abschnitt gesperrt.
  *  3. Jeder Abruf steht im Protokoll — einmal je Abschnitt, mit dem Zweck.
  *  4. Am Dienst vorbei: ohne das Fachrecht werfen beide Definer 42501.
+ *  5. Die elf Abschnitte des Personenzweigs (V-334, O-648, D-856) stehen als
+ *     eigene Abschnitte da — der Sammelabschnitt „offen" ist weg —, lesen
+ *     echte Zeilen und geben keine Geheimnisse aus.
  */
 import type postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -202,5 +205,61 @@ describe('(4) am Dienst vorbei', () => {
         .then(() => null, (x: unknown) => x as { code?: string });
       expect(e?.code, funktion).toBe('42501');
     }
+  });
+});
+
+describe('(5) die elf Abschnitte des Personenzweigs (V-334, D-856)', () => {
+  const ELF = [
+    'einsatz_zuordnung', 'zeitnachweis', 'team_mitglied', 'bewacher_eintrag',
+    'arbeitszeit_verstoss', 'planungs_konflikt', 'nachweis_warnung', 'da_pflicht',
+    'benutzer', 'checkin_token', 'offline_ereignis',
+  ];
+
+  it('jeder steht als eigener Abschnitt da, keiner gesperrt — und der Sammelabschnitt ist weg', async () => {
+    const a = await auskunft(dsb);
+    const schluessel = a.abschnitte.map((x) => x.schluessel);
+    for (const s of ELF) {
+      expect(schluessel, s).toContain(s);
+      expect(abschnitt(a, s).gesperrt, s).toBe(false);
+      expect(abschnitt(a, s).offen, s).toBeNull();
+    }
+    expect(schluessel).not.toContain('personenzweig_offen');
+    expect(a.abschnitte.filter((x) => x.offen === 'O-648')).toEqual([]);
+  });
+
+  it('er liest echte Zeilen — eine Teamzugehörigkeit mit dem Namen des Teams', async () => {
+    const [t] = await sql.unsafe<{ id: string }[]>(
+      `insert into team (mandant_id, name) values ($1, 'Glasreinigung Nord') returning id`,
+      [f.reinigung]);
+    await sql.unsafe(
+      `insert into team_mitglied (mandant_id, team_id, anstellung_id, person_id, rolle)
+       values ($1, $2, $3, $4, 'Vorarbeiterin')`, [f.reinigung, t!.id, f.fatimaReinigung, f.fatima]);
+    const s = abschnitt(await auskunft(dsb), 'team_mitglied');
+    expect(s.zeilen.map((z) => [z[0], z[1]])).toContainEqual(['Glasreinigung Nord', 'Vorarbeiterin']);
+  });
+
+  it('keine Geheimnisse: kein Markenwert, keine Rohnutzlast', () => {
+    return auskunft(dsb).then((a) => {
+      const marke = abschnitt(a, 'checkin_token');
+      expect(marke.kopf.join(' ')).not.toMatch(/hash|Marke\b|token/iu);
+      const offline = abschnitt(a, 'offline_ereignis');
+      expect(offline.kopf.join(' ')).not.toMatch(/Nutzlast/iu);
+    });
+  });
+
+  it('ohne Fachrecht gesperrt — hier ohne die Check-in-Verwaltung', async () => {
+    // Die Leitung hält alle neun Fachrechte; in DIESER Gesellschaft entzogen (schlägt die Vorgabe).
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       values ((select id from rolle where schluessel = 'leitung' and mandant_id is null),
+               (select id from berechtigung where schluessel = 'zeit.checkin_verwalten'), $1, false)`,
+      [f.reinigung]);
+    const a = await auskunft(schmal);
+    const gesperrt = a.abschnitte.filter((x) => ELF.includes(x.schluessel) && x.gesperrt)
+      .map((x) => x.schluessel);
+    expect(gesperrt).toEqual(['checkin_token']);
+    expect(abschnitt(a, 'checkin_token').zeilen).toEqual([]);
+    expect(a.fehlendeRechte).toContain('zeit.checkin_verwalten');
+    expect(a.vollstaendig).toBe(false);
   });
 });
