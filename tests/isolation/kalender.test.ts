@@ -570,7 +570,15 @@ describe('(7) jeder Weg führt auf eine Seite, die es gibt', () => {
        values ($1::uuid, $2::uuid, now() + interval '2 days', 45, 'Baubüro', $3::uuid)
        returning id`, [f.bau, bw!.id, wer]);
 
-    const ZIEL: Readonly<Record<Quelle, { readonly id: string; readonly weg: string }>> = {
+    /*
+     * `bauabzug` fehlt hier mit Absicht: die Frist der § 48a-Anmeldung hat keine
+     * eigene Zeile, sie folgt aus den Zahlungen eines Monats und liegt am 10. des
+     * Folgemonats — in einem Fenster von heute ± 7 Tagen liegt sie nur an manchen
+     * Tagen. Ihr Weg und ihre Seite stehen in `bauabzug-anmeldung.test.ts` (5),
+     * mit einem Fenster um die Frist.
+     */
+    const ZIEL: Readonly<Record<Exclude<Quelle, 'bauabzug'>,
+      { readonly id: string; readonly weg: string }>> = {
       termin: { id: termin, weg: `/portal/bau/kalender/${termin}` },
       einsatz: { id: e!.id, weg: `/portal/bau/dienstplan/einsatz/${e!.id}` },
       projekt: { id: p!.id, weg: `/portal/bau/bau/projekte/${p!.id}` },
@@ -585,7 +593,8 @@ describe('(7) jeder Weg führt auf eine Seite, die es gibt', () => {
 
     const KENNUNG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
     const wurzel = fileURLToPath(new URL('../../src/app', import.meta.url));
-    for (const [quelle, ziel] of Object.entries(ZIEL) as [Quelle, typeof ZIEL[Quelle]][]) {
+    for (const [quelle, ziel] of Object.entries(ZIEL) as
+      [Exclude<Quelle, 'bauabzug'>, typeof ZIEL[Exclude<Quelle, 'bauabzug'>]][]) {
       const zeile = zeilen.find((x) => x.quelle === quelle && x.id === ziel.id);
       expect(zeile, `${quelle}: die Zeile der Fixtur fehlt im Kalender`).toBeDefined();
       expect(zeile!.weg, quelle).toBe(ziel.weg);

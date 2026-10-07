@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('der Bootstrap verdrahtet ALLE Jobs', () => {
-  it('registriert die achtundzwanzig Jobs, die es gibt', () => {
+  it('registriert die einunddreissig Jobs, die es gibt', () => {
     const schluessel = alleJobs(db).map((j) => j.schluessel).sort();
     expect(schluessel).toEqual([
       'akquise_recherche',
@@ -85,7 +85,14 @@ describe('der Bootstrap verdrahtet ALLE Jobs', () => {
        * Generator las eine leere Tabelle und plante am 3. Oktober.
        */
       'feiertage_pflegen',
-      'freigabe_fenster', 'kette_pruefen',
+      'freigabe_fenster',
+      /*
+       * `freistellung_ablauf` kam mit V-388 dazu: ohne gültige eigene
+       * § 48b-Bescheinigung behalten Kunden bei Bauleistungen 15 % ein, und
+       * an ihren Ablauf erinnerte niemand (O-130, D-846).
+       */
+      'freistellung_ablauf',
+      'kette_pruefen',
       'konflikte_erkennen', 'konten_rollover', 'lead_sla_eskalation',
       'mahnvorschlaege_erzeugen',
       'morgen_unbesetzt', 'nachtrag_ueberfaellig', 'nachweis_ablauf',

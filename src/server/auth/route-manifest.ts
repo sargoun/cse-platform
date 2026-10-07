@@ -733,6 +733,18 @@ export const ROUTEN: readonly RouteEintrag[] = [
     recht: 'finanzen.schreiben',
   },
   {
+    /**
+     * Einen Platzhalterkreis freigeben (O-134) und den Nachfolgekreis zum
+     * Jahreswechsel eröffnen (O-352) — FIN-03, LEG-01, V-284, D-848.
+     * `nummernkreis.verwalten`: dasselbe Recht, das
+     * `fin.nummernkreis_freigeben` und `fin.nummernkreis_nachfolger_eroeffnen`
+     * (0532) prüfen — Voreinstellung O-352 (D-779): die Administration. Bis
+     * hierher tat beides nur eine Migration.
+     */
+    pfad: 'api/finanzen/nummernkreise',
+    recht: 'nummernkreis.verwalten',
+  },
+  {
     /*
      * V-011, FIN-14, FIN-17, ACC-01, ACC-03. Eine Ausgabe erfassen,
      * freigeben, ablehnen oder buchen.

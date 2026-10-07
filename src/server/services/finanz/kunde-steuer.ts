@@ -177,6 +177,12 @@ export interface Steuerblatt {
   readonly rechte: SteuerRechte;
   readonly bauleistender: readonly BauleistenderZeile[];
   readonly bescheinigungen: readonly BescheinigungZeile[];
+  /**
+   * Die EIGENEN Bescheinigungen der Gesellschaft (V-388, D-846) — sie
+   * entscheiden, ob dieser Kunde bei einer Bauleistung 15 % einbehält
+   * (§ 48 Abs. 2 EStG), nicht die des Kunden.
+   */
+  readonly eigeneBescheinigungen: readonly BescheinigungZeile[];
   /** Leer, wenn `auftrag.lesen` fehlt — die Seite sagt dann, dass es fehlt. */
   readonly auftraege: readonly AuftragZeile[];
   /** `app.berlin_heute()` — der Stichtag, wenn keiner gewählt ist. */
@@ -256,6 +262,20 @@ export async function leseSteuerblatt(
         order by f.gueltig_bis desc`, [kundeId])
     : [];
 
+  const eigeneBescheinigungen = r.finanzenLesen
+    ? await kontext.abfrage<BescheinigungZeile>(
+      `select f.id, f.bescheinigung_nummer, f.finanzamt,
+              f.gueltig_von::text as gueltig_von, f.gueltig_bis::text as gueltig_bis,
+              f.widerrufen_am::text as widerrufen_am, f.umfang::text as umfang,
+              f.auftrag_id, a.auftragsnummer, f.dokument_id
+         from freistellungsbescheinigung f
+         left join auftrag a
+           on a.mandant_id = f.mandant_id and a.id = f.auftrag_id
+        where f.mandant_id = app.aktiver_mandant()
+          and f.kunde_id is null and f.lieferant_id is null
+        order by f.gueltig_bis desc`)
+    : [];
+
   /*
    * Die Aufträge dieses Kunden — damit das §48b-Formular eine AUSWAHL zeigt
    * statt eines Freitextfeldes, in das ein Mensch die Auftragsnummer tippt.
@@ -271,7 +291,7 @@ export async function leseSteuerblatt(
     : [];
 
   return {
-    kopf, rechte: r, bauleistender, bescheinigungen, auftraege,
+    kopf, rechte: r, bauleistender, bescheinigungen, eigeneBescheinigungen, auftraege,
     heute: rechte?.heute ?? '',
   };
 }

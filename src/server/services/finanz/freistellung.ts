@@ -3,14 +3,21 @@ import { istGueltigerKalendertag } from '../../../lib/datum/kalendertag.js';
 
 /**
  * Die Freistellungsbescheinigungen nach § 48b EStG pflegen — anlegen,
- * widerrufen, den Beleg verknüpfen (FIN-10, LEG-06, V-283, O-604, D-779,
- * D-845).
+ * widerrufen, den Beleg verknüpfen (FIN-10, LEG-06, V-283, V-388, O-604,
+ * O-130, D-779, D-845, D-846).
  *
- * **Ohne sie werden 15 % einbehalten — mit ihr nicht** (0118). Für eine
- * Eingangsrechnung eines Bauleistenden ist sie die Bescheinigung des
- * LIEFERANTEN, die die Gruppe vom Einbehalt befreit; für eine Ausgangsrechnung
- * hängt sie am KUNDEN (`steuerfall.ts`). Bis V-283 legte nur der Seed sie an;
- * die Steuerseite der Eingangsrechnung zeigte, was es nicht gab.
+ * **Ohne sie werden 15 % einbehalten — mit ihr nicht** (0118), und zwar
+ * immer die des LEISTENDEN (§ 48 Abs. 2 EStG). Darum zählen zwei Arten:
+ *
+ *  - die EIGENE der Gesellschaft (`eigene`, weder Kunde noch Lieferant,
+ *    0531): sie legt sie ihren Kunden vor, und ohne sie behalten diese bei
+ *    einer Bauleistung 15 % ein. Sie steht auf der Ausgangsrechnung
+ *    (`steuerfall.ts`, `rechnung.ts`, V-388, D-846).
+ *  - die eines LIEFERANTEN: sie befreit die Gesellschaft vom Einbehalt auf
+ *    seine Eingangsrechnung.
+ *
+ * Bescheinigungen von KUNDEN (das Steuerblatt am Kunden) wirken auf keine
+ * Rechnung der Gesellschaft; diese Seite zeigt sie, erfasst sie aber nicht.
  *
  * // TODO(client, O-604): Voreinstellung — die Buchhaltung pflegt Freistellungsbescheinigungen mit `finanzen.schreiben` (dem Recht der Policy, 0118); für die steuerliche Lage genügt das Leserecht. D-779, D-845.
  *
@@ -38,7 +45,7 @@ export class FreistellungFehler extends Error {
   }
 }
 
-export type FreistellungTraeger = 'kunde' | 'lieferant';
+export type FreistellungTraeger = 'eigene' | 'lieferant' | 'kunde';
 export type FreistellungUmfang = 'unbeschraenkt' | 'auftragsbezogen';
 
 /** Wo eine Bescheinigung an einem Tag steht. */
@@ -62,7 +69,8 @@ export function freistellungStand(
 export interface FreistellungZeile {
   readonly id: string;
   readonly traeger: FreistellungTraeger;
-  readonly traegerId: string;
+  /** `null` bei der eigenen — sie gehört der Gesellschaft. */
+  readonly traegerId: string | null;
   readonly traegerName: string | null;
   readonly nummer: string;
   readonly finanzamt: string;
@@ -98,9 +106,11 @@ export async function listeFreistellungen(
   const heute = tag?.heute ?? '';
   const zeilen = await kontext.abfrage<Omit<FreistellungZeile, 'stand'>>(
     `select f.id::text as id,
-            case when f.kunde_id is not null then 'kunde' else 'lieferant' end as traeger,
+            case when f.kunde_id is not null then 'kunde'
+                 when f.lieferant_id is not null then 'lieferant'
+                 else 'eigene' end as traeger,
             coalesce(f.kunde_id, f.lieferant_id)::text as "traegerId",
-            coalesce(k.name, l.name) as "traegerName",
+            coalesce(k.name, l.name, m.firma) as "traegerName",
             f.bescheinigung_nummer as nummer, f.finanzamt,
             to_char(f.gueltig_von, 'YYYY-MM-DD') as "gueltigVon",
             to_char(f.gueltig_bis, 'YYYY-MM-DD') as "gueltigBis",
@@ -113,6 +123,7 @@ export async function listeFreistellungen(
                where e.mandant_id = f.mandant_id
                  and e.freistellungsbescheinigung_id = f.id))::int as belege
        from freistellungsbescheinigung f
+       join mandant m on m.id = f.mandant_id
        left join kunde k on k.mandant_id = f.mandant_id and k.id = f.kunde_id
        left join lieferant l on l.mandant_id = f.mandant_id and l.id = f.lieferant_id
        left join auftrag a on a.mandant_id = f.mandant_id and a.id = f.auftrag_id
@@ -124,6 +135,7 @@ export async function listeFreistellungen(
 
 export interface NeueFreistellung {
   readonly traeger: string;
+  /** Leer bei der eigenen Bescheinigung der Gesellschaft. */
   readonly traegerId: string;
   readonly nummer: string;
   readonly finanzamt: string;
@@ -165,11 +177,11 @@ export async function legeFreistellungAn(
   kontext: SchreibKontext, eingabe: NeueFreistellung,
 ): Promise<{ readonly id: string }> {
   const traeger = eingabe.traeger;
-  if (traeger !== 'kunde' && traeger !== 'lieferant') {
+  if (traeger !== 'eigene' && traeger !== 'kunde' && traeger !== 'lieferant') {
     throw new FreistellungFehler('traeger_fehlt',
-      'Für wen gilt die Bescheinigung — einen Kunden oder einen Lieferanten?');
+      'Wessen Bescheinigung ist es — die der Gesellschaft oder die eines Lieferanten?');
   }
-  if (!KENNUNG.test(eingabe.traegerId)) {
+  if (traeger !== 'eigene' && !KENNUNG.test(eingabe.traegerId)) {
     throw new FreistellungFehler('traeger_fehlt', 'Bitte wählen Sie, für wen sie gilt.');
   }
   const nummer = eingabe.nummer.trim();
@@ -194,14 +206,16 @@ export async function legeFreistellungAn(
       'Eine auftragsbezogene Bescheinigung gilt für EINEN Auftrag — bitte wählen.');
   }
 
-  const tabelle = traeger === 'kunde' ? 'kunde' : 'lieferant';
-  const [t] = await kontext.abfrage<{ id: string }>(
-    `select id from ${tabelle} where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
-    [eingabe.traegerId]);
-  if (t === undefined) {
-    throw new FreistellungFehler('traeger_unbekannt',
-      traeger === 'kunde' ? 'Diesen Kunden gibt es in dieser Gesellschaft nicht.'
-        : 'Diesen Lieferanten gibt es in dieser Gesellschaft nicht.');
+  if (traeger !== 'eigene') {
+    const tabelle = traeger === 'kunde' ? 'kunde' : 'lieferant';
+    const [t] = await kontext.abfrage<{ id: string }>(
+      `select id from ${tabelle} where id = $1::uuid and mandant_id = app.aktiver_mandant()`,
+      [eingabe.traegerId]);
+    if (t === undefined) {
+      throw new FreistellungFehler('traeger_unbekannt',
+        traeger === 'kunde' ? 'Diesen Kunden gibt es in dieser Gesellschaft nicht.'
+          : 'Diesen Lieferanten gibt es in dieser Gesellschaft nicht.');
+    }
   }
   if (umfang === 'auftragsbezogen') {
     const [a] = await kontext.abfrage<{ id: string }>(
@@ -321,9 +335,12 @@ export async function verknuepfeFreistellungsbeleg(
     { nummer: k.nummer, dokument: dokumentId });
 }
 
-/** Die Auswahl für das Formular: Kunden, Lieferanten, Aufträge und Belege. */
+/**
+ * Die Auswahl für das Formular: Lieferanten, Aufträge und Belege. Kunden
+ * stehen nicht darin — ihre Bescheinigungen erfasst das Steuerblatt am Kunden,
+ * und auf Rechnungen der Gesellschaft wirken sie nicht (V-388, D-846).
+ */
 export interface FreistellungAuswahl {
-  readonly kunden: readonly { readonly id: string; readonly name: string }[];
   readonly lieferanten: readonly { readonly id: string; readonly name: string }[];
   readonly auftraege: readonly { readonly id: string; readonly name: string }[];
   readonly belege: readonly { readonly id: string; readonly name: string }[];
@@ -332,10 +349,6 @@ export interface FreistellungAuswahl {
 export async function ladeFreistellungAuswahl(
   kontext: LeseKontext,
 ): Promise<FreistellungAuswahl> {
-  const kunden = await kontext.abfrage<{ id: string; name: string }>(
-    `select id::text as id, name from kunde
-      where mandant_id = app.aktiver_mandant() and archiviert_am is null
-      order by name limit 200`);
   const lieferanten = await kontext.abfrage<{ id: string; name: string }>(
     `select id::text as id, name from lieferant
       where mandant_id = app.aktiver_mandant() and archiviert_am is null
@@ -355,5 +368,5 @@ export async function ladeFreistellungAuswahl(
       where mandant_id = app.aktiver_mandant() and geloescht_am is null
         and kategorie in ('beleg', 'buchhaltung')
       order by entstanden_am desc limit 200`);
-  return { kunden, lieferanten, auftraege, belege };
+  return { lieferanten, auftraege, belege };
 }

@@ -1015,6 +1015,138 @@ describe('(5) Zwei Raten auf EIN Aufmaßblatt', () => {
 });
 
 // ===========================================================================
+// (5b) Die Obergrenze gilt je LV-Position, nicht je Blatt (V-357, O-340, D-849)
+// ===========================================================================
+
+describe('(5b) Die Obergrenze je LV-Position', () => {
+  /** Eine weitere LV-Position desselben Verzeichnisses. */
+  const weitereLvPosition = async (oz: string, kurztext: string, einheit: string): Promise<string> => {
+    const [p] = await sql.unsafe<{ id: string }[]>(
+      `insert into lv_position (mandant_id, leistungsverzeichnis_id, projekt_id, oz, pfad,
+                                sortier_pfad, ebene, art, kurztext, einheit, menge_vertrag,
+                                einheitspreis_cent)
+       values ($1,$2,$3,$4,'','',1,'position',$5,$6,100,2500) returning id`,
+      [bau.mandant, bau.lv, bau.projekt, oz, kurztext, einheit] as never[]);
+    return p!.id;
+  };
+
+  /** Ein gegengezeichnetes Blatt mit einer Zeile je Angabe — Menge in Tausendsteln. */
+  const blattMit = async (
+    zeilen: readonly { lv: string; tausendstel: number; einheit: string }[],
+  ): Promise<string> => {
+    const [blatt] = await sql.unsafe<{ id: string }[]>(
+      `insert into aufmass (mandant_id, projekt_id, kunde_id, nummer, bezeichnung, messdatum,
+                            erhebungsart, status, gesperrt_am, leistungsverzeichnis_id)
+       values ($1,$2,$3,$4,'Achse D, EG','2026-09-12','gemeinsam',
+               'gegengezeichnet', now(), $5) returning id`,
+      [bau.mandant, bau.projekt, bau.kunde, `A-${zufall()}`, bau.lv] as never[]);
+    let reihe = 0;
+    for (const z of zeilen) {
+      reihe += 1;
+      await sql.unsafe(
+        `insert into aufmass_zeile (mandant_id, aufmass_id, projekt_id, kunde_id, lv_position_id,
+                                    reihenfolge, bezeichnung, rechenansatz, ergebnis_skaliert,
+                                    menge, einheit)
+         values ($1,$2,$3,$3,$4,$5,'Zeile',$6,$7,$8::numeric,$9)`,
+        [bau.mandant, blatt!.id, bau.projekt, z.lv, reihe, String(z.tausendstel / 1000),
+          z.tausendstel * 10, (z.tausendstel / 1000).toFixed(3), z.einheit] as never[]);
+    }
+    return blatt!.id;
+  };
+
+  /** Eine Rechnung mit je einer Zeile je Anteil — festgeschrieben in EINER Transaktion. */
+  const rechne = async (
+    blatt: string,
+    anteile: readonly { lv: string | null; tausendstel: bigint; einheit: string }[],
+  ): Promise<string> => inSitzung(bau.mandant, async (tx) => {
+    const d = alsDienst(tx);
+    const r = await legeEntwurfAn(d, {
+      kundeId: bau.kunde, objektId: bau.objekt, rechnungsart: 'abschlag',
+      leistungVon: '2026-09-01', leistungBis: '2026-09-30', zahlungszielTage: 30,
+    });
+    for (const a of anteile) {
+      await fuegePositionHinzu(d, {
+        rechnungId: r, bezeichnung: 'Aufmaßposition', menge: milliMenge(a.tausendstel),
+        einheit: a.einheit, einzelpreisCent: cent(25_00n), steuergruppe: 'ust_19',
+        lvPositionId: a.lv,
+        quellen: [{ typ: 'aufmass', id: blatt, mengeAnteil: milliMenge(a.tausendstel) }],
+      });
+    }
+    return (await finalisiere(d, r)).nummer;
+  });
+
+  const abgerechnet = async (blatt: string): Promise<string> => {
+    const [z] = await sql.unsafe<{ abgerechnet_menge: string }[]>(
+      `select abgerechnet_menge::text from aufmass where id = $1`, [blatt]);
+    return z!.abgerechnet_menge;
+  };
+
+  it('eine doppelt abgerechnete Position in m² versteckt sich nicht hinter einer in Stück', async () => {
+    const zargen = await weitereLvPosition('01.02.0040', 'Türzargen', 'Stk');
+    const blatt = await blattMit([
+      { lv: bau.lvPosition, tausendstel: 40_000, einheit: 'm²' },
+      { lv: zargen, tausendstel: 50_000, einheit: 'Stk' },
+    ]);
+    // 80 m² auf 40 gemessene: die Blattsumme (80 ≤ 90) liess das durch.
+    const fehler = await rechne(blatt, [{ lv: bau.lvPosition, tausendstel: 80_000n, einheit: 'm2' }])
+      .catch((e: unknown) => e);
+    expect((fehler as Error).message)
+      .toMatch(/LV-Position 01\.02\.0030: abgerechnet waeren 80\.000 von gemessenen 40\.000/u);
+    expect(await abgerechnet(blatt)).toBe('0.000');
+
+    // Beide Positionen genau wie gemessen: frei.
+    expect(await rechne(blatt, [
+      { lv: bau.lvPosition, tausendstel: 40_000n, einheit: 'm2' },
+      { lv: zargen, tausendstel: 50_000n, einheit: 'stk' },
+    ])).toMatch(/^RE-/u);
+    expect(await abgerechnet(blatt)).toBe('90.000');
+    // Und eine Stück-Zarge mehr ist eine zu viel — die andere Position gibt nichts ab.
+    const zuviel = await rechne(blatt, [{ lv: zargen, tausendstel: 1_000n, einheit: 'stk' }])
+      .catch((e: unknown) => e);
+    expect((zuviel as Error).message)
+      .toMatch(/LV-Position 01\.02\.0040: abgerechnet waeren 51\.000 von gemessenen 50\.000/u);
+  });
+
+  it('ein Rückbau mit negativer Menge auf demselben Blatt bremst die andere Position nicht mehr', async () => {
+    const rueckbau = await weitereLvPosition('01.09.0010', 'Estrich zurückbauen', 'm²');
+    const blatt = await blattMit([
+      { lv: bau.lvPosition, tausendstel: 100_000, einheit: 'm²' },
+      { lv: rueckbau, tausendstel: -30_000, einheit: 'm²' },
+    ]);
+    // Die Blattsumme war 70 — und 100 abgerechnete m² Mauerwerk schlugen an.
+    expect(await rechne(blatt, [{ lv: bau.lvPosition, tausendstel: 100_000n, einheit: 'm2' }]))
+      .toMatch(/^RE-/u);
+    expect(await abgerechnet(blatt)).toBe('100.000');
+  });
+
+  it('ein Anteil ohne LV-Position zählt nur, wo das Blatt eine Gruppe misst', async () => {
+    const zargen = await weitereLvPosition('01.02.0050', 'Fensterbänke', 'Stk');
+    const zwei = await blattMit([
+      { lv: bau.lvPosition, tausendstel: 40_000, einheit: 'm²' },
+      { lv: zargen, tausendstel: 8_000, einheit: 'Stk' },
+    ]);
+    const fehler = await rechne(zwei, [{ lv: null, tausendstel: 10_000n, einheit: 'm2' }])
+      .catch((e: unknown) => e);
+    expect((fehler as Error).message).toMatch(/misst 2 LV-Positionen .* keiner zuordnen/u);
+    expect(await abgerechnet(zwei)).toBe('0.000');
+
+    // Auf einem Blatt mit EINER Gruppe ist der Anteil eindeutig — wie in (5).
+    const eins = await blattMit([{ lv: bau.lvPosition, tausendstel: 40_000, einheit: 'm²' }]);
+    expect(await rechne(eins, [{ lv: null, tausendstel: 10_000n, einheit: 'm2' }])).toMatch(/^RE-/u);
+    expect(await abgerechnet(eins)).toBe('10.000');
+  });
+
+  it('eine LV-Position, die das Blatt nicht misst, hat dort nichts abzurechnen', async () => {
+    const fremd = await weitereLvPosition('01.02.0060', 'Sturz', 'Stk');
+    const blatt = await blattMit([{ lv: bau.lvPosition, tausendstel: 40_000, einheit: 'm²' }]);
+    const fehler = await rechne(blatt, [{ lv: fremd, tausendstel: 5_000n, einheit: 'stk' }])
+      .catch((e: unknown) => e);
+    expect((fehler as Error).message)
+      .toMatch(/LV-Position 01\.02\.0060: abgerechnet waeren 5\.000 von gemessenen 0\.000/u);
+  });
+});
+
+// ===========================================================================
 // Die Decke: `rechnungsposition_quelle` ist INTERN (§1.4, EMP-13)
 // ===========================================================================
 

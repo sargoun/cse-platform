@@ -103,7 +103,7 @@ export default async function Steuer(
 
   const darf = await haeltRechte(sitzung,
     'crm.lesen', 'crm_entgelt.lesen', 'abrechnung.lesen', 'system.benutzer_verwalten',
-    'dokument.lesen');
+    'dokument.lesen', 'finanzen.lesen');
 
   const daten = await (db().begin(SCHNAPPSCHUSS, async (tx: postgres.TransactionSql) =>
     withTenant(tx, sitzung, async (kontext) => {
@@ -138,7 +138,12 @@ export default async function Steuer(
   const lagen = (['bau', 'gebaeudereinigung'] as const).map((art) => ({
     art, lage: reverseChargeLage(zeilen, stichtag, art),
   }));
-  const bescheinigung = bescheinigungAm(blatt.bescheinigungen, stichtag);
+  /*
+   * § 48: bei einer Rechnung AN diesen Kunden entscheidet die EIGENE
+   * Bescheinigung der Gesellschaft (§ 48 Abs. 2 EStG, V-388, D-846) — die
+   * des Kunden befreit ihn, wenn er selbst baut, nicht unsere Rechnung.
+   */
+  const bescheinigung = bescheinigungAm(blatt.eigeneBescheinigungen, stichtag);
 
   /*
    * Der Postausgang wird GEFRAGT, nicht behauptet — und zwar an DERSELBEN
@@ -646,19 +651,36 @@ export default async function Steuer(
                 <StatusPill zustand={bescheinigung === null ? 'Fehler' : 'Aktiv'} />
                 <span className="text-sm text-text">
                   {bescheinigung === null
-                    ? `Am ${tagDeutsch(stichtag)} liegt keine gültige Bescheinigung vor.`
-                    : `Am ${tagDeutsch(stichtag)} gültig: `
+                    ? `Am ${tagDeutsch(stichtag)} gilt keine eigene Bescheinigung der `
+                      + 'Gesellschaft — bei einer Bauleistung behält dieser Kunde 15 % ein.'
+                    : `Am ${tagDeutsch(stichtag)} gilt die eigene Bescheinigung `
                       + `${bescheinigung.bescheinigung_nummer} `
                       + `(${bescheinigung.finanzamt}), bis `
-                      + `${tagDeutsch(bescheinigung.gueltig_bis)}.`}
+                      + `${tagDeutsch(bescheinigung.gueltig_bis)} — dieser Kunde behält nichts ein.`}
                 </span>
               </p>
               <p className="m-0 mt-s3 max-w-prose text-sm text-text-muted">
-                Geprüft wird AM STICHTAG, nicht heute. Voreinstellung (O-67): die
-            Bescheinigung wird je Nachunternehmer (Lieferant) mit Gültigkeit geführt; die
-            Buchhaltung prüft sie beim Freigeben einer Eingangsrechnung mit Bauleistung.
+                Geprüft wird AM STICHTAG, nicht heute. Bei einer Rechnung an diesen Kunden
+                zählt die EIGENE Bescheinigung der Gesellschaft (§ 48 Abs. 2 EStG) — gepflegt
+                unter{' '}
+                {/* Der Verweis nur mit `finanzen.lesen` — das Ziel verlangt es (AUT-06). */}
+                {darf['finanzen.lesen'] === true ? (
+                  <Link href={`/portal/${mandant}/finanzen/freistellungen`}
+                        className="text-text underline underline-offset-2 hover:text-brand">
+                    Finanzen › Freistellungsbescheinigungen
+                  </Link>
+                ) : 'Finanzen › Freistellungsbescheinigungen'}
+                . Eine auftragsbezogene gilt nur für ihren Auftrag und steht dort.
               </p>
             </div>
+
+            <h3 className="mb-0 mt-s5 text-h3 text-text">Bescheinigungen des Kunden</h3>
+            <p className="m-0 mt-s2 max-w-prose text-sm text-text-muted" data-cse="steuer-48b-kunde-hinweis">
+              Auf Rechnungen der Gesellschaft wirken sie nicht. Baut der Kunde selbst für die
+              Gesellschaft, gehört seine Bescheinigung an ihn als Lieferanten — dann befreit sie
+              vom Einbehalt auf seine Rechnung. Voreinstellung (O-67): die Bescheinigung wird je
+              Nachunternehmer (Lieferant) mit Gültigkeit geführt.
+            </p>
 
             {blatt.bescheinigungen.length === 0 ? (
               <p className="mt-s4 rounded-lg border border-line bg-surface p-s5 text-sm text-text-muted">

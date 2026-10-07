@@ -24,6 +24,7 @@ import { registriereLeadSlaJob } from './lead-sla.js';
 import { registriereWiedervorlageErinnerung } from './wiedervorlageErinnerung.js';
 import { registriereNachweisWarnungen } from './nachweisWarnungen.js';
 import { registriereKettenpruefer } from './kettenpruefer.js';
+import { registriereFreistellungAblauf } from './freistellungAblauf.js';
 import { registriereAuditKette } from './auditKette.js';
 import { registriereBetriebsprotokolle } from './betriebsprotokolle.js';
 import { registriereStundenkontoAbgleich } from './stundenkontoAbgleich.js';
@@ -91,6 +92,8 @@ export function alleJobs(db: Abfrage): readonly JobDefinition[] {
     registriereWiedervorlageErinnerung(db);
     registriereNachweisWarnungen(db);
     registriereKettenpruefer(db);
+    /* V-388 — der Hinweis vor dem Ablauf der eigenen § 48b-Bescheinigung (O-130). */
+    registriereFreistellungAblauf(db);
     registriereAuditKette(db);
     registriereBetriebsprotokolle(db);
     registriereStundenkontoAbgleich(db);

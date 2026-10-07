@@ -621,12 +621,42 @@ describe('(4) eine festgeschriebene Rechnung ist unveränderlich — auf DATENBA
        * bindet beide nach.
        */
       'd_rechnung_beleg', 'd_rechnung_beleg_u',
+      /**
+       * **PR 46 (0532, D-848): vier Policies der Kreisverwaltung — und jede
+       * am Vorgangsmarker.**
+       *
+       * Freigabe eines Platzhalterkreises und Jahreswechsel brauchen einen
+       * Definer, der Kreise JEDES Typs liest, freigibt, schliesst und den
+       * Nachfolger anlegt. Ungebunden haetten die vier die Enge darueber
+       * aufgehoben: permissive Policies werden ODER-verknuepft, und jeder
+       * Zieher haette jeden offenen Kreis der Gesellschaft gesehen und
+       * geaendert. Deshalb gelten sie nur, solange
+       * `fin.nummernkreis_freigeben` oder `fin.nummernkreis_nachfolger_eroeffnen`
+       * den Marker `app.kreisverwaltung` auf genau ihren Kreis gesetzt hat —
+       * die Pruefung darunter haelt das fest, `nummernkreis-freigabe.test.ts`
+       * beweist es am Verhalten.
+       */
+      'd_kreis_freigeben', 'd_kreisverwaltung_lesen',
+      'd_nachfolger_anlegen', 'd_nachfolger_schliessen',
       // `nk_wachbuch_definer*` gehören 0070 und liegen auf demselben
       // `nummernkreis`; sie sind hier ausgeschlossen, weil sie `wachbuch`
       // betreffen — siehe die Filterzeile darunter.
     ].concat(policies.filter((p) => p.policyname.startsWith('nk_wachbuch'))
       .map((p) => p.policyname)).sort());
     expect(policies.every((p) => ['SELECT', 'INSERT', 'UPDATE'].includes(p.cmd))).toBe(true);
+
+    const verwaltung = await sql.unsafe<{ policyname: string; qual: string | null; with_check: string | null }[]>(
+      `select policyname, qual, with_check from pg_policies
+        where tablename = 'nummernkreis'
+          and policyname in ('d_kreisverwaltung_lesen', 'd_kreis_freigeben',
+                             'd_nachfolger_schliessen', 'd_nachfolger_anlegen')`,
+    );
+    expect(verwaltung).toHaveLength(4);
+    for (const p of verwaltung) {
+      for (const teil of [p.qual, p.with_check].filter((t): t is string => t !== null)) {
+        expect(teil, p.policyname).toContain('app.kreisverwaltung');
+      }
+    }
   });
 });
 

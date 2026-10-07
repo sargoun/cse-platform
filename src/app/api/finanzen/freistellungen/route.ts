@@ -33,8 +33,9 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
           const traeger = f['traeger'] ?? '';
           await legeFreistellungAn(kontext, {
             traeger,
-            // Zwei Auswahlfelder, eines je Träger: es zählt das gewählte.
-            traegerId: (traeger === 'lieferant' ? f['lieferant_id'] : f['kunde_id']) ?? '',
+            // Die eigene Bescheinigung hat keinen Träger; die eines Lieferanten seinen.
+            traegerId: (traeger === 'lieferant' ? f['lieferant_id']
+              : traeger === 'kunde' ? f['kunde_id'] : '') ?? '',
             nummer: f['nummer'] ?? '',
             finanzamt: f['finanzamt'] ?? '',
             gueltigVon: f['gueltig_von'] ?? '',

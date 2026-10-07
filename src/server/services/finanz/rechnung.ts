@@ -1035,6 +1035,12 @@ interface KopfZeile {
   readonly bauabzugsteuer_satz_bp: number | null;
   readonly bauabzugsteuer_grundlage_cent: string | null;
   readonly einbehalt_bauabzugsteuer_cent: string;
+  /** Die EIGENE § 48b-Bescheinigung, die befreit hat (V-388) — sonst alles `null`. */
+  readonly fsb_nummer: string | null;
+  readonly fsb_finanzamt: string | null;
+  readonly fsb_gueltig_von: string | null;
+  readonly fsb_gueltig_bis: string | null;
+  readonly fsb_umfang: string | null;
   readonly ist_kleinbetrag: boolean;
   readonly kleinbetrag_grenze_cent: string | null;
   readonly reverse_charge: boolean;
@@ -1106,6 +1112,10 @@ const KOPF_SQL = `
          r.abzug_brutto_cent::text, r.zahlbetrag_cent::text, r.ueberweisungsbetrag_cent::text,
          r.bauabzugsteuer_pflichtig, r.bauabzugsteuer_satz_bp,
          r.bauabzugsteuer_grundlage_cent::text, r.einbehalt_bauabzugsteuer_cent::text,
+         fsb.bescheinigung_nummer as fsb_nummer, fsb.finanzamt as fsb_finanzamt,
+         to_char(fsb.gueltig_von, 'YYYY-MM-DD') as fsb_gueltig_von,
+         to_char(fsb.gueltig_bis, 'YYYY-MM-DD') as fsb_gueltig_bis,
+         fsb.umfang::text as fsb_umfang,
          r.ist_kleinbetrag,
          -- FIN-13: die ANGEWANDTE Schwelle wandert mit in den Snapshot.
          -- ist_kleinbetrag allein sagt nur ja oder nein; ohne die Zahl, gegen
@@ -1178,6 +1188,12 @@ const KOPF_SQL = `
     left join mandant_identitaet mi on mi.mandant_id = r.mandant_id
     join kunde k on k.mandant_id = r.mandant_id and k.id = r.kunde_id
     left join objekt o on o.mandant_id = r.mandant_id and o.id = r.objekt_id
+    -- V-388 (D-846): die Bescheinigung, die den Einbehalt erspart hat — nur die
+    -- EIGENE der Gesellschaft. Ein Entwurf aus der Zeit vor D-846 kann noch auf
+    -- die des Kunden zeigen; die steht nicht als unsere auf dem Beleg.
+    left join freistellungsbescheinigung fsb
+      on fsb.mandant_id = r.mandant_id and fsb.id = r.freistellungsbescheinigung_id
+     and fsb.kunde_id is null and fsb.lieferant_id is null
    where r.id = $1`;
 
 interface PositionZeile {
@@ -1445,12 +1461,19 @@ export async function ladeRechnungVollstaendig(
       grundlageCent: kopf.bauabzugsteuer_grundlage_cent === null
         ? null : cent(BigInt(kopf.bauabzugsteuer_grundlage_cent)),
       einbehaltCent: cent(BigInt(kopf.einbehalt_bauabzugsteuer_cent)),
-      // PR 51 loest die Bescheinigung auf; NULL ist hier die Tatsache, nicht
-      // eine Auslassung — und sie steht ausgeschrieben im Hash.
+      // V-388 (D-846): die EIGENE Bescheinigung, die den Einbehalt erspart hat
+      // (§ 48 Abs. 2 EStG) — Nummer, Finanzamt, Zeitraum und Umfang stehen im
+      // Hash. NULL heisst: keine hat befreit, und das steht ausgeschrieben da.
       // TODO(client, O-130): Betreiberdaten — ob die Gesellschaft eine eigene
-      // Freistellungsbescheinigung nach § 48b EStG haelt und bis wann, traegt der
-      // Betreiber ein; einen Ort dafuer gibt es nicht (V-388, D-803).
-      freistellungsbescheinigung: null,
+      // Freistellungsbescheinigung haelt und bis wann, traegt der Betreiber
+      // unter Finanzen › Freistellungsbescheinigungen ein (D-803, D-846).
+      freistellungsbescheinigung: kopf.fsb_nummer === null ? null : {
+        nummer: kopf.fsb_nummer,
+        finanzamt: kopf.fsb_finanzamt ?? '',
+        gueltigVon: kopf.fsb_gueltig_von ?? '',
+        gueltigBis: kopf.fsb_gueltig_bis ?? '',
+        umfang: kopf.fsb_umfang ?? '',
+      },
     },
     ueberweisungsbetragCent: cent(BigInt(kopf.ueberweisungsbetrag_cent)),
     zahlung: {

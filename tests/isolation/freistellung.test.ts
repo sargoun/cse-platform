@@ -25,6 +25,11 @@
  *  7. Das Steuerblatt des Kunden (`kunde-steuer.ts`) geht denselben Weg: ein
  *     rückwirkender Widerruf und eine vergebene Nummer kommen als Grund
  *     zurück, nicht als Verletzung von 0530 oder des Schlüssels.
+ *  8. Die EIGENE Bescheinigung der Gesellschaft (V-388, 0531): weder Kunde
+ *     noch Lieferant, in der Liste mit dem Namen der Gesellschaft.
+ *  9. Der Nachtlauf `freistellung_ablauf` erinnert Buchhaltung und
+ *     Geschäftsführung 60/30/7 Tage vor ihrem Ablauf — einmal je Stufe, nicht
+ *     mit Nachfolgerin, nie für fremde Bescheinigungen (O-130).
  */
 import type postgres from 'postgres';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -34,6 +39,7 @@ import { tagePlus } from '../../src/lib/datum/kalendertag.js';
 import {
   legeBescheinigungAn, SteuerFehler, widerrufeBescheinigung,
 } from '../../src/server/services/finanz/kunde-steuer.js';
+import { meldeFreistellungsAblaeufe } from '../../src/server/jobs/freistellungAblauf.js';
 import {
   FreistellungFehler, ladeFreistellungAuswahl, legeFreistellungAn, listeFreistellungen,
   verknuepfeFreistellungsbeleg, widerrufeFreistellung, type NeueFreistellung,
@@ -468,7 +474,8 @@ describe('(6) und die Auswahl des Formulars', () => {
     const ids = (xs: readonly { id: string }[]): string[] => xs.map((x) => x.id);
     expect(ids(auswahl.lieferanten)).toContain(l);
     expect(ids(auswahl.lieferanten)).not.toContain(alt);
-    expect(ids(auswahl.kunden)).toContain(k);
+    // Kunden bietet das Formular nicht an: ihre Bescheinigung wirkt auf keine unserer Rechnungen.
+    expect(Object.keys(auswahl)).not.toContain('kunden');
     expect(ids(auswahl.auftraege)).toContain(a);
     expect(ids(auswahl.belege)).toContain(d);
     expect(ids(auswahl.belege)).not.toContain(fremd);
@@ -514,5 +521,125 @@ describe('(7) das Steuerblatt des Kunden geht denselben Weg', () => {
     await als(f.bau, admin, (kx) => legeBescheinigungAn(kx, neu));
     expect(await steuerGrund(als(f.bau, admin, (kx) => legeBescheinigungAn(kx, neu))))
       .toBe('nummer_vergeben');
+  });
+});
+
+describe('(8) die eigene Bescheinigung der Gesellschaft (V-388)', () => {
+  it('weder Kunde noch Lieferant — in der Liste mit dem Namen der Gesellschaft', async () => {
+    const admin = await konto(f.bau);
+    const { id } = await als(f.bau, admin, (k) =>
+      legeFreistellungAn(k, eingabe('', { traeger: 'eigene', nummer: 'FB-EIGEN-1' })));
+    expect(await zeile(id)).toMatchObject({
+      kunde_id: null, lieferant_id: null, bescheinigung_nummer: 'FB-EIGEN-1',
+    });
+    const [m] = await sql.unsafe<{ firma: string }[]>(
+      `select firma from mandant where id = $1`, [f.bau]);
+    const liste = await als(f.bau, admin, (k) => listeFreistellungen(k));
+    expect(liste.zeilen.find((z) => z.id === id)).toMatchObject({
+      traeger: 'eigene', traegerId: null, traegerName: m!.firma, stand: 'gueltig',
+    });
+    expect((await protokoll(id))[0]?.nachher).toMatchObject({ traeger: 'eigene' });
+  });
+
+  it('die Nummer gilt über alle Arten — eine eigene und eine eines Lieferanten teilen keine', async () => {
+    const admin = await konto(f.bau);
+    const l = await lieferant(f.bau);
+    await als(f.bau, admin, (k) => legeFreistellungAn(k, eingabe(l, { nummer: 'FB-GLEICH' })));
+    expect(await grund(als(f.bau, admin, (k) =>
+      legeFreistellungAn(k, eingabe('', { traeger: 'eigene', nummer: 'FB-GLEICH' })))))
+      .toBe('nummer_vergeben');
+  });
+});
+
+describe('(9) der Nachtlauf erinnert vor dem Ablauf der eigenen (O-130)', () => {
+  async function eigene(mandant: string, nummer: string, von: string, bis: string): Promise<string> {
+    const [z] = await sql.unsafe<{ id: string }[]>(
+      `insert into freistellungsbescheinigung
+         (mandant_id, bescheinigung_nummer, finanzamt, gueltig_von, gueltig_bis, umfang,
+          erstellt_von_art, erstellt_von_dienst)
+       values ($1, $2, 'Finanzamt Berlin Mitte/Tiergarten', $3::date, $4::date, 'unbeschraenkt',
+               'system', 'job:test')
+       returning id`, [mandant, nummer, von, bis]);
+    return z!.id;
+  }
+
+  async function meldungen(benutzer: string): Promise<{ art: string; ziel: string | null;
+    titel: string }[]> {
+    return sql.unsafe(
+      `select art, ziel, titel from benachrichtigung
+        where empfaenger_id = $1 and art = 'finanzen.freistellung_laeuft_ab'`, [benutzer]);
+  }
+
+  it('20 Tage vorher: an die Geschäftsführung, einmal je Stufe, mit Ziel und Nummer', async () => {
+    const leitung = await konto(f.bau, 'leitung');
+    await eigene(f.bau, 'FB-ABLAUF', tagePlus(heute, -300), tagePlus(heute, 20));
+    const [m] = await sql.unsafe<{ slug: string }[]>(`select slug from mandant where id = $1`, [f.bau]);
+
+    const erster = await meldeFreistellungsAblaeufe(sql, heute);
+    expect(erster.faellig).toBe(1);
+    expect(erster.zugestellt).toBeGreaterThanOrEqual(1);
+    const da = await meldungen(leitung);
+    expect(da).toHaveLength(1);
+    expect(da[0]!.ziel).toBe(`/portal/${m!.slug}/finanzen/freistellungen`);
+    expect(da[0]!.titel).toContain('FB-ABLAUF');
+
+    const zweiter = await meldeFreistellungsAblaeufe(sql, heute);
+    expect(zweiter.zugestellt).toBe(0);
+    expect(zweiter.schonGemeldet).toBeGreaterThanOrEqual(1);
+    expect(await meldungen(leitung)).toHaveLength(1);
+
+    // Eine Woche vor dem Ablauf: die nächste Stufe meldet sich wieder.
+    const spaeter = await meldeFreistellungsAblaeufe(sql, tagePlus(heute, 14));
+    expect(spaeter.zugestellt).toBeGreaterThanOrEqual(1);
+    expect(await meldungen(leitung)).toHaveLength(2);
+  });
+
+  it('bricht die Zustellung ab, fällt die Quittung mit — der nächste Lauf meldet', async () => {
+    /*
+     * Quittung und Zustellung stehen in EINER Transaktion je Gesellschaft (wie
+     * beim Kettenbruch). Ohne sie bliebe die Quittung einer Zustellung, die nie
+     * ankam, stehen — und jeder weitere Lauf zählte „schon gemeldet".
+     */
+    const leitung = await konto(f.bau, 'leitung');
+    await eigene(f.bau, 'FB-ABBRUCH', tagePlus(heute, -300), tagePlus(heute, 20));
+    await sql.unsafe(
+      `create function public.test_zustellung_verweigern() returns trigger
+       language plpgsql as $$ begin raise exception 'Zustellung verweigert (Test)'; end $$`);
+    await sql.unsafe(
+      `create trigger test_zustellung_verweigern before insert on benachrichtigung
+       for each row when (new.art = 'finanzen.freistellung_laeuft_ab')
+       execute function public.test_zustellung_verweigern()`);
+    try {
+      await expect(meldeFreistellungsAblaeufe(sql, heute)).rejects.toThrow(/Zustellung verweigert/u);
+    } finally {
+      await sql.unsafe(`drop trigger test_zustellung_verweigern on benachrichtigung`);
+      await sql.unsafe(`drop function public.test_zustellung_verweigern()`);
+    }
+    const [q] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from waechter_meldung where waechter = 'freistellung_ablauf'`);
+    expect(q!.n).toBe(0);
+
+    const danach = await meldeFreistellungsAblaeufe(sql, heute);
+    expect(danach.schonGemeldet).toBe(0);
+    expect(danach.zugestellt).toBeGreaterThanOrEqual(1);
+    expect(await meldungen(leitung)).toHaveLength(1);
+  });
+
+  it('mit erfasster Nachfolgerin, weit vor dem Ablauf und für fremde: keine Erinnerung', async () => {
+    const leitung = await konto(f.bau, 'leitung');
+    await eigene(f.bau, 'FB-ALT', tagePlus(heute, -300), tagePlus(heute, 20));
+    await eigene(f.bau, 'FB-NEU', tagePlus(heute, 21), tagePlus(heute, 900));
+    await eigene(f.reinigung, 'FB-WEIT', tagePlus(heute, -10), tagePlus(heute, 61));
+    const l = await lieferant(f.bau);
+    await sql.unsafe(
+      `insert into freistellungsbescheinigung
+         (mandant_id, lieferant_id, bescheinigung_nummer, finanzamt, gueltig_von, gueltig_bis,
+          umfang, erstellt_von_art, erstellt_von_dienst)
+       values ($1, $2, 'FB-LIEF', 'Finanzamt Spandau', $3::date, $4::date, 'unbeschraenkt',
+               'system', 'job:test')`, [f.bau, l, tagePlus(heute, -10), tagePlus(heute, 5)]);
+
+    const bericht = await meldeFreistellungsAblaeufe(sql, heute);
+    expect(bericht.faellig).toBe(0);
+    expect(await meldungen(leitung)).toEqual([]);
   });
 });

@@ -424,6 +424,7 @@ export const KONTO_BENACHRICHTIGUNG_TEXTE:
         budget_warnschwelle: 'KI-Budget: Warnschwelle erreicht',
         nachtrag_ueberfaellig: 'Nachtrag überfällig',
         kette_gebrochen: 'Rechnungs-Hashkette gebrochen',
+        freistellung_laeuft_ab: 'Eigene Freistellungsbescheinigung läuft ab',
         wiedervorlage_erinnerung: 'Erinnerung an eine Wiedervorlage',
         neuer_lead: 'Neue Anfrage',
         lead_sla_ueberschritten: 'Reaktionszeit einer Anfrage überschritten',

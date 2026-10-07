@@ -7,7 +7,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  ART_KETTE_GEBROCHEN, registriereWaechterArten,
+  ART_FREISTELLUNG_LAEUFT_AB, ART_KETTE_GEBROCHEN, registriereWaechterArten,
 } from '../../src/server/services/waechter/benachrichtigung.js';
 import { erzeuge, findeArt, leereArten } from '../../src/server/benachrichtigung/registry.js';
 import { UEBERSICHT_TEXTE } from '../../src/lib/i18n/verwaltung/finanzen/uebersicht.js';
@@ -23,7 +23,9 @@ describe('V-286 — die Art der Kettenmeldung', () => {
   it('steht neben den drei Wachen aus Dienstplan und Bau, als eigene Art', () => {
     const arten = registriereWaechterArten();
     expect(arten.map((a) => a.schluessel)).toContain(ART_KETTE_GEBROCHEN);
-    expect(arten).toHaveLength(4);
+    // Fünf seit V-388: der Hinweis vor dem Ablauf der eigenen § 48b-Bescheinigung (D-846).
+    expect(arten.map((a) => a.schluessel)).toContain(ART_FREISTELLUNG_LAEUFT_AB);
+    expect(arten).toHaveLength(5);
     expect(findeArt(ART_KETTE_GEBROCHEN)).toBeDefined();
   });
 

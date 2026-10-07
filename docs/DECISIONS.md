@@ -2880,7 +2880,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-30 | Nachträge: how many days may an announced Nachtrag stay unsubmitted before the watchdog escalates, and to whom? | BAU-04 watchdog · **Voreinstellung → D-800** |
 | O-31 | Certificates: at what intervals before a §34a / Sachkunde expiry does the warning escalate, and to whom at each step? | SEC-02, SEC-04 · **Voreinstellung → D-800** |
 | O-32 | Sector minimum wage: which MiLoG / sector rates apply per area, and from which date? | LEG-02, TIM-13 · **Voreinstellung → D-795** |
-| O-134 | `nummernkreis`: one circle per legal entity, or per entity **and** document type? Does the number run on or restart on 1 January, and what is the exact mask? | FIN-03, TEN-02, LEG-01 — **no invoice may be finalised anywhere until this is answered** · **Voreinstellung → D-779** |
+| O-134 | `nummernkreis`: one circle per legal entity, or per entity **and** document type? Does the number run on or restart on 1 January, and what is the exact mask? | FIN-03, TEN-02, LEG-01 — **no invoice may be finalised anywhere until this is answered** · **Voreinstellung → D-779; Freigabe unter Finanzen › Nummernkreise → D-848** |
 | O-135 | Which processor extracts data from incoming invoices (OCR), in which region, under which DPA? | ACC-05, LEG-09, D-04 · **Voreinstellung → D-779** |
 **`02-datenmodell/01-KERN.md`**
 
@@ -2980,7 +2980,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-184 | Does the construction entity self-bill subcontractors by Gutschrift (§14 Abs. 2 UStG) — generally or per contract? · **Voreinstellung → D-787** |
 | O-185 | Are there expenses that may be booked without a receipt (Eigenbeleg), and up to what amount? · **Voreinstellung → D-779** |
 | O-186 | Is an electronic register with TSE (§146a AO) used, or an open cash box with a Kassenbuch? · **Voreinstellung → D-779** |
-| O-187 | Who files the §48a EStG Bauabzugsteuer return — accounting or the tax adviser — and should the platform only prepare, or also keep the deadline calendar? · **Voreinstellung → D-787** |
+| O-187 | Who files the §48a EStG Bauabzugsteuer return — accounting or the tax adviser — and should the platform only prepare, or also keep the deadline calendar? · **Voreinstellung → D-787, D-847** |
 | O-188 | Who signs the Verfahrensdokumentation per entity, and at what interval is it reviewed? · **Voreinstellung → D-787** |
 | O-189 | Will any of the three entities ever invoice, or receive invoices, in a currency other than EUR? · **Voreinstellung → D-779** |
 | O-190 | Is the counter-signed Leistungsnachweis (CLN-04) kept as evidence behind a cleaning invoice line, in addition to the time entries? · **Voreinstellung → D-787** |
@@ -3105,7 +3105,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-127 | `int-anhang-schadsoftware` | Should incoming attachments be scanned for malware, and with which EU-hosted service? · **Voreinstellung → D-802** |
 | O-128 | `int-altsystem-export` | In which format can Aplano, Lexware and the existing Excel files be exported, which period is migrated, and must the historical data be archived GoBD-compliant? · **Voreinstellung → D-784** |
 | O-129 | `int-datev-periodensperre` | Does a completed DATEV export lock the period against new bookings, or do late entries go into the next open period? · **Voreinstellung → D-796** |
-| O-130 | `int-48b-bescheinigung` | Does each entity hold a valid §48b EStG exemption certificate, for what term, and who renews it? |
+| O-130 | `int-48b-bescheinigung` | Does each entity hold a valid §48b EStG exemption certificate, for what term, and who renews it? · **Betreiberdaten → D-803; Ort und Erinnerung (Voreinstellung) → D-846** |
 | O-131 | `int-kundenpostfach` | Should incoming customer correspondence be taken into the history automatically, from a mailbox per entity, or does capture stay manual? · **Voreinstellung → D-802** |
 
 ### Raised while building · Phase 2
@@ -4582,7 +4582,7 @@ immer gesperrt.
 
 | # | Question | Blocks |
 |---|---|---|
-| O-340 | **Darf ein Aufmaßblatt Zeilen in verschiedenen Einheiten tragen — m², m und Stk auf demselben Blatt?** Der Schutz gegen die doppelte Abrechnung eines Aufmaßes ist nach § 16 VOB/B eine Summe und kein Unique-Index (D-362); die Obergrenze ist die gemessene Menge des Blattes. `aufmass_zeile` führt `einheit` je Zeile, `aufmass` selbst keine — eine Blattsumme über gemischte Einheiten addierte Äpfel und Birnen, und die Sperre säße dann an der falschen Zahl. Falls gemischte Blätter vorkommen, ist die Obergrenze je Einheit oder je LV-Position zu bilden; das ist eine Zeile in `fin.pruefe_aufmass_menge()`. Bis zur Antwort prüft der Auslöser gegen die Blattsumme, und `aufmass.abgerechnet_menge` trägt sie. | BAU-02, FIN-07, FIN-08, § 16 VOB/B, `aufmass`, `rechnungsposition_quelle` · **Voreinstellung → D-796** |
+| O-340 | **Darf ein Aufmaßblatt Zeilen in verschiedenen Einheiten tragen — m², m und Stk auf demselben Blatt?** Der Schutz gegen die doppelte Abrechnung eines Aufmaßes ist nach § 16 VOB/B eine Summe und kein Unique-Index (D-362); die Obergrenze ist die gemessene Menge des Blattes. `aufmass_zeile` führt `einheit` je Zeile, `aufmass` selbst keine — eine Blattsumme über gemischte Einheiten addierte Äpfel und Birnen, und die Sperre säße dann an der falschen Zahl. Falls gemischte Blätter vorkommen, ist die Obergrenze je Einheit oder je LV-Position zu bilden; das ist eine Zeile in `fin.pruefe_aufmass_menge()`. Bis zur Antwort prüft der Auslöser gegen die Blattsumme, und `aufmass.abgerechnet_menge` trägt sie. | BAU-02, FIN-07, FIN-08, § 16 VOB/B, `aufmass`, `rechnungsposition_quelle` · **Voreinstellung → D-796; je LV-Position gebaut → D-849** |
 
 ---
 
@@ -5540,7 +5540,7 @@ niemand ihn suchen.
 
 | # | Question | Blocks |
 |---|---|---|
-| O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 · **Voreinstellung → D-779** |
+| O-352 | **Wer hält in den drei Gesellschaften `nummernkreis.verwalten`, und wer führt den Jahreswechsel des Rechnungskreises aus?** Das Öffnen des Nachfolgekreises schliesst den Vorgänger (`geschlossen_am`), kopiert `letzter_hash` nach `genesis_hash` und trägt den Vorgänger ein (D-210, D-375) — ein Akt mit rechtlicher Wirkung, der bewusst nicht in der Festschreibung liegt: wer festschreibt, hält `verwalten` nicht. Bis zur Antwort gibt es den Vorgang nicht, und es kann ihn nicht geben, ohne eine Rolle zu erfinden, die ihn auslöst. Verwandt mit O-77 (wer darf stornieren) und O-134 (wie der Kreis überhaupt geschnitten wird). | FIN-03, LEG-01, O-77, O-134, `nummernkreis`, D-210 · **Voreinstellung → D-779; Knopf → D-848** |
 | O-353 | **Wie lauten Anschrift, Rufnummer, Handelsregister- und Umsatzsteuer-Identifikationsnummer der vier Gesellschaften wirklich?** Was heute in `mandant` steht, ist ERFUNDEN: `Kurfürstendamm 21`, `+49 30 555 0100`, `DE1000000xx`, `HRB 2000xx` — fortlaufend hochgezählt, nie erfragt. Weglassen geht nicht, `mandant_ustg14_vollstaendig` verlangt Anschrift und Steuernummer von jeder Gesellschaft mit eigenem Rechnungskreis (§ 14 UStG). Deshalb tragen die Zeilen seit 0097 `angaben_bestaetigt_am = NULL`, und das Impressum sagt es sichtbar VOR den Angaben: sie stammen aus dem Demonstrationsbestand und sind keine gültige Auskunft nach § 5 TMG. Mit der Antwort werden die Werte gesetzt und die Spalte gefüllt; die Prüfung, die den Hinweis erzwingt, gehört dann umgeschrieben — nicht der Hinweis entfernt. | LEG-01, § 5 TMG, § 14 UStG, `mandant`, D-19 |
 | O-354 | **An welche Adresse geht ein gescheiterter Nachtlauf, und ab welchem Rang wird jemand geweckt?** `runner.ts` verspricht „kein stiller Tod", und `ProtokollAlarm` löst das heute so ehrlich, wie es ohne verbundenen Kanal geht: eine `JOB-ALARM`-Zeile auf `stderr` (auf Vercel in den Funktionsprotokollen) plus `job_lauf.ergebnis = 'fehler'` in der Datenbank. Beides setzt voraus, dass jemand nachsieht. Was fehlt, ist der Weg nach draußen — Mailadresse, Dienst oder Nummer — und die Schwelle: der Dienstplangenerator, der zweimal scheitert, ist etwas anderes als der Lead-SLA-Job, der einmal aussetzt. | SPEC §14, `src/server/jobs/alarm.ts`, `job_lauf` · **Voreinstellung → D-799** |
 | O-360 | **Soll die Gruppenansicht der Objekte eine Karte zeigen — und mit welchem Kartendienst?** SEITENKARTE §6 schreibt „objects across areas, one map". Eine Karte braucht Kacheln von einem externen Dienst (OpenStreetMap-Anbieter, ein EU-Anbieter) oder selbst gehostete; jeder Aufruf gibt Objektkoordinaten und die IP der Nutzerin an den Anbieter — ein Auftragsverarbeiter, der in `docs/DECISIONS.md` mit DPA und EU-Region stehen muss (CLAUDE.md, Datenresidenz). Bis dahin listet `/portal/gruppe/objekte` Adressen ohne Karte (D-475). | OPS-01, SEITENKARTE §6, D-475 · **Voreinstellung → D-799** |
@@ -24493,7 +24493,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-46 | Belege ohne Frist (vor 0489 entstanden) bleiben gesperrt und heissen „ohne Frist"; neue erhalten die Regel ihrer Klasse. | `belege.ts` |
 | O-66 | Zahlungsziel 14 Tage netto, öffentliche Auftraggeber 30 Tage (§ 271a Abs. 2 BGB) — als letzte Stufe nach Kundenkondition und Gesellschaftseinstellung (`finanzen.zahlungsziel_tage_standard`). Ob der Kunde öffentlich ist, liest `app.kunde_ist_oeffentlich` (0490) mandantengebunden mit `finanzen.schreiben`, unabhängig vom CRM-Leserecht. Die Festschreibung prüft das Feld des Entwurfs weiter (zweite Linie). | `rechnung.ts` (`ermittleZahlungsziel`), `0490`, `crm/kondition.ts` |
 | O-77 | Storno stellen Buchhaltung und Geschäftsführung aus, nie der Ersteller allein — der Katalog bindet `finanzen.stornieren` nur an den Super-Admin und lässt es für admin und leitung zuweisen; die Voreinstellung ist also eine ausdrückliche Zuweisung durch den Super-Admin, keine stille Bindung. | `rechnung-akte.ts`, `auth/katalog.generiert.ts` |
-| O-134, O-606 | Ein Nummernkreis je Gesellschaft und Belegart, Maske `RE-{jahr}-{nr:5}`, Neustart am 1. Januar. Der Betriebs-Seed legt den Rechnungskreis mit dieser Voreinstellung an, aber **zur Freigabe** (`ist_platzhalter`): eine Rechnungsnummer ist unumkehrbar, und die Prüfung „kein freigegebener Kreis ohne Demo-Maske" (`seed.test.ts`) bleibt — die Freigabe braucht heute eine Migration, der Knopf folgt (V-284). Die Demodaten sind freigegeben, behalten `DEMO-{jahr}-{nr:5}` und heissen „Ausgangsrechnungen (Demo — Voreinstellung, O-134)". Ein Kreis mit `ist_platzhalter` heisst „Platzhalter — nicht freigegeben" und vergibt nichts — unverändert. | Seed, `nummernkreis.ts`, `kreisuebersicht.ts`, `uebersicht.ts` |
+| O-134, O-606 | Ein Nummernkreis je Gesellschaft und Belegart, Maske `RE-{jahr}-{nr:5}`, Neustart am 1. Januar. Der Betriebs-Seed legt den Rechnungskreis mit dieser Voreinstellung an, aber **zur Freigabe** (`ist_platzhalter`): eine Rechnungsnummer ist unumkehrbar, und die Prüfung „kein freigegebener Kreis ohne Demo-Maske" (`seed.test.ts`) bleibt. Freigegeben wird unter Finanzen › Nummernkreise (V-284, D-848): die Administration bestätigt die Voreinstellung oder passt Maske und Rücksetzung an, bevor die erste Nummer vergeben ist. Die Demodaten sind freigegeben, behalten `DEMO-{jahr}-{nr:5}` und heissen „Ausgangsrechnungen (Demo — Voreinstellung, O-134)". Ein Kreis mit `ist_platzhalter` heisst „Platzhalter — nicht freigegeben" und vergibt nichts — unverändert. | Seed, `nummernkreis.ts`, `kreisuebersicht.ts`, `uebersicht.ts` |
 | O-174 | Einheiten nach UN/ECE Rec. 20: Stk → H87, Std → HUR, m² → MTK, Monat → MON, Einsatz → E48, pauschal → LS — als Voreinstellung beschriftet. | `rechnung-akte.ts` |
 | O-175, O-301 | Die Gruppe nutzt die Erleichterung des § 33 UStDV (250 €) nicht; auch Kleinbeträge tragen die vollen Pflichtangaben. | `ustg14.ts` |
 | O-177 | Kein Skonto; jede Unterzahlung bleibt offener Rest, bis ein Mensch sie als Skonto bucht. | `zahlung/skonto.platzhalter.ts` |
@@ -24501,7 +24501,7 @@ als Wortlaut, der sagt, was gilt und wo es sich ändern lässt.
 | O-186 | Keine Registrierkasse mit TSE; offene Ladenkasse mit Kassenbuch. | `belege.ts` |
 | O-189 | Ausschliesslich EUR — Fremdwährung wird abgewiesen, nicht umgerechnet. | `bank/camt.ts`, `eingang/erechnung.ts` |
 | O-300 | Grundstücksbezug einer Leistung führt die Plattform nicht; der Hinweis nach § 14 Abs. 4 Nr. 9 UStG gehört von Hand in den Fußtext. | `ustg14.ts` |
-| O-352 | Nummernkreis eröffnen und Jahreswechsel: die Administration mit `nummernkreis.verwalten`; der Knopf folgt (V-284). | `uebersicht.ts` |
+| O-352 | Nummernkreis freigeben und Jahreswechsel: die Administration mit `nummernkreis.verwalten`. Beide Knöpfe sind gebaut (V-284, D-848): „Kreis freigeben" für einen Platzhalterkreis und „Nachfolgekreis eröffnen", sobald das Jahr eines jährlichen Kreises vergangen ist — in der Datenbank, in einer Transaktion, protokolliert. | `uebersicht.ts`, `finanz/nummernkreis-{freigabe,wechsel}.ts` |
 | O-357 | Empfänger der Kettenmeldung sind Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, nur Mitglieder und nur mit `finanzen.lesen` (das Recht des Prüfberichts); die Meldung steht im Posteingang, einmal je Bruch, und der Befund bleibt in der Hashketten-Ansicht und im Lauf. Gebaut mit V-286 (`kern.kette_meldung_empfaenger`, 0507, D-811). E-Mail schlägt die Art vor; zugestellt wird sie erst mit dem Versanddienst (V-367). | `jobs/kettenpruefer.ts`, `uebersicht.ts` |
 | O-364 | Versionierung und Object Lock beim Speicheranbieter aktivieren, Nachweis in der Auftragsverarbeitungsvereinbarung; die Plattform behauptet es nicht. | `archiv/page.tsx`, Verfahrensdokumentation |
 | O-601, O-602 | Die gebaute Liste der Vorab-Prüfungen ist die Voreinstellung; keine Überfälligkeitsfrist — ein abgeschlossener Auftrag ohne Rechnung steht sofort in der Liste. | `vorabpruefung.ts` |
@@ -25046,7 +25046,7 @@ gelesen.
 | O-181 | Inkasso-Übergabe und Mahnbescheid sind die Folgeaktion der letzten Mahnstufe (`mahn_folgeaktion`), gesetzt in den Mahneinstellungen von wer `mahnung.schreiben` hält; keine Betragsgrenze; die Plattform vermerkt die Folgeaktion und löst sie nicht aus — ein Mensch übergibt. Seit V-313 (D-840) sagt das Mahnungsblatt, ab wann sie fällig ist und dass sie fällig ist (Tag nach der Zahlungsfrist einer versendeten Mahnung), und hält den Übergabevermerk fest (`mahnung_eskalation`, Mensch und Serverzeit). | `finanz/mahnung/stufen.ts`, `finanz/mahnung/folgeaktion.ts`, Einstellungen › Mahnwesen, Mahnungsblatt |
 | O-182 | Keine Aufrechnung in der Plattform (§ 387 BGB): Kundengutschrift und Lieferantenverbindlichkeit werden getrennt ausgeglichen; entscheidet die Geschäftsführung eine Aufrechnung, bucht die Buchhaltung beide Seiten mit Zahlweg `verrechnung` (0121) — eine Verknüpfung gibt es nicht (V-314). | `finanz/zahlung/index.ts`, `finanz/ausgabe.ts` |
 | O-184 | Keine Gutschriftsabrechnung (§ 14 Abs. 2 Satz 2 UStG) mit Nachunternehmern: sie stellen Rechnungen, die als Eingangsrechnung mit § 13b-Prüfung laufen (`lieferant.leistungsart`, `ist_bauleistender_bis`); „Gutschrift" ist in der Plattform der Stornobeleg (Kreis `gutschrift`). Wie gebaut. | `finanz/eingangsrechnung.ts`, `finanz/lieferant.ts`, `finanz/nummernkreis.ts` |
-| O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab; einen Fristenkalender führt die Plattform nicht (V-315). | `finanz/estg48/abzug.ts`, `buchhaltung/buchungssatz.ts` |
+| O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab. Seit V-315 (D-847) bereitet die Plattform sie vor: Einbehalt je Lieferant und Zahlungsmonat (anteilig nach den Zahlungen), die Frist am 10. des Folgemonats (§ 108 Abs. 3 AO) auf dem Blatt `/finanzen/bauabzug` und im Kalender; ELSTER ist nicht verbunden. | `finanz/estg48/abzug.ts`, `finanz/estg48/anmeldung.ts`, `buchhaltung/buchungssatz.ts` |
 | O-188 | Die Geschäftsführung der Gesellschaft zeichnet die Verfahrensdokumentation; geprüft wird jährlich und bei jedem Schemastand-Wechsel (der Stand steht im Dokument: `schemastand`, `auslieferung`). Seit V-316 (D-837) mit Zeichnungsvermerk: wer `buchhaltung_konfiguration.verwalten` hält, zeichnet die beim Zeichnen erzeugte Fassung (Hash, Schemastand) mit seiner Funktion; die Seite sagt, ob die letzte Zeichnung noch gilt (Turnus zwölf Monate, Schemastand). Das Dokument nennt die Voreinstellung weiter unter „offen". | `buchhaltung/verfahrensdokumentation.ts`, `buchhaltung/verfahrensdokumentation-zeichnung.ts` |
 | O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen. Den Leistungszeitraum im Modus `nach_leistungsnachweis` leiten die Abrechnungsarten seit V-337 (D-838) aus den unterschriebenen Nachweisen her, gefunden über die Leistungszeile — nicht über diese Quelle, die nach `quelle_leistungsnachweis_uk` genau eine Zeile belegt. | `finanz/positionsquelle.ts`, `finanz/abrechnungsart/typen.ts` |
 | O-363 | **Gebaut:** bei zwei passenden § 13b-Gruppen (0 %, AE) entscheidet das Gewerk des Lieferanten — `lieferant.leistungsart` bau → `ust_0_13b_bau`, gebaeudereinigung → `ust_0_13b_reinigung` (`GRUPPE_JE_LEISTUNGSART`, `waehleGruppeNachLeistungsart`); der Befund nennt die Voreinstellung. Ohne Gewerk im Stamm bleibt das Feld unsicher, und ein Mensch wählt (wie bisher); die Freigabe des Belegs bleibt menschlich (Invariante 7). | `finanz/eingang/vorschlag.ts`, `tests/kern/eingang-steuersatzgruppe.test.ts` (5) |
@@ -25526,7 +25526,7 @@ Anschrift nach, die O-70 (D-792) voraussetzt und die fehlt (V-361).
 | O-932 | Der Fertigstellungsgrad einer anteiligen Festpreis-Abrechnung ist der Gesamtstand (bisher Berechnetes wird abgezogen), nicht der Zuwachs; die Position nennt Stand und Abzug. Wie gebaut (`anteiligerRest`). | `finanz/abrechnungsart/festpreis-los.ts` |
 | O-45 | Z3 (Datenträgerüberlassung) ist der Regelweg und gebaut; Z1 und Z2 gewährt die Gesellschaft auf Verlangen der Prüfung über ein befristetes, ausschliesslich lesendes Konto — eine Prüferrolle dafür fehlt (V-355). | `buchhaltung/z3.ts` |
 | O-212 | Eine Rechnungsposition darf im Entwurf entfernt werden — über `entfernt_am` mit Grund wie bei `angebotsposition` (0392), aus jeder Summe heraus, kein Hard Delete. Gebaut mit V-356 (D-831): Maske „Position entfernen" am Rechnungsblatt, die Herkunft wird frei, die letzte Leistungszeile bleibt. | `finanz/entwurf.ts` (`entfernePosition`) |
-| O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut ist die Blattsumme (V-357). | `bau/aufmass.ts`, `drizzle/0107` |
+| O-340 | Ein Aufmaßblatt darf Zeilen verschiedener Einheiten tragen, wenn jede an einer LV-Position hängt; die Obergrenze gegen doppelte Abrechnung gilt dann je LV-Position. Gebaut (V-357, D-849): `fin.pruefe_aufmass_menge` prüft je LV-Position (0533); ein Anteil ohne LV-Position zählt nur auf einem Blatt mit einer Gruppe. | `bau/aufmass.ts`, `drizzle/0107`, `drizzle/0533` |
 | O-348 | Eine Position des Leistungsnachweises bei Monatspauschale trägt keinen Einzelpreis je Durchgang: der Nachweis belegt die Leistung, die Rechnung stellt die Pauschale. Wie gebaut; der Satz im Arbeiterportal sagt es jetzt in vier Sprachen statt „offen". | `mitarbeiter/nachweis-schicht.ts`, `lib/i18n/texte.ts`, `db/seed/reinigung.ts` |
 | O-349 | Ein Glasreinigungsrevier rechnet seine Sollzeit auf die Glasfläche mit eigenem Leistungswert je m² Glas aus dem Belagsartenkatalog. Gebaut mit V-358 (D-830): `revier.bezugsgroesse`, Katalogzeile GLAS mit 50 m²/h (Voreinstellung, O-17), die Belagsartenseite sagt es. | `reinigung/sollzeit.ts`, Stammdaten › Belagsarten, `db/seed/reinigung.ts` |
 | O-350 | Ein Angebot bindet vier Wochen ab Versand: `versendeAngebot` setzt `gueltig_bis` auf den Berliner Versandtag plus 28 Tage, wenn kein Datum eingetragen ist, je Gesellschaft über `angebot.bindefrist_tage_standard` änderbar. Gebaut mit V-359 (D-806). | `angebot/index.ts`, `db/seed/vertrieb.ts` |
@@ -25900,7 +25900,7 @@ es verbunden.
 | O-115 | Absender und Signatur je Gesellschaft: die Felder stehen unter Einstellungen › Identität; die Antwortentwürfe im Recruiting und die Akquiseentwürfe schliessen mit der Signatur (V-391, D-829), den Absender trägt erst der Postausgang (O-116); versendet wird ohne ihn nichts. | Einstellungen › Identität |
 | O-116 | Versanddienst und Absenderdomain für Transaktions-E-Mail: nicht verbunden; Benachrichtigungen liegen im Portal, Mahnungen gehen als Brief, Einschreiben oder Bote. | Anbieter, Domain, DKIM/DMARC; Anbindung über `versand/email.ts` |
 | O-119 | Unabhängige, verschlüsselte Sicherung: gesichert wird beim Anbieter (Supabase, Frankfurt; Verfahrensdokumentation 4.3); ein eigenes Sicherungsziel, seine Frist und der Schlüsselhalter fehlen, der Wiederherstellungstest ist eingeplant und nicht erbracht (Abschnitt 5 nennt jetzt O-119). | Sicherungsziel und Schlüssel; Test in ROADMAP Phase 10 |
-| O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: die Plattform führt Bescheinigungen der Kunden und Lieferanten, nicht die eigenen (V-388). | — (V-388) |
+| O-130 | Eigene Freistellungsbescheinigung nach § 48b EStG: ob die Gesellschaft eine hält und bis wann, trägt der Betreiber unter Finanzen › Freistellungsbescheinigungen ein (V-388, D-846). Sie entscheidet den Einbehalt auf Ausgangsrechnungen über Bauleistungen und steht im Beleg; Voreinstellung: Buchhaltung und Geschäftsführung werden 60, 30 und 7 Tage vor dem Ablauf erinnert, solange keine Nachfolgerin erfasst ist. | `finanz/freistellung-ablauf.ts`, `jobs/freistellungAblauf.ts` |
 | O-132 | Karten- und Geokodierungsdienst: nicht verbunden; Objekte stehen als Liste, Koordinaten trägt ein Mensch ein (O-122, D-802). | Anbieter und Vertrag |
 | O-353 | Echte Firmenangaben: Demowerte, auf Impressum, Profil und Einstellungen als „nicht bestätigt" gekennzeichnet. | Einstellungen › Unternehmensdaten, danach „Angaben bestätigen" (seit D-804, V-390) |
 | O-374 | Jobbörse und Vertrag: keine verbunden; „Veröffentlichen" vermerkt den Versuch als nicht verbunden. | Vertrag und Kennung je Börse; Anbindung in `versand/stellenboerse.ts` |
@@ -28504,4 +28504,288 @@ Karte, die Steuerseite, 0530. Dazu `pnpm guards`, `pnpm typecheck`,
 `pnpm lint`.
 
 | Betrifft | V-283, O-604, D-779, FIN-10, LEG-06; `drizzle/0530_freistellung_fest.sql`, `src/server/services/finanz/freistellung.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/{freistellungen/page.tsx,page.tsx,eingangsrechnungen/[id]/steuer/page.tsx}`, `src/lib/i18n/verwaltung/finanzen/{freistellungen,uebersicht,eingangsrechnungen}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `src/server/services/finanz/kunde-steuer.ts`, `src/lib/i18n/verwaltung/crm-rueckweg.ts`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/finanz-ausgabe.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/freistellung.test.ts`, `tests/kern/freistellung.test.ts` |
+|---|---|
+
+### D-846 · Bauwelle 43: Die eigene Freistellungsbescheinigung hat einen Ort — und die Ausgangsrechnung fragt sie statt der des Kunden (V-388, O-130)
+
+**Der Anlass.** `freistellungsbescheinigung` (0118) verlangte genau einen
+Träger, einen Kunden oder einen Lieferanten; die eigene Bescheinigung der
+Gesellschaft hatte keinen Ort, und die kanonische Ausgangsrechnung schrieb
+`freistellungsbescheinigung: null` (V-388). **Beim Bau fiel ein Befund auf,
+der schwerer wiegt:** der Steuerfall der Ausgangsrechnung (`steuerfall.ts`,
+PR 51) las die Bescheinigung des KUNDEN. § 48 Abs. 2 EStG stellt aber auf
+die des LEISTENDEN ab — bei einer Ausgangsrechnung die der Gesellschaft. Ein
+Kunde mit eigener Bescheinigung ergab eine Rechnung ohne Einbehalt, obwohl er
+bei fehlender Bescheinigung der Gesellschaft 15 % kürzt; eine Gesellschaft
+mit gültiger Bescheinigung bekam den Einbehalt ausgewiesen, wenn der Kunde
+keine hatte. Die Voreinstellung zu O-67 sagte schon, wo Bescheinigungen
+hingehören: an den Nachunternehmer (Lieferanten).
+
+**Was gebaut ist.**
+- **0531:** `fsb_genau_ein_traeger` wird `fsb_hoechstens_ein_traeger` — eine
+  Zeile ohne Kunde und ohne Lieferant ist die eigene Bescheinigung der
+  Gesellschaft. Alles andere gilt auch für sie: Nummer je Gesellschaft
+  einmal, Umfang mit Auftrag, 0530 hält sie nach dem Anlegen fest. Ob die
+  Gesellschaft eine hält und bis wann, trägt der Betreiber ein (O-130,
+  D-803).
+- **Der Steuerfall der Ausgangsrechnung** liest die EIGENEN Bescheinigungen
+  der Gesellschaft (unbeschränkt, oder auftragsbezogen für den Auftrag der
+  Rechnung — `giltAm`); die des Kunden zählt dort nicht mehr.
+- **Der Beleg nennt sie:** `ladeRechnungVollstaendig` liest die Bescheinigung
+  hinter `rechnung.freistellungsbescheinigung_id` — nur eine eigene —, und
+  die Nutzlast trägt Nummer, Finanzamt, Zeitraum und Umfang (im Hash; das PDF
+  druckt sie als Hinweis). Festgeschriebene Rechnungen behalten ihre
+  Nutzlast; ein Entwurf aus der Zeit davor, der noch auf die Bescheinigung
+  eines Kunden zeigt, bekommt `null` statt einer fremden als unserer.
+- **`/finanzen/freistellungen`** erfasst die eigene (Vorgabe) und die eines
+  Lieferanten; die eines Kunden nicht mehr (die Liste zeigt sie mit dem Satz,
+  dass sie auf Rechnungen der Gesellschaft nicht wirken). Läuft die eigene in
+  60 Tagen ohne Nachfolgerin ab, steht ein Hinweis da; gilt heute keine, auch.
+- **Der Nachtlauf `freistellung_ablauf`** (02:35, übergreifend) erinnert
+  Buchhaltung und Geschäftsführung (`kern.kette_meldung_empfaenger`, 0507)
+  60, 30 und 7 Tage vor dem Ablauf der eigenen, einmal je Stufe
+  (`waechter_meldung`), nicht mit erfasster Nachfolgerin, nie für fremde.
+  Neue Art `finanzen.freistellung_laeuft_ab` (Portal und E-Mail, nicht
+  sammelbar). `TODO(client, O-130)` am Dienst. Gelesen wird als `cse_job`
+  (`alsJobRolle`; 0531 gibt ihm die Spalten der eigenen Bescheinigungen und
+  `mandant.archiviert_am`, keine fremde Bescheinigung), zugestellt je
+  Gesellschaft in EINER Transaktion wie beim Kettenbruch: bricht die
+  Zustellung ab, fällt die Quittung mit, und der nächste Lauf meldet
+  (Copilot-Runde PR #46, mit Isolationsprüfung).
+- **Das Steuerblatt des Kunden** zeigt im Lagekasten die eigene Bescheinigung
+  am Stichtag („dieser Kunde behält nichts ein" bzw. „behält 15 % ein") und
+  verweist auf die Pflege; die Bescheinigungen des Kunden stehen darunter mit
+  dem Satz, dass sie auf unsere Rechnungen nicht wirken.
+- **Seed:** die eigene Bescheinigung der Bau-Gesellschaft
+  (`DEMO-48b-EIGEN`, Demodaten), die in 50 Tagen abläuft — Seite und
+  Nachtlauf führen den Hinweis vor.
+
+**Prüfung.** `tests/isolation/steuerfall.test.ts`: die Fixtur legt die
+EIGENE an (bis D-846 die des Kunden), die Beträge sind dieselben; neu: die
+Bescheinigung des Kunden befreit unsere Rechnung nicht (15 % einbehalten,
+kein Verweis, `null` im Beleg), eine auftragsbezogene eigene befreit keine
+Rechnung ohne ihren Auftrag, und der Beleg nennt die eigene mit Nummer,
+Finanzamt und Zeitraum. `tests/isolation/freistellung.test.ts` (8, 9): die
+eigene ohne Träger, in der Liste mit dem Namen der Gesellschaft; die Nummer
+über alle Arten; der Nachtlauf erinnert 20 Tage vorher an die
+Geschäftsführung mit Ziel und Nummer, einmal je Stufe, eine Woche vor dem
+Ablauf wieder, nicht mit Nachfolgerin, nicht für fremde.
+`tests/kern/eigene-freistellung.test.ts` (Stufen, Nachfolge, Art,
+Verdrahtung), `tests/kern/jobs-bootstrap.test.ts`,
+`tests/kern/kettenmeldung.test.ts` (fünf Wachenarten). Dazu `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`, `pnpm jobs:plan`.
+
+| Betrifft | V-388, O-130, O-67, D-803, D-845; `drizzle/0531_eigene_freistellung.sql`, `src/server/services/finanz/{steuerfall,rechnung,freistellung,freistellung-ablauf,kunde-steuer}.ts`, `src/server/jobs/{freistellungAblauf,bootstrap}.ts`, `src/server/services/waechter/benachrichtigung.ts`, `src/lib/i18n/konto.ts`, `src/lib/i18n/verwaltung/finanzen/freistellungen.ts`, `src/app/api/finanzen/freistellungen/route.ts`, `src/app/portal/[mandant]/finanzen/freistellungen/page.tsx`, `src/app/portal/[mandant]/crm/kunden/[id]/steuer/page.tsx`, `src/server/db/seed/{crm,index}.ts`, `docs/JOB-AUSLOESER.sql`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/{steuerfall,freistellung}.test.ts`, `tests/kern/{eigene-freistellung,jobs-bootstrap,kettenmeldung}.test.ts` |
+|---|---|
+
+### D-847 · Bauwelle 44: Die Bauabzugsteuer-Anmeldung wird vorbereitet — Monatssummen je Lieferant und die Frist im Kalender (V-315, O-187)
+
+**Der Anlass.** `estg48/abzug.ts` rechnete den Einbehalt je Rechnung,
+`buchungssatz.ts` wies ihn aus — aber die Anmeldung nach § 48a EStG (bis zum
+10. des Folgemonats, je Leistendem bei dessen Finanzamt) und ihre Frist
+führte die Plattform nicht, und eine Monatssumme der Einbehalte gab es nicht.
+Voreinstellung (O-187, D-787): der Steuerberater gibt die Anmeldung ab, die
+Plattform bereitet vor.
+
+**Was gebaut ist** (`finanz/estg48/anmeldung.ts`, rein bis auf den Lader).
+- **`anmeldungsFrist(monat)`**: der 10. des Folgemonats; fällt er auf einen
+  Sonnabend, Sonntag oder Berliner Feiertag, der nächste Werktag (§ 108
+  Abs. 3 AO; `istWerktag`, `lib/datum/werktage.ts`).
+- **`einbehaltJeZahlung`**: der Monat ist der der ZAHLUNG (die
+  Gegenleistung ist erbracht, wenn das Geld fließt). Der Einbehalt einer
+  Rechnung wird ihren Zahlungen im Verhältnis zum offenen Posten zugeordnet
+  — kumuliert und kaufmännisch auf den Cent gerundet, ganzzahlig
+  (Invariante 1): die Anteile ergeben genau den Einbehalt, sobald der Posten
+  bezahlt ist; Überzahlung trägt nichts. `TODO(client, O-187)` am Dienst.
+- **`monatsEinbehalte`** und **`ladeBauabzugUebersicht`**: je Lieferant und
+  Zahlungsmonat die Summe, die Zahl der Rechnungen und die Frist; gezählt
+  werden Zahlungen in Richtung `ausgang`, Zuordnungsart `zahlung`, nicht
+  storniert, auf den Kreditorposten freigegebener oder gebuchter
+  Eingangsrechnungen mit Einbehalt. Was keiner Zahlung zugeordnet ist (noch
+  offen, oder ohne Geld ausgeglichen — Skonto, Differenz), steht als „noch
+  keinem Monat zugeordnet" da und wird nicht geraten.
+- **Das Blatt `/finanzen/bauabzug`** (zweisprachig, `eingang.lesen`): Monat,
+  Lieferant mit Steuernummer, Einbehalt, Zahl der Rechnungen, Frist und ihr
+  Stand; die offenen Beträge darunter; „ELSTER: nicht verbunden" — die
+  Plattform meldet nichts an und überweist nichts (Invariante 7). Ohne
+  `zahlung.lesen` sagt das Blatt, warum alles offen steht. Karte auf der
+  Finanzübersicht.
+- **Der Kalender** sammelt die Frist als Quelle `bauabzug` (ganztägig, Weg
+  auf das Blatt): sie folgt aus den Zahlungen eines Monats und wird mit
+  derselben `anmeldungsFrist` gerechnet wie auf dem Blatt; wie Projektende
+  und Vergabefrist gehört sie der Gesellschaft und steht nicht im
+  persönlichen Kalender (D-517).
+- **Nicht gebaut:** die Tabelle `bauabzug_anmeldung` aus `05-FINANZEN.md`
+  §8.6 (der Vermerk „angemeldet am", die Abrechnung an den Leistenden, der
+  Posten gegenüber dem Finanzamt) und der Wächter am 5. — die Anmeldung
+  bleibt beim Steuerberater (O-187); das Blatt ist seine Vorlage.
+
+**Prüfung.** `tests/kern/bauabzug-anmeldung.test.ts` (Frist an Werktag,
+Wochenende, Ostermontag, Jahreswechsel; Anteile bei einer, zwei und drei
+Zahlungen, Rundung 33 + 34 + 33, Überzahlung, Teilzahlung; Monatssummen und
+Offenes; Wörter und Verdrahtung). `tests/isolation/bauabzug-anmeldung.test.ts`
+(zwei Raten in zwei Monaten mit Frist je Monat; stornierte Zahlung;
+Teilzahlung; ohne Einbehalt oder Pflicht nichts; ohne `zahlung.lesen` alles
+offen; die Frist im Kalender mit Weg, nicht im persönlichen).
+`tests/isolation/kalender.test.ts` (die Quelle steht in der eigenen Prüfung).
+Dazu `pnpm guards`, `pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-315, O-187, D-787, FIN-10, LEG-06; `src/server/services/finanz/estg48/anmeldung.ts`, `src/server/services/kalender/eintraege.ts`, `src/app/portal/[mandant]/finanzen/{bauabzug/page.tsx,page.tsx}`, `src/app/portal/[mandant]/kalender/{page.tsx,QuellenPill.tsx}`, `src/lib/i18n/verwaltung/finanzen/{bauabzug,uebersicht}.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/kern/bauabzug-anmeldung.test.ts`, `tests/isolation/{bauabzug-anmeldung,kalender}.test.ts` |
+|---|---|
+
+### D-848 · Bauwelle 45: Ein Nummernkreis wird freigegeben, und der Jahreswechsel hat einen Knopf (V-284, O-134, O-352)
+
+**Der Anlass.** Zwei Vorgänge am Nummernkreis konnte nur eine Migration
+auslösen, weil `cse_app` auf `nummernkreis` kein INSERT hält und beim UPDATE
+nur den Zähler und den Kettenkopf:
+- **Die Freigabe.** Der Betriebs-Seed legt den Rechnungskreis mit der
+  Voreinstellung `RE-{jahr}-{nr:5}` als Platzhalter an (O-134, D-779), und
+  solange `ist_platzhalter` steht, wird nichts festgeschrieben. D-779 hielt
+  fest: „die Freigabe braucht heute eine Migration, der Knopf folgt (V-284)".
+  Im Betrieb hätte damit keine Gesellschaft eine Rechnung ausstellen können,
+  ohne dass jemand eine Migration schreibt.
+- **Der Jahreswechsel.** Am 1. Januar weist `fin.rechnung_nummer_ziehen` jede
+  Festschreibung eines jährlichen Kreises ab — „es fehlt der Nachfolgekreis"
+  (0077) — und verweist auf Finanzen › Nummernkreise, wo es den Vorgang
+  nicht gab.
+
+**Was gebaut ist.**
+- **`fin.nummernkreis_freigeben`** (0532, Definer): nur in einer Gesellschaft,
+  angemeldet, nicht lesend, mit `nummernkreis.verwalten`, mit bestätigter
+  Maske; nur ein offener Platzhalterkreis, der nie gezogen hat. Die
+  Voreinstellung darf dabei angepasst werden — O-134 fragt genau das:
+  Maske, Neustart am 1. Januar oder fortlaufend. Die Maske trägt genau ein
+  `{nr}` (Breite 1 bis 9), `{jahr}` genau dann, wenn jährlich zurückgesetzt
+  wird, sonst nur Buchstaben, Ziffern und `- / _ .` — enger als
+  `formatiereNummer`, mit Absicht: `fin.nummer_formatieren` ersetzt nur das
+  erste `{nr}`, zwei davon lösten die zwei Fassungen verschieden auf. Das
+  Jahr wird das laufende (ein vorgemerktes späteres bleibt; fortlaufend 0);
+  ist es schon belegt, weist die Funktion ab. Dienst
+  `finanz/nummernkreis-freigabe.ts` (`maskenMangel`, `freigabeJahr`,
+  `ersteFreigegebeneNummer`, `behauptetVorbehalt`,
+  `vorgeschlageneBezeichnung`, `gibKreisFrei`) prüft vorher mit Grund und
+  protokolliert vorher/nachher (`nummernkreis.freigegeben`).
+  `TODO(client, O-134)` am Dienst.
+- **`fin.nummernkreis_nachfolger_eroeffnen`** (0532, Definer): dieselben
+  Schranken; nur für einen offenen, freigegebenen, jährlich
+  zurückgesetzten Kreis, dessen Jahr (Berliner Kalendertag) vergangen ist,
+  und nur, wenn es für das neue Jahr noch keinen Kreis dieses
+  Geltungsbereichs gibt. Schliesst den Vorgänger mit dem heutigen Tag und
+  legt den Nachfolger an: dieselbe Maske, Rücksetzung und
+  Geltungsbereich, Zähler 1, Verweis auf den Vorgänger, `genesis_hash` =
+  `letzter_hash` des Vorgängers (hat er nie festgeschrieben: sein eigener
+  `genesis_hash`) — die Kette bleibt über die Jahresgrenze EINE Linie
+  (§5.4). Ein Platzhalter wird freigegeben, nicht fortgesetzt: er hat
+  nichts vergeben, und seine Freigabe setzt ihn ins laufende Jahr. Dienst
+  `finanz/nummernkreis-wechsel.ts` (`wechselLage`, `ersteNummer`,
+  `eroeffneNachfolgekreis`), Protokoll `nummernkreis.nachfolger_eroeffnet`.
+  `TODO(client, O-352)` am Dienst.
+- **Rechte und Policies.** `cse_definer` bekommt die Spalten
+  `geschlossen_am`, `format_maske`, `zuruecksetzung`, `jahr`,
+  `bezeichnung`, `ist_platzhalter` und vier Policies (Lesen, Freigabe nur
+  auf den offenen Platzhalter, Schliessen nur auf den offenen
+  freigegebenen Kreis, Anlegen nur des Nachfolgers), alle auf den aktiven
+  Mandanten begrenzt **und an den Vorgangsmarker `app.kreisverwaltung`
+  gebunden**: jede der zwei Funktionen setzt ihn transaktionslokal auf den
+  Kreis, den sie verwaltet, und löscht ihn vor der Rückkehr; ohne ihn
+  gelten die vier nicht. Ungebunden hätten sie sich — permissive Policies
+  werden ODER-verknüpft — mit den Ziehern der einzelnen Kreistypen
+  (`d_rechnungskreis_*`, `d_eingangskreis_*`, `d_mahnkreis_*`, je nur ihr
+  Typ) verbunden und jeden Definer auf jeden offenen Kreis der
+  Gesellschaft geweitet; die Wache „genau die aufgezählten
+  cse_definer-Policies" (`rechnung.test.ts`) hat das in PR #46 gemeldet,
+  `nummernkreis-freigabe.test.ts` beweist die Bindung am Verhalten.
+  `cse_app` bekommt nichts dazu: der Weg sind die zwei Funktionen. Ohne
+  `nummernkreis.verwalten` bewegt ein angemeldeter Aufrufer weiterhin nur
+  den Zähler, und nach der ersten Nummer friert `fin.nummernkreis_pruefen`
+  (0006, 0013) Maske und Geltungsbereich wie bisher ein.
+- **Die Seite `/finanzen/nummernkreise`** (zweisprachig): ein Abschnitt
+  „Freigabe" je offenem Platzhalterkreis mit Maske, Rücksetzung,
+  Bezeichnung (ohne die Klammer der Voreinstellung vorgeschlagen), der
+  ersten Nummer und dem Häkchen „geprüft"; am Jahreswechsel je fälligem
+  Kreis die erste Nummer des neuen Jahres, der Kettenanfang und das
+  Formular „Nachfolgekreis eröffnen". Ohne das Recht steht der Satz, wer es
+  hält; in der Gruppenansicht keine Formulare (Invariante 10). Route
+  `POST /api/finanzen/nummernkreise` (`aktion=freigeben|nachfolger`,
+  `nummernkreis.verwalten`); eine abgewiesene Freigabe kommt mit ihren
+  Eingaben und dem genauen Mangel der Maske zurück (V-240). Die Übersicht
+  verspricht keinen Knopf mehr, der „folgt", und ihr Hinweis auf einen
+  widersprüchlichen Namen (O-606) prüft mit derselben Regel, mit der die
+  Freigabe einen Namen mit Vorbehalt abweist (`behauptetVorbehalt`; „Demo"
+  nur noch als Wort — „Demontage" ist keiner).
+- **Seed.** Der Betriebs-Seed übt die Freigabe: sein Rechnungskreis ist der
+  Platzhalter mit der Voreinstellung. Der Demobetrieb gibt seine Kreise
+  weiter selbst frei (Demo-Maske, O-606). Alle Kreise beider Seeds tragen
+  das Jahr 2026 — das Formular „Nachfolgekreis eröffnen" erscheint dort ab
+  dem 1. Januar 2027 von selbst. Einen vergangenen Demo-Kreis legt der Seed
+  nicht an: neben ihm wäre der Geltungsbereich für das laufende Jahr
+  gesperrt (`nummernkreis_offen_key`); den Vorgang übt die
+  Isolationsprüfung.
+
+**Prüfung.** `tests/isolation/nummernkreis-freigabe.test.ts` (vor der
+Freigabe weist die Festschreibung ab, danach tragen die Rechnungen
+`RE-<Jahr>-00001` und `-00002`; fortlaufend mit eigener Maske `AR/000001`;
+ein Platzhalter des Vorjahres rückt ins laufende Jahr, ist es belegt, geht
+nur fortlaufend; zehn Abweisungen an Maske, Rücksetzung, Bezeichnung und
+Bestätigung, nach denen der Kreis unverändert ist, dazu schon freigegeben,
+geschlossen, fremde Gesellschaft, keine Kennung;
+ohne Recht weder über den Dienst noch an ihm vorbei; die Grammatik hält auch
+die Datenbankfunktion; `cse_app` ändert die Spalte nicht selbst).
+`tests/isolation/nummernkreis-wechsel.test.ts` (Vorgänger heute geschlossen,
+Nachfolger mit neuem Jahr, Maske, Zähler 1, Vorgänger und letztem Hash,
+Protokoll; ohne Festschreibung der eigene `genesis_hash`; Abweisungen mit
+Grund, der Platzhalter auch am Dienst vorbei; ohne Recht).
+`tests/kern/nummernkreis-verwaltung.test.ts` (Lage im Jahreswechsel, erste
+Nummer, die Grammatik mit ihren acht Mängeln und gegen `formatiereNummer`,
+dieselben Ausdrücke in 0532, Jahr und Vorschau der Freigabe, Vorbehalt im
+Namen, Wörter in beiden Sprachen, Verdrahtung von Route, Diensten,
+Funktionen und Formularfeldern). Dazu `pnpm guards`, `pnpm typecheck`,
+`pnpm lint`.
+
+| Betrifft | V-284, O-134, O-352, O-606, D-779, FIN-03, LEG-01, TEN-02; `drizzle/0532_nummernkreis_freigabe_jahreswechsel.sql`, `src/server/services/finanz/{nummernkreis-freigabe,nummernkreis-wechsel}.ts`, `src/app/api/finanzen/nummernkreise/route.ts`, `src/app/portal/[mandant]/finanzen/nummernkreise/page.tsx`, `src/lib/i18n/verwaltung/finanzen/{nummernkreis-freigabe,nummernkreis-wechsel,uebersicht}.ts`, `src/server/auth/route-manifest.ts`, `src/server/registry/{dienste,routen.generiert}.ts`, `docs/architecture/04-SEITENKARTE.md`, `tests/isolation/{nummernkreis-freigabe,nummernkreis-wechsel}.test.ts`, `tests/kern/nummernkreis-verwaltung.test.ts` |
+|---|---|
+
+### D-849 · Bauwelle 46: Die Obergrenze gegen doppelte Abrechnung eines Aufmaßes gilt je LV-Position (V-357, O-340)
+
+**Der Anlass.** `fin.pruefe_aufmass_menge` (0107) verglich die Summe aller
+Zeilen eines Blattes mit der Summe aller wirksamen Anteile — über Einheiten
+und LV-Positionen hinweg. Die Voreinstellung (O-340, D-796) erlaubt
+gemischte Einheiten auf einem Blatt, wenn jede Zeile an einer LV-Position
+hängt, und verlangt die Obergrenze je LV-Position. Die Blattsumme hatte zwei
+Fehler, beide mit Geld:
+- **Sie ließ durch, was sie verhindern sollte.** 40 m² und 50 Stk gemessen,
+  80 m² abgerechnet: 80 ≤ 90 — die doppelte Abrechnung versteckte sich hinter
+  der unberechneten Position in Stück.
+- **Sie wies ab, was richtig war.** 100 m² Mauerwerk und −30 m² Rückbau auf
+  einem Blatt, 100 m² abgerechnet: 100 > 70.
+
+**Was gebaut ist** (0533, `create or replace` der Funktion; der aufgeschobene
+Auslöser `quelle_aufmass_menge` bleibt).
+- **Die Gruppe eines Anteils ist die LV-Position seiner Rechnungszeile.** Die
+  Abrechnung nach Aufmaß schreibt ohnehin je LV-Position eine Zeile mit
+  `lv_position_id` und je Blatt einen Anteil (`einheitspreis-aufmass.ts`).
+- **Ein Anteil ohne LV-Position** (eine von Hand angelegte Zeile) zählt nur,
+  wo das Blatt EINE Gruppe misst — dort ist er eindeutig, und alles bisher
+  Gebaute rechnet weiter wie vorher. Misst das Blatt mehrere, wird er
+  abgewiesen und der Satz sagt, warum: geraten wird nicht.
+- **Je Gruppe**: der Betrag der Anteile überschreitet nie den Betrag der
+  gemessenen Menge (Beträge wie in 0107, ein Rückbau misst negativ); die
+  Zeilen außerhalb des LV bilden eine eigene Gruppe, eine LV-Position, die
+  das Blatt nicht misst, hat dort null.
+- `aufmass.abgerechnet_menge` bleibt die Summe aller wirksamen Anteile des
+  Blattes (§2.3 Punkt 5) — eine Anzeige; geprüft wird je Gruppe.
+- Die Funktion liest die Rechnungszeile durch `d_rp_pflichtfeld` (aktiver
+  Mandant): der Auslöser feuert in der Sitzung, die die Rechnung schreibt.
+  `TODO(client, O-340)` in 0533 und am Dienst `bau/aufmass.ts`.
+
+**Prüfung.** `tests/isolation/rechnung-herkunft.test.ts` (5b): die doppelte
+m²-Abrechnung hinter einer Stück-Position fällt, beide genau wie gemessen
+gehen durch, eine Zarge mehr fällt; 100 m² neben −30 m² Rückbau gehen
+durch; ein Anteil ohne LV-Position fällt auf einem Blatt mit zwei Gruppen
+und geht auf einem mit einer durch; eine LV-Position, die das Blatt nicht
+misst, fällt. Ohne 0533 fallen alle vier (geprüft). Die Zwei-Raten-Prüfung
+(5) läuft unverändert: ihre dritte Rate scheitert mit „31.870 von gemessenen
+30.870".
+
+| Betrifft | V-357, O-340, D-796, D-362, D-700, BAU-02, FIN-07, FIN-08, § 16 VOB/B; `drizzle/0533_aufmass_obergrenze_je_lv_position.sql`, `src/server/services/bau/aufmass.ts`, `src/server/services/finanz/abrechnungsart/einheitspreis-aufmass.ts`, `tests/isolation/rechnung-herkunft.test.ts` |
 |---|---|

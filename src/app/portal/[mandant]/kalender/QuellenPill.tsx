@@ -30,6 +30,8 @@ const TON: Record<Quelle, { klassen: string; wort: string }> = {
   vergabe:  { klassen: 'bg-warning-soft text-warning',  wort: 'Vergabefrist' },
   freigabe: { klassen: 'bg-warning-soft text-warning',  wort: 'Freigabefrist' },
   lead:     { klassen: 'bg-warning-soft text-warning',  wort: 'Anfragefrist' },
+  /* Eine Frist, die abläuft — derselbe Ton wie die übrigen Fristen (§5). */
+  bauabzug: { klassen: 'bg-warning-soft text-warning',  wort: 'Bauabzugsteuer' },
 };
 
 export const quellenWort = (q: Quelle): string => TON[q].wort;

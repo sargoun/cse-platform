@@ -261,6 +261,30 @@ export async function seedCrm(
              'unbeschraenkt', 'mensch', ${bearbeiter})`;
         bescheinigungen += 1;
       }
+
+      /*
+       * Die EIGENE Bescheinigung der Bau-Gesellschaft (V-388, D-846) — weder
+       * Kunde noch Lieferant (0531). Im Betrieb trägt sie der Betreiber ein
+       * (O-130); hier Demodaten. Sie läuft in 50 Tagen ab: so führen
+       * `/finanzen/freistellungen` und der Nachtlauf `freistellung_ablauf` den
+       * Hinweis vor dem Ablauf vor (Stufe 60, O-130), und bis dahin behält
+       * kein Kunde bei einer Bauleistung ein.
+       */
+      const [eigeneDa] = await sql<{ id: string }[]>`
+        select id from freistellungsbescheinigung
+         where mandant_id = ${bau} and kunde_id is null and lieferant_id is null limit 1`;
+      if (eigeneDa === undefined) {
+        await sql`
+          insert into freistellungsbescheinigung
+            (mandant_id, bescheinigung_nummer, finanzamt,
+             gueltig_von, gueltig_bis, umfang, erstellt_von_art, erstellt_von)
+          values
+            (${bau}, 'DEMO-48b-EIGEN',
+             'Finanzamt Berlin Mitte/Tiergarten (Demodaten)',
+             app.berlin_heute() - 315, app.berlin_heute() + 50,
+             'unbeschraenkt', 'mensch', ${bearbeiter})`;
+        bescheinigungen += 1;
+      }
     }
   }
 

@@ -118,6 +118,19 @@ export async function ermittleSteuerfall(
     [kopf.kunde_id],
   );
 
+  /*
+   * **Die EIGENE Bescheinigung der Gesellschaft, nicht die des Kunden**
+   * (§ 48 Abs. 2 EStG, V-388, D-846). Bei einer Ausgangsrechnung ist die
+   * Gesellschaft die Leistende: der Kunde behält 15 % ein, wenn SIE ihm keine
+   * gültige Bescheinigung vorlegt. Die Bescheinigung des Kunden befreit ihn,
+   * wenn er selbst baut — nicht diese Rechnung. Hier stand bis D-846
+   * `where kunde_id = $1`.
+   *
+   * Eine auftragsbezogene eigene Bescheinigung gilt nur für ihren Auftrag;
+   * das entscheidet `giltAm` mit `auftragId`. Gelesen unter der RLS der
+   * Sitzung: ohne `finanzen.lesen` ist die Liste leer, und die Seiten sagen
+   * das (V-283).
+   */
   const bescheinigungen = await db.abfrage<Bescheinigung>(
     `select id::text as id, bescheinigung_nummer as "nummer",
             to_char(gueltig_von, 'YYYY-MM-DD') as "gueltigVon",
@@ -125,9 +138,10 @@ export async function ermittleSteuerfall(
             to_char(widerrufen_am, 'YYYY-MM-DD') as "widerrufenAm",
             umfang::text as umfang, auftrag_id::text as "auftragId"
        from freistellungsbescheinigung
-      where kunde_id = $1
+      where mandant_id = (select r.mandant_id from rechnung r where r.id = $1)
+        and kunde_id is null and lieferant_id is null
       order by gueltig_von`,
-    [kopf.kunde_id],
+    [rechnungId],
   );
 
   const [satz] = await db.abfrage<{ bp: number | null }>(
