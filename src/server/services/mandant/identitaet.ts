@@ -231,7 +231,10 @@ export interface IdentitaetEingabe {
  *    Pflicht, und sie koennen vor dem Bild da sein.
  *  - `kurzbeschreibung`, `beschreibung` — sie stehen je Sprache in
  *    `unternehmensprofil` (D-82), und das ist der maßgebliche Ort. Zwei
- *    Editoren auf einem Text waeren ein Defekt.
+ *    Editoren auf einem Text waeren ein Defekt. Voreinstellung (O-620,
+ *    D-791): die beiden Spalten hier bleiben leer und ohne Schreibpfad
+ *    (0200 nahm sie aus dem UPDATE-Grant), bis jemand sie entfernt.
+ *    // TODO(client, O-620): Voreinstellung — unternehmensprofil je Sprache ist die Quelle; diese zwei Spalten bleiben leer.
  *  - `domain` — O-08 ist offen.
  *  - `platzhalter_medien` — es ist eine Tatsache ueber die Bilder, keine
  *    Einstellung; es wird `false`, wenn echte Fotografie vorliegt (O-13),

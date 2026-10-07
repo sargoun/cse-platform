@@ -8,7 +8,8 @@ import type { BereichSchluessel } from '@/lib/design/theme';
 import { mandantTor, MandantAntwort } from '@/app/portal/unterseite';
 import { kennungOder404 } from '@/app/portal/kennung';
 import {
-  ERGEBNIS_TEXT, NICHT_IN_DER_MATRIX, VOLLZUG, matrix,
+  ERGEBNIS_TEXT, NICHT_IN_DER_MATRIX, O71_VOREINSTELLUNG, VOLLZUG,
+  VOLLZUG_VOREINSTELLUNG, matrix,
   type Entscheidungszeile, type Ort,
 } from '@/server/services/datenschutz/loeschentscheidung';
 import { ladeVorgang } from '../../vorgang';
@@ -118,6 +119,8 @@ export default async function Loeschungsseite(
         <ul className="m-0 mt-s1 list-disc ps-s5">
           {VOLLZUG.fehlend.map((v) => <li key={v}>{v}</li>)}
         </ul>
+        <span className="mt-s2 block">{VOLLZUG_VOREINSTELLUNG}</span>
+        <span className="mt-s2 block" data-cse="loeschung-o71">{O71_VOREINSTELLUNG}</span>
         <span className="mt-s2 block">
           Eine Freigabe für eine Ausführung, die niemand ausführt, wäre schlimmer
           als keine: sie trägt den Namen eines Menschen. Solange kein

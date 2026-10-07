@@ -318,13 +318,14 @@ export default async function Widerspruechseite(
       </section>
 
       <Hinweis art="hinweis" cse="widerspruch-offen" className="max-w-prose">
-        <strong className="block">Zwei Punkte sind offen und stehen hier als offen; der dritte hat eine Voreinstellung.</strong>
+        <strong className="block">Alle drei Punkte haben eine Voreinstellung; die dritte ist in der Versandprüfung noch nicht umgesetzt.</strong>
         <ul className="m-0 mt-s2 list-disc ps-s5">
           <li>
-            <strong>O-640</strong> — soll ein Werbewiderspruch je Kanal gelten (nur
-            E-Mail, Post läuft weiter) oder pauschal? Heute pauschal: die Sperre
-            sitzt in EINER Spalte, so hat 0020 das Modell entschieden. Der Kanal in
-            der Protokollzeile beschreibt den Anlass und wirkt nicht.
+            <strong>O-640</strong> — Voreinstellung: ein Werbewiderspruch gilt pauschal,
+            für alle Kanäle der Gesellschaft — wer keine E-Mail-Werbung will, will in
+            der Regel auch keinen Brief. Die Sperre sitzt in EINER Spalte (0020); der
+            Kanal in der Protokollzeile beschreibt den Anlass und wirkt nicht.
+            {/* TODO(client, O-640): Voreinstellung — Werbewiderspruch wirkt pauschal über alle Kanäle (eine Spalte, 0020). D-791. */}
           </li>
           <li>
             <strong>O-641</strong> — Voreinstellung: ein Widerspruch wirkt bei der
@@ -333,11 +334,14 @@ export default async function Widerspruechseite(
             verantwortlich.
           </li>
           <li>
-            <strong>O-65</strong> — gilt eine transaktionale Nachricht
-            (Terminbestätigung, Leistungsnachweis, Mahnung) als vertraglich
-            notwendig? Bis das entschieden ist, weist die Prüfung vor dem Versand
-            sie bei Werbewiderspruch ab, statt sie lautlos zu senden — der restriktive
-            Zweig, sichtbar statt still.
+            <strong>O-65</strong> — Voreinstellung: vertraglich notwendig ist, was der
+            Durchführung des Vertrags dient — Rechnung, Leistungsnachweis,
+            Terminbestätigung, Mahnung, Störungs- und Behinderungsanzeige; Werbung ist,
+            was eine neue oder zusätzliche Leistung anbietet, auch an Bestandskunden.
+            Die Prüfung vor dem Versand weist „transaktional" bei Werbewiderspruch
+            heute noch ab — der restriktive Zweig; die Umstellung ist eine Migration
+            mit Isolationstest (V-339) und bis dahin sichtbar statt still.
+            {/* TODO(client, O-65): Voreinstellung — Terminbestätigung, Leistungsnachweis, Mahnung und Störungsanzeige sind vertraglich notwendig und laufen trotz Werbewiderspruch; die Versandprüfung (0020/0376) weist „transaktional" noch ab (V-339). D-792. */}
           </li>
         </ul>
       </Hinweis>

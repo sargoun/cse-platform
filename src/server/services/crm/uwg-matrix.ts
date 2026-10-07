@@ -59,10 +59,10 @@ export type Grundlage = (typeof GRUNDLAGEN)[number];
  * Datenbank führt `vertraglich`, `transaktional`, `werbung`, `intern`; die
  * Matrix der API-Karte führt `antwort_auf_anfrage`, `vertragskommunikation`,
  * `werbung`. Die Abbildung ist nicht eindeutig — `transaktional`
- * (Terminbestätigung, Mahnung) steht in keiner der drei Spalten, und ob es
- * als vertraglich notwendig gilt, ist O-65. Deshalb hat diese Datei ihr
- * eigenes Vokabular und behauptet keine Gleichsetzung, die niemand getroffen
- * hat.
+ * (Terminbestätigung, Mahnung) steht in keiner der drei Spalten; nach der
+ * Voreinstellung (O-65, D-792) gilt es als vertraglich notwendig, das Tor
+ * weist es aber noch ab (V-339). Deshalb hat diese Datei ihr eigenes
+ * Vokabular und behauptet keine Gleichsetzung, die niemand getroffen hat.
  */
 export const ARTEN = ['antwort_auf_anfrage', 'vertragskommunikation', 'werbung'] as const;
 export type Nachrichtenart = (typeof ARTEN)[number];

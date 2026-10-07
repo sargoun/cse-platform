@@ -287,7 +287,7 @@ export async function seedDatenschutz(
              offene_frage, bemerkung, entschieden_von)
           values (${mandantId}, ${zeile.id}, 'werbewiderspruch', null, 1, 'offen',
                   'O-71',
-                  'Welcher Beleg-Rumpf aus GoBD-/§-7-UWG-Gründen bleibt, ist nicht entschieden.',
+                  'Voreinstellung (O-71, D-792): der Widerspruch bleibt als Nachweis nach § 7 UWG über anonymisiert_am, der Beleg-Rumpf fällt nach sechs Jahren (§ 147 AO); die Matrix führt die Zeile bis V-340 als offen.',
                   ${bearbeiter})`;
         loeschentscheidungen += 2;
       }

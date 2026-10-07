@@ -191,6 +191,13 @@ export async function uebernimmKalkulation(
    * Geschrieben werden die WIRKLICH benutzten Werte, nicht NULL: die
    * Kalkulation soll erklaeren, womit gerechnet wurde. `ist_platzhalter`
    * traegt daneben, dass diese Werte noch niemand bestaetigt hat.
+   *
+   * TODO(client, O-58): Voreinstellung — ein Angebot aus dem Raumbuch traegt
+   * seine Kalkulation und geht erst mit bestaetigten Werten hinaus
+   * (`kern.angebot_versand_pruefen`); ein Angebot von Hand (Katalog,
+   * Kleinauftrag, Pauschale — `von-hand.ts`) hat keine Kalkulation und geht
+   * ohne hinaus, die Verantwortung fuer den Preis traegt, wer freigibt
+   * (O-920). Wie gebaut. D-792.
    */
   const [kopf] = await db.abfrage<{ id: string }>(
     `insert into kalkulation

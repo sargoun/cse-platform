@@ -42,6 +42,8 @@ export interface KalkulationTexte {
   /* ── Material und Gerät ────────────────────────────────────────────── */
   readonly materialTitel: string;
   readonly materialErklaerung: string;
+  /** Nachunternehmerleistung: die Voreinstellung (O-57) — und dass sie noch nicht erfassbar ist (V-338). */
+  readonly materialNachunternehmer: string;
   readonly materialLeer: string;
   readonly kostenart: Readonly<Record<string, string>>;
   readonly spalte: Readonly<Record<'kostenart' | 'bezeichnung' | 'menge' | 'einheit'
@@ -135,6 +137,13 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       + 'eingetragen von Ihnen, nie geschätzt. Die Summe geht in den Preis und wird wie '
       + 'Gemeinkosten, Wagnis und Gewinn anteilig auf die Leistungszeilen verteilt (O-208). '
       + 'Nach jeder Zeile rechnet die Kalkulation den Preis neu.',
+    materialNachunternehmer:
+      'Nachunternehmerleistung: Voreinstellung (O-57) ist eine eigene Kostenart neben '
+      + 'Material und Gerät, weil sie je nach Leistung und Empfänger die '
+      + 'Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 '
+      + 'EStG auslösen kann. Sie ist hier noch '
+      + 'nicht erfassbar (V-338) — ein Angebot mit Fremdleistung trägt ihren Anteil bis dahin '
+      + 'nicht in der Kalkulation.',
     materialLeer:
       'Noch keine Material- oder Gerätekosten erfasst — der Preis enthält nur Lohn und '
       + 'Zuschläge.',
@@ -236,6 +245,13 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
       + 'you, never estimated. The total goes into the price and, like overhead, risk and '
       + 'profit, is spread proportionally over the service lines (O-208). After each line the '
       + 'costing recalculates the price.',
+    materialNachunternehmer:
+      'Subcontracted work: the default (O-57) is a cost type of its own beside material and '
+      + 'equipment, because depending on the service and the recipient it can trigger the '
+      + 'reverse charge under § 13b UStG and, for construction work, the withholding under '
+      + '§ 48 EStG. It cannot be entered here '
+      + 'yet (V-338) — until then an offer with subcontracted work does not carry that share '
+      + 'in its costing.',
     materialLeer:
       'No material or equipment cost entered yet — the price contains labour and surcharges '
       + 'only.',

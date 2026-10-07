@@ -172,16 +172,20 @@ export default async function Seite(
             * **Leistungsnachweis und Mahnung standen hier und stimmen nicht.**
             * Sie sind als `zweck = 'transaktional'` gefuehrt, und
             * `app.darf_kontaktiert_werden` weist die bei gesetztem
-            * Werbewiderspruch ab — bis O-65 entschieden ist, der restriktive
-            * Zweig. Nur `zweck = 'vertraglich'` laeuft wirklich weiter.
+            * Werbewiderspruch ab — der restriktive Zweig. Nach der
+            * Voreinstellung (O-65, D-792) sind sie vertraglich notwendig und
+            * laufen weiter; bis die Funktion umgestellt ist (V-339), sagt der
+            * Satz, was heute gilt. Nur `zweck = 'vertraglich'` laeuft wirklich
+            * weiter.
             */}
           <p className="m-0 mb-s5 max-w-prose text-sm text-text-muted">
             Vertraglich notwendige Post läuft weiter: eine Rechnung erreicht Sie
             auch nach diesem Widerspruch. Terminbestätigungen,
-            Leistungsnachweise und Mahnungen halten wir bis zu einer
-            ausdrücklichen Entscheidung ebenfalls zurück — im Zweifel zu Ihren
-            Gunsten. Wenn Sie der Verarbeitung insgesamt widersprechen möchten
-            (Art. 21 DSGVO), nutzen Sie bitte das Datenschutzformular.
+            Leistungsnachweise und Mahnungen gehören zur Durchführung Ihres
+            Vertrags; solange unsere Versandprüfung noch nicht umgestellt ist,
+            halten wir auch sie zurück — im Zweifel zu Ihren Gunsten. Wenn Sie
+            der Verarbeitung insgesamt widersprechen möchten (Art. 21 DSGVO),
+            nutzen Sie bitte das Datenschutzformular.
           </p>
         </>
       )}

@@ -25,7 +25,14 @@
  * dieses Dienstes **Vormerkung** und nicht Vollzug, und `VOLLZUG` sagt in
  * Worten, was noch fehlt.
  *
- * // TODO(client, O-644): Wer führt die Löschvormerkung aus — Anonymisierungsprozedur, Nachtlauf, oder ein Mensch mit Protokollpflicht?
+ * Voreinstellung (O-644, D-791): den Vollzug uebernimmt eine
+ * Anonymisierungsprozedur (`app.person_anonymisieren`) im Nachtlauf — erst
+ * nach der Freigabe eines Menschen (Vier-Augen: wer vormerkt, gibt nicht
+ * frei), je Tabelle mit einer Protokollzeile, Tombstone statt Loeschung, wo
+ * eine Aufbewahrungspflicht ueberlagert. Nichts davon ist gebaut (V-333);
+ * bis dahin bleibt das Ergebnis die Vormerkung, und `VOLLZUG_VOREINSTELLUNG`
+ * sagt der Seite, was kommen soll.
+ * // TODO(client, O-644): Voreinstellung — Anonymisierungsprozedur im Nachtlauf nach menschlicher Freigabe, Protokollzeile je Tabelle; nicht gebaut (V-333).
  *
  * **Die Fristen rechnet eine getestete Funktion, kein Modell** (Invariante 6).
  * `aoFrist` und `milogFrist` rechnen im Berliner KALENDER auf Datumszahlen und
@@ -218,6 +225,13 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Abwesenheiten',
     fuer: ['person'],
     recht: 'zeit.abwesenheit_lesen',
+    /*
+     * Voreinstellung (O-71, D-792): Abwesenheiten fallen mit der Anstellung
+     * (Lohnunterlage, § 147 Abs. 1 AO, zehn Jahre); die Art (Art. 9) wird mit
+     * dem Hauptsatz anonymisiert. Die Matrix kennt keinen Sperrgrund
+     * „Voreinstellung" (V-340); bis dahin steht die Zeile auf „offen", und ein
+     * Mensch entscheidet je Vorgang.
+     */
     sperre: { art: 'offen', frage: 'O-71' },
     sql: `select count(*)::int as zeilen, max(a.erstellt_am) as anker
             from abwesenheit a
@@ -385,8 +399,12 @@ const ORTE: readonly OrtDefinition[] = [
      * `{art:'offen', frage:'O-71'}`: hier fallen der § 7 UWG-Nachweis und der
      * Akquiseverlauf zusammen. Der Vorgang selbst ist eine
      * Geschäftsanbahnung (GoBD-nah, § 147 AO), die Kontaktspur daran ist
-     * Werbung — welche der beiden Pflichten die Löschung überlagert, ist
-     * nicht entschieden. Eine Frist zu behaupten wäre hier der Fehler.
+     * Werbung. Voreinstellung (O-71, D-792): der Vorgang bleibt sechs Jahre
+     * als Handels- und Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3, Abs. 3 AO),
+     * dann werden Name, Anschrift und Freitexte anonymisiert; der
+     * Werbewiderspruch bleibt als Nachweis (§ 7 UWG) über `anonymisiert_am`.
+     * Die Matrix kennt den Sperrgrund „Voreinstellung" nicht (V-340) — bis
+     * dahin „offen", und eine Frist zu behaupten wäre hier der Fehler.
      */
     sperre: { art: 'offen', frage: 'O-71' },
     sql: `select count(*)::int as zeilen, min(erstellt_am) as anker
@@ -399,6 +417,7 @@ const ORTE: readonly OrtDefinition[] = [
     titel: 'Korrespondenz und Vermerke zum Vorgang',
     fuer: ['ansprechpartner'],
     recht: 'crm.lesen',
+    /* Dieselbe Voreinstellung wie `lead` (O-71, D-792; V-340). */
     sperre: { art: 'offen', frage: 'O-71' },
     sql: `select count(*)::int as zeilen, min(geschehen_am) as anker
             from lead_aktivitaet
@@ -554,7 +573,7 @@ const ORTE: readonly OrtDefinition[] = [
  * which personal data is anonymised, on which trigger?" — genau das ist hier
  * zu entscheiden, und eine zweite Nummer daneben teilte eine Entscheidung in
  * zwei, die zusammen beantwortet wird.
- * // TODO(client, O-71): Brauchen abgeleitete Befunde, Zugangsdatensaetze und Zuordnungen eine eigene Loeschentscheidung, oder fallen sie mit ihrem Hauptsatz?
+ * // TODO(client, O-71): Voreinstellung — abgeleitete Befunde, Zugangsdatensaetze und Zuordnungen brauchen keine eigene Loeschentscheidung, sie fallen mit ihrem Hauptsatz (Zeiteintrag, Person, Einsatz); Lead und Korrespondenz bleiben sechs Jahre als Geschaeftsbrief (§ 147 AO) und werden dann anonymisiert, der Widerspruch bleibt Nachweis. Die Matrix fuehrt das noch als „offen" (V-340). D-792.
  */
 export const NICHT_IN_DER_MATRIX: readonly {
   readonly tabelle: string; readonly grund: string;
@@ -633,6 +652,23 @@ export const ERGEBNIS_TEXT: Readonly<Record<Entscheidungszeile['ergebnis'], stri
  * löschenden Läufe, und sie wird aus dem Jobregister gefaltet. Hier steht der
  * Satz, den die Seite darüber sagt.
  */
+/** Der Satz der Seite ueber den Vollzug, der kommen soll (O-644, D-791). */
+export const VOLLZUG_VOREINSTELLUNG =
+  'Voreinstellung (O-644, D-791): eine Anonymisierungsprozedur führt die Vormerkung im '
+  + 'Nachtlauf aus — erst nach der Freigabe eines zweiten Menschen, je Tabelle mit einer '
+  + 'Protokollzeile, und wo eine Aufbewahrungspflicht überlagert, als Tombstone statt als '
+  + 'Löschung. Gebaut ist davon nichts (V-333); bis dahin geschieht die Ausführung von Hand '
+  + 'und wird hier nachgetragen.';
+
+/** Der Satz der Seite zu den Zeilen, die „offen (O-71)" tragen (D-792). */
+export const O71_VOREINSTELLUNG =
+  'Voreinstellung (O-71, D-792) für die Zeilen mit „offen (O-71)": abgeleitete Befunde, '
+  + 'Zugangsdatensätze und Zuordnungen fallen mit ihrem Hauptsatz; Abwesenheiten mit der '
+  + 'Anstellung (§ 147 AO); Anfragen und ihre Korrespondenz bleiben sechs Jahre als '
+  + 'Geschäftsbrief (§ 147 Abs. 1 Nr. 2 und 3 AO) und werden dann anonymisiert, der '
+  + 'Werbewiderspruch bleibt als Nachweis. Die Matrix kennt diesen Sperrgrund noch nicht '
+  + '(V-340); bis dahin entscheidet hier ein Mensch je Vorgang.';
+
 export const VOLLZUG = {
   vorhanden: ['bewerber_loeschung — anonymisiert abgelaufene Bewerbungen (REC-07)'],
   fehlend: [

@@ -13,6 +13,21 @@
  *   5. Schreiben   — in EINER Transaktion.
  *
  * Wer 3 nach 5 stellt, hat den unvalidierten Datensatz bereits gespeichert.
+ *
+ * TODO(client, O-63): Voreinstellung — `datenschutz_hinweis` BESTÄTIGT, dass
+ * die Hinweise gezeigt wurden (Art. 13; die Verarbeitung ruht auf Art. 6
+ * Abs. 1 lit. b, vorvertragliche Massnahme auf Anfrage), und ist keine
+ * Einwilligung. Ohne das Häkchen wird nichts gespeichert — nicht weil die
+ * Bearbeitung einer Einwilligung bedürfte, sondern weil der Nachweis der
+ * Hinweispflicht zur Einsendung gehört. Werbung begründet allein
+ * `einwilligung_werbung`. Wie gebaut. D-792.
+ * TODO(client, O-64): Voreinstellung — `lead.punktzahl` löst keine
+ * Entscheidung aus: die Annahme setzt sie nicht, die Übernahme aus der Akquise
+ * kopiert die gerechnete Zielbewertung (`akquise/uebernahme.ts`), und gelesen
+ * wird sie nur zum Sortieren und Filtern durch Menschen; SLA, Eskalation und
+ * Besitzer hängen nicht an ihr. Keine Entscheidung nach Art. 22 DSGVO — ein
+ * Dienst, der aus der Punktzahl absagt oder nicht bearbeitet, wäre eine neue
+ * Entscheidung mit eigener Prüfung. Wie gebaut. D-792.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { eingabeSchema, fehlerAbbilden, FormularFehler, type FormularFeld }

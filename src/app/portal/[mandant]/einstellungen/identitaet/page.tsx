@@ -388,9 +388,11 @@ export default async function IdentitaetSeite(
               ? 'Alle Bildpfade sind hinterlegt.'
               : `${String(ohneBild)} von 5 Bildern sind nicht hinterlegt — sie werden im `
                 + 'Abschnitt „Logo, Avatar und Titelbild" hochgeladen.'}{' '}
-            Kartentext und Profiltext werden hier nicht gepflegt: sie stehen je Sprache
-            unter Website › Unternehmensprofil (D-82), und zwei Editoren auf einem Text
-            wären ein Defekt.
+            Kartentext und Profiltext werden hier nicht gepflegt — Voreinstellung (O-620):
+            die massgebliche Quelle ist das Unternehmensprofil je Sprache unter Website ›
+            Unternehmensprofil (D-82); die gleichnamigen Spalten der Identität bleiben
+            ungenutzt, damit nicht zwei Editoren auf einem Text stehen.
+            {/* TODO(client, O-620): Voreinstellung — Quelle für Karten- und Profiltext ist unternehmensprofil je Sprache; mandant_identitaet.kurzbeschreibung/beschreibung bleiben ungenutzt. D-791. */}
           </p>
           <form method="post" action={`/api/einstellungen/identitaet?mandant=${mandant}`}>
             <label className="mt-s4 block text-sm text-text" htmlFor="kurzname">Kurzname</label>

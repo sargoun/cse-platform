@@ -37,7 +37,16 @@ import {
  */
 export const dynamic = 'force-dynamic';
 
-/** `auftrag_art` (0025, Platzhalter O-73). */
+/**
+ * `auftrag_art` (0025) — das Vokabular der Voreinstellung O-73 (D-792).
+ *
+ * TODO(client, O-73): Voreinstellung — die Arbeitsvokabulare sind die Enums
+ * der Migrationen 0017, 0024 und 0025 (`lead_status` neu … kein_bedarf,
+ * `lead_prioritaet` niedrig/normal/hoch, `angebot_status`,
+ * `angebotsposition_typ`, `auftrag_art` einzelauftrag/rahmenvertrag/
+ * dauerauftrag/projekt, `auftrag_status` angelegt … storniert); ein weiterer
+ * Wert ist eine Migration, kein Freitext. D-792.
+ */
 const ART: Readonly<Record<string, string>> = {
   einzelauftrag: 'Einzelauftrag',
   rahmenvertrag: 'Rahmenvertrag',
@@ -45,7 +54,7 @@ const ART: Readonly<Record<string, string>> = {
   projekt: 'Projekt',
 };
 
-/** `auftrag_status` (0025, Platzhalter O-73) auf das feste Vokabular. */
+/** `auftrag_status` (0025, Voreinstellung O-73) auf das feste Vokabular. */
 const PILLE: Readonly<Record<string, PillZustand>> = {
   angelegt: 'Geplant',
   aktiv: 'Aktiv',

@@ -713,7 +713,7 @@ export async function seedOperations(
                 ${status}::lead_status, 'hoch'::lead_prioritaet, ${besitzer.id},
                 'Berliner Hausverwaltung GmbH', ${wert},
                 now() + make_interval(hours => ${fristStunden}::int), 72,
-                'Platzhalter: Flaeche und Frequenz bekannt, Budget unbestaetigt (O-73)')`;
+                'Voreinstellung (O-64, O-73; D-792): von Hand vergeben, nicht gerechnet - Flaeche und Frequenz bekannt, Budget unbestaetigt')`;
     }
   }
 

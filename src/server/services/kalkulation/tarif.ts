@@ -103,5 +103,5 @@ export const PLATZHALTER_FREQUENZ: Frequenzquelle = {
   },
 };
 
-/** Die Turnusse, die der Platzhalter kennt — fuer Auswahllisten (O-62). */
+/** Die Turnusse der Voreinstellung (O-56, D-780) — fuer Auswahllisten (O-62, D-792). */
 export const PLATZHALTER_TURNUSSE: readonly string[] = Object.keys(PLATZHALTER_FAKTOREN);

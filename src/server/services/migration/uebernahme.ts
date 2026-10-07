@@ -14,6 +14,14 @@ import { ALTSYSTEM_TEXT, migrationPort, type Altsystem }
  * ist, gibt es keinen Lauf — und die Seite sagt das aus einer echten
  * Tabelle, nicht aus einem festen Text: der Tag, an dem der erste Lauf
  * entsteht, aendert den Bildschirm ohne Codeaenderung.
+ *
+ * Voreinstellung (O-625, D-791): ein Lauf steht unter
+ * `system.einstellung_verwalten` (0202) UND verlangt beim Schreiben das
+ * Schreibrecht der Zieldomaene (`zeit.schreiben` fuer Zeiteintraege,
+ * `finanzen.schreiben` fuer Belege) — dasselbe Muster, mit dem
+ * `/einstellungen/vorlagen` zusaetzlich `bau.schreiben` verlangt. Wirkt erst,
+ * wenn der Leser (O-128, V-300) einen Lauf anlegt.
+ * // TODO(client, O-625): Voreinstellung — system.einstellung_verwalten plus Schreibrecht der Zieldomaene je Lauf; wirkt mit dem Leser (O-128).
  */
 
 export interface LaufZeile {

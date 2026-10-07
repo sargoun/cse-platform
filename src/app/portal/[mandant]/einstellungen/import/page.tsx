@@ -88,10 +88,15 @@ export default async function Import(
         Aplano liefert die Zeiten, Lexware die Belege, Excel die Listen — UTF-8, Semikolon,
         Zeitraum ab Beginn des laufenden Geschäftsjahres; die Altdaten bleiben im Altsystem
         revisionssicher archiviert, die Plattform übernimmt keine historischen Buchungen.
-        Der Leser dafür ist noch nicht gebaut (V-300). Ein geratener Parser wäre hier kein
+        Der Leser dafür ist noch nicht gebaut (V-300). Recht — Voreinstellung (O-625):
+        ein Lauf läuft unter dem Recht, Einstellungen zu verwalten; schreibt er Zeiten oder
+        Belege, verlangt er dazu das Schreibrecht der Zieldomäne (Zeit, Finanzen) — zwei
+        Rechte für einen Lauf, der Daten zweier Fachbereiche anlegt.
+        Ein geratener Parser wäre hier kein
         Komfortfehler: Zeitnachweise nach
         § 17 MiLoG und Rechnungen nach GoBD sehen auch dann plausibel aus, wenn eine
         Spalte in die falsche gelaufen ist — und niemand findet die Stelle später.
+        {/* TODO(client, O-625): Voreinstellung — Übernahme unter system.einstellung_verwalten plus Schreibrecht der Zieldomäne je Lauf; wirkt erst mit dem Leser (O-128). D-791. */}
       </Hinweis>
 
       <section aria-labelledby="quellen-titel" className="mb-s7">

@@ -336,10 +336,11 @@ export default async function Vorgangsakte(
             zurück: sie weist jeden Versuch ab. Der Werbewiderspruch nach § 7 UWG ist
             etwas anderes und schwächer — er sperrt Werbung und lässt
             vertraglich notwendige Post laufen (eine Rechnung etwa).
-            Terminbestätigung, Leistungsnachweis und Mahnung gelten als
-            transaktionale Nachrichten und werden bis zur Entscheidung von O-65
-            ebenfalls abgewiesen — von derselben Prüfung, die jede Nachricht vor dem
-            Versand bestehen muss.
+            Terminbestätigung, Leistungsnachweis und Mahnung sind als transaktionale
+            Nachrichten geführt; nach der Voreinstellung (O-65) sind sie vertraglich
+            notwendig und laufen weiter — die Prüfung, die jede Nachricht vor dem
+            Versand bestehen muss, weist sie aber noch ab, bis sie umgestellt ist
+            (V-339): der restriktive Zweig.
           </Hinweis>
 
           {extra.stand.length === 0 ? (
