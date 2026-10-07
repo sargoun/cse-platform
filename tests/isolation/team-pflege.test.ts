@@ -12,8 +12,10 @@ import type postgres from 'postgres';
 import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
 import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  TeamFehler, beendeMitgliedschaft, legeTeamAn, listeTeams, ordneZu,
+  TeamFehler, beendeMitgliedschaft, legeTeamAn, listeTeams, ordneZu, setzeTeamleitung,
+  waehlbareTeamleitungen,
 } from '../../src/server/services/kern/team.js';
+import { seedeMitglieder } from '../../src/server/db/seed/kern.js';
 
 let f: Fixtur;
 let leitung = '';
@@ -113,6 +115,85 @@ describe('V-378 — ein Team entsteht, eine Mitgliedschaft beginnt und endet', (
       [fremd!.id, `fremd-${zufall()}@cse.test`]);
     await expect(als(leitung, (k) => legeTeamAn(k, { name: 'X', leitungBenutzerId: fremd!.id })))
       .rejects.toThrow(TeamFehler);
+  });
+
+  /*
+   * Copilot-Befunde auf PR #42: das Formular schickte keine Leitung, und es
+   * gab keinen Weg, sie später zu setzen; ein doppelter Name kam als
+   * Serverfehler zurück; und ein zweiter Seedlauf nahm eine beendete
+   * Mitgliedschaft zurück.
+   */
+  it('die Leitung wird beim Anlegen gewählt und danach gesetzt oder entfernt', async () => {
+    const zweite = await konto('admin');
+    const team = await als(leitung, (k) => legeTeamAn(k, {
+      name: 'Revier Mitte', leitungBenutzerId: leitung,
+    }));
+    const leitungVon = async (): Promise<string | null> =>
+      (await als(leitung, (k) => listeTeams(k))).find((x) => x.id === team)!.leitungId;
+    expect(await leitungVon()).toBe(leitung);
+
+    await als(leitung, (k) => setzeTeamleitung(k, team, zweite));
+    expect(await leitungVon()).toBe(zweite);
+    await als(leitung, (k) => setzeTeamleitung(k, team, null));
+    expect(await leitungVon()).toBeNull();
+
+    const [fremd] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [`fremd-${zufall()}@cse.test`]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1, $2, 'Fremd', 'aktiv')`,
+      [fremd!.id, `fremd-${zufall()}@cse.test`]);
+    await expect(als(leitung, (k) => setzeTeamleitung(k, team, fremd!.id)))
+      .rejects.toMatchObject({ grund: 'unbekannte_leitung' });
+    await expect(als(leitung, (k) => setzeTeamleitung(k, f.reinigung, leitung)))
+      .rejects.toMatchObject({ grund: 'unbekanntes_team' });
+  });
+
+  it('zur Wahl stehen Mitglieder dieser Gesellschaft — keine Dienstkonten', async () => {
+    const admin = await konto('admin');
+    const [d] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [`dienst-${zufall()}@cse.test`]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status, ist_dienstkonto)
+       values ($1, $2, 'Dienstkonto', 'aktiv', true)`, [d!.id, `dienst-${zufall()}@cse.test`]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, (select id from rolle where schluessel = 'admin' and mandant_id is null))`,
+      [d!.id, f.reinigung]);
+
+    const fuerAdmin = (await als(admin, (k) => waehlbareTeamleitungen(k))).map((x) => x.id);
+    expect(fuerAdmin).toEqual(expect.arrayContaining([admin, leitung]));
+    expect(fuerAdmin).not.toContain(d!.id);
+    // Ohne Benutzerverwaltung bleibt mindestens das eigene Konto.
+    expect((await als(leitung, (k) => waehlbareTeamleitungen(k))).map((x) => x.id))
+      .toContain(leitung);
+  });
+
+  it('ein Name, den es schon gibt — auch anders geschrieben —, ist ein Grund mit Satz', async () => {
+    await als(leitung, (k) => legeTeamAn(k, { name: 'Objektbetreuung Nord' }));
+    await expect(als(leitung, (k) => legeTeamAn(k, { name: 'objektbetreuung NORD' })))
+      .rejects.toMatchObject({ grund: 'name_vergeben' });
+    await expect(als(leitung, (k) => legeTeamAn(k, { name: 'objektbetreuung NORD' })))
+      .rejects.toBeInstanceOf(TeamFehler);
+  });
+
+  it('der Seed nimmt eine beendete Mitgliedschaft nicht zurück', async () => {
+    const team = await als(leitung, (k) => legeTeamAn(k, { name: 'Seedteam' }));
+    const a = {
+      id: f.fatimaReinigung, mandant_id: f.reinigung, person_id: f.fatima, name: 'Fatima',
+    };
+    expect(await seedeMitglieder(sql, team, leitung, [a])).toBe(1);
+    expect(await seedeMitglieder(sql, team, leitung, [a]), 'läuft schon').toBe(0);
+
+    const [m] = await sql.unsafe<{ id: string }[]>(
+      `select id from team_mitglied where team_id = $1 and anstellung_id = $2`,
+      [team, f.fatimaReinigung]);
+    await als(leitung, (k) => beendeMitgliedschaft(k, m!.id));
+    expect(await seedeMitglieder(sql, team, leitung, [a]), 'beendet bleibt beendet').toBe(0);
+
+    const [n] = await sql.unsafe<{ laufend: number; alle: number }[]>(
+      `select count(*) filter (where beendet_am is null)::int as laufend, count(*)::int as alle
+         from team_mitglied where team_id = $1`, [team]);
+    expect(n).toEqual({ laufend: 0, alle: 1 });
   });
 
   it('ohne kalender.schreiben wird nichts geschrieben', async () => {

@@ -38,7 +38,7 @@ export interface KernErgebnis {
 }
 
 interface Konto { id: string; mandant_id: string; slug: string; name: string }
-interface Anstellung { id: string; mandant_id: string; person_id: string; name: string }
+export interface Anstellung { id: string; mandant_id: string; person_id: string; name: string }
 interface Bezug { mandant_id: string; auftrag_id: string | null; lead_id: string | null }
 
 /** Je Gesellschaft ein Team — der Name sagt, dass es Demobestand ist. */
@@ -48,6 +48,35 @@ const TEAMS: Readonly<Record<string, string>> = {
   bau: 'Bauleitung Ost',
   operations: 'Digitalbetrieb',
 };
+
+/**
+ * Ordnet Beschäftigungen dem Seed-Team zu — nur, wer noch NIE darin war.
+ *
+ * Seit V-378 beendet eine Gesellschaft Mitgliedschaften selbst, und eine
+ * beendete Zeile bleibt stehen. `tm_laufend_uk` (0509) kennt nur laufende
+ * Mitgliedschaften: ein zweiter Seedlauf fände die Beschäftigung dort nicht
+ * mehr, legte sie wieder an und nähme die Entscheidung zurück — samt Zugang
+ * zu den Aufgaben des Teams. Deshalb zählt jede Zeile, laufend oder beendet;
+ * `on conflict` bleibt für zwei gleichzeitige Läufe.
+ */
+export async function seedeMitglieder(
+  sql: postgres.Sql, teamId: string, kontoId: string, beschaeftigungen: readonly Anstellung[],
+): Promise<number> {
+  let neu = 0;
+  for (const a of beschaeftigungen) {
+    const eingefuegt = await sql`
+      insert into team_mitglied (mandant_id, team_id, anstellung_id, person_id,
+                                 rolle, erstellt_von)
+      select ${a.mandant_id}::uuid, ${teamId}::uuid, ${a.id}::uuid, ${a.person_id}::uuid,
+             null, ${kontoId}::uuid
+       where not exists (select 1 from team_mitglied tm
+                          where tm.team_id = ${teamId}::uuid and tm.anstellung_id = ${a.id}::uuid)
+      on conflict (team_id, anstellung_id) where beendet_am is null do nothing
+      returning id`;
+    neu += eingefuegt.length;
+  }
+  return neu;
+}
 
 export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
   /**
@@ -135,18 +164,10 @@ export async function seedKern(sql: postgres.Sql): Promise<KernErgebnis> {
     /*
      * TODO(client, O-650): Voreinstellung — Rollen im Team: Leitung,
      * Stellvertretung, Mitglied, Springer, als Vorschlagsliste; die Spalte
-     * `rolle` bleibt Text (0230). Der Seed setzt keine, und Teams und
-     * Mitglieder haben ausser hier keinen Schreibweg (V-378). D-799.
+     * `rolle` bleibt Text (0230). Der Seed setzt keine; gepflegt werden Teams
+     * und Mitglieder unter Kalender › Teams (V-378, D-813). D-799.
      */
-    for (const a of beschaeftigungen) {
-      const eingefuegt = await sql`
-        insert into team_mitglied (mandant_id, team_id, anstellung_id, person_id,
-                                   rolle, erstellt_von)
-        values (${a.mandant_id}, ${teamId}, ${a.id}, ${a.person_id}, null, ${konto.id})
-        on conflict (team_id, anstellung_id) where beendet_am is null do nothing
-        returning id`;
-      mitglieder += eingefuegt.length;
-    }
+    mitglieder += await seedeMitglieder(sql, teamId, konto.id, beschaeftigungen);
 
     /* ---------------------------------------------------------- Aufgaben */
     const [bezug] = await sql<Bezug[]>`

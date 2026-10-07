@@ -20,7 +20,7 @@
  */
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type postgres from 'postgres';
-import { alsApp, schliessen, seed, sql, type Fixtur } from './harness.js';
+import { alsApp, alsRolle, schliessen, seed, sql, type Fixtur } from './harness.js';
 import {
   BudgetErschoepft, bucheKosten, pruefeBudget, reserviere, reserviereMitHartstopp,
   vermerkeStopp, type Verbindung,
@@ -445,10 +445,10 @@ describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () 
     await sql.unsafe(`update agent_budget set warnschwelle_prozent = 80 where id = $1`, [budgetId]);
     const agent = await agentId('finanzen');
 
-    await buche(budgetId, agent, 79_000_000n);
+    await buche(budgetId, agent, 790_000n);
     expect(await stand(budgetId)).toEqual({ status: 'aktiv', gewarnt: false, meldungen: 0 });
 
-    await buche(budgetId, agent, 1_000_000n);
+    await buche(budgetId, agent, 10_000n);
     const nach = await stand(budgetId);
     expect(nach.status).toBe('gewarnt');
     expect(nach.gewarnt).toBe(true);
@@ -460,7 +460,13 @@ describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () 
     expect(m!.ziel).toBe('/portal/reinigung/agenten/budget');
     expect(m!.sammelbar).toBe(false);
 
-    await buche(budgetId, agent, 1_000_000n);
+    // Die Warnung kommt VOR dem Hartstopp: bei 80 % trägt das Budget noch
+    // (10 000 Mikrocent je Cent, wie app.agent_budget_pruefen rechnet).
+    const urteil = await alsApp(sitzung(), async (tx) =>
+      pruefeBudget(alsDienst(tx), f.reinigung, agent, 1000n));
+    expect(urteil.verdikt).toBe('ok');
+
+    await buche(budgetId, agent, 10_000n);
     expect((await stand(budgetId)).meldungen).toBe(nach.meldungen);
   });
 
@@ -468,7 +474,7 @@ describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () 
     await schalteEin('finanzen');
     const budgetId = await legeBudgetAn('mandant', 100);
     const agent = await agentId('finanzen');
-    await buche(budgetId, agent, 95_000_000n);
+    await buche(budgetId, agent, 950_000n);
     expect((await stand(budgetId)).meldungen).toBe(0);
 
     await sql.unsafe(`update agent_budget set warnschwelle_prozent = 80 where id = $1`, [budgetId]);
@@ -483,7 +489,7 @@ describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () 
         where id = $1`, [budgetId]);
     await buche(budgetId, agent, 1n);
     expect((await stand(budgetId)).meldungen).toBe(erste);
-    await buche(budgetId, agent, 65_000_000n);
+    await buche(budgetId, agent, 650_000n);
     expect((await stand(budgetId)).meldungen).toBe(2 * erste);
   });
 
@@ -497,6 +503,81 @@ describe('(4) V-292 — die Warnschwelle meldet sich einmal (O-195, D-810)', () 
         `select neu from app.agent_warnung_vermerken($1, $2, 'T', 'X', $3)`,
         [f.reinigung, budgetId, ziel]))).rejects.toThrow(/Budgetblatt/u);
     }
+  });
+
+  it('nur die buchende Sitzung der aktiven Gesellschaft schreibt — Warnung wie Stopp', async () => {
+    await schalteEin('finanzen');
+    const budgetId = await legeBudgetAn('mandant', 100);
+    await sql.unsafe(
+      `update agent_budget set warnschwelle_prozent = 80, verbrauch_mikrocent = 900000
+        where id = $1`, [budgetId]);
+    const ziel = '/portal/reinigung/agenten/budget';
+
+    for (const schreiber of ['agent_warnung_vermerken', 'agent_stopp_vermerken']) {
+      const aufruf = `select neu from app.${schreiber}($1, $2, 'T', 'X', $3)`;
+      // Eine fremde Gesellschaft — auch mit deren eigenem Budgetblatt als Ziel.
+      await expect(alsApp(sitzung(), (tx) => tx.unsafe(
+        aufruf, [f.security, budgetId, '/portal/security/agenten/budget'])))
+        .rejects.toThrow(/genau dieser Gesellschaft/u);
+      // Die Gruppenansicht hat keinen aktiven Mandanten (Invariante 10).
+      await expect(alsApp({
+        scope: 'gruppe', mandantIds: [f.reinigung, f.security], benutzerId: benutzer,
+        readonly: false,
+      }, (tx) => tx.unsafe(aufruf, [f.reinigung, budgetId, ziel])))
+        .rejects.toThrow(/genau dieser Gesellschaft/u);
+      // Eine lesende Sitzung.
+      await expect(alsApp({ ...sitzung(), readonly: true }, (tx) => tx.unsafe(
+        aufruf, [f.reinigung, budgetId, ziel]))).rejects.toThrow(/schreibende Sitzung/u);
+      // Kein Job ruft die Schreiber.
+      await expect(alsRolle('cse_job', (tx) => tx.unsafe(
+        aufruf, [f.reinigung, budgetId, ziel]))).rejects.toThrow(/permission denied/u);
+    }
+    expect(await stand(budgetId)).toEqual({ status: 'aktiv', gewarnt: false, meldungen: 0 });
+  });
+
+  async function adminMitglied(dienstkonto: boolean): Promise<string> {
+    const email = `budget-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status, ist_dienstkonto)
+       values ($1, $2, 'Budgetverwaltung', 'aktiv', $3)`, [u!.id, email, dienstkonto]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id)
+       values ($1, $2, (select id from rolle where schluessel = 'admin' and mandant_id is null))`,
+      [u!.id, f.reinigung]);
+    return u!.id;
+  }
+
+  async function meldungenAn(empfaenger: string, art: string, budgetId: string): Promise<number> {
+    const [n] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from benachrichtigung
+        where empfaenger_id = $1 and art = $2 and objekt_id = $3`, [empfaenger, art, budgetId]);
+    return n!.n;
+  }
+
+  it('eine Plattformvorgabe erreicht den Verwalter, ein Dienstkonto nicht — Warnung wie Stopp', async () => {
+    await schalteEin('finanzen');
+    const budgetId = await legeBudgetAn('mandant', 100);
+    await sql.unsafe(`update agent_budget set warnschwelle_prozent = 80 where id = $1`, [budgetId]);
+    // Die Rollenmatrix bindet das Recht an die Administration — als
+    // Plattformvorgabe, ohne Zeile der Gesellschaft (bindbar: admin).
+    await sql.unsafe(
+      `insert into rolle_berechtigung (rolle_id, berechtigung_id, mandant_id, gewaehrt)
+       select r.id, b.id, null, true from rolle r cross join berechtigung b
+        where r.schluessel = 'admin' and r.mandant_id is null
+          and b.schluessel = 'agent.budget_verwalten'
+       on conflict do nothing`);
+    const verwalter = await adminMitglied(false);
+    const dienstkonto = await adminMitglied(true);
+
+    await buche(budgetId, await agentId('finanzen'), 800_000n);
+    expect(await meldungenAn(verwalter, 'agent.budget_warnschwelle', budgetId)).toBe(1);
+    expect(await meldungenAn(dienstkonto, 'agent.budget_warnschwelle', budgetId)).toBe(0);
+
+    await alsApp(sitzung(), async (tx) => vermerkeStopp(alsDienst(tx), f.reinigung, budgetId));
+    expect(await meldungenAn(verwalter, 'agent.budget_erschoepft', budgetId)).toBe(1);
+    expect(await meldungenAn(dienstkonto, 'agent.budget_erschoepft', budgetId)).toBe(0);
   });
 });
 

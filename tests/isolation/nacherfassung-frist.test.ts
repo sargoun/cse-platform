@@ -99,6 +99,7 @@ describe('V-321 — Nacherfassung nach mehr als sieben Tagen', () => {
       endeZeitpunkt: id.neuesEnde,
     }));
     expect(ergebnis.spaetTage).toBe(10);
+    expect(ergebnis.spaetGemeldet).toBe(1);
     const m = await meldungen();
     expect(m.map((z) => z.empfaenger_id)).toEqual([leitung]);
     expect(m[0]!.ziel).toBe(`/portal/reinigung/zeiten/${ergebnis.neueFassungId}`);
@@ -113,6 +114,7 @@ describe('V-321 — Nacherfassung nach mehr als sieben Tagen', () => {
       endeZeitpunkt: frisch.neuesEnde,
     }));
     expect(a.spaetTage).toBeNull();
+    expect(a.spaetGemeldet).toBe(0);
     const alt = await eintrag(30);
     const b = await als(planer, (tx) => korrigiereZeiteintrag(kontextAus(tx, planer), {
       zeiteintragId: alt.id, art: 'zeit_korrektur', grundKategorie: 'geraet_defekt',
@@ -125,12 +127,17 @@ describe('V-321 — Nacherfassung nach mehr als sieben Tagen', () => {
 
   it('wer selbst Leitung ist und nacherfasst, meldet es nicht sich selbst', async () => {
     const id = await eintrag(12);
-    await als(leitung, (tx) => korrigiereZeiteintrag(kontextAus(tx, leitung), {
+    const ergebnis = await als(leitung, (tx) => korrigiereZeiteintrag(kontextAus(tx, leitung), {
       zeiteintragId: id.id, art: 'nacherfassung', grundKategorie: 'sonstiges',
       begruendung: 'Nachgetragen.', durchgefuehrtVon: leitung,
       endeZeitpunkt: id.neuesEnde,
     }));
     expect((await meldungen()).map((z) => z.empfaenger_id)).not.toContain(leitung);
+    // Spät ist sie trotzdem — nur erreicht hat der Hinweis niemanden, und die
+    // Seite darf das nicht anders sagen (D-810).
+    expect(ergebnis.spaetTage).toBe(12);
+    expect(ergebnis.spaetGemeldet).toBe(0);
+    expect(await meldungen()).toEqual([]);
   });
 
   it('der Definer meldet keine fremde Korrektur', async () => {
@@ -181,6 +188,7 @@ describe('V-321 — Nacherfassung nach mehr als sieben Tagen', () => {
       endeZeitpunkt: id.neuesEnde,
     }));
     expect(ergebnis.spaetTage).toBe(10);
+    expect(ergebnis.spaetGemeldet).toBe(0);
     expect((await meldungen()).map((z) => z.empfaenger_id)).not.toContain(leitung);
   });
 });

@@ -24,6 +24,12 @@ export interface KalenderTeamsTexte {
   readonly beendete: string;
   readonly beenden: string;
   readonly neuTitel: string;
+  /** Die Auswahl der Leitung: leer heisst ohne. */
+  readonly leitungOhne: string;
+  readonly leitungHinweis: string;
+  readonly leitungSetzen: string;
+  /** Die bisherige Leitung, wenn sie nicht zur Wahl steht und ihr Name nicht lesbar ist. */
+  readonly leitungBisher: string;
   readonly name: string;
   readonly anlegen: string;
   readonly zuordnenTitel: string;
@@ -57,6 +63,13 @@ export const KALENDER_TEAMS_TEXTE: Readonly<Record<InternSprache, KalenderTeamsT
     beendete: 'Beendete Mitgliedschaften',
     beenden: 'Mitgliedschaft beenden',
     neuTitel: 'Neues Team',
+    leitungOhne: 'Ohne Leitung',
+    leitungHinweis:
+      'Ein Konto dieser Gesellschaft. Zur Wahl steht Ihr eigenes Konto und jedes, das Sie in der '
+      + 'Benutzerverwaltung sehen dürfen. Die Rolle „Leitung“ einer Mitgliedschaft setzt diese '
+      + 'Angabe nicht.',
+    leitungSetzen: 'Leitung setzen',
+    leitungBisher: 'Bisherige Leitung',
     name: 'Name',
     anlegen: 'Team anlegen',
     zuordnenTitel: 'Zuordnen',
@@ -70,6 +83,7 @@ export const KALENDER_TEAMS_TEXTE: Readonly<Record<InternSprache, KalenderTeamsT
       anlegen: 'Das Team ist angelegt.',
       zuordnen: 'Die Beschäftigung ist zugeordnet.',
       beenden: 'Die Mitgliedschaft ist beendet.',
+      leitung: 'Die Leitung des Teams ist gesetzt.',
     },
     fehler: {
       ohne_name: 'Ein Team braucht einen Namen.',
@@ -79,6 +93,9 @@ export const KALENDER_TEAMS_TEXTE: Readonly<Record<InternSprache, KalenderTeamsT
       schon_mitglied: 'Diese Beschäftigung ist schon im Team.',
       unbekannte_mitgliedschaft: 'Diese Mitgliedschaft gibt es nicht oder sie ist schon beendet.',
       unbekannte_leitung: 'Die Leitung muss Mitglied dieser Gesellschaft sein.',
+      name_vergeben:
+        'Ein Team mit diesem Namen gibt es in dieser Gesellschaft schon — Groß- und '
+        + 'Kleinschreibung zählen dabei nicht.',
       unbekannter_vorgang: 'Dieser Vorgang ist unbekannt.',
     },
     fehlerSonst: 'Der Vorgang wurde abgewiesen.',
@@ -100,6 +117,12 @@ export const KALENDER_TEAMS_TEXTE: Readonly<Record<InternSprache, KalenderTeamsT
     beendete: 'Ended memberships',
     beenden: 'End membership',
     neuTitel: 'New team',
+    leitungOhne: 'No lead',
+    leitungHinweis:
+      'An account of this company. You can choose your own account and every account you may '
+      + 'see in user management. The role “Leitung” of a membership does not set this field.',
+    leitungSetzen: 'Set lead',
+    leitungBisher: 'Current lead',
     name: 'Name',
     anlegen: 'Create team',
     zuordnenTitel: 'Assign',
@@ -113,6 +136,7 @@ export const KALENDER_TEAMS_TEXTE: Readonly<Record<InternSprache, KalenderTeamsT
       anlegen: 'The team has been created.',
       zuordnen: 'The employment has been assigned.',
       beenden: 'The membership has been ended.',
+      leitung: 'The team lead has been set.',
     },
     fehler: {
       ohne_name: 'A team needs a name.',
@@ -122,6 +146,9 @@ export const KALENDER_TEAMS_TEXTE: Readonly<Record<InternSprache, KalenderTeamsT
       schon_mitglied: 'This employment is already in the team.',
       unbekannte_mitgliedschaft: 'This membership does not exist or has already ended.',
       unbekannte_leitung: 'The lead must be a member of this company.',
+      name_vergeben:
+        'A team with this name already exists in this company — upper and lower case do not '
+        + 'count.',
       unbekannter_vorgang: 'This action is unknown.',
     },
     fehlerSonst: 'The request was refused.',

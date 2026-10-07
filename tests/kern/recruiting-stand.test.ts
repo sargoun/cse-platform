@@ -75,4 +75,21 @@ describe('V-363 — die festen Grössen', () => {
     expect(seite).toContain('?vorgang=rueckzug');
     expect(seite).toContain('!rueckzugVorgang');
   });
+
+  /*
+   * Copilot-Befund auf PR #42: `nicht_offen` kommt genau dann zurück, wenn
+   * die Bewerbung inzwischen entschieden oder zurückgezogen ist — und der
+   * Abschnitt hing ganz an „offen", samt seiner Abweisung. Jetzt steht der
+   * Abschnitt auch mit einer Abweisung, und nur das Formular hängt an „offen".
+   */
+  it('die Abweisung des Rückzugs steht auch, wenn die Bewerbung nicht mehr offen ist', () => {
+    const seite = lies('src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx');
+    expect(seite).toMatch(/\|\|\s*\(rueckzugVorgang && abgewiesen !== null\)\)\s*&&\s*\(/u);
+    const fehler = seite.indexOf('cse="rueckzug-fehler"');
+    const formular = seite.indexOf('action={`/api/recruiting/bewerbungen/${id}/rueckzug`}');
+    const formularBedingung = seite.lastIndexOf(
+      "{offen && darf['recruiting.bewerbung_bewerten'] === true && (", formular);
+    expect(fehler).toBeGreaterThan(-1);
+    expect(formularBedingung, 'nur das Formular hängt an „offen"').toBeGreaterThan(fehler);
+  });
 });

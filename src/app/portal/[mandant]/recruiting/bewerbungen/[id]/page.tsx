@@ -546,33 +546,46 @@ export default async function Bewerbungsblatt(
               </>
             )}
 
-            {/* ------------------------------ Rückzug vermerken (V-363, D-812) */}
-            {offen && darf['recruiting.bewerbung_bewerten'] === true && (
+            {/*
+              * ------------------------------ Rückzug vermerken (V-363, D-812)
+              *
+              * Die Abweisung steht AUSSERHALB der Bedingung „offen": `nicht_offen`
+              * kommt genau dann zurück, wenn die Bewerbung inzwischen entschieden
+              * oder zurückgezogen ist — und dann gäbe es den Abschnitt sonst
+              * nicht, und der Satz verschwände mit ihm. Nur das Formular hängt
+              * an „offen" und am Recht.
+              */}
+            {((offen && darf['recruiting.bewerbung_bewerten'] === true)
+              || (rueckzugVorgang && abgewiesen !== null)) && (
               <section aria-labelledby="rueckzug-titel" className="mt-s7 max-w-prose"
                        data-cse="rueckzug">
                 <h2 id="rueckzug-titel" className="mb-s3 text-h3 text-text">{rt.titel}</h2>
-                <p className="mb-s4 text-sm text-text-muted">{rt.erklaerung}</p>
                 {rueckzugVorgang && abgewiesen !== null && (
                   <Hinweis art="warnung" rolle="alert" cse="rueckzug-fehler" className="mb-s4">
                     {eigenerEintrag(rt.fehler, abgewiesen) ?? rt.fehlerSonst}
                   </Hinweis>
                 )}
-                <form method="post" action={`/api/recruiting/bewerbungen/${id}/rueckzug`}
-                      className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
-                  <input type="hidden" name="zurueck"
-                         value={`/portal/${mandant}/recruiting/bewerbungen/${id}?vorgang=rueckzug`} />
-                  <div className="flex flex-col gap-s2">
-                    <label htmlFor="r-vermerk" className="text-xs text-text-muted">{rt.vermerk}</label>
-                    <input id="r-vermerk" name="vermerk" required minLength={3} maxLength={300}
-                           className={FELD} data-cse="rueckzug-vermerk-feld" />
-                    <p className="text-xs text-text-subtle">{rt.vermerkHinweis}</p>
-                  </div>
-                  <div>
-                    <Button type="submit" variante="secondary" data-cse="rueckzug-knopf">
-                      {rt.knopf}
-                    </Button>
-                  </div>
-                </form>
+                {offen && darf['recruiting.bewerbung_bewerten'] === true && (
+                  <>
+                    <p className="mb-s4 text-sm text-text-muted">{rt.erklaerung}</p>
+                    <form method="post" action={`/api/recruiting/bewerbungen/${id}/rueckzug`}
+                          className="flex flex-col gap-s4 rounded-lg border border-line bg-surface p-s5">
+                      <input type="hidden" name="zurueck"
+                             value={`/portal/${mandant}/recruiting/bewerbungen/${id}?vorgang=rueckzug`} />
+                      <div className="flex flex-col gap-s2">
+                        <label htmlFor="r-vermerk" className="text-xs text-text-muted">{rt.vermerk}</label>
+                        <input id="r-vermerk" name="vermerk" required minLength={3} maxLength={300}
+                               className={FELD} data-cse="rueckzug-vermerk-feld" />
+                        <p className="text-xs text-text-subtle">{rt.vermerkHinweis}</p>
+                      </div>
+                      <div>
+                        <Button type="submit" variante="secondary" data-cse="rueckzug-knopf">
+                          {rt.knopf}
+                        </Button>
+                      </div>
+                    </form>
+                  </>
+                )}
               </section>
             )}
           </>

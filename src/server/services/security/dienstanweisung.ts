@@ -826,6 +826,12 @@ export interface OffeneKenntnisnahme {
  * der Schicht (V-382). Dieselbe Bedingung wie der Kenntnisstand
  * (`ZAEHLT_NOCH`); archivierte und unveröffentlichte Anweisungen und solche
  * ohne Kenntnisnahmepflicht melden nichts.
+ *
+ * **Und derselbe Stichtag wie `leseErsteSchichten`:** eine Schicht zählt nur,
+ * wenn sie nach der Veröffentlichung der geltenden Fassung UND nach der
+ * Zuweisung der Pflicht begann. Ohne ihn machte eine neue Fassung die
+ * abgeschlossene Schicht von gestern zu einer versäumten Kenntnisnahme, die
+ * damals gar nicht fällig war.
  */
 export async function leseOffeneKenntnisnahmenDerSchicht(
   kontext: LeseKontext, einsatzId: string,
@@ -843,11 +849,15 @@ export async function leseOffeneKenntnisnahmenDerSchicht(
          on d.objekt_id = e.objekt_id and d.mandant_id = e.mandant_id
         and d.kenntnisnahme_pflicht and d.archiviert_am is null
         and d.aktive_version_id is not null
+       join dienstanweisung_version av
+         on av.id = d.aktive_version_id and av.mandant_id = d.mandant_id
+        and av.veroeffentlicht_am is not null
        join da_pflicht p
          on p.dienstanweisung_id = d.id and p.anstellung_id = z.anstellung_id
         and p.entfallen_am is null
        join person pe on pe.id = p.person_id
       where e.id = $1::uuid
+        and e.beginn_zeitpunkt >= greatest(av.veroeffentlicht_am, p.zugewiesen_am)
         and not exists (
           select 1 from da_kenntnisnahme k
            where k.anstellung_id = p.anstellung_id

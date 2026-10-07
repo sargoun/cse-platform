@@ -988,6 +988,11 @@ export const OFFENE_STAENDE: readonly BewerbungStatus[] = ['eingegangen', 'in_pr
  * verlangt `geschlossen_am is null`), und die offenen Bewerbungen bleiben,
  * wie sie sind: sie werden weiter bearbeitet und entschieden. Wieder öffnen
  * lässt sie sich nicht; eine neue Anzeige ist eine neue Stelle.
+ *
+ * **Erst sperren, dann lesen** — wie `veroeffentlicheAufKarriereseite`. Der
+ * gelesene Stand ist der Vorher-Wert im Prüfprotokoll; eine Veröffentlichung,
+ * die zwischen Lesen und Schreiben festgeschrieben würde, stünde sonst als
+ * `freigegeben → geschlossen` dort statt `veroeffentlicht → geschlossen`.
  */
 export async function schliesseStelle(
   kontext: SchreibKontext, stelleId: string, grund: string,
@@ -997,6 +1002,9 @@ export async function schliesseStelle(
     throw new RecruitingFehler(
       'Der Grund sagt, warum die Stelle geschlossen wird.', 'ohne_grund', 400);
   }
+  await kontext.abfrage(
+    `select id from stelle where id = $1::uuid and mandant_id = app.aktiver_mandant()
+      for update`, [stelleId]);
   const [s] = await kontext.abfrage<{ status: StelleStatus }>(
     `select status::text as status from stelle
       where id = $1::uuid and mandant_id = app.aktiver_mandant()`,

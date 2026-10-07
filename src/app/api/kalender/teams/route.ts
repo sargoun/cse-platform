@@ -8,14 +8,15 @@ import { rechtepruefer } from '@/server/auth/zugang';
 import { istGleicherUrsprung, internesZiel } from '@/server/auth/ursprung';
 import { withTenant } from '@/server/kontext/index';
 import {
-  TeamFehler, beendeMitgliedschaft, legeTeamAn, ordneZu,
+  TeamFehler, beendeMitgliedschaft, legeTeamAn, ordneZu, setzeTeamleitung,
 } from '@/server/services/kern/team';
 
 /**
  * `POST /api/kalender/teams` — Teams anlegen, Beschäftigungen zuordnen,
  * Mitgliedschaften beenden (V-378, O-650, D-813).
  *
- * Ein Formular, drei Vorgänge (`vorgang`): `anlegen`, `zuordnen`, `beenden`.
+ * Ein Formular, vier Vorgänge (`vorgang`): `anlegen`, `zuordnen`, `beenden`
+ * und `leitung` (die Leitung eines Teams setzen oder entfernen).
  * Das Recht ist `kalender.schreiben` — Teams gehören dem Kalendermodul
  * (§7.5), und die Policies aus 0230 verlangen dasselbe.
  *
@@ -30,6 +31,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 function feld(daten: FormData, name: string): string {
   const w = daten.get(name);
   return typeof w === 'string' ? w : '';
+}
+
+/** Leer heisst „ohne Leitung"; alles andere muss eine Kennung sein. */
+function leitungAus(daten: FormData): string | null {
+  const w = feld(daten, 'leitung').trim();
+  if (w === '') return null;
+  if (!UUID.test(w)) throw new TeamFehler('unbekannte_leitung');
+  return w;
 }
 
 export async function POST(anfrage: NextRequest): Promise<NextResponse> {
@@ -57,11 +66,14 @@ export async function POST(anfrage: NextRequest): Promise<NextResponse> {
         if (bereich !== undefined) ziel = `/portal/${bereich.slug}/kalender/teams`;
 
         if (vorgang === 'anlegen') {
-          const leitung = feld(daten, 'leitung');
           await legeTeamAn(kontext, {
             name: feld(daten, 'name'), bereich: feld(daten, 'bereich'),
-            leitungBenutzerId: UUID.test(leitung) ? leitung : null,
+            leitungBenutzerId: leitungAus(daten),
           });
+        } else if (vorgang === 'leitung') {
+          const team = feld(daten, 'team');
+          if (!UUID.test(team)) throw new TeamFehler('unbekanntes_team');
+          await setzeTeamleitung(kontext, team, leitungAus(daten));
         } else if (vorgang === 'zuordnen') {
           const team = feld(daten, 'team');
           const anstellung = feld(daten, 'anstellung');

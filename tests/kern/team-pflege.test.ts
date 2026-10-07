@@ -23,14 +23,20 @@ describe('V-378 — die Sätze der Teamseite', () => {
   const vorgaenge = [...new Set([...route.matchAll(/vorgang === '([a-z_]+)'/gu)].map((m) => m[1] ?? ''))];
 
   it('liest der Test noch?', () => {
-    expect(gruende).toEqual(expect.arrayContaining(['ohne_name', 'schon_mitglied']));
-    expect(vorgaenge.sort()).toEqual(['anlegen', 'beenden', 'zuordnen']);
+    expect(gruende).toEqual(expect.arrayContaining(['ohne_name', 'schon_mitglied', 'name_vergeben']));
+    expect(vorgaenge.sort()).toEqual(['anlegen', 'beenden', 'leitung', 'zuordnen']);
   });
 
   it.each(['de', 'en'] as const)('%s: jeder Grund und jeder Erfolg', (sprache) => {
     const t = KALENDER_TEAMS_TEXTE[sprache];
     for (const g of gruende) expect(t.fehler[g], `${sprache}: ${g}`).toBeTruthy();
     for (const v of vorgaenge) expect(t.erfolg[v], `${sprache}: ${v}`).toBeTruthy();
+  });
+
+  it('beide Formulare der Seite schicken eine Leitung (Anlegen und „Leitung setzen")', () => {
+    const seite = lies('src/app/portal/[mandant]/kalender/teams/page.tsx');
+    expect(seite.match(/<select name="leitung"/gu) ?? []).toHaveLength(2);
+    expect(seite).toContain('name="vorgang" value="leitung"');
   });
 
   it('die Vorschlagsliste der Rollen ist die Voreinstellung zu O-650', () => {

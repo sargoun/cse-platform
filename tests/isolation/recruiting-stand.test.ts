@@ -99,6 +99,27 @@ async function oeffentlich(stelleId: string): Promise<number> {
 }
 
 const MORGEN = (): Date => new Date(Date.now() + 86_400_000);
+
+/** Wartet, bis eine Sitzung dieser Datenbank auf eine Sperre wartet. */
+async function bisEinerWartet(wer: string): Promise<void> {
+  for (let i = 0; ; i += 1) {
+    const [w] = await sql.unsafe<{ n: number }[]>(
+      `select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`);
+    if (w!.n >= 1) return;
+    if (i >= 250) throw new Error(`${wer} wartete nicht auf die Sperre.`);
+    await new Promise((r) => { setTimeout(r, 20); });
+  }
+}
+
+/** Ein Riegel: `gehalten` meldet, dass der erste geschrieben hat; `freigeben` lässt ihn committen. */
+function riegel(): { gehalten: Promise<void>; melde: () => void; halt: Promise<void>; freigeben: () => void } {
+  let melde!: () => void;
+  const gehalten = new Promise<void>((r) => { melde = r; });
+  let freigeben!: () => void;
+  const halt = new Promise<void>((r) => { freigeben = r; });
+  return { gehalten, melde, halt, freigeben };
+}
 const KRITERIUM = { kriterium: 'Erfahrung', gewicht: 50, punkte: 7, begruendung: 'Drei Jahre.' };
 
 beforeEach(async () => {
@@ -126,6 +147,53 @@ describe('V-363 — die Stände zwischen Eingang und Entscheidung', () => {
     expect(await stand(a.bewerbungId), 'ein Gespräch steht noch').toBe('gespraech');
     await als(leitung, (k) => sageGespraechAb(k, g2, 'Bewerberin verhindert.'));
     expect(await stand(a.bewerbungId)).toBe('in_pruefung');
+  });
+
+  /*
+   * Copilot-Befund auf PR #42: zwei gleichzeitige Absagen der letzten beiden
+   * Gespräche sahen je das andere noch als geplant — keine setzte den Stand
+   * zurück, und die Bewerbung blieb auf `gespraech`. Der Auslöser sperrt jetzt
+   * zuerst die Bewerbung; die zweite wartet und zählt danach neu.
+   */
+  it('zwei gleichzeitige Absagen der letzten beiden Gespräche: die zweite wartet und setzt zurück', async () => {
+    const a = await bewerbung();
+    const g1 = await als(leitung, (k) => planeGespraech(k, a.bewerbungId, MORGEN(), 45, null, []));
+    const g2 = await als(leitung, (k) => planeGespraech(k, a.bewerbungId, MORGEN(), 45, null, []));
+    expect(await stand(a.bewerbungId)).toBe('gespraech');
+
+    const r = riegel();
+    const erste = als(leitung, async (k) => {
+      await sageGespraechAb(k, g1, 'Raum belegt.');
+      r.melde();
+      await r.halt;
+    });
+    await r.gehalten;
+    const zweite = als(leitung, (k) => sageGespraechAb(k, g2, 'Bewerberin verhindert.'));
+    await bisEinerWartet('Die zweite Absage');
+    r.freigeben();
+    await erste;
+    await zweite;
+    expect(await stand(a.bewerbungId)).toBe('in_pruefung');
+  });
+
+  it('ein Gespräch, das neben der letzten Absage geplant wird, hält den Stand auf gespraech', async () => {
+    const a = await bewerbung();
+    const g1 = await als(leitung, (k) => planeGespraech(k, a.bewerbungId, MORGEN(), 45, null, []));
+    expect(await stand(a.bewerbungId)).toBe('gespraech');
+
+    const r = riegel();
+    const planung = als(leitung, async (k) => {
+      await planeGespraech(k, a.bewerbungId, MORGEN(), 45, null, []);
+      r.melde();
+      await r.halt;
+    });
+    await r.gehalten;
+    const absage = als(leitung, (k) => sageGespraechAb(k, g1, 'Termin verlegt.'));
+    await bisEinerWartet('Die Absage');
+    r.freigeben();
+    await planung;
+    await absage;
+    expect(await stand(a.bewerbungId), 'ein Gespräch steht noch').toBe('gespraech');
   });
 
   it('eine entschiedene Bewerbung bewegt sich durch Bewertung und Gespräch nicht mehr', async () => {
@@ -245,6 +313,40 @@ describe('V-363 — eine Stelle schliessen', () => {
 
     // Die offene Bewerbung bleibt und wird weiter entschieden.
     expect(await stand(a.bewerbungId)).toBe('eingegangen');
+  });
+
+  /*
+   * Copilot-Befund auf PR #42: der Vorher-Stand im Protokoll wurde ohne
+   * Sperre gelesen. Wird eine Veröffentlichung dazwischen festgeschrieben,
+   * stand dort der alte Stand. Jetzt sperrt das Schliessen zuerst die Zeile.
+   */
+  it('schliessen neben einer Veröffentlichung protokolliert den Stand, den es schliesst', async () => {
+    const a = await bewerbung();
+    const [fr] = await sql.unsafe<{ id: string }[]>(
+      `insert into freigabe (mandant_id, aktion, status, freigegeben_von, freigegeben_am)
+       values ($1, 'stelle_veroeffentlichen', 'genehmigt', $2, now()) returning id`,
+      [f.reinigung, leitung]);
+    const r = riegel();
+    const veroeffentlichung = sql.begin(async (tx) => {
+      await tx.unsafe(`set local session_replication_role = replica`);
+      await tx.unsafe(
+        `update stelle set freigabe_id = $2, status = 'veroeffentlicht', veroeffentlicht_am = now()
+          where id = $1`, [a.stelleId, fr!.id]);
+      r.melde();
+      await r.halt;
+    });
+    await r.gehalten;
+    const schliessen = als(leitung, (k) => schliesseStelle(k, a.stelleId, 'Besetzt.'));
+    await bisEinerWartet('Das Schliessen');
+    r.freigeben();
+    await veroeffentlichung;
+    await schliessen;
+
+    const [p] = await sql.unsafe<{ vorher: Record<string, unknown> | null }[]>(
+      `select vorher from audit_log
+        where aktion = $1 and objekt_typ = 'stelle' and objekt_id = $2`,
+      [AKTION_STELLE_GESCHLOSSEN, a.stelleId]);
+    expect(p!.vorher?.['status']).toBe('veroeffentlicht');
   });
 
   it('zweimal schliessen ist ein Konflikt, ohne Grund eine Abweisung', async () => {

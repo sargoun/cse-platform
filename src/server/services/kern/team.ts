@@ -26,7 +26,7 @@ export class TeamFehler extends Error {
     readonly grund:
       | 'ohne_name' | 'zu_lang' | 'unbekanntes_team' | 'unbekannte_beschaeftigung'
       | 'schon_mitglied' | 'unbekannte_mitgliedschaft' | 'unbekannte_leitung'
-      | 'unbekannter_vorgang',
+      | 'name_vergeben' | 'unbekannter_vorgang',
   ) {
     super(grund);
     this.name = 'TeamFehler';
@@ -48,6 +48,8 @@ export interface TeamZeile {
   readonly name: string;
   readonly bereich: string | null;
   readonly leitung: string | null;
+  /** Das Konto der Leitung — für die Vorauswahl im Formular „Leitung setzen". */
+  readonly leitungId: string | null;
   readonly mitglieder: readonly TeamMitglied[];
 }
 
@@ -55,8 +57,10 @@ export interface TeamZeile {
 export async function listeTeams(kontext: LeseKontext): Promise<readonly TeamZeile[]> {
   const teams = await kontext.abfrage<{
     id: string; name: string; bereich: string | null; leitung: string | null;
+    leitung_id: string | null;
   }>(
-    `select t.id, t.name, t.bereich, u.name as leitung
+    `select t.id, t.name, t.bereich, u.name as leitung,
+            t.leitung_benutzer_id::text as leitung_id
        from team t
        left join benutzer u on u.id = t.leitung_benutzer_id
       where t.mandant_id = app.aktiver_mandant() and t.geloescht_am is null
@@ -75,7 +79,7 @@ export async function listeTeams(kontext: LeseKontext): Promise<readonly TeamZei
       where tm.mandant_id = app.aktiver_mandant()
       order by tm.beendet_am nulls first, p.nachname, p.vorname`);
   return teams.map((t) => ({
-    id: t.id, name: t.name, bereich: t.bereich, leitung: t.leitung,
+    id: t.id, name: t.name, bereich: t.bereich, leitung: t.leitung, leitungId: t.leitung_id,
     mitglieder: mitglieder.filter((m) => m.team_id === t.id).map((m) => ({
       id: m.id, anstellungId: m.anstellung_id, name: m.name, rolle: m.rolle,
       seit: m.seit, bis: m.bis,
@@ -96,6 +100,37 @@ export async function zuordenbareBeschaeftigungen(
       order by p.nachname, p.vorname`);
 }
 
+/**
+ * Wen die Formulare als Leitung anbieten — aktive Menschenkonten mit einer
+ * laufenden Mitgliedschaft in dieser Gesellschaft, keine Dienstkonten: genau
+ * die Konten, die `legeTeamAn` und `setzeTeamleitung` annehmen
+ * (`app.ist_mitglied`). Gelesen unter RLS (`t_benutzer_lesen`, 0007): das
+ * eigene Konto immer, die übrigen mit `system.benutzer_lesen` — dieselbe
+ * Grenze wie die Teilnehmerauswahl des Kalenders.
+ */
+export async function waehlbareTeamleitungen(
+  kontext: LeseKontext,
+): Promise<readonly { readonly id: string; readonly name: string }[]> {
+  return kontext.abfrage<{ id: string; name: string }>(
+    `select distinct b.id::text as id, b.name
+       from benutzer b
+       join benutzer_mandant bm on bm.benutzer_id = b.id
+      where bm.mandant_id = app.aktiver_mandant() and bm.entzogen_am is null
+        and bm.gueltig_ab <= app.berlin_heute()
+        and (bm.gueltig_bis is null or bm.gueltig_bis >= app.berlin_heute())
+        and b.status = 'aktiv' and b.deaktiviert_am is null and not b.ist_dienstkonto
+      order by b.name`);
+}
+
+/** Die Leitung muss Mitglied dieser Gesellschaft sein — sonst `unbekannte_leitung`. */
+async function pruefeLeitung(kontext: LeseKontext, leitung: string | null): Promise<void> {
+  if (leitung === null) return;
+  const [m] = await kontext.abfrage<{ ok: boolean }>(
+    `select app.ist_mitglied($1::uuid, app.aktiver_mandant(), app.berlin_heute()) as ok`,
+    [leitung]);
+  if (m?.ok !== true) throw new TeamFehler('unbekannte_leitung');
+}
+
 function text(wert: string | null | undefined, max: number): string | null {
   const t = (wert ?? '').trim();
   if (t === '') return null;
@@ -112,19 +147,45 @@ export async function legeTeamAn(
   if (name === null) throw new TeamFehler('ohne_name');
   const bereich = text(eingabe.bereich, 80);
   const leitung = text(eingabe.leitungBenutzerId, 36);
-  if (leitung !== null) {
-    const [m] = await kontext.abfrage<{ ok: boolean }>(
-      `select app.ist_mitglied($1::uuid, app.aktiver_mandant(), app.berlin_heute()) as ok`,
-      [leitung]);
-    if (m?.ok !== true) throw new TeamFehler('unbekannte_leitung');
+  await pruefeLeitung(kontext, leitung);
+  try {
+    const [z] = await kontext.schreibe<{ id: string }>(
+      `insert into team (mandant_id, name, bereich, leitung_benutzer_id, erstellt_von)
+       values (app.aktiver_mandant(), $1, $2, $3::uuid, app.aktueller_benutzer())
+       returning id`,
+      [name, bereich, leitung]);
+    if (z === undefined) throw new TeamFehler('unbekanntes_team');
+    return z.id;
+  } catch (fehler: unknown) {
+    /*
+     * Ein Name je Gesellschaft, ohne Rücksicht auf Gross- und Kleinschreibung
+     * (`team_name_uk`, 0230). Wie bei `ordneZu` wird der Verstoss ein Grund
+     * mit Satz — sonst stünde er als Serverfehler da.
+     */
+    const f = fehler as { code?: string; constraint_name?: string };
+    if (f.code === '23505' && f.constraint_name === 'team_name_uk') {
+      throw new TeamFehler('name_vergeben');
+    }
+    throw fehler;
   }
+}
+
+/**
+ * Die Leitung eines Teams setzen oder entfernen (`null`) — dieselbe Prüfung
+ * wie beim Anlegen. Die Rolle „Leitung" einer Mitgliedschaft ist Text und
+ * setzt diese Angabe nicht; hier wird sie gesetzt.
+ */
+export async function setzeTeamleitung(
+  kontext: SchreibKontext, teamId: string, leitungBenutzerId: string | null,
+): Promise<void> {
+  const leitung = text(leitungBenutzerId, 36);
+  await pruefeLeitung(kontext, leitung);
   const [z] = await kontext.schreibe<{ id: string }>(
-    `insert into team (mandant_id, name, bereich, leitung_benutzer_id, erstellt_von)
-     values (app.aktiver_mandant(), $1, $2, $3::uuid, app.aktueller_benutzer())
-     returning id`,
-    [name, bereich, leitung]);
+    `update team set leitung_benutzer_id = $2::uuid, geaendert_von = app.aktueller_benutzer()
+      where id = $1::uuid and mandant_id = app.aktiver_mandant() and geloescht_am is null
+      returning id`,
+    [teamId, leitung]);
   if (z === undefined) throw new TeamFehler('unbekanntes_team');
-  return z.id;
 }
 
 /** Eine Beschäftigung dem Team zuordnen — mit einer Rolle aus der Vorschlagsliste oder einer eigenen. */

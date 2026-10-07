@@ -187,9 +187,29 @@ export interface KorrekturErgebnis {
   readonly version: number;
   /**
    * Bei einer Nacherfassung nach der Frist: wie viele Tage nach dem
-   * Arbeitstag (V-321) — sonst `null`. Gemeldet ist sie dann an die Leitung.
+   * Arbeitstag (V-321) — sonst `null`.
    */
   readonly spaetTage: number | null;
+  /**
+   * Wie viele Konten der Leitung den Hinweis bekommen haben (die Zahl des
+   * Definers, 0506). `0`, wenn niemand erreichbar war — keine andere Leitung,
+   * die Zeiten lesen darf —, und immer `0` ohne `spaetTage`. Die Seite sagt
+   * nur dann, dass die Leitung informiert ist, wenn hier mehr als null steht.
+   */
+  readonly spaetGemeldet: number;
+}
+
+/**
+ * Wohin es nach der Korrektur geht: auf die neue Fassung, und bei einer
+ * späten Nacherfassung mit dem Abstand (`spaet`) und der Auskunft, ob die
+ * Leitung erreicht ist (`leitung=1|0`). Zwei Zahlen, nie ein Satz in der
+ * Adresse (D-728).
+ */
+export function korrekturRueckweg(mandant: string, e: KorrekturErgebnis): string {
+  const spaet = e.spaetTage === null
+    ? ''
+    : `&spaet=${String(e.spaetTage)}&leitung=${e.spaetGemeldet > 0 ? '1' : '0'}`;
+  return `/portal/${mandant}/zeiten/${e.neueFassungId}?korrigiert=1${spaet}`;
 }
 
 /** § 17 Abs. 1 MiLoG: aufgezeichnet bis zum Ablauf des siebten Tages (O-165). */
@@ -390,7 +410,7 @@ export async function korrigiereZeiteintrag(
     begruendung: eingabe.begruendung,
   });
 
-  const spaetTage = eingabe.art === 'nacherfassung' && neueFassungId !== null
+  const spaet = eingabe.art === 'nacherfassung' && neueFassungId !== null
     ? await meldeSpaeteNacherfassung(kontext, {
       korrekturId: korrektur.id, fassungId: neueFassungId, personId: alt.person_id,
     })
@@ -400,7 +420,8 @@ export async function korrigiereZeiteintrag(
     korrekturId: korrektur.id,
     neueFassungId: neueFassungId ?? alt.id,
     version: storno ? alt.version : alt.version + 1,
-    spaetTage,
+    spaetTage: spaet?.tage ?? null,
+    spaetGemeldet: spaet?.gemeldet ?? 0,
   };
 }
 
@@ -413,11 +434,14 @@ export async function korrigiereZeiteintrag(
  * der Definer prüft Korrektur, Art, Urheber und Abstand noch einmal, nimmt als
  * Ziel nur die neue Fassung an und meldet je Korrektur höchstens einmal. Kein
  * Verbot: die Nacherfassung ist geschrieben, bevor diese Funktion läuft.
+ *
+ * Zurück kommen der Abstand und die Zahl der erreichten Konten — getrennt:
+ * spät ist die Nacherfassung auch dann, wenn niemand den Hinweis bekommt.
  */
 async function meldeSpaeteNacherfassung(
   kontext: SchreibKontext,
   e: { readonly korrekturId: string; readonly fassungId: string; readonly personId: string },
-): Promise<number | null> {
+): Promise<{ readonly tage: number; readonly gemeldet: number } | null> {
   const [z] = await kontext.abfrage<{
     tage: number; arbeitstag: string; slug: string; person: string | null;
   }>(
@@ -448,10 +472,10 @@ async function meldeSpaeteNacherfassung(
       fassung: e.fassungId,
     },
   });
-  await kontext.schreibe(
+  const [gemeldet] = await kontext.schreibe<{ n: number }>(
     `select app.nacherfassung_spaet_melden($1::uuid, $2::integer, $3, $4, $5) as n`,
     [e.korrekturId, NACHERFASSUNG_FRIST_TAGE, meldung.titel, meldung.text, meldung.ziel]);
-  return Number(z.tage);
+  return { tage: Number(z.tage), gemeldet: Number(gemeldet?.n ?? 0) };
 }
 
 export interface KorrekturSpurZeile {

@@ -336,7 +336,8 @@ export async function bucheKosten(
  *
  * Verglichen wird in der Datenbank (`app.agent_warnung_vermerken`, 0505),
  * nach der Buchung, die den Verbrauch fortgeschrieben hat: Verbrauch gegen
- * Grenze mal Schwelle, in Mikrocent. Ist die Schwelle nicht erreicht oder
+ * Grenze mal Schwelle, in Mikrocent — 10 000 je Cent, wie der Hartstopp und
+ * `mikrocentNachCent`. Ist die Schwelle nicht erreicht oder
  * schon gemeldet, schreibt die Funktion nichts — dieser Aufruf kostet dann
  * eine Abfrage und meldet `neu: false`.
  */
@@ -353,7 +354,7 @@ export async function vermerkeWarnung(
             (b.gewarnt_am is null and b.warnschwelle_prozent is not null
               and b.budget_cent is not null and b.budget_cent > 0
               and b.verbrauch_mikrocent::numeric * 100
-                  >= b.budget_cent::numeric * 1000000 * b.warnschwelle_prozent) as erreicht
+                  >= b.budget_cent::numeric * 10000 * b.warnschwelle_prozent) as erreicht
        from agent_budget b
        join mandant m on m.id = b.mandant_id
       where b.mandant_id = $1 and b.id = $2`,

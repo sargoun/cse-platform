@@ -26396,8 +26396,8 @@ Arbeitstag (O-165, D-788).
   Gesellschaft, die Zeiten lesen darf (`zeit.lesen`, das Recht hinter dem
   Ziel), ohne den Erfassenden. Der Definer prüft Korrektur, Art, Urheber,
   Abstand und Ziel — nur die neue Fassung — selbst. Kein Verbot — die Nacherfassung ist schon
-  geschrieben; die Seite der neuen Fassung sagt dem Erfassenden, dass die
-  Leitung informiert ist.
+  geschrieben; die Seite der neuen Fassung sagt dem Erfassenden, ob die
+  Leitung einen Hinweis bekommen hat.
 
 **Voreinstellungen** (Regel 1, D-778).
 
@@ -26422,8 +26422,33 @@ weiter. Die Leitung bekommt den Nachweisablauf nur mit
 nach der Rechtematrix hält sie beides, nimmt eine Gesellschaft es ihr,
 bekommt sie die Meldung nicht.
 
-**Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (4),
-`tests/isolation/nacherfassung-frist.test.ts`, `tests/isolation/berechtigungsfenster.test.ts`,
+**Nach der Durchsicht von PR #42 nachgezogen.**
+- **Die Warnschwelle rechnete hundertfach zu hoch.** Ein Cent sind 10 000
+  Mikrocent (`mikrocentNachCent`, der Hartstopp in 0128), nicht 1 000 000; die
+  Warnung kam damit erst weit hinter dem Stopp. 0505 und `vermerkeWarnung`
+  rechnen jetzt mit 10 000, die Prüfung bucht echte Beträge und zeigt, dass bei
+  80 % das Budget noch trägt.
+- **Beide Schreiber sind an die buchende Sitzung gebunden.** Warnung und Stopp
+  (0128, in 0505 ersetzt) gehen durch `kern.agent_budget_vermerk_tor`: der
+  Mandant ist der aktive, die Sitzung intern und schreibend, mit
+  `agent.aufgabe_starten` — dieselbe Bedingung wie das Buchen der Kosten. Eine
+  Sitzung stoppt oder warnt damit kein Budget einer anderen Gesellschaft, die
+  Gruppenansicht nichts; die Jobrolle ruft beide nicht mehr auf.
+- **Empfänger aus dem Rechteauflöser.** `app.benutzer_mit_recht` sah bei der
+  Mitgliedschaft nur Zeilen genau dieser Gesellschaft und verpasste jede
+  Plattformvorgabe — ein Verwalter mit dem Recht aus der Vorgabe bekam weder
+  Warnung noch Stopp. Beide fragen jetzt `kern.traeger_des_rechts` (0149), wie
+  `app.hat_recht`, ohne Dienstkonten.
+- **Die späte Nacherfassung bestätigt nur eine Zustellung, die stattfand.**
+  `korrigiereZeiteintrag` gibt Verspätung und Zahl der erreichten Konten
+  getrennt zurück; der Rückweg trägt `leitung=1|0`, und die Seite sagt „die
+  Leitung hat einen Hinweis bekommen" nur mit `1` — sonst, dass niemand ihn
+  bekommen hat.
+
+**Prüfung.** `tests/isolation/nachweis.test.ts` (6), `tests/isolation/agent-laufzeit.test.ts` (6:
+Schwelle, neue Grenze, Ziel, Bindung an die Sitzung, Plattformvorgabe und Dienstkonto),
+`tests/isolation/nacherfassung-frist.test.ts` (mit Zustellzahl), `tests/kern/nacherfassung-hinweis.test.ts`,
+`tests/isolation/berechtigungsfenster.test.ts`,
 die volle Isolationssuite (256 Dateien), `tests/kern/nachweis.test.ts`, `tests/kern` komplett,
 `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
@@ -26477,9 +26502,16 @@ Dienstanweisung zeigte „N von M bestätigt“, aber weder Frist noch Warnung
 | O-357 | Die Kettenmeldung geht an Buchhaltung (`buchhaltung.lesen`) und Geschäftsführung (Rolle `leitung`) der Gesellschaft, beide mit `finanzen.lesen`, in den Posteingang, einmal je Bruch — wie D-779, jetzt gebaut. | `drizzle/0507`, `jobs/kettenpruefer.ts`, `waechter/benachrichtigung.ts` |
 | O-241 | Versäumt ab Beginn der ersten Schicht auf dem Objekt nach der Veröffentlichung, Warnung an die Leitung auf der Kenntnisnahme-Seite und an der Schicht, keine Sperre — wie D-800, jetzt gebaut. | `security/dienstanweisung.ts`, Kenntnisnahmen, Schichtblatt |
 
+**Nach der Durchsicht von PR #42 nachgezogen.** Die Schicht fragte ihre
+offenen Kenntnisnahmen ohne Stichtag: eine neue Fassung machte die
+abgeschlossene Schicht von gestern zu einer versäumten Kenntnisnahme, die
+damals nicht fällig war. `leseOffeneKenntnisnahmenDerSchicht` zählt jetzt nur
+Schichten nach Veröffentlichung der geltenden Fassung und nach Zuweisung der
+Pflicht — derselbe Stichtag wie `leseErsteSchichten`.
+
 **Prüfung.** `tests/isolation/kette-job.test.ts` (Empfänger, einmal je Bruch nach
 drei Läufen), `tests/isolation/dienstanweisung-versaeumt.test.ts` (erste Schicht,
-fremdes Objekt, vor der Veröffentlichung, Bestätigung), `tests/kern/kettenmeldung.test.ts`,
+fremdes Objekt, vor der Veröffentlichung, vor der Zuweisung, Bestätigung), `tests/kern/kettenmeldung.test.ts`,
 `tests/kern/kenntnisfrist.test.ts` (Grenze am Schichtbeginn, Rücknacht), `tests/kern`
 komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 
@@ -26522,14 +26554,30 @@ Voreinstellung zu O-200 (D-797): die Stände wie 0166.
 |---|---|---|
 | O-200 | Stände wie 0166; `in_pruefung` bei der ersten Bewertung eines Menschen, `gespraech` beim geplanten Gespräch, `zurueckgezogen` als Vermerk mit Namen; schliessen darf, wer Stellen schreibt — jetzt gebaut. | `drizzle/0508`, `recruiting/dienst.ts` |
 
-**Prüfung.** `tests/isolation/recruiting-stand.test.ts` (10: Bewertung von Mensch und
-Agent, Gespräche und Absage, entschiedene Bewerbung, `cse_app` ohne Update, Rückzug mit
+**Nach der Durchsicht von PR #42 nachgezogen.**
+- **Gleichzeitige Absagen.** Zwei Absagen der letzten beiden Gespräche sahen je
+  das andere noch als geplant, und keine setzte den Stand zurück. Der Auslöser
+  aus 0508 sperrt jetzt zuerst die Bewerbung; die zweite wartet und zählt danach
+  neu — ebenso ein Gespräch, das neben der letzten Absage geplant wird.
+- **Stelle schliessen sperrt, bevor es liest** — wie das Veröffentlichen. Der
+  Vorher-Stand im Protokoll ist damit der, den das Schliessen wirklich ablöst.
+- **Der Rückzug steht in der Auskunft** (Art. 15): Zeitpunkt und Vermerk im
+  Abschnitt „Bewerbung".
+- **Die Abweisung des Rückzugs bleibt sichtbar**, auch wenn die Bewerbung
+  inzwischen entschieden oder zurückgezogen ist — nur das Formular hängt an
+  „offen".
+
+**Prüfung.** `tests/isolation/recruiting-stand.test.ts` (13: Bewertung von Mensch und
+Agent, Gespräche und Absage, zwei gleichzeitige Absagen, Planung neben der letzten
+Absage, entschiedene Bewerbung, `cse_app` ohne Update, Rückzug mit
 Frist, keine Entscheidung danach in Dienst und Datenbank, Rechte, Löschlauf, Stelle
-schliessen mit Protokoll und Karriereseite), `tests/kern/recruiting-stand.test.ts`,
+schliessen mit Protokoll und Karriereseite, Schliessen neben einer Veröffentlichung),
+`tests/isolation/datenschutz-dienste.test.ts` (Rückzug in der Auskunft),
+`tests/kern/recruiting-stand.test.ts`,
 `tests/kern/formular-rueckwege.test.ts`, `tests/kern` komplett, `pnpm guards`,
 `pnpm katalog:check`, `pnpm typecheck`.
 
-| Betrifft | V-363; O-200; `drizzle/0508_bewerbung_stand_und_rueckzug.sql`, `src/server/services/recruiting/dienst.ts`, `src/server/jobs/bewerberLoeschung.ts`, `src/app/api/recruiting/stellen/[id]/schliessen/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/rueckzug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `src/lib/i18n/verwaltung/recruiting-rueckzug.ts`, `src/lib/i18n/verwaltung/recruiting-rueckmeldung.ts` |
+| Betrifft | V-363; O-200; `drizzle/0508_bewerbung_stand_und_rueckzug.sql`, `src/server/services/recruiting/dienst.ts`, `src/server/jobs/bewerberLoeschung.ts`, `src/app/api/recruiting/stellen/[id]/schliessen/route.ts`, `src/app/api/recruiting/bewerbungen/[id]/rueckzug/route.ts`, `src/server/auth/route-manifest.ts`, `src/app/portal/[mandant]/recruiting/stellen/[id]/page.tsx`, `src/app/portal/[mandant]/recruiting/bewerbungen/[id]/page.tsx`, `src/lib/i18n/verwaltung/recruiting-stellenentwurf.ts`, `src/lib/i18n/verwaltung/recruiting-rueckzug.ts`, `src/lib/i18n/verwaltung/recruiting-rueckmeldung.ts`, `src/server/services/datenschutz/auskunft.ts` |
 |---|---|
 
 ### D-813 · Bauwelle 9: Teams haben einen Schreibweg (V-378)
@@ -26563,9 +26611,25 @@ Stellvertretung, Mitglied, Springer als Vorschlagsliste, die Spalte bleibt Text.
 |---|---|---|
 | O-650 | Rollen Leitung, Stellvertretung, Mitglied, Springer als Vorschlagsliste, die Spalte bleibt Text — wie D-799, jetzt mit Schreibweg. | `kern/team.ts`, Kalender › Teams |
 
+**Nach der Durchsicht von PR #42 nachgezogen.**
+- **Die Leitung hat einen Weg.** Das Anlegeformular wählt sie, und jedes Team
+  trägt „Leitung setzen" (Vorgang `leitung`, auch ohne Leitung). Zur Wahl
+  stehen aktive Menschenkonten mit laufender Mitgliedschaft in der Gesellschaft,
+  keine Dienstkonten — gelesen unter RLS: das eigene Konto immer, die übrigen
+  mit `system.benutzer_lesen`. Die Rolle „Leitung" einer Mitgliedschaft bleibt
+  Text und setzt diese Angabe nicht.
+- **Ein Name, den es schon gibt** (`team_name_uk`, ohne Rücksicht auf Gross- und
+  Kleinschreibung), ist der Grund `name_vergeben` mit Satz statt eines
+  Serverfehlers.
+- **Der Seed nimmt eine beendete Mitgliedschaft nicht zurück.** Er ordnet nur
+  Beschäftigungen zu, die noch nie im Team waren (`seedeMitglieder`); der
+  Index kennt nur laufende, und ein zweiter Lauf hätte die Entscheidung der
+  Gesellschaft samt Zugang zu den Teamaufgaben rückgängig gemacht.
+
 **Prüfung.** `tests/isolation/team-pflege.test.ts` (anlegen, zuordnen, doppelt,
 beenden, wieder zuordnen; Aufgabe nach dem Ende unsichtbar; Leitung aus der
-Gesellschaft; ohne Recht nichts), `tests/isolation/aufgabe.test.ts`,
+Gesellschaft, beim Anlegen und danach; wählbare Leitungen ohne Dienstkonten; doppelter
+Name; Seed nach dem Ende; ohne Recht nichts), `tests/isolation/aufgabe.test.ts`,
 `tests/isolation/seed.test.ts`, `tests/kern/team-pflege.test.ts`, `tests/kern`
 komplett, `pnpm guards`, `pnpm katalog:check`, `pnpm typecheck`.
 

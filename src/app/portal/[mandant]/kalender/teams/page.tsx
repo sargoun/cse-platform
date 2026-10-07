@@ -12,7 +12,8 @@ import { KALENDER_TEAMS_TEXTE } from '@/lib/i18n/verwaltung/kalender-teams';
 import { setzeEin } from '@/lib/i18n/vorlage';
 import { eigenerEintrag } from '@/lib/nachschlagen';
 import {
-  TEAM_ROLLEN_VORSCHLAG, listeTeams, zuordenbareBeschaeftigungen, type TeamZeile,
+  TEAM_ROLLEN_VORSCHLAG, listeTeams, waehlbareTeamleitungen, zuordenbareBeschaeftigungen,
+  type TeamZeile,
 } from '@/server/services/kern/team';
 import { AnmeldungNoetig } from '../../../Anmeldung';
 import { FELD } from './felder';
@@ -42,13 +43,15 @@ export default async function Teams({ params, searchParams }: {
 
   const darfSchreiben = (await haeltRechte(zugang.sitzung, 'kalender.schreiben'))[
     'kalender.schreiben'] === true;
-  const { teams, beschaeftigungen } = await (db().begin(SCHNAPPSCHUSS,
+  const { teams, beschaeftigungen, leitungen } = await (db().begin(SCHNAPPSCHUSS,
     async (tx: postgres.TransactionSql) => withTenant(tx, zugang.sitzung, async (kontext) => ({
       teams: await listeTeams(kontext),
       beschaeftigungen: darfSchreiben ? await zuordenbareBeschaeftigungen(kontext) : [],
+      leitungen: darfSchreiben ? await waehlbareTeamleitungen(kontext) : [],
     })))) as {
     teams: readonly TeamZeile[];
     beschaeftigungen: readonly { readonly id: string; readonly name: string }[];
+    leitungen: readonly { readonly id: string; readonly name: string }[];
   };
 
   const t = nachSprache(KALENDER_TEAMS_TEXTE, internSprache(zugang.sprache));
@@ -102,6 +105,30 @@ export default async function Teams({ params, searchParams }: {
                 <p className="m-0 mt-s2 text-sm text-text-muted">
                   {t.leitung}: {team.leitung ?? t.ohneAngabe} · {t.bereich}: {team.bereich ?? t.ohneAngabe}
                 </p>
+                {darfSchreiben && leitungen.length > 0 && (
+                  <form method="post" action="/api/kalender/teams" data-cse="team-leitung-setzen"
+                        aria-label={`${t.leitungSetzen}: ${team.name}`}
+                        className="mt-s3 flex flex-wrap items-end gap-s3">
+                    <input type="hidden" name="vorgang" value="leitung" />
+                    <input type="hidden" name="team" value={team.id} />
+                    <label className="flex flex-col gap-s1 text-xs text-text-muted">
+                      {t.leitung}
+                      <select name="leitung" className={FELD} defaultValue={team.leitungId ?? ''}>
+                        <option value="">{t.leitungOhne}</option>
+                        {/*
+                          * Steht die bisherige Leitung nicht zur Wahl (ohne Benutzerverwaltung
+                          * sieht man nur das eigene Konto), bleibt sie als Option — sonst
+                          * stünde das Feld auf „Ohne Leitung", und ein Klick entfernte sie.
+                          */}
+                        {team.leitungId !== null && !leitungen.some((l) => l.id === team.leitungId) && (
+                          <option value={team.leitungId}>{team.leitung ?? t.leitungBisher}</option>
+                        )}
+                        {leitungen.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                    </label>
+                    <Button type="submit" variante="ghost">{t.leitungSetzen}</Button>
+                  </form>
+                )}
 
                 <h3 className="mb-s2 mt-s4 text-base text-text">{t.mitglieder}</h3>
                 {laufend.length === 0 ? (
@@ -184,6 +211,14 @@ export default async function Teams({ params, searchParams }: {
             <label className="flex flex-col gap-s2 text-xs text-text-muted">
               {t.bereich}
               <input name="bereich" maxLength={80} className={FELD} />
+            </label>
+            <label className="flex flex-col gap-s2 text-xs text-text-muted">
+              {t.leitung}
+              <select name="leitung" className={FELD} defaultValue="" data-cse="team-leitung">
+                <option value="">{t.leitungOhne}</option>
+                {leitungen.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+              <span className="text-text-subtle">{t.leitungHinweis}</span>
             </label>
             <div>
               <Button type="submit" variante="primary" data-cse="team-anlegen">{t.anlegen}</Button>

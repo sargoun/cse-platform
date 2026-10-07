@@ -174,6 +174,30 @@ describe('V-382 — versäumt ab der ersten Schicht nach der Veröffentlichung',
       .toBe('faellig');
   });
 
+  /*
+   * Copilot-Befund auf PR #42: die Schicht fragte ohne Stichtag — eine neue
+   * Fassung machte die abgeschlossene Schicht von gestern zu einer versäumten
+   * Kenntnisnahme, die damals nicht fällig war. Jetzt derselbe Stichtag wie
+   * `leseErsteSchichten`: nach Veröffentlichung UND Zuweisung.
+   */
+  it('eine Schicht vor der Veröffentlichung oder vor der Zuweisung meldet nichts', async () => {
+    const { anweisungId } = await anweisungVonGestern();
+    const vorVeroeffentlichung = await schicht(objektId, -50, -42);
+    expect(await alsLeitung((k) => leseOffeneKenntnisnahmenDerSchicht(k, vorVeroeffentlichung)))
+      .toEqual([]);
+
+    // Die Pflicht kam erst vor drei Stunden dazu: die Schicht davor zählt nicht.
+    await ohneAusloeser(
+      `update da_pflicht set zugewiesen_am = now() - interval '3 hours'
+        where dienstanweisung_id = $1::uuid`, [anweisungId]);
+    const vorZuweisung = await schicht(objektId, -6, -2);
+    expect(await alsLeitung((k) => leseOffeneKenntnisnahmenDerSchicht(k, vorZuweisung)))
+      .toEqual([]);
+    const nachZuweisung = await schicht(objektId, -1, 3);
+    expect(await alsLeitung((k) => leseOffeneKenntnisnahmenDerSchicht(k, nachZuweisung)))
+      .toHaveLength(1);
+  });
+
   it('die Schicht kennt ihre offene Kenntnisnahme — und die Bestätigung beendet beides', async () => {
     const { anweisungId, versionId } = await anweisungVonGestern();
     const laufend = await schicht(objektId, -6, -2);

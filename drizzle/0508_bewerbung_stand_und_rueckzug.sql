@@ -10,7 +10,12 @@
 --       Bewertung des Agenten bewegt nichts (Art. 22 DSGVO).
 --   (2) gespraech, sobald ein Gespraech geplant ist; sind alle Gespraeche
 --       abgesagt, zurueck auf in_pruefung. Ein gefuehrtes Gespraech laesst den
---       Stand stehen.
+--       Stand stehen. Beides sperrt zuerst die Bewerbung: zwei gleichzeitige
+--       Absagen der letzten beiden Gespraeche saehen sonst je das andere noch
+--       als geplant, und keine setzte den Stand zurueck; ein Gespraech, das
+--       neben einer Absage geplant wird, haette den Rueckfall ebenso verfehlt.
+--       Die zweite wartet, bis die erste festgeschrieben ist, und sieht dann
+--       ihren Stand (READ COMMITTED: jede Anweisung liest neu).
 --   (3) zurueckgezogen als Vermerk auf die Erklaerung der Bewerberin, von einem
 --       benannten Menschen mit recruiting.bewerbung_bewerten, mit Vermerk und
 --       Zeitpunkt. Die Aufbewahrungsfrist laeuft danach wie bei einer Absage
@@ -131,6 +136,10 @@ begin
          and status = 'eingegangen';
     end if;
   elsif tg_table_name = 'gespraech' then
+    -- Erst die Bewerbung sperren, dann die Gespraeche zaehlen (siehe Kopf).
+    perform 1 from public.bewerbung b
+     where b.id = new.bewerbung_id and b.mandant_id = new.mandant_id
+       for update;
     if tg_op = 'INSERT' and new.status = 'geplant' then
       update public.bewerbung
          set status = 'gespraech', geaendert_am = now()
