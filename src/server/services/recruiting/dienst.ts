@@ -30,6 +30,17 @@ import type { LeseKontext, SchreibKontext } from '../../kontext/index.js';
 import { jcsDigest } from '../freigabe/kette.js';
 import { rangfolge, type Kriterium, type Rangzeile } from './rangfolge.js';
 
+/**
+ * Die Stände aus 0166 — Voreinstellung (O-200, D-797): eine Stelle geht
+ * Entwurf → freigegeben → veröffentlicht → geschlossen, eine Bewerbung
+ * eingegangen → in Prüfung → Gespräch → abgelehnt | eingestellt |
+ * zurückgezogen. Die Beschäftigungsart (Vollzeit, Teilzeit, Minijob,
+ * Aushilfe) führt die Stelle noch nicht — bis dahin nennt sie der
+ * Anzeigentext, den Umfang `wochenstunden` (V-362). Schliessen lässt sich
+ * eine Stelle nicht, und `in_pruefung`, `gespraech` und `zurueckgezogen`
+ * setzt ausser dem Seed kein Weg (V-363).
+ * // TODO(client, O-200): Voreinstellung — Stände wie 0166; Beschäftigungsart als Feld der Stelle und die fehlenden Übergänge sind nicht gebaut (V-362, V-363). D-797.
+ */
 export type StelleStatus = 'entwurf' | 'freigegeben' | 'veroeffentlicht' | 'geschlossen';
 export type BewerbungStatus =
   | 'eingegangen' | 'in_pruefung' | 'gespraech' | 'abgelehnt' | 'eingestellt' | 'zurueckgezogen';

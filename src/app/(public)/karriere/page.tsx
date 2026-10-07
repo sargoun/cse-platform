@@ -20,6 +20,10 @@ import { bewerbungsMeldung } from './meldung';
  * **Keine offene Stelle ist eine Auskunft**, kein leerer Bildschirm: die
  * Initiativbewerbung steht deshalb immer da, und nicht nur dann, wenn nichts
  * ausgeschrieben ist.
+ *
+ * TODO(client, O-38): Voreinstellung — eine Karriereseite der Gruppe mit
+ * Bereichsfilter (SEITENKARTE); die Seite ist gebaut, der Filter fehlt
+ * (V-364) — bis dahin nennt jede Karte die Gesellschaft. D-797.
  */
 export const dynamic = 'force-dynamic';
 

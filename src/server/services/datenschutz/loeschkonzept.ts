@@ -204,7 +204,8 @@ export async function erstelleLoeschkonzept(
       ? ['O-25 — Aufbewahrungsfristen je Dokumentklasse sind teilweise nicht gesetzt'] : []),
     ...(tageBewerbung === null ? ['O-373 — Aufbewahrungsfrist für Bewerberdaten'] : []),
     'O-514 — Fristen für Personalakte, Konten und Agentenläufe',
-    'O-376 — Wie lange bleiben die Unterlagen eines EINGESTELLTEN Bewerbers?',
+    'O-376 — Bewerbungen Eingestellter: Voreinstellung Übernahme in die Personalakte '
+      + '(deren Frist, O-514); die Übernahme fehlt, der Nachtlauf hält sie zurück',
   ];
 
   const roh = { fristen: zeilen, laeufe, sperren, offen };

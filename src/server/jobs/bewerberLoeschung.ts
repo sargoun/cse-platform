@@ -23,8 +23,9 @@ import { alsJobRolle, alsJobSitzung, type JobVerbindung } from './sitzung.js';
  * aufgehoben.
  *
  * **Die Frist selbst gehört dem Mandanten** und steht als
- * `recruiting.aufbewahrung_tage` in den Plattformeinstellungen (O-373, ein
- * ausdrücklicher Platzhalter). Dieser Lauf rechnet sie nicht aus: er liest
+ * `recruiting.aufbewahrung_tage` in den Plattformeinstellungen (Voreinstellung
+ * O-373: 180 Tage, nach der Voreinstellung ab der Absage — gebaut ist der
+ * Eingang, V-365). Dieser Lauf rechnet sie nicht aus: er liest
  * `aufbewahrung_bis`, das beim Eingang gesetzt wurde. Eine Frist, die der
  * Nachtlauf selbst rechnet, änderte rückwirkend, was gestern galt.
  *
@@ -58,15 +59,15 @@ export function registriereBewerberLoeschung(db: JobVerbindung): JobDefinition {
        * auseinander; vor der Aufsicht zählt die Zusage. Gemeldet hat das die
        * Copilot-Runde auf PR 16.
        *
-       * **Zurückgehalten heisst nicht „für immer".** Welche Frist für die
-       * Bewerbungsunterlagen eines Eingestellten gilt, sagt die
-       * Personalaktenpraxis des Mandanten und nicht diese Datei — sie hier zu
-       * erfinden wäre eine erfundene Rechtsregel (`CLAUDE.md`). Die Zeilen
-       * stehen deshalb SICHTBAR auf `/recruiting/datenschutz` als
-       * zurückgehalten, statt still liegen zu bleiben.
+       * **Zurückgehalten heisst nicht „für immer".** Voreinstellung (O-376,
+       * D-797): die Bewerbung eines Eingestellten wandert in die Personalakte
+       * und folgt deren Frist (O-514). Die Übernahme ist nicht gebaut
+       * (V-366); bis dahin stehen die Zeilen SICHTBAR auf
+       * `/recruiting/datenschutz` als zurückgehalten, statt still liegen zu
+       * bleiben.
        *
-       * // TODO(client, O-376): Wie lange bleiben die Bewerbungsunterlagen
-       * eines EINGESTELLTEN Bewerbers, und wandern sie in die Personalakte?
+       * // TODO(client, O-376): Voreinstellung — Übernahme in die Personalakte,
+       * Frist der Personalakte; nicht gebaut (V-366). D-797.
        */
       const faellig = await alsJobRolle(db, (jd) => jd.abfrage<{
         mandant_id: string; id: string; gesperrt: boolean;

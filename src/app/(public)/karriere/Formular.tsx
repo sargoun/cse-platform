@@ -17,6 +17,15 @@ import { EMAIL_MUSTER } from './meldung';
  * Datei annimmt und sie nirgends ablegt, ist schlimmer als keines: der Mensch
  * glaubt, sie sei angekommen. Das steht als Satz auf der Seite, nicht als
  * Fussnote — und `// TODO(client, O-375)` hält fest, was fehlt.
+ *
+ * **Was erhoben wird — Voreinstellung (O-199, D-797).** Name, E-Mail,
+ * Telefon (freiwillig) und eine Nachricht; bei der Initiativbewerbung der
+ * Bereich. Kein Geburtsdatum, keine Staatsangehörigkeit, kein Foto, keine
+ * Anschrift: Art. 5 Abs. 1 lit. c DSGVO, und jedes dieser Merkmale lädt zu
+ * einem Benachteiligungsvorwurf nach dem AGG ein. Führerschein, Sachkunde
+ * nach § 34a GewO oder Arbeitserlaubnis klärt das Gespräch, wenn die Stelle
+ * sie verlangt; nachgewiesen werden sie bei der Einstellung.
+ * // TODO(client, O-199): Voreinstellung — nur Name, E-Mail, Telefon (freiwillig), Nachricht und bei der Initiativbewerbung der Bereich; keine Merkmale, die eine Benachteiligung nach dem AGG nahelegen. Wie gebaut. D-797.
  */
 export function Bewerbungsformular({ stelleId, aufbewahrungTage, bereiche, meldung }: {
   readonly stelleId: string | null;

@@ -11,11 +11,11 @@
  *
  *  1. **Der Anschluss als Vertrag, nicht als Zusage** (CLAUDE.md, „No fake
  *     integrations"): `BewerbungsPostfach` mit genau einem Adapter heute —
- *     `NichtVerbundenesPostfach` (`integrationen/bewerbungspostfach.ts`). Welches Postfach, welcher Anbieter, in
- *     welcher Region und unter welchem Vertrag, ist nicht entschieden
- *     (O-938); wer triagiert und ob die Plattform nach der Übernahme im
- *     Postfach löschen darf, ist O-117. Der Adapter liefert keine Nachricht
- *     und behauptet keine.
+ *     `NichtVerbundenesPostfach` (`integrationen/bewerbungspostfach.ts`). Postfach,
+ *     Anbieter, Region und Vertrag trägt der Betreiber ein (O-938);
+ *     Voreinstellung (O-938, O-117, D-797): wer überträgt, wählt die
+ *     Gesellschaft, und nach der Übernahme wird die Nachricht im Postfach
+ *     gelöscht. Der Adapter liefert keine Nachricht und behauptet keine.
  *  2. **Die Erfassung von Hand** (`erfasseBewerbungAusPostfach`): ein Mensch
  *     überträgt eine Bewerbung, die im Postfach liegt — mit Quelle `mail`,
  *     Rechtsgrundlage und Aufbewahrungsfrist GENAU wie beim Formular
@@ -74,8 +74,9 @@ export async function erfasseBewerbungAusPostfach(
         'Diese Stelle gibt es hier nicht — oder sie ist geschlossen.', 'stelle_unbekannt', 400);
     }
   }
-  // TODO(client, O-938): Beginnt die Löschfrist einer Bewerbung aus dem Postfach mit dem
-  // Eingang im Postfach oder mit der Übernahme in die Plattform? Gesetzt ist die Übernahme.
+  // TODO(client, O-938): Voreinstellung — die Frist beginnt mit der Übernahme in die Plattform
+  // (wie gebaut); der Abstand zum Posteingang sind Tage, und die Nachricht wird danach im
+  // Postfach gelöscht. Nach O-373 zählt sie ab der Absage, sobald das gebaut ist. D-797.
   const tage = await aufbewahrungTage(kontext);
   const telefon = (neu.telefon ?? '').trim();
   const nachricht = (neu.nachricht ?? '').trim();

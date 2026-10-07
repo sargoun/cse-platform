@@ -131,16 +131,18 @@ export function fristText(
        * **Plattformweit, und das steht jetzt dran.** `app.plattform_einstellung`
        * kennt keinen Mandanten — jede Gesellschaft bekommt dieselbe Zahl. Der
        * Satz sagte „für diese Gesellschaft" und behauptete damit eine
-       * Konfiguration, die gar nicht gelesen wurde; O-373 hält ausdrücklich
-       * fest, dass die Zahl dem Mandanten GEHÖREN soll. Bis dahin ist sie eine
-       * Vorgabe der Plattform, und ein Verzeichnis, das eine Vorgabe als
-       * Entscheidung der Gesellschaft ausgibt, ist an genau der Stelle falsch,
-       * an der eine Aufsicht nachfragt. Gemeldet von der Copilot-Runde auf PR 17.
+       * Konfiguration, die gar nicht gelesen wurde. Voreinstellung (O-373,
+       * D-797): eine Zahl für alle Gesellschaften, gezählt nach der
+       * Voreinstellung ab der Absage — gebaut ist der Eingang. Ein Verzeichnis,
+       * das eine Vorgabe als Entscheidung der Gesellschaft ausgibt, ist an genau
+       * der Stelle falsch, an der eine Aufsicht nachfragt. Gemeldet von der
+       * Copilot-Runde auf PR 17.
        */
       return tageBewerbung === null
         ? `Aus „${v.fristQuelle.schluessel}" — plattformweit nicht gesetzt (O-373)`
-        : `${String(tageBewerbung)} Tage ab Eingang — plattformweite Vorgabe `
-          + `(${v.fristQuelle.schluessel}), noch nicht je Gesellschaft entschieden (O-373)`;
+        : `${String(tageBewerbung)} Tage ab Eingang — plattformweite Voreinstellung `
+          + `(${v.fristQuelle.schluessel}, O-373; nach der Voreinstellung ab Absage, `
+          + 'noch nicht gebaut)';
     case 'offen':
     default:
       return `Noch nicht entschieden — ${v.fristQuelle.frage}`;

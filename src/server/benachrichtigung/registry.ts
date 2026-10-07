@@ -61,7 +61,17 @@ export interface ArtDefinition {
   readonly text: (k: BenachrichtigungsKontext) => string;
   /** Muss einen Pfad liefern, oder `null`, wenn das Ziel nicht existiert. */
   readonly ziel: (k: BenachrichtigungsKontext) => string | null;
-  /** Vorgabekanaele. Der Benutzer darf sie je Art aendern (NOT-02). */
+  /**
+   * Vorgabekanaele. Der Benutzer darf sie je Art aendern (NOT-02).
+   *
+   * TODO(client, O-202): Voreinstellung — E-Mail zusaetzlich fuer die Arten
+   * mit Frist oder Risiko (Budget, Radar, Nachweisablauf, Wiedervorlage,
+   * Lead, Lead-Frist, unbesetzte Schicht, Nachtrag), nur Portal fuer Schicht
+   * ohne Zeiteintrag, Einwandentscheidung und Planveroeffentlichung — so,
+   * wie die Arten es eintragen. Zugestellt wird per E-Mail noch nichts: der
+   * Versanddienst ist nicht verbunden, und die Kanalwahl liest kein Zusteller
+   * (V-367). D-797.
+   */
   readonly kanaeleVorgabe: readonly Kanal[];
   /**
    * Darf sie in eine Zusammenfassung? Freigaben nie — siehe oben.
