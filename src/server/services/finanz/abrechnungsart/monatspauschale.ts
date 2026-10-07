@@ -41,9 +41,11 @@ import {
   belegBenannt,
   fehler,
   ganzeMenge,
+  ladeSignierteNachweise,
   leistungszeitraum,
   monateDerPeriode,
   parameterText,
+  pruefeNachweisZeitraum,
   pruefeParameter,
   steuergruppeDerLeistung,
   steuergruppeDesAuftrags,
@@ -145,10 +147,16 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
      * Monat — zwei Rechnungen über je eine Hälfte des Novembers wären sonst
      * zwei volle Novemberpauschalen. Nur anteilig nach Kalendertagen deckt
      * die Zeile genau ihre Tage, und die zweite Hälfte bleibt abrechenbar.
+     *
+     * Im Modus `nach_leistungsnachweis` immer der ganze Monat (D-838): die
+     * Zeile trägt dort den Zeitraum ihrer Nachweise, und der kann kürzer sein
+     * als die Tage, die sie berechnet — gegen ihn verglichen, bliebe ein schon
+     * berechneter Tag abrechenbar.
      */
     const teilmonat = konfiguration.parameter['teilmonat'];
+    const nachNachweis = konfiguration.leistungszeitraumModus === 'nach_leistungsnachweis';
     for (const abschnitt of teile) {
-      const bereich = istVollerMonat(abschnitt) || teilmonat !== 'kalendertage'
+      const bereich = istVollerMonat(abschnitt) || teilmonat !== 'kalendertage' || nachNachweis
         ? ganzerMonat(abschnitt) : abschnitt;
       const schon = eingabe.bisher.filter((a) => ueberschneidet(a, bereich));
       if (schon.length === 0) continue;
@@ -171,6 +179,7 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
         'O-04',
       ));
     }
+    befunde.push(...await pruefeNachweisZeitraum(db, konfiguration, teile));
     return befunde;
   },
 
@@ -198,9 +207,10 @@ export const MONATSPAUSCHALE: Abrechnungsart = {
       ? await steuergruppeDesAuftrags(db, konfiguration.auftragId, periode.bis)
       : await steuergruppeDerLeistung(db, konfiguration, periode.bis);
 
+    const nachweise = await ladeSignierteNachweise(db, konfiguration, periode);
     const entwuerfe: RechnungspositionEntwurf[] = [];
     for (const abschnitt of teile) {
-      const zeitraum = leistungszeitraum(konfiguration, abschnitt);
+      const zeitraum = leistungszeitraum(konfiguration, abschnitt, nachweise);
       const voll = istVollerMonat(abschnitt);
 
       if (voll || modus === 'keine') {

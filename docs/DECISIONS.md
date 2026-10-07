@@ -25048,7 +25048,7 @@ gelesen.
 | O-184 | Keine Gutschriftsabrechnung (§ 14 Abs. 2 Satz 2 UStG) mit Nachunternehmern: sie stellen Rechnungen, die als Eingangsrechnung mit § 13b-Prüfung laufen (`lieferant.leistungsart`, `ist_bauleistender_bis`); „Gutschrift" ist in der Plattform der Stornobeleg (Kreis `gutschrift`). Wie gebaut. | `finanz/eingangsrechnung.ts`, `finanz/lieferant.ts`, `finanz/nummernkreis.ts` |
 | O-187 | Die Plattform rechnet und weist den Einbehalt aus (`estg48/abzug.ts`: 15 % als datierter Satz, Freistellungsbescheinigung am Stichtag; `steuerfall.ts`, `buchungssatz.ts`); die Anmeldung nach § 48a EStG gibt der Steuerberater ab; einen Fristenkalender führt die Plattform nicht (V-315). | `finanz/estg48/abzug.ts`, `buchhaltung/buchungssatz.ts` |
 | O-188 | Die Geschäftsführung der Gesellschaft zeichnet die Verfahrensdokumentation; geprüft wird jährlich und bei jedem Schemastand-Wechsel (der Stand steht im Dokument: `schemastand`, `auslieferung`). Seit V-316 (D-837) mit Zeichnungsvermerk: wer `buchhaltung_konfiguration.verwalten` hält, zeichnet die beim Zeichnen erzeugte Fassung (Hash, Schemastand) mit seiner Funktion; die Seite sagt, ob die letzte Zeichnung noch gilt (Turnus zwölf Monate, Schemastand). Das Dokument nennt die Voreinstellung weiter unter „offen". | `buchhaltung/verfahrensdokumentation.ts`, `buchhaltung/verfahrensdokumentation-zeichnung.ts` |
-| O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen; eine Abrechnungsart, die den Leistungszeitraum aus ihm herleitet, bleibt gesperrt (O-54). Wie gebaut. | `finanz/positionsquelle.ts` |
+| O-190 | Ja: der gegengezeichnete Leistungsnachweis hängt als Quelle `leistungsnachweis` an der Rechnungsposition (`rechnungsposition_quelle`, `fuegeQuelleHinzu`), zusätzlich zu den Zeiteinträgen. Den Leistungszeitraum im Modus `nach_leistungsnachweis` leiten die Abrechnungsarten seit V-337 (D-838) aus den unterschriebenen Nachweisen her, gefunden über die Leistungszeile — nicht über diese Quelle, die nach `quelle_leistungsnachweis_uk` genau eine Zeile belegt. | `finanz/positionsquelle.ts`, `finanz/abrechnungsart/typen.ts` |
 | O-363 | **Gebaut:** bei zwei passenden § 13b-Gruppen (0 %, AE) entscheidet das Gewerk des Lieferanten — `lieferant.leistungsart` bau → `ust_0_13b_bau`, gebaeudereinigung → `ust_0_13b_reinigung` (`GRUPPE_JE_LEISTUNGSART`, `waehleGruppeNachLeistungsart`); der Befund nennt die Voreinstellung. Ohne Gewerk im Stamm bleibt das Feld unsicher, und ein Mensch wählt (wie bisher); die Freigabe des Belegs bleibt menschlich (Invariante 7). | `finanz/eingang/vorschlag.ts`, `tests/kern/eingang-steuersatzgruppe.test.ts` (5) |
 | O-365 | Beschreibungsstandard Version 1.0; die DTD liegt dem Z3-Paket nicht bei (sie ist nicht Teil des Repositories), `index.xml` nennt sie; Abnahme durch Probeimport beim Steuerberater (D-485). Wie gebaut. | `buchhaltung/z3.ts`, Buchhaltung › Z3-Export |
 | O-600 | Der Hash genügt als Nachweis der Fassung (`nutzlast_sha256`, `artefakt`); die XRechnung entsteht aus dem festgeschriebenen Payload wieder (`xrechnung/aus-snapshot.ts`); das PDF wird nicht archiviert, `rechnung_dokument` fehlt (V-317). | `finanz/versand.ts` |
@@ -25304,7 +25304,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-53 | Ja — ein Auftrag trägt Positionen verschiedener Abrechnungsarten (Monatspauschale und Sonderreinigung nach Stunden im selben Vertrag); die Konfiguration hängt deshalb an der Leistungszeile (`auftrag_leistung_id`), `null` ist der Sonderfall einer Pauschale über den ganzen Auftrag, und eine auftragsweite Pauschale über Zeilen mit verschiedenen Steuersätzen wird abgewiesen. Wie gebaut. | `finanz/abrechnungsart/index.ts`, `typen.ts` (`steuergruppeDesAuftrags`) |
-| O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Die Herleitung aus den Nachweisen ist nicht gebaut (V-337); bis dahin bleibt der Modus gesperrt, und der Befund sagt die Voreinstellung statt „offen". | `finanz/abrechnungsart/typen.ts` (`pruefeParameter`), `positionsquelle.ts` |
+| O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Seit V-337 (D-838) gebaut: beschnitten auf den Abschnitt; ein Nachweis zählt, wenn er unterschrieben ist und im Kopf oder in einer Zeile eine Leistungszeile des Auftrags nennt; blockiert wird nur noch der Abschnitt ohne einen solchen Nachweis. | `finanz/abrechnungsart/typen.ts` (`zeitraumAusNachweisen`, `ladeSignierteNachweise`, `pruefeNachweisZeitraum`), die fünf Strategien |
 | O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie kann je nach Leistung und Empfänger die Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 EStG auslösen (`reverseChargeLage`, `abzugLage` prüfen das schon) und gehört in der Preisbegründung getrennt ausgewiesen; die Kostenart ist kein Steuerkennzeichen. Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und Rechenweg fehlen (V-338); die Kalkulationsseite sagt es zweisprachig. | `kalkulation/kostenposition.ts`, Angebot › Kalkulation |
 | O-58 | Ein Angebot aus dem Raumbuch trägt seine Kalkulation und geht erst mit bestätigten Werten hinaus (`kern.angebot_versand_pruefen`); ein Angebot von Hand (Katalog, Kleinauftrag, Pauschale) hat keine Kalkulation und geht ohne hinaus — die Verantwortung für den Preis trägt, wer freigibt (O-920). Wie gebaut. | `angebot/index.ts`, `angebot/von-hand.ts` |
 | O-59 | Die Zeitwerte und Listenpreise des Leistungskatalogs sind die Voreinstellung jeder Kalkulation (`ist_platzhalter`); bestätigt werden sie je Kalkulation mit den Zahlen des Angebots (`kalkulation/bestaetigung.ts`), nicht gruppenweit. Ein Weg, Katalogwerte im Katalog zu bestätigen, fehlt und ist bis zu den Richtwerten des Betreibers (O-16, O-17) nicht vorgesehen. Wie gebaut. | `kalkulation/bestaetigung.ts` |
@@ -28036,4 +28036,65 @@ und er prüft die neue. Gezeichnet wird nie der Hash aus dem Formular. Prüfung:
 `tests/kern/verfahrensdokumentation-zeichnung.test.ts`.
 
 | Betrifft | V-316, O-188, D-787, D-485, ACC-10; `drizzle/0526_verfahrensdokumentation_zeichnung.sql`, `src/server/db/schema/rls.ts`, `src/server/db/triggers/no-hard-delete.sql`, `scripts/generate-triggers.ts`, `src/server/services/buchhaltung/{verfahrensdokumentation,verfahrensdokumentation-zeichnung}.ts`, `src/server/registry/dienste.ts`, `src/server/auth/route-manifest.ts`, `src/app/api/buchhaltung/verfahrensdokumentation/zeichnung/route.ts`, `src/app/portal/[mandant]/buchhaltung/verfahrensdokumentation/{page,Zeichnungsvermerk}.tsx`, `src/lib/i18n/verwaltung/verfahrensdokumentation-zeichnung.ts`, `tests/isolation/verfahrensdokumentation-zeichnung.test.ts`, `tests/kern/verfahrensdokumentation-zeichnung.test.ts`, `tests/e2e/z3-verfahrensdokumentation.spec.ts` |
+|---|---|
+
+### D-838 · Bauwelle 35: Der Leistungszeitraum kommt aus den gegengezeichneten Leistungsnachweisen (V-337, O-54)
+
+**Der Anlass.** Im Modus `nach_leistungsnachweis` lieferte `leistungszeitraum()`
+leere Grenzen, und `pruefeParameter` sperrte den Modus pauschal — für jede
+Abrechnungsart, in jedem Abschnitt, auch wenn unterschriebene Nachweise
+vorlagen. Voreinstellung (O-54, D-792): der Leistungszeitraum ist der Zeitraum
+der gegengezeichneten Nachweise des Abschnitts, frühester Beginn bis spätestes
+Ende.
+
+**Was gebaut ist** (`finanz/abrechnungsart/typen.ts`).
+- **`zeitraumAusNachweisen`** — die reine Herleitung: frühester Beginn bis
+  spätestes Ende der Nachweise, die den Abschnitt berühren (beide Grenzen
+  einschließlich), **beschnitten auf den Abschnitt**. Ein Nachweis vom 25.08.
+  bis 05.09. gibt der Augustzeile 25.–31.08. und der Septemberzeile 01.–05.09.
+  Unbeschnitten stünde auf der Augustzeile „bis 05.09.": sie behauptete Tage,
+  die die Septemberzeile berechnet, und die Doppelabrechnungssperre der
+  Pauschale (`ueberschneidet`, V-207) hielte den September für schon
+  berechnet.
+- **`ladeSignierteNachweise`** — welche Nachweise zählen (Voreinstellung,
+  `TODO(client, O-54)`): unterschrieben (`signiert`), nicht storniert, und im
+  Kopf oder in einer Zeile eine Leistungszeile DIESES Auftrags nennend; bei
+  einer zeilenbezogenen Vereinbarung genau ihre Zeile. Ein Nachweis ohne
+  Leistungszeile zählt nicht — am Objekt allein lässt er sich keinem von zwei
+  Aufträgen zuordnen. Gelesen unter der RLS des Menschen (`nachweis.lesen`),
+  wie die Strategien ihre Zeiteinträge und Abrufe lesen.
+- **`pruefeNachweisZeitraum`** ersetzt den pauschalen Befund: je Abschnitt
+  OHNE gegengezeichneten Nachweis ein blockierender Befund (O-54) mit seinen
+  Tagen; fehlt das Recht, Nachweise zu lesen, sagt der Befund das Recht beim
+  Namen, statt „kein Nachweis" zu melden. In den anderen Modi fragt er die
+  Datenbank nicht.
+- **Die fünf Strategien** prüfen damit ihre Abschnitte (die Pauschale je
+  Monat, die anderen ihren Zeitraum) und geben die Nachweise an
+  `leistungszeitraum()`. Der Einzelabruf behält je Zeile den Tag seines
+  Abrufs — genauer als jeder Nachweis; der Nachweis ist dort das Tor.
+- **Die Pauschale vergleicht im Modus den ganzen Monat** mit dem schon
+  Berechneten: ihre Zeile trägt dort den Zeitraum der Nachweise, der kürzer
+  sein kann als die berechneten Tage; gegen ihn verglichen bliebe bei
+  anteiliger Abrechnung ein schon berechneter Tag abrechenbar.
+- **Nicht über die Quelle `leistungsnachweis`** (O-190): die Strategie rechnet,
+  bevor Quellen existieren, und ein Nachweis über die Monatsgrenze gehört zu
+  zwei Zeilen, belegt nach `quelle_leistungsnachweis_uk` aber genau eine. Die
+  Quelle bleibt der Beleg, den ein Mensch an eine Zeile hängt.
+
+**Prüfung.** `tests/isolation/leistungszeitraum-nachweis.test.ts` (6, die
+Nachweise entstehen über Entwurf, Vorlage und Unterschrift des Kunden): zwei
+Nachweise über die Monatsgrenze geben August und September ihre Tage; ein
+Nachweis über die Grenze wird je Monat beschnitten; ein vorgelegter Nachweis
+und einer ohne Leistungszeile zählen nicht, nur der Monat ohne Nachweis
+blockiert; der beschnittene August im Entwurf sperrt den September nicht, den
+August ein zweites Mal schon; eine zeilenbezogene Vereinbarung zählt nur ihre
+Zeile; ohne `nachweis.lesen` nennt der Befund das Recht und es wird nichts
+gerechnet. `tests/kern/abrechnungsart.test.ts`: der pauschale Befund ist weg;
+die Herleitung über die Monatsgrenze, der Schnitt, beide Grenzen
+einschließlich; `leistungszeitraum` je Modus; der Befund je Abschnitt, der
+Befund ohne Recht, keine Abfrage in den anderen Modi; die Pauschale vergleicht
+im Modus den ganzen Monat. Dazu `tests/kern` komplett, `pnpm guards`,
+`pnpm typecheck`, `pnpm lint`.
+
+| Betrifft | V-337, O-54, O-190, D-792, D-787, V-207; `src/server/services/finanz/abrechnungsart/{typen,monatspauschale,stunden,festpreis-los,einzelabruf,einheitspreis-aufmass}.ts`, `src/server/services/finanz/positionsquelle.ts`, `tests/isolation/leistungszeitraum-nachweis.test.ts`, `tests/kern/abrechnungsart.test.ts` |
 |---|---|

@@ -40,9 +40,12 @@ export interface Abfrage {
  *
  * TODO(client, O-190): Voreinstellung — der gegengezeichnete Leistungsnachweis
  * hängt als Quelle `leistungsnachweis` an der Rechnungsposition, zusätzlich zu
- * den Zeiteinträgen (`fuegeQuelleHinzu`); eine Abrechnungsart, die den
- * Leistungszeitraum aus ihm herleitet, bleibt gesperrt, bis die Herleitung aus
- * den Nachweisen gebaut ist (O-54, Voreinstellung D-792, V-337; D-787).
+ * den Zeiteinträgen (`fuegeQuelleHinzu`). Den Leistungszeitraum im Modus
+ * `nach_leistungsnachweis` leiten die Abrechnungsarten aus den unterschriebenen
+ * Nachweisen des Abschnitts her, gefunden über die Leistungszeile
+ * (`abrechnungsart/typen.ts`, O-54, D-792, D-838) — nicht über diese Quelle:
+ * ein Nachweis über eine Monatsgrenze gehört zu zwei Zeilen, belegt nach
+ * `quelle_leistungsnachweis_uk` aber genau eine (D-787).
  * TODO(client, O-160): Voreinstellung — der Materialverbrauch wird je Auftrag
  * und Tag erfasst (Artikel, Menge, Einheit) und ist die vierte Quelle
  * (`materialverbrauch_id`); die Tabelle `materialverbrauch` fehlt (V-324). D-789.
