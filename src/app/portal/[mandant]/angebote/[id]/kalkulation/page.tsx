@@ -353,7 +353,6 @@ export default async function KalkulationSeite(
                             <select name="kostenart" defaultValue={z.kostenart} className={kostenFeld}>
                               <option value="material">{tk.kostenart['material']}</option>
                               <option value="geraet">{tk.kostenart['geraet']}</option>
-                    <option value="nachunternehmer">{tk.kostenart['nachunternehmer']}</option>
                               <option value="nachunternehmer">{tk.kostenart['nachunternehmer']}</option>
                             </select>
                           </label>

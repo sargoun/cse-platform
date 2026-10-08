@@ -1,3 +1,4 @@
+import type { Route } from 'next';
 import Link from 'next/link';
 import { PortalRahmen } from '@/components/portal/PortalRahmen';
 import { DataTable } from '@/components/ui/DataTable';
@@ -51,7 +52,7 @@ interface Extra {
   readonly frueher: readonly AuskunftZeile[];
 }
 
-function Abschnitt({ a, mitArt9 }: { readonly a: AuskunftAbschnitt; readonly mitArt9: string }) {
+function Abschnitt({ a, mitArt9 }: { readonly a: AuskunftAbschnitt; readonly mitArt9: Route }) {
   const zeilen = a.zeilen.map((z, i) => ({ i, z }));
   return (
     <section data-cse="auskunft-abschnitt" data-gesperrt={String(a.gesperrt)}
@@ -144,7 +145,7 @@ export default async function Auskunftsseite(
     + 'px-s5 py-s3 text-sm text-text hover:bg-surface-2';
   const api = `/api/datenschutz/auskunft?anfrage=${z.id}${a.art9Mitgegeben ? '&art9=mitgeben' : ''}`;
   const fristen = a.offeneFristen.length > 0 ? '&fristen=bestaetigt' : '';
-  const mitArt9 = `/portal/${mandant}/datenschutz/${z.id}/auskunft?art9=1`;
+  const mitArt9 = `/portal/${mandant}/datenschutz/${z.id}/auskunft?art9=1` as Route;
 
   return (
     <PortalRahmen

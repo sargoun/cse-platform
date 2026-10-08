@@ -28878,12 +28878,25 @@ musste das ankündigen.
   gelassenen und sagt, wenn zurückgesetzt wurde.
 - Die Zusage „zweimal laufen lassen ändert null Zeilen" bleibt: ein zweiter
   Lauf schreibt nichts und nennt dieselben gepflegten Zeilen wieder.
+- **Gleicht eine Zeile dem Seed, wird ihr Stand nachgetragen** (Nachtrag aus
+  der Durchsicht von PR #47): eine Zeile von vor 0535, deren Inhalt dem Seed
+  gleicht, bekam sonst nie einen Importstand — und der nächste geänderte Seed
+  hielt die unberührte Zeile für gepflegt und ließ sie für immer stehen. Der
+  Import schreibt dann nur `import_stand`; der Auslöser
+  `kern.import_stand_ohne_stempel` (0535) läuft nach dem Stempel von
+  `kern.setze_geaendert_am` und nimmt ihn zurück, wenn sich außer
+  `import_stand` nichts geändert hat — `seite.geaendert_am` ist das `lastmod`
+  der Sitemap, und ein Nachtrag ist keine Änderung der Seite. Den Wert
+  bestimmt weiter die Datenbank (S2): der alte oder `now()`, nie der Aufrufer.
+  Das geschieht einmal je Zeile; der Lauf danach schreibt wieder nichts.
 
 **Prüfung.** `tests/isolation/inhalt-import.test.ts`: ein gepflegter
 Abschnitt bleibt, der nicht gepflegte Seitentitel geht auf den neuen Seed;
 ein zweiter Lauf ändert nichts; ein gepflegter Seitentitel bleibt;
 `ueberschreiben` setzt zurück, danach gilt der Seed wieder als Stand; ohne
-Importstand gilt eine abweichende Zeile als gepflegt. Die bisherigen
+Importstand gilt eine abweichende Zeile als gepflegt; ohne Importstand bekommt
+eine dem Seed gleiche Zeile ihn nachgetragen, ohne Stempel, und der nächste
+Seed kommt an; wer neben dem Stand etwas ändert, stempelt weiter. Die bisherigen
 Prüfungen (zweimal importieren ändert nichts, kein Stempel ohne Änderung,
 eine echte Änderung wird erkannt) laufen unverändert;
 `tests/isolation/{inhalt,website-pflege}.test.ts` ebenso.
@@ -28977,7 +28990,11 @@ Weg war, den ganzen Urlaub zu stornieren und neu zu beantragen.
   Teile vor und nach der Krankheit — Wochenenden und Berliner Feiertage
   geben nichts zurück, die halben Tage am Urlaubsrand kommen halb zurück.
   `erfasseKrankheitImUrlaub` verlangt die Bescheinigung und sagt jeden
-  anderen Grund als Schlüssel. `TODO(client, O-138)` dort und in 0537.
+  anderen Grund als Schlüssel. „Bescheinigung gültig bis" ist leer oder ein
+  Kalendertag, geprüft, bevor die Datenbank ihn sieht (Grund
+  `au_bis_kein_datum`, 400; Nachtrag aus der Durchsicht von PR #47 —
+  `2026-02-31` endete vorher am `::date` mit 22008 als 500).
+  `TODO(client, O-138)` dort und in 0537.
 - **Der Weg am Antrag**: `/personal/antraege/[id]` zeigt am genehmigten
   Urlaubsantrag den Abschnitt „Krankheit im Urlaub" (zweisprachig) —
   Zeitraum, Bescheinigung, gültig bis, Bemerkung —, Route
@@ -29058,7 +29075,12 @@ ausdrückliche Mitgabe (O-643).
   (`personal.entgelt_lesen` bzw. `zeit.abwesenheit_grund_lesen`), werfen
   sonst 42501 und schreiben EINE Protokollzeile je Abruf
   (`entgelt.gelesen`, `personal.abwesenheitsgrund_gelesen`, an der Person,
-  mit dem Zweck Art. 15 und der Zeilenzahl — kein Wert).
+  mit dem Zweck Art. 15 und der Zeilenzahl — kein Wert). Beide sind
+  `volatile`, nicht `stable` (Nachtrag aus der Durchsicht von PR #47): den
+  Aufruf einer `stable` Funktion darf der Planer zusammenfassen oder
+  auslassen, wenn ihr Ergebnis nicht gebraucht wird — ein
+  Zugriffsprotokoll, dessen Eintrag vom Abfrageplan abhängt, ist keines
+  (dieselbe Regel wie `app.ausgabe_erstattung_lesen`, 0184).
 - **`auskunft.ts`**: Abschnitt „Interner Stundensatz" (`entgelt`, Recht
   `personal.entgelt_lesen`, der Satz als Euro aus ganzen Cent); Abschnitt
   „Art der Abwesenheiten (Art. 9 DSGVO)" (`abwesenheitsgrund`, Recht

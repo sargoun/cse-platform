@@ -12,14 +12,18 @@
  *  2. Die Gegenprobe: Gutschrift plus die Kosten der Teile davor und danach
  *     ergeben wieder genau den Urlaub.
  *  3. Die Verdrahtung: Voreinstellung, Funktion, Rechte, Route, Katalog.
+ *  4. „Bescheinigung gültig bis" ist leer oder ein Kalendertag — geprüft,
+ *     bevor die Datenbank ihn sieht.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { milliMenge } from '../../src/server/services/finanz/menge.js';
 import { rechneTage } from '../../src/server/services/abwesenheit/tage.js';
+import type { SchreibKontext } from '../../src/server/kontext/index.js';
 import {
-  gutschriftTage, KrankheitImUrlaubFehler, type Urlaubszeitraum,
+  erfasseKrankheitImUrlaub, gutschriftTage, KrankheitImUrlaubFehler, type Urlaubszeitraum,
 } from '../../src/server/services/abwesenheit/krankheit-im-urlaub.js';
+import { KRANKHEIT_IM_URLAUB_TEXTE } from '../../src/lib/i18n/verwaltung/krankheit-im-urlaub.js';
 
 /** Montag, 5. Oktober, bis Freitag, 16. Oktober 2026 — zehn Arbeitstage. */
 const ZWEI_WOCHEN: Urlaubszeitraum = {
@@ -135,5 +139,40 @@ describe('(3) Verdrahtung', () => {
     expect(seite).toContain('action={`/api/antraege/${id}/krankheit-im-urlaub`}');
     const katalog = readFileSync('src/server/services/stammdaten/abwesenheitsart.ts', 'utf8');
     expect(katalog).toContain('unterbricht_urlaub = $12::boolean');
+  });
+});
+
+describe('(4) „Bescheinigung gültig bis" — ein Kalendertag oder leer, vor der Datenbank', () => {
+  /** Ein Kontext, der jede Berührung meldet: die Prüfung muss vorher fallen. */
+  const ohneDatenbank = new Proxy({}, {
+    get: () => () => { throw new Error('die Datenbank wurde gefragt'); },
+  }) as unknown as SchreibKontext;
+  const eingabe = {
+    antragId: '00000000-0000-0000-0000-000000000001',
+    von: '2026-10-07', bis: '2026-10-09', auVorliegt: true,
+  };
+
+  it.each(['2026-02-31', '2026-13-01', '07.10.2026', 'morgen'])(
+    '%s → au_bis_kein_datum (400), ohne die Datenbank zu fragen', async (wert) => {
+      const fehler = await erfasseKrankheitImUrlaub(ohneDatenbank, { ...eingabe, auBis: wert })
+        .catch((f: unknown) => f);
+      expect(fehler).toBeInstanceOf(KrankheitImUrlaubFehler);
+      expect((fehler as KrankheitImUrlaubFehler).grund).toBe('au_bis_kein_datum');
+      expect((fehler as KrankheitImUrlaubFehler).status).toBe(400);
+    });
+
+  it('leer bleibt erlaubt — dann gilt die Bescheinigung wie „krank bis"', async () => {
+    const eingaben = [eingabe, ...[null, '', '   '].map((leer) => ({ ...eingabe, auBis: leer }))];
+    for (const e of eingaben) {
+      const fehler = await erfasseKrankheitImUrlaub(ohneDatenbank, e).catch((f: unknown) => f);
+      // Die Prüfung lässt ihn durch; erst die Datenbank wird gefragt.
+      expect((fehler as Error).message).toBe('die Datenbank wurde gefragt');
+    }
+  });
+
+  it('der Grund hat einen Satz in beiden Sprachen', () => {
+    for (const sprache of ['de', 'en'] as const) {
+      expect(KRANKHEIT_IM_URLAUB_TEXTE[sprache].fehler.au_bis_kein_datum).toBeTruthy();
+    }
   });
 });

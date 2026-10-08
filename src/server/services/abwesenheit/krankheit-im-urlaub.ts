@@ -26,7 +26,7 @@
  */
 import type { SchreibKontext } from '../../kontext/index.js';
 import { mengeNachPostgres, milliMenge, type MilliMenge } from '../finanz/menge.js';
-import { tagePlus } from '@/lib/datum/kalendertag';
+import { istGueltigerKalendertag, tagePlus } from '@/lib/datum/kalendertag';
 import { rechneTage, ZeitraumFehler, type Wochentag } from './tage.js';
 import { findeAbwesenheit } from './index.js';
 
@@ -73,7 +73,8 @@ export function gutschriftTage(
 export type KrankheitImUrlaubGrund =
   | 'nicht_gefunden' | 'kein_urlaub' | 'nicht_genehmigt' | 'au_fehlt' | 'ausserhalb'
   | 'keine_arbeitstage' | 'keine_art' | 'art_ungeklaert' | 'schon_erfasst'
-  | 'konto_fehlt' | 'zu_viel' | 'au_bis_vor_von' | 'kein_datum' | 'kein_recht';
+  | 'konto_fehlt' | 'zu_viel' | 'au_bis_vor_von' | 'au_bis_kein_datum' | 'kein_datum'
+  | 'kein_recht';
 
 const SAETZE: Readonly<Record<KrankheitImUrlaubGrund, string>> = {
   nicht_gefunden: 'Diesen Antrag oder seinen Urlaub gibt es in dieser Gesellschaft nicht.',
@@ -88,6 +89,7 @@ const SAETZE: Readonly<Record<KrankheitImUrlaubGrund, string>> = {
   konto_fehlt: 'Für das Urlaubsjahr gibt es kein offenes Urlaubskonto; ein abgeschlossenes Jahr wird nicht rückwirkend geändert (O-18).',
   zu_viel: 'Es würden mehr Tage gutgeschrieben, als der Urlaub noch kostet — er wurde mit einer anderen Arbeitswoche genehmigt, oder es ist schon gutgeschrieben.',
   au_bis_vor_von: '„Bescheinigung gültig bis" liegt vor dem ersten Krankheitstag.',
+  au_bis_kein_datum: '„Bescheinigung gültig bis" ist leer oder ein Kalendertag als JJJJ-MM-TT.',
   kein_datum: 'Der Krankheitszeitraum braucht zwei Kalendertage als JJJJ-MM-TT, das Ende nicht vor dem Anfang.',
   kein_recht: 'Die Krankheit im Urlaub erfasst, wer zeit.abwesenheit_melden und zeit.abwesenheit_genehmigen hält.',
 };
@@ -163,6 +165,18 @@ function ausDatenbank(fehler: unknown): KrankheitImUrlaubFehler | null {
 export async function erfasseKrankheitImUrlaub(
   kontext: SchreibKontext, eingabe: KrankheitImUrlaubEingabe,
 ): Promise<KrankheitImUrlaubErgebnis> {
+  /*
+   * „Bescheinigung gültig bis" ist leer oder ein Tag, den es gibt — geprüft,
+   * bevor die Datenbank ihn sieht. `2026-02-31` erreichte sonst `$5::date`,
+   * die Datenbank wies ihn mit 22008 ab, und die Route antwortete 500 statt
+   * mit dem Grund (dieselbe Prüfung wie `/api/personal/abwesenheit`).
+   */
+  const auBis = eingabe.auBis === undefined || eingabe.auBis === null || eingabe.auBis.trim() === ''
+    ? null : eingabe.auBis.trim();
+  if (auBis !== null && !istGueltigerKalendertag(auBis)) {
+    throw new KrankheitImUrlaubFehler('au_bis_kein_datum');
+  }
+
   const [antrag] = await kontext.abfrage<{
     abwesenheit_id: string | null; zaehlt_auf_urlaubskonto: boolean | null;
   }>(
@@ -192,8 +206,6 @@ export async function erfasseKrankheitImUrlaub(
     if (fehler instanceof ZeitraumFehler) throw new KrankheitImUrlaubFehler('kein_datum');
     throw fehler;
   }
-  const auBis = eingabe.auBis === undefined || eingabe.auBis === null || eingabe.auBis.trim() === ''
-    ? null : eingabe.auBis.trim();
   if (auBis !== null && auBis < eingabe.von) throw new KrankheitImUrlaubFehler('au_bis_vor_von');
   if (eingabe.von > urlaub.bis || eingabe.bis < urlaub.von) {
     throw new KrankheitImUrlaubFehler('ausserhalb');

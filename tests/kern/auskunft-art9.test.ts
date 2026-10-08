@@ -55,6 +55,9 @@ describe('(3) Verdrahtung', () => {
     expect(m).toContain("app.hat_recht('zeit.abwesenheit_grund_lesen', v_mandant)");
     expect(m.match(/app\.hat_recht\('datenschutz\.auskunft_erstellen', v_mandant\)/gu)).toHaveLength(2);
     expect(m.match(/owner to cse_definer/gu)).toHaveLength(2);
+    // Sie schreiben die Protokollzeile — volatile, damit kein Plan den Aufruf auslässt (0184).
+    expect(m.match(/language plpgsql volatile security definer/gu)).toHaveLength(2);
+    expect(m).not.toMatch(/language plpgsql stable/u);
     const dienst = readFileSync('src/server/services/datenschutz/auskunft.ts', 'utf8');
     expect(dienst).toContain('// TODO(client, O-642): Voreinstellung');
     expect(dienst).toContain('// TODO(client, O-643): Voreinstellung');

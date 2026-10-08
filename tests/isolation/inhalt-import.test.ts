@@ -114,6 +114,45 @@ describe('eine Pflege im Portal bleibt stehen (V-386, D-851)', () => {
     expect((await importiere(db, NEUER_SEED)).geaendert).toBe(0);
   });
 
+  it('eine Zeile ohne Importstand, die dem Seed gleicht, bekommt ihn nachgetragen — ohne Stempel', async () => {
+    await importiere(db, SEITEN);
+    // Der Bestand von vor 0535: kein Stand. Auch dieses Update stempelt nichts —
+    // es ändert nur import_stand.
+    await sql.unsafe(`update seite set import_stand = null`);
+    await sql.unsafe(`update abschnitt set import_stand = null`);
+    const ohneStand = async (): Promise<number> => {
+      const [z] = await sql.unsafe<{ n: string }[]>(
+        `select (select count(*) from seite where import_stand is null)
+              + (select count(*) from abschnitt where import_stand is null) n`);
+      return Number(z!.n);
+    };
+    expect(await ohneStand()).toBe(SEITEN.length * 2);
+
+    const bericht = await importiere(db, SEITEN);
+    expect(bericht).toMatchObject({ angelegt: 0, geaendert: 0, gepflegt: [] });
+    expect(await ohneStand()).toBe(0);
+    // Nachgetragen ist nicht geändert: kein lastmod für die Sitemap.
+    const [gestempelt] = await sql.unsafe<{ n: string }[]>(
+      `select (select count(*) from seite where geaendert_am is not null)
+            + (select count(*) from abschnitt where geaendert_am is not null) n`);
+    expect(Number(gestempelt!.n)).toBe(0);
+
+    // Und der nächste Seed kommt an — die Zeile war nie gepflegt.
+    const neu = await importiere(db, NEUER_SEED);
+    expect(neu.gepflegt).toEqual([]);
+    expect(await kontakt()).toEqual({ titel: 'Kontakt (neu)', ueberschrift: 'Kontakt (neu)' });
+  });
+
+  it('wer neben dem Stand etwas ändert, stempelt weiter (S2)', async () => {
+    await importiere(db, SEITEN);
+    await sql.unsafe(
+      `update seite set import_stand = null, titel = 'Kontakt & Anfahrt'
+        where pfad = '/kontakt' and sprache = 'de'`);
+    const [z] = await sql.unsafe<{ gestempelt: boolean }[]>(
+      `select geaendert_am is not null gestempelt from seite where pfad = '/kontakt' and sprache = 'de'`);
+    expect(z!.gestempelt).toBe(true);
+  });
+
   it('eine Zeile ohne Importstand, die vom Seed abweicht, gilt als gepflegt', async () => {
     await importiere(db, SEITEN);
     await sql.unsafe(`update abschnitt set import_stand = null`);

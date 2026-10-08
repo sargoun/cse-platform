@@ -178,6 +178,17 @@ describe('(2b) Nachunternehmer ist eine eigene Kostenart (V-338, O-57, D-852)', 
     expect(migration).toContain(
       'or new.summe_nachunternehmer_cent is distinct from old.summe_nachunternehmer_cent');
   });
+
+  it('jede Kostenart-Auswahl der Seite bietet jede Art genau einmal an', () => {
+    const seite = readFileSync('src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx', 'utf8');
+    const auswahlen = seite.split('<select name="kostenart"').slice(1)
+      .map((rest) => rest.slice(0, rest.indexOf('</select>')));
+    expect(auswahlen.length).toBeGreaterThanOrEqual(2);
+    for (const auswahl of auswahlen) {
+      const werte = [...auswahl.matchAll(/<option value="([a-z_]+)"/gu)].map((m) => m[1]);
+      expect(werte).toEqual(['material', 'geraet', 'nachunternehmer']);
+    }
+  });
 });
 
 describe('(3) pruefeKostenposition — Menge × Einzelpreis in ganzen Cent', () => {

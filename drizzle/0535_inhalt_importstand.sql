@@ -29,3 +29,35 @@ comment on column abschnitt.import_stand is
   'V-386, D-851: Ueberschrift, Akzentwort, Text und Daten, wie der Inhaltsimport sie zuletzt '
   'geschrieben hat. Weicht der Abschnitt davon ab, wurde er im Portal gepflegt — der Import '
   'laesst ihn stehen.';
+
+-- Den Stand nachzutragen ist keine Aenderung der Seite. Eine Zeile von vor
+-- dieser Migration, deren Inhalt dem Seed gleicht, bekommt beim naechsten
+-- Import ihren import_stand — ohne ihn hielte der naechste geaenderte Seed die
+-- unberuehrte Zeile fuer gepflegt und liesse sie fuer immer stehen.
+-- kern.setze_geaendert_am stempelt aber jede Aktualisierung, und
+-- seite.geaendert_am ist das lastmod der Sitemap: der Nachtrag stempelte jede
+-- alte Seite als heute geaendert. Dieser Ausloeser laeuft nach dem Stempel
+-- (die Ausloeser einer Zeile laufen in der Reihenfolge ihrer Namen) und nimmt
+-- ihn zurueck, wenn sich ausser import_stand nichts geaendert hat. Den Wert
+-- bestimmt weiter die Datenbank (S2): der alte oder now(), nie der Aufrufer.
+
+create function kern.import_stand_ohne_stempel() returns trigger
+language plpgsql set search_path = pg_catalog, public as $$
+begin
+  if (to_jsonb(new) - 'import_stand' - 'geaendert_am')
+     = (to_jsonb(old) - 'import_stand' - 'geaendert_am') then
+    new.geaendert_am := old.geaendert_am;
+  end if;
+  return new;
+end $$;
+
+comment on function kern.import_stand_ohne_stempel() is
+  'V-386, D-851: eine Aktualisierung, die nur import_stand aendert, behaelt geaendert_am — '
+  'der nachgetragene Stand des Inhaltsimports ist keine Aenderung der Seite.';
+
+create trigger trg_seite_import_stand_ohne_stempel
+  before update of import_stand on seite
+  for each row execute function kern.import_stand_ohne_stempel();
+create trigger trg_abschnitt_import_stand_ohne_stempel
+  before update of import_stand on abschnitt
+  for each row execute function kern.import_stand_ohne_stempel();

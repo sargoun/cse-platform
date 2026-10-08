@@ -18,6 +18,12 @@
  * Seed abweicht, gilt genauso — was vor 0535 gepflegt wurde, weiss niemand.
  * Zurueckgesetzt wird nur mit `ueberschreiben` (`pnpm content:import
  * --ueberschreiben`), ausdruecklich.
+ *
+ * **Gleicht eine Zeile dem Seed, wird ihr Stand nachgetragen** — nur
+ * `import_stand`, ohne `geaendert_am` (0535). Sonst bekaeme eine Zeile von vor
+ * 0535 nie einen Stand, und der naechste geaenderte Seed hielte die
+ * unberuehrte Zeile fuer gepflegt und liesse sie fuer immer stehen. Das
+ * geschieht einmal je Zeile; der Lauf danach schreibt wieder nichts.
  */
 
 import { WEITERLEITUNGEN } from '../../../lib/weiterleitungen.js';
@@ -133,6 +139,10 @@ export async function importiere(
       // stempelt `geaendert_am`, schreibt eine Audit-Zeile und behauptet
       // damit eine Aenderung, die nicht stattgefunden hat.
       if (gleich(heute, seiteStand)) {
+        if (!gleich(vorhanden[0].import_stand, seiteStand)) {
+          // Stand nachtragen, nicht aendern — der Ausloeser aus 0535 laesst geaendert_am stehen.
+          await db.unsafe(`update seite set import_stand = $2 where id = $1`, [seiteId, seiteStand]);
+        }
         unveraendert += 1;
       } else if (!ueberschreiben && !gleich(heute, vorhanden[0].import_stand)) {
         // Im Portal gepflegt (oder vor 0535 unbekannter Herkunft): stehen lassen.
@@ -176,6 +186,10 @@ export async function importiere(
         text: alt[0].text, daten: alt[0].daten ?? {},
       };
       if (gleich(heute, stand)) {
+        if (!gleich(alt[0].import_stand, stand)) {
+          // Stand nachtragen, nicht aendern — der Ausloeser aus 0535 laesst geaendert_am stehen.
+          await db.unsafe(`update abschnitt set import_stand = $2 where id = $1`, [alt[0].id, stand]);
+        }
         unveraendert += 1;
       } else if (!ueberschreiben && !gleich(heute, alt[0].import_stand)) {
         // Im Portal gepflegt (oder vor 0535 unbekannter Herkunft): stehen lassen.

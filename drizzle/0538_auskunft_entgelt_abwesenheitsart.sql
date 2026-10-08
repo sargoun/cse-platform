@@ -26,13 +26,19 @@
 -- Ohne das Fachrecht werfen sie 42501; die Auskunft fragt das Recht vorher
 -- und fuehrt den Abschnitt als gesperrt, nicht als leer.
 --
+-- Beide sind volatile, nicht stable: sie schreiben die Protokollzeile (ueber
+-- app.protokolliere), und den Aufruf einer stable Funktion darf der Planer
+-- zusammenfassen oder auslassen, wenn ihr Ergebnis nicht gebraucht wird — ein
+-- Zugriffsprotokoll, dessen Eintrag vom Abfrageplan abhaengt, ist keines
+-- (dieselbe Regel wie app.ausgabe_erstattung_lesen, 0184).
+--
 -- Nur Kommentare mit Doppelstrich.
 
 create function app.auskunft_entgelt(p_person uuid)
 returns table (
   personalnummer text, gilt_ab date, gilt_bis date, stundensatz_cent bigint, quelle text
 )
-language plpgsql stable security definer
+language plpgsql volatile security definer
 set search_path = pg_catalog, public, app as $$
 declare
   v_mandant uuid := app.aktiver_mandant();
@@ -86,7 +92,7 @@ returns table (
   au_bescheinigung_vorliegt boolean, au_bis date, bemerkung text,
   urlaub_gutgeschrieben_tage numeric
 )
-language plpgsql stable security definer
+language plpgsql volatile security definer
 set search_path = pg_catalog, public, app as $$
 declare
   v_mandant uuid := app.aktiver_mandant();

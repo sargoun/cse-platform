@@ -87,6 +87,7 @@ export const KRANKHEIT_IM_URLAUB_TEXTE: Readonly<Record<InternSprache, Krankheit
         'Es würden mehr Tage gutgeschrieben, als der Urlaub noch kostet — er ist schon gutgeschrieben '
         + 'oder wurde mit einer anderen Arbeitswoche genehmigt.',
       au_bis_vor_von: '„Bescheinigung gültig bis" liegt vor dem ersten Krankheitstag.',
+      au_bis_kein_datum: '„Bescheinigung gültig bis" ist kein Kalendertag. Bitte das Datum prüfen.',
       kein_datum: 'Der Krankheitszeitraum braucht zwei Tage; das Ende liegt nicht vor dem Anfang.',
       kein_recht: 'Dafür fehlt dieser Sitzung ein Recht — die Seite nennt, welches.',
     },
@@ -145,6 +146,7 @@ export const KRANKHEIT_IM_URLAUB_TEXTE: Readonly<Record<InternSprache, Krankheit
         'More days would be credited than the leave still costs — it has already been credited, or it '
         + 'was approved with a different working week.',
       au_bis_vor_von: '"Certificate valid until" is before the first sick day.',
+      au_bis_kein_datum: '"Certificate valid until" is not a calendar date. Please check the date.',
       kein_datum: 'The sickness needs two dates; the end is not before the start.',
       kein_recht: 'This session lacks a right for that — the page names which one.',
     },
