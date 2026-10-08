@@ -91,7 +91,19 @@ describe('arbeitstageImAbschnitt — Teil und Monat', () => {
 });
 
 describe('die Prüfung der Pauschale im Modus „arbeitstage"', () => {
-  const ohneDb = {} as Abfrage;
+  /*
+   * Ohne Datenbank — bis auf die eine Frage, die die Pauschale seit V-327
+   * immer stellt: die Turnusse der Vereinbarung (hier keine). Jede andere
+   * Abfrage wirft.
+   */
+  const ohneDb: Abfrage = {
+    abfrage: async <T,>(anweisung: string): Promise<readonly T[]> => {
+      if (anweisung.includes('fin.turnusse_der_abrechnung')) {
+        return [{ daten: { turnusse: [], ausnahmen: [] } }] as unknown as T[];
+      }
+      throw new Error(`unerwartete Abfrage: ${anweisung}`);
+    },
+  };
   const konfiguration = (gueltigBis: string | null = null): VertragAbrechnung => ({
     id: '00000000-0000-0000-0000-000000000001',
     mandantId: '00000000-0000-0000-0000-000000000002',

@@ -421,6 +421,8 @@ export async function seed(): Promise<Fixtur> {
      * `0491` (O-139, D-781), wie ausgeliefert; eine EIGENE Art einer
      * Gesellschaft ohne Antwort legt der Test an, der sie braucht
      * (`abwesenheit.test.ts`, `jahrespaket-lohnexport.test.ts`).
+     * `unterbricht_urlaub` traegt die Voreinstellung aus `0537` (O-138,
+     * D-853): nur die Krankheit selbst.
      */
     for (const [schluessel, bezeichnung, urlaub, stunden, gesundheit, bezahlt, lohnart, nachweis]
       of ABWESENHEITSARTEN) {
@@ -429,8 +431,9 @@ export async function seed(): Promise<Fixtur> {
                                       zaehlt_auf_urlaubskonto,
                                       erzeugt_stundenkonto_bewegung,
                                       ist_gesundheitsbezogen,
-                                      bezahlt, lohnart_schluessel, nachweis_pflicht_ab_tagen)
-         values (null, $1, $2, $3, $4, $5, $6, $7, $8)`,
+                                      bezahlt, lohnart_schluessel, nachweis_pflicht_ab_tagen,
+                                      unterbricht_urlaub)
+         values (null, $1, $2, $3, $4, $5, $6, $7, $8, $1 = 'krankheit')`,
         [schluessel, bezeichnung, urlaub, stunden, gesundheit, bezahlt, lohnart, nachweis] as never[],
       );
     }

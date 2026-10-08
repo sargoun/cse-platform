@@ -31,6 +31,7 @@ const DATEN: LohnexportDaten = {
     id: 'w1', anstellungId: 'a1', personalnummer: 'P-0007', person: 'Fatima Yildiz', art: 'urlaub',
     bezeichnung: 'Urlaub', bezahlt: null, lohnart: null, gesundheitsbezogen: false,
     von: '2026-08-10', bis: '2026-08-11', vonHalbtags: false, bisHalbtags: true, tageAngerechnet: '1,500', status: 'genehmigt',
+    gutgeschriebenTage: null,
   }],
   zeiten: [{
     anstellungId: 'a1', personalnummer: 'P-0007', zeiteintragId: 'z1', kalendertag: '2026-08-03',

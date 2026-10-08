@@ -1163,6 +1163,17 @@ export const ROUTEN: readonly RouteEintrag[] = [
   },
   {
     /**
+     * V-319, D-853, § 9 BUrlG. Die Krankheit im genehmigten Urlaub erfassen
+     * und die Urlaubstage gutschreiben: die Gutschrift ändert, was der
+     * genehmigte Urlaub kostet — dieselbe Entscheidung wie eine Stornierung.
+     * Die Route fragt zusätzlich `zeit.abwesenheit_melden`, die
+     * Datenbankfunktion beide.
+     */
+    pfad: 'api/antraege/[id]/krankheit-im-urlaub',
+    recht: 'zeit.abwesenheit_genehmigen',
+  },
+  {
+    /**
      * EMP-10, EMP-05. Genehmigen, ablehnen und stornieren sind drei Wege
      * derselben Entscheidung — sie betrifft Lohnfortzahlung und Urlaubskonto.
      */

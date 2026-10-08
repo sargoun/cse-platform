@@ -263,6 +263,10 @@ describe('der Leistungszeitraum aus den Leistungsnachweisen (V-337, O-54)', () =
       fragen.push(anweisung);
       if (anweisung.includes('app.hat_recht')) return [{ darf: antwort.darf ?? true }] as unknown as T[];
       if (anweisung.includes('from leistungsnachweis')) return (antwort.nachweise ?? []) as unknown as T[];
+      /* Die Turnusse der Vereinbarung (V-327) — hier keine. */
+      if (anweisung.includes('fin.turnusse_der_abrechnung')) {
+        return [{ daten: { turnusse: [], ausnahmen: [] } }] as unknown as T[];
+      }
       throw new Error(`unerwartete Abfrage: ${anweisung}`);
     };
     return { db: { abfrage } as Abfrage, fragen };
@@ -334,7 +338,19 @@ describe('ein Anspruch aus der Vereinbarung wird einmal berechnet (V-207)', () =
     rechnungId: '00000000-0000-0000-0000-00000000000a', nummer, angelegtAm: '2026-09-01',
     leistungVon: von, leistungBis: bis, nettoCent: cent(netto),
   });
-  const ohneDb = {} as Abfrage;
+  /*
+   * Ohne Datenbank — bis auf die eine Frage, die die Pauschale seit V-327
+   * immer stellt: die Turnusse der Vereinbarung (hier keine). Jede andere
+   * Abfrage wirft.
+   */
+  const ohneDb: Abfrage = {
+    abfrage: async <T,>(anweisung: string): Promise<readonly T[]> => {
+      if (anweisung.includes('fin.turnusse_der_abrechnung')) {
+        return [{ daten: { turnusse: [], ausnahmen: [] } }] as unknown as T[];
+      }
+      throw new Error(`unerwartete Abfrage: ${anweisung}`);
+    },
+  };
 
   it('überschneiden heisst: mindestens ein gemeinsamer Tag, beide Grenzen einschließlich', () => {
     const august = { von: '2026-08-01', bis: '2026-08-31' };

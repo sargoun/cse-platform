@@ -106,8 +106,9 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
         );
 
         const zuordnung = await ladeZuordnung(kontext, null, anfrageId);
+        /* Die Art.-9-Abschnitte nur auf ausdrückliche Mitgabe (O-643, D-855). */
         const auskunft = await erstelleAuskunft(
-          kontext, anfrageId, zuordnung, new Date());
+          kontext, anfrageId, zuordnung, new Date(), { art9: p.get('art9') === 'mitgeben' });
 
         /*
          * Festgehalten wird nur, was auch hinausgeht. Ein Artefakt fuer eine
@@ -133,6 +134,7 @@ export async function GET(anfrage: NextRequest): Promise<NextResponse> {
                * Entscheidung eines Menschen ueber eine Pflichtangabe.
                */
               offeneFristen: auskunft.offeneFristen.length,
+              art9: auskunft.art9Mitgegeben,
             }]);
         }
         return auskunft;

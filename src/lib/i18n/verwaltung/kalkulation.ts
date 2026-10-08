@@ -32,8 +32,8 @@ export interface KalkulationTexte {
   /* ── Die fünf Blöcke (V-174) ───────────────────────────────────────── */
   readonly zusammensetzung: string;
   readonly zusammensetzungErklaerung: string;
-  readonly block: Readonly<Record<'lohn' | 'material' | 'geraet' | 'gemeinkosten'
-    | 'wagnisGewinn' | 'netto', string>>;
+  readonly block: Readonly<Record<'lohn' | 'material' | 'geraet' | 'nachunternehmer'
+    | 'gemeinkosten' | 'wagnisGewinn' | 'netto', string>>;
   /** Die Basis, auf die die Gemeinkosten rechnen — als Satz. */
   readonly basisSatz: Readonly<Record<string, string>>;
   /** Die Auswahl im Bestätigungsformular. */
@@ -42,7 +42,7 @@ export interface KalkulationTexte {
   /* ── Material und Gerät ────────────────────────────────────────────── */
   readonly materialTitel: string;
   readonly materialErklaerung: string;
-  /** Nachunternehmerleistung: die Voreinstellung (O-57) — und dass sie noch nicht erfassbar ist (V-338). */
+  /** Nachunternehmerleistung: die Voreinstellung (O-57) — eigene Kostenart, kein Steuerkennzeichen (V-338). */
   readonly materialNachunternehmer: string;
   readonly materialLeer: string;
   readonly kostenart: Readonly<Record<string, string>>;
@@ -107,12 +107,14 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
 
     zusammensetzung: 'Woraus der Preis besteht',
     zusammensetzungErklaerung:
-      'Die fünf Kostenblöcke dieser Kalkulation (OPS-07). Material und Gerät sind die Summe '
-      + 'der unten erfassten Zeilen — vorbelegt wird nichts.',
+      'Die Kostenblöcke dieser Kalkulation (OPS-07, dazu die Nachunternehmerleistung, O-57). '
+      + 'Material, Gerät und Nachunternehmer sind die Summe der unten erfassten Zeilen — '
+      + 'vorbelegt wird nichts.',
     block: {
       lohn: 'Lohnkosten',
       material: 'Material',
       geraet: 'Gerät',
+      nachunternehmer: 'Nachunternehmer',
       gemeinkosten: 'Gemeinkosten',
       wagnisGewinn: 'Wagnis und Gewinn',
       netto: 'Angebotssumme netto',
@@ -120,34 +122,32 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
     basisSatz: {
       lohn: 'Die Gemeinkosten rechnen auf die Lohnkosten.',
       selbstkosten:
-        'Die Gemeinkosten rechnen auf Lohn, Material und Gerät zusammen (die Einzelkosten). '
-        + 'Voreinstellung in allen Bereichen ist die Basis Lohnkosten (O-16).',
+        'Die Gemeinkosten rechnen auf Lohn, Material, Gerät und Nachunternehmer zusammen (die '
+        + 'Einzelkosten). Voreinstellung in allen Bereichen ist die Basis Lohnkosten (O-16).',
       je_kostenart: 'Gemeinkosten je Kostenart brauchen Sätze je Kostenart, die der Katalog nicht '
         + 'führt (O-16) — so wird nicht gerechnet.',
     },
     basisOption: {
       lohn: 'Lohnkosten',
-      selbstkosten: 'Lohn + Material + Gerät (Einzelkosten)',
+      selbstkosten: 'Lohn + Material + Gerät + Nachunternehmer (Einzelkosten)',
       je_kostenart: 'je Kostenart — ohne Sätze (O-16)',
     },
 
-    materialTitel: 'Material und Gerät',
+    materialTitel: 'Material, Gerät und Nachunternehmer',
     materialErklaerung:
       'Reinigungsmittel, Verbrauchsmaterial, Maschinen — je Zeile Menge × Einzelpreis, '
       + 'eingetragen von Ihnen, nie geschätzt. Die Summe geht in den Preis und wird wie '
       + 'Gemeinkosten, Wagnis und Gewinn anteilig auf die Leistungszeilen verteilt (O-208). '
       + 'Nach jeder Zeile rechnet die Kalkulation den Preis neu.',
     materialNachunternehmer:
-      'Nachunternehmerleistung: Voreinstellung (O-57) ist eine eigene Kostenart neben '
-      + 'Material und Gerät, weil sie je nach Leistung und Empfänger die '
-      + 'Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 '
-      + 'EStG auslösen kann. Sie ist hier noch '
-      + 'nicht erfassbar (V-338) — ein Angebot mit Fremdleistung trägt ihren Anteil bis dahin '
-      + 'nicht in der Kalkulation.',
+      'Nachunternehmerleistung ist eine eigene Kostenart (Voreinstellung O-57) und steht als '
+      + 'eigener Block in der Zusammensetzung. Sie ist kein Steuerkennzeichen: ob sie die '
+      + 'Steuerschuldnerschaft nach § 13b UStG oder bei Bauleistungen den Abzug nach § 48 EStG '
+      + 'auslöst, prüft die Rechnung je Leistung und Empfänger.',
     materialLeer:
-      'Noch keine Material- oder Gerätekosten erfasst — der Preis enthält nur Lohn und '
-      + 'Zuschläge.',
-    kostenart: { material: 'Material', geraet: 'Gerät' },
+      'Noch keine Material-, Geräte- oder Nachunternehmerkosten erfasst — der Preis enthält '
+      + 'nur Lohn und Zuschläge.',
+    kostenart: { material: 'Material', geraet: 'Gerät', nachunternehmer: 'Nachunternehmer' },
     spalte: {
       kostenart: 'Art', bezeichnung: 'Bezeichnung', menge: 'Menge', einheit: 'Einheit',
       einzelpreis: 'Einzelpreis', betrag: 'Betrag',
@@ -215,12 +215,14 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
 
     zusammensetzung: 'What the price is made of',
     zusammensetzungErklaerung:
-      'The five cost blocks of this Kalkulation (OPS-07). Material and equipment are the sum '
-      + 'of the lines entered below — nothing is pre-filled.',
+      'The cost blocks of this Kalkulation (OPS-07, plus subcontracted work, O-57). Material, '
+      + 'equipment and subcontractors are the sum of the lines entered below — nothing is '
+      + 'pre-filled.',
     block: {
       lohn: 'Labour cost',
       material: 'Material',
       geraet: 'Equipment',
+      nachunternehmer: 'Subcontractors',
       gemeinkosten: 'Gemeinkosten (overhead)',
       wagnisGewinn: 'Wagnis und Gewinn (risk and profit)',
       netto: 'Offer total, net',
@@ -228,34 +230,32 @@ export const KALKULATION_TEXTE: Readonly<Record<InternSprache, KalkulationTexte>
     basisSatz: {
       lohn: 'Overhead is charged on labour cost.',
       selbstkosten:
-        'Overhead is charged on labour, material and equipment together (the Einzelkosten, '
-        + 'direct costs). The default in all areas is the labour-cost base (O-16).',
+        'Overhead is charged on labour, material, equipment and subcontractors together (the '
+        + 'Einzelkosten, direct costs). The default in all areas is the labour-cost base (O-16).',
       je_kostenart: 'Overhead per cost type needs rates per cost type that the catalogue does not '
         + 'carry (O-16) — it is not calculated that way.',
     },
     basisOption: {
       lohn: 'Labour cost',
-      selbstkosten: 'Labour + material + equipment (Einzelkosten, direct costs)',
+      selbstkosten: 'Labour + material + equipment + subcontractors (Einzelkosten, direct costs)',
       je_kostenart: 'per cost type — without rates (O-16)',
     },
 
-    materialTitel: 'Material and equipment',
+    materialTitel: 'Material, equipment and subcontractors',
     materialErklaerung:
       'Cleaning agents, consumables, machines — each line quantity × unit price, entered by '
       + 'you, never estimated. The total goes into the price and, like overhead, risk and '
       + 'profit, is spread proportionally over the service lines (O-208). After each line the '
       + 'costing recalculates the price.',
     materialNachunternehmer:
-      'Subcontracted work: the default (O-57) is a cost type of its own beside material and '
-      + 'equipment, because depending on the service and the recipient it can trigger the '
-      + 'reverse charge under § 13b UStG and, for construction work, the withholding under '
-      + '§ 48 EStG. It cannot be entered here '
-      + 'yet (V-338) — until then an offer with subcontracted work does not carry that share '
-      + 'in its costing.',
+      'Subcontracted work is a cost type of its own (default O-57) and appears as its own '
+      + 'block in the composition. It is not a tax marker: whether it triggers the reverse '
+      + 'charge under § 13b UStG or, for construction work, the withholding under § 48 EStG is '
+      + 'checked by the invoice per service and recipient.',
     materialLeer:
-      'No material or equipment cost entered yet — the price contains labour and surcharges '
-      + 'only.',
-    kostenart: { material: 'Material', geraet: 'Equipment' },
+      'No material, equipment or subcontractor cost entered yet — the price contains labour '
+      + 'and surcharges only.',
+    kostenart: { material: 'Material', geraet: 'Equipment', nachunternehmer: 'Subcontractor' },
     spalte: {
       kostenart: 'Kind', bezeichnung: 'Name', menge: 'Quantity', einheit: 'Unit',
       einzelpreis: 'Unit price', betrag: 'Amount',

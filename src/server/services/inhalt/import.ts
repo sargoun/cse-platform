@@ -10,6 +10,20 @@
  * Vergleich VOR dem Schreiben: gleich heisst nicht schreiben, nicht schreiben
  * heisst kein `geaendert_am`, kein Audit-Eintrag und keine falsche Spur in der
  * Historie.
+ *
+ * **Eine Pflege im Portal bleibt stehen** (V-386, D-851). `import_stand` (0535)
+ * haelt fest, was der Import zuletzt geschrieben hat. Weicht der heutige Stand
+ * davon ab, hat jemand im Portal gepflegt: der Import laesst die Zeile stehen
+ * und nennt sie (`gepflegt`). Eine Zeile ohne `import_stand`, deren Inhalt vom
+ * Seed abweicht, gilt genauso — was vor 0535 gepflegt wurde, weiss niemand.
+ * Zurueckgesetzt wird nur mit `ueberschreiben` (`pnpm content:import
+ * --ueberschreiben`), ausdruecklich.
+ *
+ * **Gleicht eine Zeile dem Seed, wird ihr Stand nachgetragen** — nur
+ * `import_stand`, ohne `geaendert_am` (0535). Sonst bekaeme eine Zeile von vor
+ * 0535 nie einen Stand, und der naechste geaenderte Seed hielte die
+ * unberuehrte Zeile fuer gepflegt und liesse sie fuer immer stehen. Das
+ * geschieht einmal je Zeile; der Lauf danach schreibt wieder nichts.
  */
 
 import { WEITERLEITUNGEN } from '../../../lib/weiterleitungen.js';
@@ -45,6 +59,16 @@ export interface ImportBericht {
   readonly unveraendert: number;
   /** Wie viele abgeloeste Adressen zurueckgezogen wurden. */
   readonly abgeloest: number;
+  /**
+   * Was im Portal gepflegt ist und deshalb stehen blieb (V-386) — je Seite
+   * `pfad`, je Abschnitt `pfad#reihenfolge`.
+   */
+  readonly gepflegt: readonly string[];
+}
+
+export interface ImportOptionen {
+  /** Auch gepflegte Zeilen auf den Seed zuruecksetzen — nur ausdruecklich (V-386). */
+  readonly ueberschreiben?: boolean;
 }
 
 /** Objektschlüssel sortiert — damit der Vergleich den Inhalt meint, nicht die Reihenfolge. */
@@ -68,6 +92,7 @@ function sortiereTief(wert: unknown): unknown {
  */
 export async function importiere(
   db: Abfrage, seiten: readonly ImportSeite[], sprache = 'de',
+  optionen: ImportOptionen = {},
 ): Promise<ImportBericht> {
   /**
    * ZUERST, vor jedem Schreibvorgang: eine Adresse kann nicht gleichzeitig
@@ -80,80 +105,109 @@ export async function importiere(
   let angelegt = 0;
   let geaendert = 0;
   let unveraendert = 0;
+  const gepflegt: string[] = [];
+  const ueberschreiben = optionen.ueberschreiben === true;
+  // Schlüsselreihenfolge-unabhängig: `{a,b}` und `{b,a}` sind derselbe
+  // Inhalt, und ein Vergleich, der sie unterscheidet, meldet ewig
+  // Änderungen.
+  const gleich = (x: unknown, y: unknown): boolean =>
+    JSON.stringify(sortiereTief(x)) === JSON.stringify(sortiereTief(y));
 
   for (const s of seiten) {
     const vorhanden = (await db.unsafe(
-      `select id, titel, beschreibung from seite
+      `select id, titel, beschreibung, import_stand from seite
         where pfad = $1 and sprache = $2 and geloescht_am is null`,
       [s.pfad, sprache],
-    )) as { id: string; titel: string; beschreibung: string | null }[];
+    )) as { id: string; titel: string; beschreibung: string | null;
+            import_stand: Record<string, unknown> | null }[];
 
+    const seiteStand = { titel: s.titel, beschreibung: s.beschreibung };
     let seiteId: string;
     if (vorhanden[0] === undefined) {
       const neu = (await db.unsafe(
-        `insert into seite (pfad, sprache, titel, beschreibung, status, veroeffentlicht_am)
-         values ($1,$2,$3,$4,'veroeffentlicht',now()) returning id`,
-        [s.pfad, sprache, s.titel, s.beschreibung],
+        `insert into seite (pfad, sprache, titel, beschreibung, status, veroeffentlicht_am,
+                            import_stand)
+         values ($1,$2,$3,$4,'veroeffentlicht',now(),$5) returning id`,
+        [s.pfad, sprache, s.titel, s.beschreibung, seiteStand],
       )) as { id: string }[];
       seiteId = neu[0]!.id;
       angelegt += 1;
     } else {
       seiteId = vorhanden[0].id;
+      const heute = { titel: vorhanden[0].titel, beschreibung: vorhanden[0].beschreibung };
       // VERGLEICH vor dem Schreiben. Ein `update` mit identischen Werten
       // stempelt `geaendert_am`, schreibt eine Audit-Zeile und behauptet
       // damit eine Aenderung, die nicht stattgefunden hat.
-      if (vorhanden[0].titel !== s.titel || vorhanden[0].beschreibung !== s.beschreibung) {
+      if (gleich(heute, seiteStand)) {
+        if (!gleich(vorhanden[0].import_stand, seiteStand)) {
+          // Stand nachtragen, nicht aendern — der Ausloeser aus 0535 laesst geaendert_am stehen.
+          await db.unsafe(`update seite set import_stand = $2 where id = $1`, [seiteId, seiteStand]);
+        }
+        unveraendert += 1;
+      } else if (!ueberschreiben && !gleich(heute, vorhanden[0].import_stand)) {
+        // Im Portal gepflegt (oder vor 0535 unbekannter Herkunft): stehen lassen.
+        gepflegt.push(s.pfad);
+      } else {
         await db.unsafe(
-          `update seite set titel = $2, beschreibung = $3, geaendert_am = now() where id = $1`,
-          [seiteId, s.titel, s.beschreibung],
+          `update seite set titel = $2, beschreibung = $3, import_stand = $4, geaendert_am = now()
+            where id = $1`,
+          [seiteId, s.titel, s.beschreibung, seiteStand],
         );
         geaendert += 1;
-      } else {
-        unveraendert += 1;
       }
     }
 
     for (const a of s.abschnitte) {
       const alt = (await db.unsafe(
-        `select id, ueberschrift, akzent_wort, text, daten from abschnitt
+        `select id, ueberschrift, akzent_wort, text, daten, import_stand from abschnitt
           where seite_id = $1 and reihenfolge = $2 and geloescht_am is null`,
         [seiteId, a.reihenfolge],
       )) as { id: string; ueberschrift: string | null; akzent_wort: string | null;
-              text: string | null; daten: Record<string, unknown> | null }[];
+              text: string | null; daten: Record<string, unknown> | null;
+              import_stand: Record<string, unknown> | null }[];
 
       const daten = a.daten ?? {};
-      // Schlüsselreihenfolge-unabhängig: `{a,b}` und `{b,a}` sind derselbe
-      // Inhalt, und ein Vergleich, der sie unterscheidet, meldet ewig
-      // Änderungen.
-      const gleich = (x: unknown, y: unknown): boolean =>
-        JSON.stringify(sortiereTief(x)) === JSON.stringify(sortiereTief(y));
+      const stand = {
+        ueberschrift: a.ueberschrift, akzent_wort: a.akzentWort, text: a.text, daten,
+      };
 
       if (alt[0] === undefined) {
         await db.unsafe(
           `insert into abschnitt (seite_id, art, reihenfolge, ueberschrift, akzent_wort,
-                                  text, daten)
-           values ($1,$2::abschnitt_art,$3,$4,$5,$6,$7)`,
-          [seiteId, a.art, a.reihenfolge, a.ueberschrift, a.akzentWort, a.text, daten],
+                                  text, daten, import_stand)
+           values ($1,$2::abschnitt_art,$3,$4,$5,$6,$7,$8)`,
+          [seiteId, a.art, a.reihenfolge, a.ueberschrift, a.akzentWort, a.text, daten, stand],
         );
         angelegt += 1;
-      } else if (alt[0].ueberschrift !== a.ueberschrift
-                 || alt[0].akzent_wort !== a.akzentWort
-                 || alt[0].text !== a.text
-                 || !gleich(alt[0].daten ?? {}, daten)) {
+        continue;
+      }
+      const heute = {
+        ueberschrift: alt[0].ueberschrift, akzent_wort: alt[0].akzent_wort,
+        text: alt[0].text, daten: alt[0].daten ?? {},
+      };
+      if (gleich(heute, stand)) {
+        if (!gleich(alt[0].import_stand, stand)) {
+          // Stand nachtragen, nicht aendern — der Ausloeser aus 0535 laesst geaendert_am stehen.
+          await db.unsafe(`update abschnitt set import_stand = $2 where id = $1`, [alt[0].id, stand]);
+        }
+        unveraendert += 1;
+      } else if (!ueberschreiben && !gleich(heute, alt[0].import_stand)) {
+        // Im Portal gepflegt (oder vor 0535 unbekannter Herkunft): stehen lassen.
+        gepflegt.push(`${s.pfad}#${String(a.reihenfolge)}`);
+      } else {
         await db.unsafe(
           `update abschnitt set ueberschrift = $2, akzent_wort = $3, text = $4,
-                                daten = $5, geaendert_am = now() where id = $1`,
-          [alt[0].id, a.ueberschrift, a.akzentWort, a.text, daten],
+                                daten = $5, import_stand = $6, geaendert_am = now()
+            where id = $1`,
+          [alt[0].id, a.ueberschrift, a.akzentWort, a.text, daten, stand],
         );
         geaendert += 1;
-      } else {
-        unveraendert += 1;
       }
     }
   }
 
   const abgeloest = await zieheAbgeloesteZurueck(db, sprache);
-  return { angelegt, geaendert, unveraendert, abgeloest };
+  return { angelegt, geaendert, unveraendert, abgeloest, gepflegt };
 }
 
 /**

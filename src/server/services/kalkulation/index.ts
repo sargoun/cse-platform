@@ -4,18 +4,19 @@
  * Der Weg ist genau einer, und er steht hier:
  *
  *   Flaeche je Belagsart → Sekunden je Durchgang → Sekunden je Periode
- *     → Lohnkosten (+ Material + Geraet) → + Gemeinkosten → + Wagnis
- *     → + Gewinn → Netto
+ *     → Lohnkosten (+ Material + Geraet + Nachunternehmer) → + Gemeinkosten
+ *     → + Wagnis → + Gewinn → Netto
  *
  * **Die fuenf Bloecke von OPS-07** (V-174): Lohn, Material, Geraet,
- * Gemeinkosten, Wagnis/Gewinn. Material und Geraet werden NIE vorbelegt —
- * sie sind die Summe der Positionen, die ein Mensch erfasst hat
- * (`kostenposition.ts`). Ohne sie rechnet die Kette wie bisher; mit ihnen
- * gehen sie als Einzelkosten in den Preis, und die Gemeinkosten rechnen auf
- * die Basis, die die Kalkulation nennt: `lohn` (nur der Lohn) oder den
- * gespeicherten Wert `selbstkosten`, der hier Lohn + Material + Geraet
- * bedeutet — die Einzelkosten, und so heisst er auch in der Oberflaeche
- * (V-240). Der Schluessel stammt aus 0023; was die SELBSTKOSTEN umfassen, ist
+ * Gemeinkosten, Wagnis/Gewinn — und seit V-338 (O-57, D-852) die
+ * Nachunternehmerleistung als eigene Kostenart daneben. Material, Geraet und
+ * Nachunternehmer werden NIE vorbelegt — sie sind die Summe der Positionen,
+ * die ein Mensch erfasst hat (`kostenposition.ts`). Ohne sie rechnet die
+ * Kette wie bisher; mit ihnen gehen sie als Einzelkosten in den Preis, und
+ * die Gemeinkosten rechnen auf die Basis, die die Kalkulation nennt: `lohn`
+ * (nur der Lohn) oder den gespeicherten Wert `selbstkosten`, der hier Lohn +
+ * Material + Geraet + Nachunternehmer bedeutet — die Einzelkosten, und so
+ * heisst er auch in der Oberflaeche (V-240). Der Schluessel stammt aus 0023; was die SELBSTKOSTEN umfassen, ist
  * O-16 und wird hier nicht behauptet (`kalkulation.selbstkosten_cent` schreibt
  * niemand). `je_kostenart` braucht Saetze je Kostenart, die niemand genannt
  * hat (O-16) — sie wird abgewiesen, nie still wie `lohn` gerechnet.
@@ -64,10 +65,12 @@ export interface Kalkulationszeile {
  */
 export type GemeinkostenBasis = 'lohn' | 'selbstkosten';
 
-/** Die von Menschen erfassten Einzelkosten neben dem Lohn (V-174). */
+/** Die von Menschen erfassten Einzelkosten neben dem Lohn (V-174, V-338). */
 export interface Einzelkosten {
   readonly material: Cent;
   readonly geraet: Cent;
+  /** Nachunternehmerleistung (V-338, O-57) — fehlt sie, ist sie null. */
+  readonly nachunternehmer?: Cent;
 }
 
 export interface Kalkulation {
@@ -80,6 +83,8 @@ export interface Kalkulation {
   readonly materialkosten: Cent;
   /** Summe der Geraetepositionen — erfasst, nie vorbelegt (V-174). */
   readonly geraetekosten: Cent;
+  /** Summe der Nachunternehmerpositionen — erfasst, nie vorbelegt (V-338). */
+  readonly nachunternehmerkosten: Cent;
   readonly gemeinkostenBasis: GemeinkostenBasis;
   /** Der Betrag, auf den der Gemeinkostenzuschlag gerechnet wurde. */
   readonly gemeinkostenBezug: Cent;
@@ -110,7 +115,7 @@ export interface Kalkulationseingabe {
   readonly flaecheOhneBelagsart?: MilliMenge;
   /** Belagsarten ohne gueltigen Leistungswert am Stichtag. */
   readonly ohneGueltigenLeistungswert?: readonly string[];
-  /** Material und Geraet (V-174). Fehlt es, sind beide null. */
+  /** Material, Geraet und Nachunternehmer (V-174, V-338). Fehlt es, sind alle null. */
   readonly einzelkosten?: Einzelkosten;
   /** Vorgabe `lohn` — die Basis, mit der jedes Angebot aus dem Raumbuch entsteht. */
   readonly gemeinkostenBasis?: GemeinkostenBasis;
@@ -120,7 +125,7 @@ export interface Kalkulationseingabe {
  * Der Bezug des Gemeinkostenzuschlags (V-174) — EINE Stelle, getestet.
  *
  * `lohn`: nur die Lohnkosten. `selbstkosten` (der gespeicherte Schluessel aus
- * 0023): Lohn + Material + Geraet, also die EINZELKOSTEN. Die Oberflaeche nennt
+ * 0023): Lohn + Material + Geraet + Nachunternehmer, also die EINZELKOSTEN. Die Oberflaeche nennt
  * die Basis so und nicht „Selbstkosten" (V-240): Selbstkosten enthalten die
  * Gemeinkosten schon, und ihre Zusammensetzung ist O-16. Welche Basis gilt,
  * waehlt ein Mensch je Kalkulation.
@@ -130,7 +135,8 @@ export interface Kalkulationseingabe {
 export function gemeinkostenBezug(
   basis: GemeinkostenBasis, lohn: Cent, einzel: Einzelkosten,
 ): Cent {
-  return basis === 'lohn' ? lohn : addiere(lohn, einzel.material, einzel.geraet);
+  return basis === 'lohn'
+    ? lohn : addiere(lohn, einzel.material, einzel.geraet, einzel.nachunternehmer ?? NULL_CENT);
 }
 
 /** Lohnkosten aus Sekunden und Stundensatz — die einzige Zeit→Geld-Stelle. */
@@ -160,16 +166,19 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
   // Regel 1: die Summe ist die Summe der ANGEZEIGTEN Zeilen.
   const lohnkosten = addiere(...zeilen.map((z) => z.lohnkosten));
   const einzel = eingabe.einzelkosten ?? { material: NULL_CENT, geraet: NULL_CENT };
-  if ((einzel.material as bigint) < 0n || (einzel.geraet as bigint) < 0n) {
+  const nachunternehmer = einzel.nachunternehmer ?? NULL_CENT;
+  if ((einzel.material as bigint) < 0n || (einzel.geraet as bigint) < 0n
+      || (nachunternehmer as bigint) < 0n) {
     // Negative Kosten waeren eine Gutschrift im Preis — kein Material der Welt.
-    throw new Error('Material- und Geraetekosten sind nicht negativ');
+    throw new Error('Material-, Geraete- und Nachunternehmerkosten sind nicht negativ');
   }
   const basis: GemeinkostenBasis = eingabe.gemeinkostenBasis ?? 'lohn';
   const bezug = gemeinkostenBezug(basis, lohnkosten, einzel);
   const gemeinkosten = anteilInBasisPunkten(bezug, tarif.gemeinkostenSatz);
   // Die Einzelkosten gehen IMMER in den Preis — die Basis entscheidet nur,
   // worauf der Gemeinkostenzuschlag rechnet.
-  const zwischensumme = addiere(lohnkosten, einzel.material, einzel.geraet, gemeinkosten);
+  const zwischensumme = addiere(
+    lohnkosten, einzel.material, einzel.geraet, nachunternehmer, gemeinkosten);
   // Wagnis und Gewinn rechnen auf die Zwischensumme, nicht auf den Lohn: ein
   // Zuschlag auf einen Zuschlag ist eine Entscheidung, und dies ist sie.
   const wagnis = anteilInBasisPunkten(zwischensumme, tarif.wagnisSatz);
@@ -196,6 +205,7 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
     lohnkosten,
     materialkosten: einzel.material,
     geraetekosten: einzel.geraet,
+    nachunternehmerkosten: nachunternehmer,
     gemeinkostenBasis: basis,
     gemeinkostenBezug: bezug,
     gemeinkosten,
@@ -214,7 +224,7 @@ export function kalkuliere(eingabe: Kalkulationseingabe): Kalkulation {
 export const LEERE_KALKULATION: Kalkulation = {
   zeilen: [], flaecheGesamt: NULL_MENGE, sekundenJeDurchgang: 0n, sekundenJePeriode: 0n,
   lohnkosten: NULL_CENT, materialkosten: NULL_CENT, geraetekosten: NULL_CENT,
-  gemeinkostenBasis: 'lohn', gemeinkostenBezug: NULL_CENT, gemeinkosten: NULL_CENT,
+  nachunternehmerkosten: NULL_CENT, gemeinkostenBasis: 'lohn', gemeinkostenBezug: NULL_CENT, gemeinkosten: NULL_CENT,
   vorZuschlag: NULL_CENT, wagnis: NULL_CENT, gewinn: NULL_CENT,
   netto: NULL_CENT, flaecheOhneBelagsart: NULL_MENGE, ohneGueltigenLeistungswert: [],
   istPlatzhalter: false, offeneFragen: [],
@@ -242,10 +252,10 @@ export const LEERE_KALKULATION: Kalkulation = {
  * dann keine Zeile, die den Betrag tragen koennte — das wird abgewiesen, nie
  * verschluckt (V-174).
  *
- * **Material und Geraet reisen mit** (V-174): sie stecken im Netto und
- * werden wie Gemeinkosten, Wagnis und Gewinn nach dem Lohngewicht auf die
- * Leistungszeilen verteilt — dieselbe Voreinstellung O-208: keine eigenen
- * Positionen.
+ * **Material, Geraet und Nachunternehmer reisen mit** (V-174, V-338): sie
+ * stecken im Netto und werden wie Gemeinkosten, Wagnis und Gewinn nach dem
+ * Lohngewicht auf die Leistungszeilen verteilt — dieselbe Voreinstellung
+ * O-208: keine eigenen Positionen.
  *
  * TODO(client, O-208): Voreinstellung — Gemeinkosten, Wagnis und Gewinn (wie
  * Material und Geraet) stecken im Einzelpreis der Leistungszeilen, und der

@@ -383,11 +383,12 @@ export async function rechneKalkulationNeu(
      */
     const [einzel] = await db.abfrage<{ summe: string }>(
       `select coalesce(sum(betrag_cent), 0)::text as summe from kalkulation_position
-        where kalkulation_id = $1 and kostenart in ('material', 'geraet')`, [kalkulationId]);
+        where kalkulation_id = $1 and kostenart in ('material', 'geraet', 'nachunternehmer')`,
+      [kalkulationId]);
     if (einzel !== undefined && BigInt(einzel.summe) > 0n) {
       throw new KalkulationFehler(
-        'Material und Geraet brauchen eine Leistungszeile mit Lohn, die sie im Angebot '
-        + 'traegt — diese Kalkulation hat keine', 'ohne_lohn');
+        'Material, Geraet und Nachunternehmer brauchen eine Leistungszeile mit Lohn, die sie im '
+        + 'Angebot traegt — diese Kalkulation hat keine', 'ohne_lohn');
     }
     return;
   }
@@ -424,7 +425,7 @@ export async function rechneKalkulationNeu(
   const summen = await db.abfrage<{ kostenart: string; summe: string }>(
     `select kostenart::text as kostenart, coalesce(sum(betrag_cent), 0)::text as summe
        from kalkulation_position
-      where kalkulation_id = $1 and kostenart in ('material', 'geraet')
+      where kalkulation_id = $1 and kostenart in ('material', 'geraet', 'nachunternehmer')
       group by kostenart`, [kalkulationId]);
   const summeVon = (art: string): Cent => {
     const z = summen.find((s) => s.kostenart === art);
@@ -433,7 +434,10 @@ export async function rechneKalkulationNeu(
 
   const neu = kalkuliere({
     posten,
-    einzelkosten: { material: summeVon('material'), geraet: summeVon('geraet') },
+    einzelkosten: {
+      material: summeVon('material'), geraet: summeVon('geraet'),
+      nachunternehmer: summeVon('nachunternehmer'),
+    },
     gemeinkostenBasis: optionen.basis,
     frequenz: { faktor: faktor as MilliMenge, istPlatzhalter: frequenzMilli === null,
                 offeneFragen: frequenzMilli === null ? ['O-56'] : [] },

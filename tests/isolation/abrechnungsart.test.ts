@@ -677,6 +677,165 @@ describe('(1) Monatspauschale: voller Monat und angebrochener Monat', () => {
 });
 
 // ---------------------------------------------------------------------------
+// (1b) Monatspauschale: Turnusausfall und Zusatztermin (V-327, O-146, D-850)
+// ---------------------------------------------------------------------------
+
+describe('(1b) Monatspauschale: Turnusausfall und Zusatztermin', () => {
+  /** Ein Turnus Mo/Mi/Fr 06:00 an der Leistungszeile — im Oktober 2026 dreizehn Regeltermine. */
+  async function baueTurnus(bau: Auftragsbau): Promise<string> {
+    const [r] = await sql.unsafe<{ id: string }[]>(
+      `insert into revier (mandant_id, objekt_id, bezeichnung, sollzeit_minuten, aktiv_ab,
+                           erstellt_von_art, erstellt_von)
+       values ($1,$2,'Revier Büros',120,'2026-01-01','mensch',$3) returning id`,
+      [bau.mandant, bau.objekt, benutzer]);
+    const [kat] = await sql.unsafe<{ id: string }[]>(
+      `insert into leistungskatalog (mandant_id, schluessel, bezeichnung, gueltig_ab)
+       values ($1,$2,'Katalog Büros','2026-01-01') returning id`, [bau.mandant, `kat-${zufall()}`]);
+    const [pos] = await sql.unsafe<{ id: string }[]>(
+      `insert into leistungskatalog_position (mandant_id, katalog_id, oz, kurztext, einheit,
+                                              gueltig_ab, zeitwert_minuten)
+       values ($1,$2,'01.01','Unterhaltsreinigung','m2','2026-01-01',5) returning id`,
+      [bau.mandant, kat!.id]);
+    const [t] = await sql.unsafe<{ id: string }[]>(
+      `insert into turnus (mandant_id, revier_id, leistungskatalog_position_id, auftrag_leistung_id,
+                           bezeichnung, rrule, dtstart_lokal, dauer_minuten, feiertagsregel,
+                           gueltig_ab, erstellt_von_art, erstellt_von)
+       values ($1,$2,$3,$4,'Unterhaltsreinigung Büros','FREQ=WEEKLY;BYDAY=MO,WE,FR',
+               '2026-01-05 06:00'::timestamp,120,'ausfall','2026-01-01','mensch',$5)
+       returning id`, [bau.mandant, r!.id, pos!.id, bau.leistung, benutzer]);
+    return t!.id;
+  }
+
+  async function ausnahme(
+    bau: Auftragsbau, turnus: string, datum: string, art: 'ausfall' | 'zusatz',
+    relevant: boolean | null,
+  ): Promise<void> {
+    await sql.unsafe(
+      `insert into turnus_ausnahme (mandant_id, turnus_id, datum, art, ersatz_beginn_lokal, grund,
+                                    abrechnungsrelevant, erstellt_von_art, erstellt_von)
+       values ($1,$2,$3::date,$4::turnus_ausnahme_art,
+               case when $4 = 'zusatz' then ($3 || ' 08:00')::timestamp end,
+               'Mit dem Kunden abgestimmt',$5,'mensch',$6)`,
+      [bau.mandant, turnus, datum, art, relevant, benutzer] as never[]);
+  }
+
+  /** Ein Konto, das abrechnet, aber nur `abrechnung.*` und `finanzen.*` sieht (AUT-01). */
+  async function buchhaltung(mandant: string, module: readonly string[]): Promise<string> {
+    const email = `buchhaltung-${zufall()}@cse.test`;
+    const [u] = await sql.unsafe<{ id: string }[]>(
+      `insert into auth.users (email) values ($1) returning id`, [email]);
+    await sql.unsafe(`insert into auth.mfa_factors (user_id) values ($1)`, [u!.id]);
+    await sql.unsafe(
+      `insert into benutzer (id, email, name, status) values ($1,$2,'Buchhaltung','aktiv')`,
+      [u!.id, email] as never[]);
+    await sql.unsafe(
+      `insert into benutzer_mandant (benutzer_id, mandant_id, rolle_id, module)
+       values ($1, $2, (select id from rolle where schluessel = 'admin' and mandant_id is null),
+               $3::text[])`,
+      [u!.id, mandant, module] as never[]);
+    return u!.id;
+  }
+
+  it('zwei Ausfälle mindern um 2/13, ein Zusatztermin kommt mit 1/13 dazu — auf den Cent', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const turnus = await baueTurnus(bau);
+    await ausnahme(bau, turnus, '2026-10-12', 'ausfall', true);
+    await ausnahme(bau, turnus, '2026-10-14', 'ausfall', true);
+    await ausnahme(bau, turnus, '2026-10-16', 'ausfall', false);
+    await ausnahme(bau, turnus, '2026-10-19', 'ausfall', null);
+    await ausnahme(bau, turnus, '2026-10-24', 'zusatz', true);
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'keine' },
+      pauschaleNettoCent: 189_000n, aufLeistung: true,
+    });
+    const oktober = { von: '2026-10-01', bis: '2026-10-31' };
+
+    const ergebnis = await alsApp(sitzung(f.reinigung), (tx) =>
+      berechneAbrechnung(alsDienst(tx), { auftragId: bau.auftrag, periode: oktober }));
+    expect(ergebnis.befunde.filter((b) => b.art === 'fehler')).toEqual([]);
+    expect(ergebnis.befunde.filter((b) => b.offeneFrage === 'O-700').map((b) => b.textDe))
+      .toEqual([expect.stringContaining('1 Turnus-Ausnahme(n) im Oktober 2026 ohne Angabe')]);
+
+    const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      await bestueckeAusAbrechnungsart(alsDienst(tx), id, { auftragId: bau.auftrag, periode: oktober });
+      return id;
+    });
+    const zeilen = await positionen(rechnungId);
+    expect(zeilen.map((z) => [z.bezeichnung, z.menge, z.preis_basismenge, z.netto_cent])).toEqual([
+      ['Monatspauschale Oktober 2026', '1.000', '1.000', '189000'],
+      ['Minderung Turnusausfall Oktober 2026', '-2.000', '13.000', '-29077'],
+      ['Zusatztermin Oktober 2026', '1.000', '13.000', '14538'],
+    ]);
+    expect(zeilen[1]!.beschreibung).toContain('12.10.2026, 14.10.2026');
+    expect(zeilen[2]!.beschreibung).toContain('24.10.2026');
+    // 189000 − 29077 + 14538: die Summe der Zeilen, nicht neu gerechnet.
+    expect((await kopf(rechnungId)).netto_gesamt_cent).toBe('174461');
+  });
+
+  it('ohne Ausnahme bleibt die Pauschale eine Zeile', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    await baueTurnus(bau);
+    await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'keine' },
+      pauschaleNettoCent: 189_000n, aufLeistung: true,
+    });
+    const rechnungId = await alsApp(sitzung(f.reinigung), async (tx) => {
+      const id = await entwurf(tx, bau);
+      await bestueckeAusAbrechnungsart(alsDienst(tx), id, {
+        auftragId: bau.auftrag, periode: { von: '2026-10-01', bis: '2026-10-31' },
+      });
+      return id;
+    });
+    expect((await positionen(rechnungId)).map((z) => z.netto_cent)).toEqual(['189000']);
+  });
+
+  it('wer nur abrechnet, sieht die Ausnahmen über RLS nicht — die Abrechnung liest sie trotzdem', async () => {
+    const bau = await baueAuftrag(f.reinigung);
+    const turnus = await baueTurnus(bau);
+    await ausnahme(bau, turnus, '2026-10-12', 'ausfall', true);
+    const konfiguration = await legeKonfigurationAn(bau, {
+      art: 'monatspauschale', parameter: { teilmonat: 'keine' },
+      pauschaleNettoCent: 189_000n, aufLeistung: true,
+    });
+    const wer = await buchhaltung(f.reinigung, ['abrechnung', 'finanzen']);
+    const sitzungVon = (benutzerId: string) => ({ ...sitzung(f.reinigung), benutzerId });
+
+    const { sichtbar, daten } = await alsApp(sitzungVon(wer), async (tx) => {
+      const [n] = await tx.unsafe<{ n: number }[]>(`select count(*)::int as n from turnus_ausnahme`);
+      const [d] = await tx.unsafe<{ daten: { turnusse: unknown[]; ausnahmen: { datum: string }[] } }[]>(
+        `select fin.turnusse_der_abrechnung($1::uuid, '2026-10-01', '2026-10-31') as daten`,
+        [konfiguration]);
+      return { sichtbar: n!.n, daten: d!.daten };
+    });
+    expect(sichtbar).toBe(0);
+    expect(daten.turnusse).toHaveLength(1);
+    expect(daten.ausnahmen.map((a) => a.datum)).toEqual(['2026-10-12']);
+    // Der Grundtext verlässt die Funktion nicht.
+    expect(JSON.stringify(daten)).not.toContain('Mit dem Kunden abgestimmt');
+
+    // Ohne abrechnung.lesen gibt die Funktion nichts.
+    const ohne = await buchhaltung(f.reinigung, ['finanzen']);
+    const fehlerBild = await alsApp(sitzungVon(ohne), (tx) => tx.unsafe(
+      `select fin.turnusse_der_abrechnung($1::uuid, '2026-10-01', '2026-10-31')`, [konfiguration]))
+      .then(() => null, (e: unknown) => e as { code?: string });
+    expect(fehlerBild?.code).toBe('42501');
+  });
+
+  it('eine fremde Vereinbarung liest die Funktion nicht', async () => {
+    const fremd = await baueAuftrag(f.bau);
+    const konfiguration = await legeKonfigurationAn(fremd, {
+      art: 'monatspauschale', parameter: { teilmonat: 'keine' },
+      pauschaleNettoCent: 189_000n, aufLeistung: true,
+    });
+    const fehlerBild = await alsApp(sitzung(f.reinigung), (tx) => tx.unsafe(
+      `select fin.turnusse_der_abrechnung($1::uuid, '2026-10-01', '2026-10-31')`, [konfiguration]))
+      .then(() => null, (e: unknown) => e as { code?: string });
+    expect(fehlerBild?.code).toBe('42501');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // (1) Pauschalpreis-Los
 // ---------------------------------------------------------------------------
 

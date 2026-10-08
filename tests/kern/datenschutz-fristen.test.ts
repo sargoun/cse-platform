@@ -150,7 +150,7 @@ describe('die offene Aufbewahrungsfrist steht ÜBER den Abschnitten', () => {
         schluessel: 'stammdaten', titel: 'Stammdaten der Person',
         zweck: 'Personalverwaltung', quelle: 'person',
         frist: 'Noch nicht entschieden — O-514',
-        recht: null, leseweg: 'policy', gesperrt: false, offen: null,
+        recht: null, leseweg: 'policy', gesperrt: false, offen: null, zurueckgehalten: null,
         kopf: ['Vorname'], zeilen: [['Amira']],
       }],
     }));
@@ -169,7 +169,7 @@ describe('die offene Aufbewahrungsfrist steht ÜBER den Abschnitten', () => {
         schluessel: 'zeiteintrag', titel: 'Arbeitszeitaufzeichnungen',
         zweck: 'Zeiterfassung', quelle: 'zeiteintrag',
         frist: '§ 17 Abs. 2 MiLoG — zwei Jahre ab Aufzeichnung',
-        recht: 'zeit.lesen', leseweg: 'policy', gesperrt: false, offen: null,
+        recht: 'zeit.lesen', leseweg: 'policy', gesperrt: false, offen: null, zurueckgehalten: null,
         kopf: ['Beginn'], zeilen: [['01.01.2026']],
       }],
     }));
@@ -270,6 +270,7 @@ function auskunft(teile: Partial<Auskunft> = {}): Auskunft {
     fehlendeRechte: [],
     offeneFristen: [],
     vollstaendig: true,
+    art9Mitgegeben: false,
     zeilen: 0,
     sha256: 'a'.repeat(64),
     erstelltAm: '17.09.2026, 12:00 MESZ',
@@ -290,7 +291,7 @@ describe('die unvollständige Auskunft sagt es in der DATEI, nicht nur auf dem S
       abschnitte: [{
         schluessel: 'zeiteintrag', titel: 'Arbeitszeitaufzeichnungen',
         zweck: 'z', quelle: 'zeiteintrag', frist: '2 Jahre',
-        recht: 'zeit.lesen', leseweg: 'policy', gesperrt: true, offen: null,
+        recht: 'zeit.lesen', leseweg: 'policy', gesperrt: true, offen: null, zurueckgehalten: null,
         kopf: ['Beginn'], zeilen: [],
       }],
     }));
@@ -307,7 +308,7 @@ describe('die unvollständige Auskunft sagt es in der DATEI, nicht nur auf dem S
         schluessel: 'nachweis', titel: 'Qualifikationsnachweise',
         zweck: 'z', quelle: 'nachweis', frist: 'offen',
         recht: 'personal.nachweis_lesen', leseweg: 'policy',
-        gesperrt: false, offen: null, kopf: ['Nummer'], zeilen: [],
+        gesperrt: false, offen: null, zurueckgehalten: null, kopf: ['Nummer'], zeilen: [],
       }],
     }));
     expect(md).toContain('zu dieser Person ist hier nichts gespeichert');
@@ -319,7 +320,7 @@ describe('die unvollständige Auskunft sagt es in der DATEI, nicht nur auf dem S
       abschnitte: [{
         schluessel: 'agentenlauf', titel: 'Agentenläufe',
         zweck: 'offen', quelle: 'agent_lauf', frist: 'offen',
-        recht: null, leseweg: 'offen', gesperrt: false, offen: 'O-113',
+        recht: null, leseweg: 'offen', gesperrt: false, offen: 'O-113', zurueckgehalten: null,
         kopf: [], zeilen: [],
       }],
     }));
@@ -338,7 +339,7 @@ describe('die unvollständige Auskunft sagt es in der DATEI, nicht nur auf dem S
       abschnitte: [{
         schluessel: 'antrag', titel: 'Anträge',
         zweck: 'z', quelle: 'antrag', frist: 'offen',
-        recht: null, leseweg: 'policy', gesperrt: false, offen: null,
+        recht: null, leseweg: 'policy', gesperrt: false, offen: null, zurueckgehalten: null,
         kopf: ['Nachricht'],
         zeilen: [['Zeile eins\nZeile zwei | mit Strich']],
       }],

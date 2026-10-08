@@ -2888,7 +2888,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 |---|---|---|
 | O-136 | Which sector wage agreement applies per entity (Gebäudereinigung RTV, Sicherheitsgewerbe Berlin, Bau), and is it tracked in the platform at all? | `anstellung.tarifvertrag` · **Voreinstellung → D-788** |
 | O-137 | May one person hold two concurrent employments with the **same** entity — a main contract plus a marginal one? | `anstellung` uniqueness · **Voreinstellung → D-788** |
-| O-138 | Are sick days during approved leave credited back to the Urlaubskonto automatically (§9 BUrlG), or only on presentation of the AU certificate? | `abwesenheit`, `urlaubskonto` · **Voreinstellung → D-788** |
+| O-138 | Are sick days during approved leave credited back to the Urlaubskonto automatically (§9 BUrlG), or only on presentation of the AU certificate? | `abwesenheit`, `urlaubskonto` · **Voreinstellung → D-788; gebaut → D-853** |
 | O-139 | Paid/unpaid status per absence type, the proof-required-from-day-N rule, and the payroll wage-type mapping for every `abwesenheitsart` and `bewegung_art` | ACC-12 export · **Voreinstellung → D-781** |
 | O-140 | Is the §34a Unterrichtung/Sachkunde unbefristet, and what triggers a re-check — only the reliability-check interval? | the SEC-02 watchdog has nothing to warn on until this is answered · **Voreinstellung → D-788** |
 | O-141 | Does the entity that first recorded a person keep read access once the person works exclusively for another entity, or does the anchor lapse? | `app.person_sichtbar()` · **Voreinstellung → D-788** |
@@ -2904,7 +2904,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | O-54 | How is the service period derived per billing type — calendar month, per Leistungsnachweis, per Aufmaß? · **Voreinstellung → D-792** |
 | O-55 | Which cleaning classes are used (DIN 77400, own scheme, per customer), and do they drive frequency, price or quality? · **Voreinstellung → D-780** |
 | O-56 | How is a Turnus converted into a frequency factor? · **Voreinstellung → D-780** |
-| O-57 | Is subcontracted work a cost type of its own beside the five of OPS-07? · **Voreinstellung → D-792** |
+| O-57 | Is subcontracted work a cost type of its own beside the five of OPS-07? · **Voreinstellung → D-792; gebaut → D-852** |
 | O-58 | Must a Kalkulation exist before every offer is sent, or may catalogue and small orders go out without one? · **Voreinstellung → D-792** |
 | O-59 | Time values and list prices per service — confirm or supply · **Voreinstellung → D-792** |
 | O-60 | Do intra-Community supplies (§4 Nr. 1b UStG) or the §19 UStG small-business rule occur in any entity? · **Voreinstellung → D-780** |
@@ -2927,7 +2927,7 @@ records the derivation. `O-02` and `O-03` are answered — see **D-11** and **D-
 | # | Question |
 |---|---|
 | O-145 | A Turnus missed on a public holiday: brought forward, made up, or dropped? · **Voreinstellung → D-789** |
-| O-146 | Is a missed Turnus credited against a monthly flat, and at what amount? · **Voreinstellung → D-789** |
+| O-146 | Is a missed Turnus credited against a monthly flat, and at what amount? · **Voreinstellung → D-789; gerechnet → D-850** |
 | O-147 | Are Leistungsnachweise numbered gaplessly and sequentially, and from which step is the number assigned? · **Voreinstellung → D-781** |
 | O-148 | Which Postenarten and which Schlüsselarten are kept? · **Voreinstellung → D-783** |
 | O-149 | Which qualification is required for guard duties with no fixed post — events, floaters, short-notice cover? · **Voreinstellung → D-789** |
@@ -3197,13 +3197,13 @@ Beantworten helfen:
 |---|---|
 | O-640 | Does a Werbewiderspruch apply per channel (e-mail blocked, post keeps running) or across all channels? Today it is blanket: the block sits in ONE column (`werbewiderspruch_am`, 0020), and `werbewiderspruch.kanal` only describes what triggered it. Note that `nachricht_kanal` (portal/email/sms, 0231) and the CRM channel list (email/telefon/sms/post/whatsapp, 0020) are two different vocabularies. · **Voreinstellung → D-791** |
 | O-641 | Does an advertising objection raised at one entity also bind the other three? Today it does not — the four are separate controllers, and `/werbewiderspruch` asks which one, exactly as `/datenschutz/anfrage` does. · **Voreinstellung → D-784** |
-| O-642 | Does the internal hourly rate (`anstellung.stundensatz_intern`, K-05) belong in an Art. 15 export, or is it the entity's costing data? The Art.-15 section for `anstellung` omits it today and says so. · **Voreinstellung → D-791** |
-| O-643 | Does the absence TYPE (`abwesenheit.abwesenheitsart_id` — health-adjacent, Art. 9) belong in an Art. 15 export, and behind which additional check? It is readable through `app.abwesenheit_grund_lesen` with its own right; the export lists dates and status only. · **Voreinstellung → D-791** |
+| O-642 | Does the internal hourly rate (`anstellung.stundensatz_intern`, K-05) belong in an Art. 15 export, or is it the entity's costing data? The Art.-15 section for `anstellung` omits it today and says so. · **Voreinstellung → D-791; gebaut → D-855** |
+| O-643 | Does the absence TYPE (`abwesenheit.abwesenheitsart_id` — health-adjacent, Art. 9) belong in an Art. 15 export, and behind which additional check? It is readable through `app.abwesenheit_grund_lesen` with its own right; the export lists dates and status only. · **Voreinstellung → D-791; gebaut → D-855** |
 | O-644 | Who EXECUTES an erasure decision, and how? There is no anonymisation procedure (`app.person_anonymisieren` is described in 02-CRM-OPERATIONS.md and does not exist), no run that writes `anonymisiert_am`, and no tombstone path for an employee, a customer contact or a company. Until there is one, `M/datenschutz/[id]/loeschung` produces a documented PRE-NOTE, not a release — a signed release for an execution nobody performs is worse than none. · **Voreinstellung → D-791** |
 | O-645 | Should the one-click objection link expire, and after how long? § 7 Abs. 3 Nr. 4 UWG says "jederzeit", so `werbewiderspruch_token.gueltig_bis` is NULL today — the choice that is safe for the data subject, not a decided rule. · **Voreinstellung → D-791** |
 | O-646 | Which recipients under Art. 19 DSGVO exist per data class (payroll office, client, authority), and by which route are they informed? The platform holds no recipient list; `berichtigung_feld.art19_empfaenger` records whoever a human names. · **Voreinstellung → D-791** |
 | O-647 | How is a restriction under Art. 18 DSGVO implemented technically — a per-record restriction flag, or organisationally? The data model carries no "restricted" marker: there is no column that pauses processing without ending it, and a checkbox that blocks nothing would be the worse answer. **The same decision governs an Art. 21 objection raised by an employee or an applicant**: `widerspruch_am` exists only on `ansprechpartner` and `kunde` (the advertising side), so for those groups the objection is today decided by a human, implemented organisationally and recorded in the closing text of the request. `/datenschutz/[id]` says both on the screen. · **Voreinstellung → D-784** |
-| O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) · **Voreinstellung → D-791** |
+| O-648 | Which of the employee branch's derived findings, access records and assignments belong in an Art. 15 export, and which are mechanics? Eleven tables carry `person_id` and are no section of their own today: `arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` (derived from data already disclosed in full), `benutzer`, `checkin_token`, `offline_ereignis` (the mechanics of access), `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`. They are NAMED in the delivered export as an open section rather than left out — the answer decides whether they become sections. (The erasure side of the same list is O-71.) · **Voreinstellung → D-791; gebaut → D-856** |
 | O-649 | Who sends the confirmation of a tokenless advertising objection (`/werbewiderspruch`), and what does it say when the address is not in our records at all? A confirmation that says "removed" would disclose that the address was held; one that says nothing is not a confirmation. No outbound mail is connected today, and the page says so instead of claiming a send. · **Voreinstellung → D-791** |
 
 **Aufgaben, Nachrichten, öffentliche Seiten**
@@ -25105,7 +25105,7 @@ gebaut ist, steht es dabei (V-319 bis V-322).
 |---|---|---|
 | O-136 | Tarifbindung je Gesellschaft: Reinigung nach dem RTV Gebäudereinigung, Security nach dem Manteltarifvertrag Wach- und Sicherheitsgewerbe Berlin/Brandenburg, Bau nach dem BRTV — unbestätigt. Der Tarif selbst ist kein Feld: die Tarifgruppe steht als Text an der Kondition (`anstellung_kondition.tarifgruppe`, K-05), die Pausenregel in `tarifvereinbarung` (O-50, D-781), das Entgelt rechnet das Lohnsystem (D-06). Wie gebaut. | `personal/anstellung.ts`, Einstellungen › Arbeitszeit |
 | O-137 | Zwei gleichzeitige Beschäftigungen desselben Menschen bei derselben Gesellschaft (Hauptvertrag plus Minijob) sind zulässig: `anstellung` kennt keine Eindeutigkeit über (Gesellschaft, Person); die ArbZG-Last zählt je Mensch über alle Beschäftigungen (Invariante 9). Wie gebaut. | `personal/einstellung.ts` |
-| O-138 | Krankheitstage im genehmigten Urlaub werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG) — von Hand: `ab_keine_dublette` lässt keine zweite Abwesenheit über den Urlaub, also kürzt ein Mensch den Urlaub und erfasst die Krankheit. Automatisch geschieht nichts (V-319). | `abwesenheit/antrag.ts` |
+| O-138 | Krankheitstage im genehmigten Urlaub werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG). Gebaut (V-319, D-853): „Krankheit im Urlaub" am genehmigten Urlaubsantrag erfasst die Krankheit und gibt die kranken Arbeitstage dem Urlaubskonto zurück, in einer Transaktion; ohne Bescheinigung keine Gutschrift. (Der frühere Satz hier, `ab_keine_dublette` sperre eine zweite Abwesenheit über dem Urlaub, stimmte nicht — die Sperre gilt nur für dieselbe Art.) | `abwesenheit/krankheit-im-urlaub.ts` |
 | O-140 | Sachkunde und Unterrichtung nach § 34a GewO sind unbefristet (`laeuft_ab = false`, Katalog); die behördliche Zuverlässigkeitsüberprüfung (Bewacherregister, alle fünf Jahre) ist der einzige Anlass einer Nachprüfung; ihre Wiedervorlage ist die eingetragene nächste Prüfung, sonst die letzte plus fünf Jahre (`ZUVERLAESSIGKEIT_JAHRE`), 60 Tage vorher gemeldet — gebaut mit V-320 (D-815). | `nachweis/aufnahme.ts`, `seed/qualifikation.ts` |
 | O-141 | Der Anker bleibt: `app.person_sichtbar` sieht einen Menschen, solange in der Gesellschaft eine nicht gelöschte Beschäftigung steht — auch eine beendete (Personalakte); die Sicht fällt erst mit dem Löschen der Beschäftigung. Wie gebaut (0030). | `personal/einstellung.ts` |
 | O-143 | Ein Stundenkonto ist offen oder gesperrt; `vorlaeufig` steht im Enum und setzt kein Weg — der Zwischenzustand bleibt ungenutzt, bis ein Abschlussweg ihn braucht. Ein Zeit-Einwand kann teilweise anerkannt werden (`teilweise_anerkannt`). Wie gebaut. | `zeit/stundenkonto.ts`, `zeit/einwand.ts` |
@@ -25155,7 +25155,7 @@ nicht gebaut ist (V-323 bis V-328). Jede Zeile ist gegen den Dienst gelesen.
 | Frage | Voreinstellung | Wo |
 |---|---|---|
 | O-145 | Ein Turnus am gesetzlichen Feiertag entfällt (`feiertagsregel = ausfall`, Spaltenvorgabe 0029) — weder vorgezogen noch nachgeholt; `unveraendert` ist je Serie wählbar, die Vorschau rechnet beides. Wie gebaut. | `reinigung/turnus.ts`, `reinigung/turnusvorschau.ts` |
-| O-146 | Ein ausgefallener Turnus mindert die Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des Monats); so ist die Ausnahme vorbelegt (`abrechnungsrelevant`, O-700, D-783). Gerechnet wird die Minderung nirgends — die Monatspauschale rechnet aus der Pauschale allein (V-327). | `reinigung/turnus.ts`, `finanz/abrechnungsart/monatspauschale.ts` |
+| O-146 | Ein ausgefallener Turnus mindert die Monatspauschale um seinen Anteil (Pauschale geteilt durch die Termine des Monats); so ist die Ausnahme vorbelegt (`abrechnungsrelevant`, O-700, D-783). Gerechnet seit V-327 (D-850): je abrechnungsrelevantem Ausfall an einem Regeltermin eine Minderungszeile, je Zusatztermin eine Zuschlagszeile zum selben Satz; Nenner sind die Regeltermine des Monats nach der Feiertagsregel. | `reinigung/turnus.ts`, `finanz/abrechnungsart/{monatspauschale,turnusausfall}.ts` |
 | O-149 | Wie D-783 (O-342): für Kräfte ohne festen Posten (Veranstaltung, Springer, kurzfristige Vertretung) gilt die mandantenweite Grundanforderung § 34a-Unterrichtung, bei Veranstaltungen dazu die Sachkunde — auf Knopfdruck angelegt, unbestätigt, als Warnung; ohne Zeile meldet das Tor `anforderungenGefunden = 0`. | `nachweis/tor.ts`, `security/anforderung.ts` |
 | O-150 | Massgeblich ist der Berliner Kalendertag des Schichtbeginns (`stichtagVon`): ein Nachweis, der um Mitternacht abläuft, deckt die begonnene Nachtschicht; die nächste Schicht braucht einen gültigen. Wie gebaut. | `nachweis/gueltigkeit.ts` |
 | O-151 | Die Übergabe zeigt die Einträge der letzten zwölf Stunden am selben Objekt — gerechnet ab jetzt, das Fenster gleitet (`app.uebergabe_sichtbar`, 0302); zu Schichtbeginn sind es die zwölf Stunden davor (berichtigt mit D-808). Ausgeliefert ist das Fenster mit 0 (`wachbuch.uebergabe_fenster`, 0033), gesetzt wird es je Gesellschaft auf Security › Wachbuch (0 bis 24 Stunden, `system.einstellung_verwalten`, protokolliert — gebaut mit V-323, D-808); die Wachbuchseite der Kraft nennt die Voreinstellung in vier Sprachen. | `mitarbeiter/schichtbuch.ts`, `texte.ts`, Mein › Wachbuch |
@@ -25263,12 +25263,12 @@ gebaut ist (V-332 bis V-336); zwei Seiten sagen „Voreinstellung" statt „offe
 | O-623 | Die Hashkette über `audit_log` entsteht beim Bilden eines Bündels (0204), nicht beim Schreiben — `app.protokolliere` hält keine Zeilensperre, die jede schreibende Transaktion serialisierte; das Manifest nennt die ungeketteten Zeilen. Dazu ein nächtlicher Lauf (`audit_kette_nachtlauf`, 03:25 UTC) über einen eigenen Einstieg nur für `cse_job` (`kern.audit_kette_nachtlauf`, 0516) — gebaut mit V-336 (D-820). Er ist übergreifend, nicht je Gesellschaft gebunden: die Kette ist EINE über alle Gesellschaften und die Plattformzeilen (0204), je Gesellschaft gelaufen wäre es dieselbe Kette viermal. Ein Bruch lässt den Lauf werfen und ruft den Alarm (verwandt O-357; Prüfstand PR #35). | Einstellungen › Protokoll › Export, `audit/buendel.ts`, `jobs/auditKette.ts` |
 | O-625 | Ein Übernahmelauf steht unter `system.einstellung_verwalten` (0202) UND verlangt beim Schreiben das Schreibrecht der Zieldomäne (`zeit.schreiben` für Zeiteinträge, `finanzen.schreiben` für Belege) — wie `/einstellungen/vorlagen` mit `bau.schreiben`. Wirkt erst mit dem Leser (O-128, V-300). | Einstellungen › Import, `migration/uebernahme.ts` |
 | O-640 | Ein Werbewiderspruch gilt pauschal für alle Kanäle der Gesellschaft (eine Spalte `werbewiderspruch_am`, 0020); `werbewiderspruch.kanal` beschreibt den Anlass und wirkt nicht. Wie gebaut. | Datenschutz › Widersprüche |
-| O-642 | Der interne Stundensatz (`anstellung.stundensatz_intern`, K-05) gehört in die Art.-15-Auskunft: ein Satz an einer Beschäftigung ist ein Datum über den Menschen (Art. 4 Nr. 1 DSGVO), auch wenn er zugleich Kalkulationsdatum ist. Gelesen über den beschränkten Leser `app.anstellung_entgelt_lesen` mit `personal.entgelt_lesen`; fehlt das Recht, sagt der Abschnitt es. Nicht gebaut — der Abschnitt `anstellung` lässt den Satz heute aus (V-332). Berichtigt im Prüfstand PR #35: hier stand, er gehöre nicht hinein. | `datenschutz/auskunft.ts` |
-| O-643 | Die Abwesenheitsart (Art. 9) gehört in die Auskunft — aber nur als eigener Abschnitt hinter `app.abwesenheit_grund_lesen` mit eigenem Recht, den die sachbearbeitende Person ausdrücklich mitgibt; nie im Standardexport. Der Abschnitt fehlt (V-332). | `datenschutz/auskunft.ts` |
+| O-642 | Der interne Stundensatz (`anstellung.stundensatz_intern`, K-05) gehört in die Art.-15-Auskunft: ein Satz an einer Beschäftigung ist ein Datum über den Menschen (Art. 4 Nr. 1 DSGVO), auch wenn er zugleich Kalkulationsdatum ist. Gelesen über einen beschränkten Leser mit `personal.entgelt_lesen`; fehlt das Recht, ist der Abschnitt gesperrt. Gebaut (V-332, D-855): Abschnitt „Interner Stundensatz" mit allen datierten Sätzen über `app.auskunft_entgelt`. Berichtigt im Prüfstand PR #35: hier stand, er gehöre nicht hinein. | `datenschutz/auskunft.ts` |
+| O-643 | Die Abwesenheitsart (Art. 9) gehört in die Auskunft — aber nur als eigener Abschnitt mit eigenem Recht (`zeit.abwesenheit_grund_lesen`), den die sachbearbeitende Person ausdrücklich mitgibt; nie im Standardexport. Gebaut (V-332, D-855): Abschnitt „Art der Abwesenheiten (Art. 9 DSGVO)" über `app.auskunft_abwesenheitsgruende`, ohne Mitgabe als „nicht mitgegeben" benannt. | `datenschutz/auskunft.ts` |
 | O-644 | Vollzug der Löschvormerkung durch eine Anonymisierungsprozedur (`app.person_anonymisieren`) im Nachtlauf, erst nach Freigabe eines zweiten Menschen (Vier-Augen), je Tabelle mit Protokollzeile, Tombstone wo eine Aufbewahrungspflicht überlagert. Nichts davon ist gebaut (V-333); die Seite nennt die Voreinstellung und bleibt bei „Vormerkung". | Datenschutz › Vorgang › Löschung, `datenschutz/loeschentscheidung.ts` |
 | O-645 | Der Widerspruchslink läuft nicht ab (`werbewiderspruch_token.gueltig_bis` NULL) — § 7 Abs. 3 Nr. 4 UWG sagt „jederzeit"; ungültig wird er nur durch Einlösung oder Widerruf. Wie gebaut. | `datenschutz/werbewiderspruch.ts` |
 | O-646 | Keine Empfängerliste nach Art. 19 im System: die Empfänger benennt ein Mensch je Vorgang, unterrichtet sie auf dem Weg, auf dem die Daten zu ihnen kamen, und trägt hier ein, wen und wann (`berichtigung_feld.art19_empfaenger`). Wie gebaut. | `datenschutz/berichtigung.ts` |
-| O-648 | Alle elf Tabellen des Personenzweigs gehören in die Auskunft, je als eigener Abschnitt: Zuordnungen (`einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`), abgeleitete Befunde (`arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` — eine Folgerung über einen Menschen ist selbst ein personenbezogenes Datum) und Zugangsdaten (`benutzer`, `checkin_token`, `offline_ereignis`) ohne Geheimnisse (Kennwort-Hash, Markenwert). Nicht gebaut (V-334); bis dahin nennt der Sammelabschnitt alle elf. Berichtigt im Prüfstand PR #35: hier standen Zugangsdaten und Befunde als „keine Auskunft". | `datenschutz/auskunft.ts`, Datenschutz › Auskunft |
+| O-648 | Alle elf Tabellen des Personenzweigs gehören in die Auskunft, je als eigener Abschnitt: Zuordnungen (`einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`, `bewacher_eintrag`), abgeleitete Befunde (`arbeitszeit_verstoss`, `planungs_konflikt`, `nachweis_warnung`, `da_pflicht` — eine Folgerung über einen Menschen ist selbst ein personenbezogenes Datum) und Zugangsdaten (`benutzer`, `checkin_token`, `offline_ereignis`) ohne Geheimnisse (Kennwort-Hash, Markenwert). Gebaut (V-334, D-856): je Tabelle ein Abschnitt mit eigenem Recht, der Sammelabschnitt entfällt; die Leadbewertung steht im Abschnitt Leads. Berichtigt im Prüfstand PR #35: hier standen Zugangsdaten und Befunde als „keine Auskunft". | `datenschutz/auskunft.ts`, Datenschutz › Auskunft |
 | O-649 | Die Bestätigung des tokenlosen Widerspruchs geht über den Postausgang der gewählten Gesellschaft, neutral („Ihr Widerspruch ist eingegangen"), ohne Aussage, ob die Adresse im Bestand war. Der Postausgang ist Betreiberdatum; der Versandschritt fehlt (V-335); die Seite sagt bis dahin, dass keine Bestätigung gesendet wird. | `api/werbewiderspruch`, `/werbewiderspruch` (de/en) |
 
 **Was sich NICHT ändert.** Kein Recht, keine Sperre, kein Versand; O-65
@@ -25305,7 +25305,7 @@ einer Liste, die Seed und Formular gemeinsam lesen.
 |---|---|---|
 | O-53 | Ja — ein Auftrag trägt Positionen verschiedener Abrechnungsarten (Monatspauschale und Sonderreinigung nach Stunden im selben Vertrag); die Konfiguration hängt deshalb an der Leistungszeile (`auftrag_leistung_id`), `null` ist der Sonderfall einer Pauschale über den ganzen Auftrag, und eine auftragsweite Pauschale über Zeilen mit verschiedenen Steuersätzen wird abgewiesen. Wie gebaut. | `finanz/abrechnungsart/index.ts`, `typen.ts` (`steuergruppeDesAuftrags`) |
 | O-54 | Der Leistungszeitraum ist je Abrechnungsart: Kalendermonat für die Pauschale, Aufmassdatum für den Einheitspreis, bei `nach_leistungsnachweis` der Zeitraum der gegengezeichneten Nachweise des Abschnitts (frühester Beginn bis spätestes Ende). Seit V-337 (D-838) gebaut: beschnitten auf den Abschnitt; ein Nachweis zählt, wenn er unterschrieben ist und im Kopf oder in einer Zeile eine Leistungszeile des Auftrags nennt; blockiert wird nur noch der Abschnitt ohne einen solchen Nachweis. | `finanz/abrechnungsart/typen.ts` (`zeitraumAusNachweisen`, `ladeSignierteNachweise`, `pruefeNachweisZeitraum`), die fünf Strategien |
-| O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie kann je nach Leistung und Empfänger die Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 EStG auslösen (`reverseChargeLage`, `abzugLage` prüfen das schon) und gehört in der Preisbegründung getrennt ausgewiesen; die Kostenart ist kein Steuerkennzeichen. Der Enum `kostenart` (0023) kennt sie nicht; Zeile, Summenspalte und Rechenweg fehlen (V-338); die Kalkulationsseite sagt es zweisprachig. | `kalkulation/kostenposition.ts`, Angebot › Kalkulation |
+| O-57 | Nachunternehmerleistung ist eine eigene Kostenart `nachunternehmer` neben den fünf aus OPS-07 — sie kann je nach Leistung und Empfänger die Steuerschuldnerschaft nach § 13b UStG und bei Bauleistungen den Abzug nach § 48 EStG auslösen (`reverseChargeLage`, `abzugLage` prüfen das schon) und gehört in der Preisbegründung getrennt ausgewiesen; die Kostenart ist kein Steuerkennzeichen. Gebaut seit V-338 (D-852): Enum-Wert und Summenspalte (0536), erfassbar wie Material und Gerät, als Einzelkosten im Preis und eigener Block auf der Kalkulationsseite. | `kalkulation/{kostenposition,index,bestaetigung}.ts`, Angebot › Kalkulation |
 | O-58 | Ein Angebot aus dem Raumbuch trägt seine Kalkulation und geht erst mit bestätigten Werten hinaus (`kern.angebot_versand_pruefen`); ein Angebot von Hand (Katalog, Kleinauftrag, Pauschale) hat keine Kalkulation und geht ohne hinaus — die Verantwortung für den Preis trägt, wer freigibt (O-920). Wie gebaut. | `angebot/index.ts`, `angebot/von-hand.ts` |
 | O-59 | Die Zeitwerte und Listenpreise des Leistungskatalogs sind die Voreinstellung jeder Kalkulation (`ist_platzhalter`); bestätigt werden sie je Kalkulation mit den Zahlen des Angebots (`kalkulation/bestaetigung.ts`), nicht gruppenweit. Ein Weg, Katalogwerte im Katalog zu bestätigen, fehlt und ist bis zu den Richtwerten des Betreibers (O-16, O-17) nicht vorgesehen. Wie gebaut. | `kalkulation/bestaetigung.ts` |
 | O-61 | Das Formular für CSE Operations fragt Anliegen (Prozessanalyse, Software, Automatisierung, Migration, Schulung), betroffene Mitarbeitende, eingesetzte Systeme und Zeitrahmen — plus die gemeinsamen Felder. So steht es im Seed und ist veröffentlicht; `Angebot.tsx` sagte noch, Operations habe keines. | `db/seed/formulare.ts`, `/angebot/operations` |
@@ -25837,7 +25837,7 @@ denselben Blöcken gehören nicht hierher: die Rechtsform der CSE Operations
 | O-127 | Kein Virenscanner. Eingehende Dateien prüft die Plattform selbst: Typ nach Magic Bytes gegen eine Positivliste, höchstens 256 MB, Metadaten aus JPEG entfernt und in PDF überschrieben, SVG nur als Logo nach einer Musterliste und mit Sandbox-CSP ausgeliefert (D-45, D-46). Ein Scanner wäre ein eigener Dienst in der EU mit Auftragsverarbeitungsvertrag, den der Betreiber beauftragt; eine Anbindung dafür ist nicht gebaut. Wie gebaut. | `storage/mime.ts`, `storage/exif.ts`, `storage/svg.ts` |
 | O-131 | Erfasst wird von Hand: Notiz, Anruf, E-Mail oder Termin, eingehend oder ausgehend, am Kunden oder am Ansprechpartner (`POST /api/crm/notiz`, V-147); der Verlauf zeigt sie mit den Portalnachrichten zusammen. Ein Kundenpostfach je Gesellschaft ist nicht verbunden — Postfach und Zugang trägt der Betreiber ein, wie beim Bewerbungspostfach (O-938). Wie gebaut. | `api/crm/notiz`, `crm/verlauf.ts` |
 | O-205 | Kein Konformitätsstatus, solange keine Prüfung vorliegt: der Kasten „Noch nicht abgegeben" bleibt und nennt jetzt nur, was wirklich fehlt — Status und Datum der Erstprüfung (die Frage bleibt in `OFFEN_GEBLIEBEN`, `annahmen.test.ts`). Neu steht die Durchsetzungsstelle da: die Marktüberwachungsstelle der Länder für die Barrierefreiheit von Produkten und Dienstleistungen (MLBF) mit Sitz in Magdeburg (de/en). Meldungen gehen über das Formular in den internen Eingang mit Frist (V-032) und an die Adresse der ersten Gesellschaft mit E-Mail (wie gebaut); ein eigenes Postfach für Barrierefreiheit trägt der Betreiber ein, wenn er eines will. | `(public)/barrierefreiheit/Erklaerung.tsx`, `lib/i18n/texte.ts` |
-| O-207 | Die Entwurfstexte sind die Voreinstellung und stehen veröffentlicht da — sachlich, ohne Zahlen, Auszeichnungen, Kundennamen oder Zusagen. Der Betreiber prüft und ergänzt sie in der Website-Pflege. `pnpm content:import` ist das Werkzeug für eine Datenbank ohne Pflege: es setzt jeden Abschnitt, dessen Text vom Seed abweicht, auf den Seed zurück, auch eine Pflege im Portal (V-386); seine Ausgabe sagt das jetzt. | `db/seed/{inhalt,inhalt-en}.ts`, `scripts/content-import.ts` |
+| O-207 | Die Entwurfstexte sind die Voreinstellung und stehen veröffentlicht da — sachlich, ohne Zahlen, Auszeichnungen, Kundennamen oder Zusagen. Der Betreiber prüft und ergänzt sie in der Website-Pflege. `pnpm content:import` lässt seit V-386 (D-851) eine Pflege im Portal stehen und nennt sie: er schreibt den Seed nur, wo die Zeile noch so steht, wie er sie zuletzt geschrieben hat (`import_stand`); zurückgesetzt wird nur mit `--ueberschreiben`. | `db/seed/{inhalt,inhalt-en}.ts`, `scripts/content-import.ts` |
 | O-512 | (a) Ja: `/karriere` und jede offene Stelle (`/karriere/<id>`) stehen jetzt in der Sitemap, mit derselben Bedingung wie die Karriereseite (`offeneStellenKennungen` neben `offeneStellen`) — keine zweite Liste; anders als die Seite ohne die 50er-Grenze, gemeldet wird jede veröffentlichte Stelle; ohne `lastModified` (R-11). (b) Englisch, wie D-82 es für die ganze öffentliche Website verlangt: der Karrierebereich steht unter `/en/karriere` (gebaut mit V-393, D-807) — dieselben Bauteile, die Stellentexte so, wie das Recruiting sie schreibt (deutsch, mit `lang="de"` und einem Satz dazu); die Sitemap meldet beide Sprachen mit gegenseitigem `hreflang`. | `app/sitemap.ts`, `(public)/karriere/daten.ts`, `services/inhalt/sitemap.ts`, `lib/sprache.ts` |
 | O-652 | Eine Leistungsseite gehört der Gesellschaft, die die Leistung erbringt, und nennt sie als `provider`, sobald die Zeile ihre `mandant_id` trägt (`seitenService`, wie gebaut). Welche Leistungen eine eigene Seite bekommen, entscheidet die Redaktion; bis sie eine anlegt, bleibt es bei der Demonstrationsseite `/leistungen/unterhaltsreinigung`. Sie ist keiner Gesellschaft zugeordnet und nennt keinen Anbieter, weil weder der Import noch die Seitenpflege `seite.mandant_id` setzen (V-293, berichtigt und um diesen Fall ergänzt). Kanonisch bleiben die Leistungen einer Gesellschaft unter `/unternehmen/<bereich>/leistungen` (§2.2). Der Text der Seite sagt es (de/en). | `services/inhalt/jsonld.ts`, `db/seed/{inhalt,inhalt-en}.ts` |
 
@@ -28788,4 +28788,361 @@ misst, fällt. Ohne 0533 fallen alle vier (geprüft). Die Zwei-Raten-Prüfung
 30.870".
 
 | Betrifft | V-357, O-340, D-796, D-362, D-700, BAU-02, FIN-07, FIN-08, § 16 VOB/B; `drizzle/0533_aufmass_obergrenze_je_lv_position.sql`, `src/server/services/bau/aufmass.ts`, `src/server/services/finanz/abrechnungsart/einheitspreis-aufmass.ts`, `tests/isolation/rechnung-herkunft.test.ts` |
+|---|---|
+
+### D-850 · Bauwelle 47: Ausfall und Zusatztermin eines Turnus ändern die Monatspauschale (V-327, O-146, O-700)
+
+**Der Anlass.** `turnus_ausnahme.abrechnungsrelevant` ist „ja" vorbelegt
+(O-700, D-783): ein Ausfall mindert die Pauschale, ein Zusatztermin wird
+berechnet. Die Monatspauschale las die Ausnahmen nicht — die Rechnung
+verlangte die volle Pauschale auch für ausgefallene Termine. Voreinstellung
+(O-146, D-789): Minderung um den Anteil des Termins, Pauschale geteilt durch
+die Termine des Monats; ein Zusatztermin als eigene Zeile.
+
+**Was gebaut ist.**
+- **`finanz/abrechnungsart/turnusausfall.ts`** (rein bis auf den Lader):
+  `turnusImAbschnitt` entfaltet je Turnus der Vereinbarung die Regeltermine
+  des ganzen Monats mit derselben Funktion wie das Turnusblatt
+  (`turnusVorschau`) — nach Feiertagsregel und Gültigkeit, vor den
+  Ausnahmen, mit den Berliner Feiertagen (wie die Arbeitstage, D-843; das
+  Land am Objekt fehlt noch, V-396). Ein Ausfall zählt nur an einem Tag mit
+  Regeltermin, nur abrechnungsrelevant, je Turnus und Tag einmal (zwei
+  Regeltermine an einem Tag fallen beide aus, wie im Generator); ein
+  Zusatztermin zählt für sich; eine Verschiebung nie; „ohne Angabe" wird
+  gezählt, nicht gerechnet. `TODO(client, O-146)` am Dienst.
+- **Die Zeilen** (`monatspauschale.ts`): nach jeder Pauschalzeile eines
+  Abschnitts „Minderung Turnusausfall <Monat>" (Menge minus Ausfälle) und
+  „Zusatztermin <Monat>" (Menge Zusatztermine), beide mit den Regelterminen
+  des Monats als `preis_basismenge` und der Pauschale als Preis — der Anteil
+  eines Termins ist so exakt, gerundet wird einmal je Zeile
+  (`berechneNetto`, kaufmännisch, mit Vorzeichen). Oktober 2026, Mo/Mi/Fr,
+  1.890,00 €: 13 Regeltermine; zwei Ausfälle −290,77 €, ein Zusatztermin
+  +145,38 €. Einheit `stk` (H87): „Einsatz" trägt keinen UN/ECE-Code.
+- **Die Prüfung** sagt vorher: ein Zusatztermin in einem Monat ohne
+  Regeltermin hat keinen Satz (Fehler, O-146 — die Zeile wirft dann auch);
+  eine Ausnahme ohne Angabe ändert die Pauschale nicht (Warnung, O-700).
+- **`fin.turnusse_der_abrechnung`** (0534, Definer): `turnus` und
+  `turnus_ausnahme` liest `cse_app` nur mit `reinigung.lesen`; wer abrechnet,
+  hält `abrechnung.lesen` — eine Buchhaltung mit Modulbeschränkung (AUT-01)
+  nicht unbedingt beides, und RLS filterte die Ausnahmen still. Die Funktion
+  prüft aktive Gesellschaft, `abrechnung.lesen` und die Zugehörigkeit der
+  Vereinbarung und gibt Regel, Gültigkeit sowie Tag, Art und
+  Abrechnungsrelevanz der Ausnahmen zurück — keinen Grundtext (Spaltenliste
+  der Policy), keine Person. Turnusse: die an der Leistungszeile der
+  Vereinbarung; gilt sie für den ganzen Auftrag, die an seinen
+  Leistungszeilen ohne eigene Vereinbarung im Zeitraum; archivierte nicht.
+- **Seed.** Der Seed legt keine Pauschalvereinbarung an (die Reinigung rechnet
+  dort nach Stunden und Abruf); die Ausnahme im Dienstplan-Seed hat keinen
+  Preis zu ändern. Den Weg prüft die Isolationsprüfung.
+
+**Prüfung.** `tests/kern/turnusausfall.test.ts` (Regeltermine: 13 im Oktober,
+12 im Dezember mit Weihnachten, 13 mit „unverändert", Gültigkeit, zwei
+Turnusse, angebrochener Abschnitt; welche Ausnahmen zählen; das Geld;
+die Prüfung mit O-146 und O-700; Verdrahtung).
+`tests/isolation/abrechnungsart.test.ts` (1b): drei Zeilen auf dem Entwurf
+mit −29.077 und +14.538 Cent und 174.461 Cent netto; ohne Ausnahme eine Zeile;
+ein Konto mit Modulbeschränkung sieht über RLS keine Ausnahme und die
+Funktion liefert sie doch, ohne Grundtext; ohne `abrechnung.lesen` 42501;
+eine fremde Vereinbarung 42501. Die kern-Doppel der Pauschalprüfung
+(`abrechnungsart.test.ts`, `arbeitstage-teilmonat.test.ts`) beantworten die
+neue Turnusfrage mit „keine" und werfen weiter bei jeder anderen Abfrage.
+
+| Betrifft | V-327, O-146, O-700, D-783, D-789, D-843, V-396, CLN-02, FIN-01; `drizzle/0534_turnus_fuer_abrechnung.sql`, `src/server/services/finanz/abrechnungsart/{turnusausfall,monatspauschale}.ts`, `src/server/registry/dienste.ts`, `tests/kern/{turnusausfall,abrechnungsart,arbeitstage-teilmonat}.test.ts`, `tests/isolation/abrechnungsart.test.ts` |
+|---|---|
+
+### D-851 · Bauwelle 48: Der Inhaltsimport lässt eine Pflege im Portal stehen (V-386, O-207)
+
+**Der Anlass.** `importiere` verglich jeden Abschnitt mit dem Seed und
+schrieb den Seed, wo der Text abwich. Einen im Portal gepflegten Abschnitt
+konnte er von einem veralteten nicht unterscheiden: `pnpm content:import`
+setzte die Pflege des Betreibers zurück (O-207, D-802 — „der Betreiber prüft
+und ergänzt die Entwurfstexte in der Website-Pflege"), und seine Ausgabe
+musste das ankündigen.
+
+**Was gebaut ist.**
+- **`import_stand`** (0535) an `seite` (Titel, Beschreibung) und `abschnitt`
+  (Überschrift, Akzentwort, Text, Daten): was der Import zuletzt geschrieben
+  hat. Beim Anlegen und bei jeder Änderung durch den Import gesetzt; die
+  Pflege im Portal (`redaktion.ts`) schreibt ihn nicht — und muss es nicht:
+  die Erkennung vergleicht Inhalte und hängt an keinem Schreibweg.
+- **`importiere`**: gleich dem Seed → nichts (wie bisher, kein Stempel);
+  sonst, wenn der heutige Stand dem Importstand gleicht → der Seed wird
+  geschrieben und wird neuer Importstand; sonst → **gepflegt**: die Zeile
+  bleibt stehen und steht im Bericht (`gepflegt`: `pfad` bzw.
+  `pfad#reihenfolge`). Eine Zeile ohne Importstand, die vom Seed abweicht,
+  gilt als gepflegt — kein Rückfüllen in der Migration: was vor 0535 im
+  Portal geändert wurde, kann niemand wissen, und Stehenlassen ist der
+  Fehler ohne Datenverlust.
+- **`ueberschreiben`** (`pnpm content:import --ueberschreiben`) setzt
+  ausdrücklich auch gepflegte Zeilen zurück; die Ausgabe nennt die stehen
+  gelassenen und sagt, wenn zurückgesetzt wurde.
+- Die Zusage „zweimal laufen lassen ändert null Zeilen" bleibt: ein zweiter
+  Lauf schreibt nichts und nennt dieselben gepflegten Zeilen wieder.
+- **Gleicht eine Zeile dem Seed, wird ihr Stand nachgetragen** (Nachtrag aus
+  der Durchsicht von PR #47): eine Zeile von vor 0535, deren Inhalt dem Seed
+  gleicht, bekam sonst nie einen Importstand — und der nächste geänderte Seed
+  hielt die unberührte Zeile für gepflegt und ließ sie für immer stehen. Der
+  Import schreibt dann nur `import_stand`; der Auslöser
+  `kern.import_stand_ohne_stempel` (0535) läuft nach dem Stempel von
+  `kern.setze_geaendert_am` und nimmt ihn zurück, wenn sich außer
+  `import_stand` nichts geändert hat — `seite.geaendert_am` ist das `lastmod`
+  der Sitemap, und ein Nachtrag ist keine Änderung der Seite. Den Wert
+  bestimmt weiter die Datenbank (S2): der alte oder `now()`, nie der Aufrufer.
+  Das geschieht einmal je Zeile; der Lauf danach schreibt wieder nichts.
+
+**Prüfung.** `tests/isolation/inhalt-import.test.ts`: ein gepflegter
+Abschnitt bleibt, der nicht gepflegte Seitentitel geht auf den neuen Seed;
+ein zweiter Lauf ändert nichts; ein gepflegter Seitentitel bleibt;
+`ueberschreiben` setzt zurück, danach gilt der Seed wieder als Stand; ohne
+Importstand gilt eine abweichende Zeile als gepflegt; ohne Importstand bekommt
+eine dem Seed gleiche Zeile ihn nachgetragen, ohne Stempel, und der nächste
+Seed kommt an; wer neben dem Stand etwas ändert, stempelt weiter. Die bisherigen
+Prüfungen (zweimal importieren ändert nichts, kein Stempel ohne Änderung,
+eine echte Änderung wird erkannt) laufen unverändert;
+`tests/isolation/{inhalt,website-pflege}.test.ts` ebenso.
+
+| Betrifft | V-386, O-207, D-802, PUB-08; `drizzle/0535_inhalt_importstand.sql`, `src/server/services/inhalt/import.ts`, `scripts/content-import.ts`, `tests/isolation/inhalt-import.test.ts` |
+|---|---|
+
+### D-852 · Bauwelle 49: Nachunternehmerleistung ist eine eigene Kostenart der Kalkulation (V-338, O-57)
+
+**Der Anlass.** `kostenart` (0022) kannte Lohn, Material, Gerät,
+Gemeinkosten und Wagnis/Gewinn. Fremdleistung war in der Kalkulation nicht
+erfassbar; ein Angebot mit Nachunternehmer trug ihren Anteil nicht in der
+Preisbegründung, und die Kalkulationsseite musste das sagen. Voreinstellung
+(O-57, D-792): eine eigene Kostenart, getrennt ausgewiesen; § 13b UStG und
+§ 48 EStG gelten je nach Leistung und Empfänger — die Kostenart ist kein
+Steuerkennzeichen.
+
+**Was gebaut ist.**
+- **0536**: `alter type kostenart add value 'nachunternehmer'` (nach
+  `geraet`; in dieser Migration nur in Funktionsrümpfen genannt, die erst bei
+  der Ausführung binden), `kalkulation.summe_nachunternehmer_cent`,
+  `kern.aktualisiere_kalkulation_summen` mit der neuen Summe (die
+  Angebotssumme enthält sie) und `kern.kalkulation_eingefroren` mit der
+  neuen Spalte — festgeschrieben heißt auch sie. `TODO(client, O-57)` in
+  0536 und am Dienst.
+- **`kalkuliere`**: Einzelkosten sind Lohn + Material + Gerät +
+  Nachunternehmer (`Einzelkosten.nachunternehmer`, ohne Angabe null); die
+  Basis „Einzelkosten" (`selbstkosten`) rechnet die Gemeinkosten auch auf
+  ihn, die Basis „Lohn" nicht; negativ ist er nie; `verteileNetto` verteilt
+  ihn wie Material nach dem Lohngewicht (O-208, keine eigene
+  Angebotsposition). `rechneKalkulationNeu` liest seine Summe aus der
+  Datenbank; ohne Lohnzeile wird er wie Material abgewiesen.
+- **Erfassen**: `kostenposition.ts` nimmt `nachunternehmer` an (Menge ×
+  Einzelpreis, dieselben Sperren nach Festschreibung und Preisfreigabe);
+  die Kalkulationsseite zeigt den eigenen Block „Nachunternehmer" in der
+  Zusammensetzung und bietet die Art beim Erfassen und Berichtigen an
+  (beide Sprachen); der Hinweis sagt, dass die Art kein Steuerkennzeichen
+  ist und die Rechnung § 13b/§ 48 je Leistung und Empfänger prüft. Der
+  Leistungskatalog kennt die Kostenart ebenfalls.
+
+**Prüfung.** `tests/kern/kalkulation-material.test.ts` (2b): im Preis mit
+Basis Lohn (111,30 €) und Basis Einzelkosten (115,50 €), ohne Angabe null,
+negativ abgewiesen, Verteilung exakt, erfassbar, Wörter in beiden Sprachen,
+Migration. `tests/isolation/kalkulation-kostenposition.test.ts` (1b): eine
+Nachunternehmerzeile über 480,00 € steht als eigene Summe in der Kalkulation,
+im Angebotspreis, und Kalkulationssumme, Angebotssumme und Positionen sagen
+dasselbe.
+
+| Betrifft | V-338, O-57, D-792, OPS-07, O-16, O-208; `drizzle/0536_kostenart_nachunternehmer.sql`, `src/server/services/kalkulation/{index,bestaetigung,kostenposition}.ts`, `src/server/services/katalog/index.ts`, `src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx`, `src/app/portal/[mandant]/leistungskatalog/daten.ts`, `src/lib/i18n/verwaltung/kalkulation.ts`, `tests/kern/kalkulation-material.test.ts`, `tests/isolation/kalkulation-kostenposition.test.ts` |
+|---|---|
+
+### D-853 · Bauwelle 50: Krankheit im Urlaub gibt die Urlaubstage zurück (V-319, O-138, § 9 BUrlG)
+
+**Der Anlass.** § 9 BUrlG: die durch ärztliches Zeugnis nachgewiesenen Tage
+der Arbeitsunfähigkeit werden auf den Jahresurlaub nicht angerechnet; die
+Voreinstellung O-138 (D-788) sagt dasselbe. Gebaut war nichts davon. Der
+Registertext behauptete, `ab_keine_dublette` lasse keine zweite Abwesenheit
+über einem genehmigten Urlaub zu — das stimmte nicht: die Sperre gilt nur
+für dieselbe Art (0073 nennt genau diesen Fall). Die Krankmeldung ließ sich
+erfassen, aber `kern.abwesenheit_urlaubskonto` bucht nur Genehmigung und
+Stornierung: das Konto behielt die vollen Urlaubstage abgezogen. Der einzige
+Weg war, den ganzen Urlaub zu stornieren und neu zu beantragen.
+
+**Was gebaut ist.**
+- **0537**: `abwesenheitsart.unterbricht_urlaub` (Voreinstellung: nur die
+  Plattformart „Krankheit"; „Kind krank" nicht, § 9 BUrlG kennt nur die
+  Erkrankung des Arbeitnehmers; nie zusammen mit „zählt auf das
+  Urlaubskonto"). An der Krankheit `unterbrochener_urlaub_id` und
+  `urlaub_gutgeschrieben_tage` (paarweise, positiv, nur mit
+  AU-Bescheinigung). `app.krankheit_im_urlaub_erfassen` (Definer) prüft
+  beide Rechte (`zeit.abwesenheit_melden` und `zeit.abwesenheit_genehmigen`
+  — die Gutschrift ändert, was der genehmigte Urlaub kostet), sperrt den
+  Urlaub (`FOR UPDATE` über `d_urlaub_sperren`, das nie ändern darf) und
+  legt die Krankheit an (`d_krankheit_im_urlaub`). Der Auslöser
+  `kern.abwesenheit_gutschrift_anlegen` lässt den Verweis nur über die
+  Funktion zu (nicht für cse_app) und hält die Decken: der Urlaub gehört
+  derselben Beschäftigung, ist genehmigt und zählt aufs Konto; die Art
+  unterbricht ihn; nie mehr Tage als Kalendertage im Urlaub krank, nie mehr,
+  als der Urlaub noch kostet. `kern.abwesenheit_gutschrift_schuetzen`:
+  Verweis und Tage bleiben, was die Gutschrift begründet auch, und ein
+  Urlaub mit geltender Gutschrift behält Zeitraum und Tage.
+  `kern.abwesenheit_urlaubskonto` bucht die Gutschrift auf das Konto des
+  Urlaubsjahres zurück (ohne offenes Konto: abgewiesen), ihre Stornierung
+  wieder ab (solange der Urlaub genehmigt ist), und die Stornierung des
+  Urlaubs gibt nur zurück, was er noch kostet — nie zweimal. cse_app liest
+  die zwei Spalten nicht (Art. 9 DSGVO, Spaltenliste 0073). Der Lohnexport
+  (`app.lohnexport_abwesenheiten`, `abwesenheiten.csv`) trägt
+  `gutgeschrieben_tage` an der Krankheit und am Urlaub.
+- **Dienst `abwesenheit/krankheit-im-urlaub.ts`**: `gutschriftTage` rechnet
+  (Invariante 6), was der Urlaub nach `rechneTage` kostet, weniger seine
+  Teile vor und nach der Krankheit — Wochenenden und Berliner Feiertage
+  geben nichts zurück, die halben Tage am Urlaubsrand kommen halb zurück.
+  `erfasseKrankheitImUrlaub` verlangt die Bescheinigung und sagt jeden
+  anderen Grund als Schlüssel. „Bescheinigung gültig bis" ist leer oder ein
+  Kalendertag, geprüft, bevor die Datenbank ihn sieht (Grund
+  `au_bis_kein_datum`, 400; Nachtrag aus der Durchsicht von PR #47 —
+  `2026-02-31` endete vorher am `::date` mit 22008 als 500).
+  `TODO(client, O-138)` dort und in 0537.
+- **Der Weg am Antrag**: `/personal/antraege/[id]` zeigt am genehmigten
+  Urlaubsantrag den Abschnitt „Krankheit im Urlaub" (zweisprachig) —
+  Zeitraum, Bescheinigung, gültig bis, Bemerkung —, Route
+  `POST /api/antraege/[id]/krankheit-im-urlaub`. Am Antrag und nicht am
+  Abwesenheitsblatt, weil nur der Antrag sagt, dass es ein Urlaub ist (die
+  Art einer Abwesenheit ist cse_app entzogen). Der Urlaub verlängert sich
+  nicht; er bleibt, wie er genehmigt wurde.
+- **Katalog**: Stammdaten › Abwesenheitsarten zeigt und pflegt
+  „unterbricht genehmigten Urlaub (§ 9 BUrlG)".
+- **Seed**: ein genehmigter Zwei-Wochen-Urlaub mit drei Krankheitstagen
+  darin, über den Dienst erfasst — das Urlaubskonto steht auf 7 statt 10.
+
+**Was bleibt, und warum.** Eine Krankmeldung, die vor der Bescheinigung ohne
+Gutschrift erfasst wurde, wird storniert und hier neu erfasst (die Route
+sagt das als Grund `schon_erfasst`); ein „Nachreichen" der Bescheinigung an
+derselben Zeile gibt es nicht. Ein abgeschlossenes Urlaubsjahr wird nicht
+rückwirkend geändert (O-18).
+
+**Prüfung.** `tests/kern/krankheit-im-urlaub.test.ts`: drei Tage mitten im
+Urlaub, Wochenende und Feiertag geben nichts, nur im Urlaub, halbe Tage
+halb, eine andere Arbeitswoche; die Gegenprobe Gutschrift plus Rest gleich
+Urlaub; Verdrahtung. `tests/isolation/krankheit-im-urlaub.test.ts`: das
+Konto von 10 auf 7 und beim Stornieren zurück; die Stornierung des Urlaubs
+danach nie doppelt; die eigene Rücknahme der Arbeitnehmerin; abgewiesen
+ohne Bescheinigung, außerhalb, nur Wochenende, schon erfasst, kein offenes
+Konto, nicht genehmigt; ohne beide Rechte nicht, kein direkter Weg, die
+Decken, Art. 9; der Lohnexport.
+
+| Betrifft | V-319, O-138, D-788, EMP-05, EMP-10, LEG-09, ACC-12; `drizzle/0537_krankheit_im_urlaub.sql`, `src/server/services/abwesenheit/{krankheit-im-urlaub,antrag}.ts`, `src/server/services/stammdaten/abwesenheitsart.ts`, `src/server/services/zeit/lohnexport.ts`, `src/app/api/antraege/[id]/krankheit-im-urlaub/route.ts`, `src/app/portal/[mandant]/personal/antraege/[id]/page.tsx`, `src/app/portal/[mandant]/stammdaten/abwesenheitsarten/page.tsx`, `src/lib/i18n/verwaltung/krankheit-im-urlaub.ts`, `src/server/db/seed/zeit.ts`, `tests/kern/krankheit-im-urlaub.test.ts`, `tests/isolation/krankheit-im-urlaub.test.ts` |
+|---|---|
+
+### D-854 · Bauwelle 51: Der Freigabeschnappschuss aus `erteilen.ts` hält seine Nutzlast als Objekt (V-397)
+
+**Der Anlass.** `freigabe/erteilen.ts` übergab `JSON.stringify(e.inhalt)` an
+`$4::jsonb`. Der Treiber kodiert ein jsonb-Argument selbst (D-467); die
+Zeichenkette kam doppelt kodiert an, und `freigabe_snapshot.nutzlast` war
+`jsonb_typeof = string` — anders als die Schnappschüsse des Posteingangs
+(`entscheiden.ts`, `fuerJsonb`) und des Bau-Seeds. Gefunden beim Bau von
+V-287 (D-841).
+
+**Geprüft, bevor geändert wurde.** Kein Leser setzt die Zeichenkette voraus:
+`freigabe/laden.ts` und die Auskunft lesen die Nutzlast dieser Schnappschüsse
+nicht, die Kette (`kette.ts`, `berechneHash`) rechnet über die Bytes von
+`JSON.stringify(e.inhalt)` und über gespeicherte Digests, nicht über die
+gespeicherte jsonb-Form, und das Tor (`agent/policy.ts`) vergleicht
+`nutzlast_hash`. Die Glieder ändern sich also nicht. Vorhandene Zeilen
+bleiben, wie sie sind (`trg_freigabe_snapshot_eingefroren`); die neue Form
+gilt für neue Schnappschüsse.
+
+**Was gebaut ist.** `erteileFreigabe` übergibt das Objekt.
+`tests/isolation/mahnung.test.ts` prüft am Schnappschuss einer freigegebenen
+Mahnung `jsonb_typeof = object` und den Wert eines Schlüssels. Die Regel des
+Vier-Augen-Prinzips (O-183) ist nicht berührt.
+
+| Betrifft | V-397, D-467, D-841; `src/server/services/freigabe/erteilen.ts`, `tests/isolation/mahnung.test.ts` |
+|---|---|
+
+### D-855 · Bauwelle 52: Die Art.-15-Auskunft liest den Stundensatz und — auf Mitgabe — die Art der Abwesenheiten (V-332, O-642, O-643)
+
+**Der Anlass.** Zwei Angaben über den Menschen fehlten still in der
+Auskunft: der interne Stundensatz (`anstellung.stundensatz_intern` und die
+datierten Sätze in `anstellung_kondition`, cse_app entzogen nach K-05) und
+die Art der Abwesenheiten mit AU-Tatsache und Bemerkung (Art. 9, cse_app
+entzogen nach 0073). Die Abschnitte „Anstellungen" und „Abwesenheiten"
+nannten Daten und Status — und die Datei hieß trotzdem vollständig. Die
+Voreinstellungen standen seit D-791: der Satz gehört hinein (O-642), die Art
+auch, aber als eigener Abschnitt hinter eigenem Recht und nur auf
+ausdrückliche Mitgabe (O-643).
+
+**Was gebaut ist.**
+- **0538**: zwei Definer, je einer für einen Abschnitt —
+  `app.auskunft_entgelt(person)` (alle datierten Sätze der Beschäftigungen in
+  der aktiven Gesellschaft; ohne jede Kondition der Spiegel aus den
+  Stammdaten, dieselbe Regel wie `app.entgelt_lesen`) und
+  `app.auskunft_abwesenheitsgruende(person)` (Art, Gesundheitsbezug,
+  AU-Tatsache, gültig bis, Bemerkung, die Gutschrift nach § 9 BUrlG aus
+  D-853). Beide verlangen `datenschutz.auskunft_erstellen` und ihr Fachrecht
+  (`personal.entgelt_lesen` bzw. `zeit.abwesenheit_grund_lesen`), werfen
+  sonst 42501 und schreiben EINE Protokollzeile je Abruf
+  (`entgelt.gelesen`, `personal.abwesenheitsgrund_gelesen`, an der Person,
+  mit dem Zweck Art. 15 und der Zeilenzahl — kein Wert). Beide sind
+  `volatile`, nicht `stable` (Nachtrag aus der Durchsicht von PR #47): den
+  Aufruf einer `stable` Funktion darf der Planer zusammenfassen oder
+  auslassen, wenn ihr Ergebnis nicht gebraucht wird — ein
+  Zugriffsprotokoll, dessen Eintrag vom Abfrageplan abhängt, ist keines
+  (dieselbe Regel wie `app.ausgabe_erstattung_lesen`, 0184).
+- **`auskunft.ts`**: Abschnitt „Interner Stundensatz" (`entgelt`, Recht
+  `personal.entgelt_lesen`, der Satz als Euro aus ganzen Cent); Abschnitt
+  „Art der Abwesenheiten (Art. 9 DSGVO)" (`abwesenheitsgrund`, Recht
+  `zeit.abwesenheit_grund_lesen`, `mitgabe: 'art9'`). Ohne Mitgabe steht er
+  als „nicht mitgegeben" in Seite und Datei — benannt, nicht gesperrt, nicht
+  leer, und sein Recht macht die Auskunft nicht unvollständig; mit Mitgabe
+  wird er gelesen, und ohne das Recht ist er gesperrt. Die Prüfsumme
+  unterscheidet beide Fassungen. `TODO(client, O-642)` und
+  `TODO(client, O-643)` an den Abschnitten.
+- **Seite und Abruf**: `/datenschutz/[id]/auskunft?art9=1` erstellt die
+  Auskunft mit dem Art.-9-Abschnitt (Verweis am Abschnitt, Hinweis oben,
+  Rückweg ohne); die Abrufe tragen `&art9=mitgeben`, und die Protokollzeile
+  des Abrufs hält die Mitgabe fest.
+
+**Prüfung.** `tests/kern/auskunft-art9.test.ts`: Euro aus Cent, der Satz
+„nicht mitgegeben" in der Datei statt einer leeren Tabelle, Verdrahtung.
+`tests/isolation/auskunft-entgelt-art9.test.ts`: zwei datierte Sätze in
+Euro; ohne Recht gesperrt und unvollständig; der Art.-9-Abschnitt ohne
+Mitgabe benannt und ohne Rechtsbedarf, mit Mitgabe mit Krankheit, AU und
+Bemerkung, mit Mitgabe ohne Recht gesperrt; je Abruf eine Protokollzeile mit
+dem Zweck; beide Definer am Dienst vorbei 42501.
+
+| Betrifft | V-332, O-642, O-643, D-791, D-853, LEG-09; `drizzle/0538_auskunft_entgelt_abwesenheitsart.sql`, `src/server/services/datenschutz/auskunft.ts`, `src/app/api/datenschutz/auskunft/route.ts`, `src/app/portal/[mandant]/datenschutz/[id]/auskunft/page.tsx`, `tests/kern/{auskunft-art9,datenschutz-fristen}.test.ts`, `tests/isolation/auskunft-entgelt-art9.test.ts` |
+|---|---|
+
+### D-856 · Bauwelle 53: Elf Abschnitte des Personenzweigs und die Leadbewertung in der Art.-15-Auskunft (V-334, O-648)
+
+**Der Anlass.** `einsatz_zuordnung`, `zeitnachweis`, `team_mitglied`,
+`bewacher_eintrag`, `arbeitszeit_verstoss`, `planungs_konflikt`,
+`nachweis_warnung`, `da_pflicht`, `benutzer`, `checkin_token` und
+`offline_ereignis` tragen `person_id` und standen nur im Sammelabschnitt
+„offen (O-648)"; im Abschnitt Leads fehlte die Bewertung. Voreinstellung
+(O-648, D-791; Prüfstand PR #35): alle gehören hinein — Zuordnungen,
+abgeleitete Befunde (eine Folgerung über einen Menschen ist selbst
+personenbezogen) und Zugangsdaten ohne Geheimnisse.
+
+**Was gebaut ist.** `auskunft.ts` führt je Tabelle einen Abschnitt mit
+Spaltenwahl, Verarbeitungstätigkeit (für Zweck und Frist) und dem Recht
+seiner Policy: Einsätze (`dienstplan.lesen`, V-03), Monatsnachweise
+(`zeit.lesen`, V-02), Teams mit Teamnamen (`kalender.lesen`, V-03),
+Bewacherregister (`personal.nachweis_lesen`, V-01, ohne `mandant_id` wie
+`nachweis`), Befunde zur Arbeitszeit (`dienstplan.arbzg_lesen`, V-02),
+Planungskonflikte (`dienstplan.lesen`, V-03), Warnungen zum Nachweisablauf
+(`personal.nachweis_lesen`, V-01), Pflichten aus Dienstanweisungen mit Titel
+(`dienstanweisung.lesen`, V-09), Konto für die Anmeldung
+(`system.benutzer_lesen`, V-10 — kein Kennwort, kein zweiter Faktor, die
+liegen nicht in `benutzer`), Check-in-Marken (`zeit.checkin_verwalten`,
+V-02 — ohne `token_hash`, der cse_app ohnehin nicht gewährt ist) und
+Offline-Ereignisse (`zeit.nacherfassung_pruefen`, V-02 — ohne Rohnutzlast,
+die den Markenwert tragen kann). Ohne Recht ist ein Abschnitt gesperrt und
+die Auskunft unvollständig, wie überall. Der Abschnitt Leads trägt
+`punktzahl` und `punktzahl_begruendung`. Der Sammelabschnitt und sein
+Sonderhinweis auf der Seite entfallen. `TODO(client, O-648)` an den
+Abschnitten.
+
+**Prüfung.** `tests/isolation/auskunft-entgelt-art9.test.ts` (5): alle elf
+als eigene Abschnitte, keiner gesperrt, kein Sammelabschnitt; echte Zeilen
+(eine Teamzugehörigkeit mit Teamnamen und Rolle); keine Geheimnisse in den
+Köpfen; ohne `zeit.checkin_verwalten` (in der Gesellschaft entzogen) genau
+die Check-in-Marken gesperrt und die Auskunft unvollständig.
+`datenschutz-abdeckung.test.ts` hält die Abdeckung in beiden Richtungen,
+`datenschutz-dienste.test.ts` lässt jeden Zweig gegen echtes Postgres laufen.
+
+| Betrifft | V-334, O-648, D-791, LEG-09; `src/server/services/datenschutz/auskunft.ts`, `src/app/portal/[mandant]/datenschutz/[id]/auskunft/page.tsx`, `tests/isolation/auskunft-entgelt-art9.test.ts` |
 |---|---|

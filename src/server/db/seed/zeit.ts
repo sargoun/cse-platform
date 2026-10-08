@@ -37,6 +37,9 @@ import { gibCheckinAus } from '../../services/zeit/checkin.js';
 import { nimmClaimAn } from '../../services/zeit/offline.js';
 import { entscheideEinwand, reicheEinwandEin } from '../../services/zeit/einwand.js';
 import { korrigiereZeiteintrag } from '../../services/zeit/korrektur.js';
+import { rechneTage } from '../../services/abwesenheit/tage.js';
+import { erfasseKrankheitImUrlaub } from '../../services/abwesenheit/krankheit-im-urlaub.js';
+import { mengeNachPostgres } from '../../services/finanz/menge.js';
 
 type Sql = postgres.Sql<Record<string, unknown>>;
 
@@ -544,6 +547,9 @@ async function seedAbwesenheiten(
       on conflict (anstellung_id, jahr) do nothing`;
   }
 
+  angelegt += await seedKrankheitImUrlaub(sql, mandantId, planerId, ersteAnstellung,
+    urlaub.id, urlaubsantrag.id, heute);
+
   /**
    * **Eine BEANTRAGTE Abwesenheit — sonst ist die Entscheidung nicht
    * vorfuehrbar.**
@@ -575,6 +581,57 @@ async function seedAbwesenheiten(
   angelegt += 1;
 
   return angelegt;
+}
+
+/**
+ * Ein genehmigter Urlaub, in dem die Person krank war — mit Bescheinigung und
+ * Gutschrift (V-319, O-138, D-853, § 9 BUrlG).
+ *
+ * Ohne ihn stünde der Weg „Krankheit im Urlaub" am Antrag nie auf einem
+ * Bildschirm: der Seed hatte keinen einzigen genehmigten Urlaubsantrag. Der
+ * Urlaub entsteht, wie `entscheideAntrag` ihn schreibt (Antrag, genehmigte
+ * Abwesenheit mit gerechneten Tagen, Antrag genehmigt); die Krankheit geht
+ * den echten Weg — der Dienst als Planung, durch
+ * `app.krankheit_im_urlaub_erfassen`, und das Urlaubskonto bekommt die Tage
+ * zurück.
+ *
+ * Das Fenster liegt im laufenden Jahr (das Konto dieses Jahres steht) und
+ * nie über der laufenden Krankmeldung: ab April zehn Wochen zurück, davor
+ * zwei Monate voraus. Zwei Wochen Montag bis Freitag, krank Mittwoch bis
+ * Freitag der ersten — drei Tage zurück.
+ */
+async function seedKrankheitImUrlaub(
+  sql: Sql, mandantId: string, planerId: string, anstellungId: string,
+  urlaubsartId: string, urlaubsantragId: string, heute: string,
+): Promise<number> {
+  const jahr = heute.slice(0, 4);
+  let von = heute >= `${jahr}-04-01` ? tagePlus(heute, -70) : tagePlus(heute, 60);
+  while (new Date(`${von}T00:00:00Z`).getUTCDay() !== 1) von = tagePlus(von, 1);
+  const bis = tagePlus(von, 11);
+  const tage = mengeNachPostgres(rechneTage({ von, bis }));
+
+  const [antrag] = await sql<{ id: string }[]>`
+    insert into antrag
+      (mandant_id, anstellung_id, antragsart_id, von_datum, bis_datum,
+       abwesenheitsart_id, nachricht, eingereicht_von_benutzer_id)
+    values (${mandantId}, ${anstellungId}, ${urlaubsantragId}, ${von}::date, ${bis}::date,
+            ${urlaubsartId}, 'Zwei Wochen Urlaub — Demodaten (Seed)', ${planerId})
+    returning id`;
+  if (antrag === undefined) return 0;
+  await sql`
+    insert into abwesenheit
+      (mandant_id, anstellung_id, abwesenheitsart_id, von, bis, tage_angerechnet,
+       status, antrag_id, genehmigt_von, genehmigt_am, erstellt_von)
+    values (${mandantId}, ${anstellungId}, ${urlaubsartId}, ${von}::date, ${bis}::date,
+            ${tage}::numeric, 'genehmigt', ${antrag.id}, ${planerId}, now(), ${planerId})`;
+  await sql`
+    update antrag set status = 'genehmigt', entschieden_von = ${planerId}
+     where id = ${antrag.id}`;
+  await alsPortalSitzung(sql, mandantId, planerId, (k) => erfasseKrankheitImUrlaub(k, {
+    antragId: antrag.id, von: tagePlus(von, 2), bis: tagePlus(von, 4), auVorliegt: true,
+    auBis: tagePlus(von, 4), bemerkung: 'AU liegt vor — Demodaten (Seed)',
+  }));
+  return 3;
 }
 
 /**

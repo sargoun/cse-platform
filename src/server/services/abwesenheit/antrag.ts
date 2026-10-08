@@ -493,11 +493,9 @@ export async function entscheideAntrag(
    * GLEICHZEITIGE Entscheidungen hintereinander: die zweite liest den Antrag
    * erst, wenn die erste festgeschrieben ist, und sieht dann ihren Stand.
    *
-   * TODO(client, O-138): Voreinstellung — Krankheitstage im genehmigten Urlaub
-   * werden mit AU-Bescheinigung gutgeschrieben (§ 9 BUrlG); `ab_keine_dublette`
-   * laesst keine zweite Abwesenheit ueber den Urlaub, also kuerzt ein Mensch den
-   * Urlaub und erfasst die Krankheit — automatisch geschieht nichts (V-319,
-   * D-788).
+   * Krankheitstage im genehmigten Urlaub schreibt nicht diese Entscheidung
+   * gut, sondern der Weg „Krankheit im Urlaub" am genehmigten Antrag
+   * (`krankheit-im-urlaub.ts`, V-319, D-853; Voreinstellung O-138 dort).
    */
   if (a.status !== 'eingereicht' && a.status !== 'in_pruefung') {
     throw new AntragNichtGefunden(eingabe.antragId);

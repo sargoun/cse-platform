@@ -199,6 +199,7 @@ export default async function Abwesenheitsarten(
                     <span className="text-xs text-text-muted">
                       {[
                         a.zaehltAufUrlaubskonto ? 'Urlaubskonto' : null,
+                        a.unterbrichtUrlaub ? 'unterbricht Urlaub (§ 9 BUrlG)' : null,
                         a.erzeugtStundenkontoBewegung ? 'Stundenkonto' : null,
                         a.istGesundheitsbezogen ? 'Art. 9 DSGVO' : null,
                       ].filter((t) => t !== null).join(' · ') || 'keine'}
@@ -283,6 +284,11 @@ export default async function Abwesenheitsarten(
                             <input type="checkbox" name="zaehltAufUrlaubskonto" value="ja"
                                    defaultChecked={a.zaehltAufUrlaubskonto} />
                             zählt auf das Urlaubskonto
+                          </label>
+                          <label className="flex items-center gap-s2 text-xs text-text">
+                            <input type="checkbox" name="unterbrichtUrlaub" value="ja"
+                                   defaultChecked={a.unterbrichtUrlaub} />
+                            unterbricht genehmigten Urlaub (§ 9 BUrlG)
                           </label>
                           <label className="flex items-center gap-s2 text-xs text-text">
                             <input type="checkbox" name="erzeugtStundenkontoBewegung" value="ja"
@@ -391,6 +397,15 @@ export default async function Abwesenheitsarten(
             <input type="checkbox" name="zaehltAufUrlaubskonto" value="ja" />
             zählt auf das Urlaubskonto
           </label>
+          <label className="flex min-h-11 items-center gap-s3 text-sm text-text">
+            <input type="checkbox" name="unterbrichtUrlaub" value="ja" />
+            unterbricht genehmigten Urlaub (§ 9 BUrlG)
+          </label>
+          <p className="text-xs text-text-muted">
+            Unterbricht genehmigten Urlaub: Tage dieser Art im genehmigten Urlaub gehen mit
+            AU-Bescheinigung auf das Urlaubskonto zurück — am Urlaubsantrag unter „Krankheit im
+            Urlaub". Voreinstellung (O-138): nur die Krankheit selbst, nicht „Kind krank".
+          </p>
           <label className="flex min-h-11 items-center gap-s3 text-sm text-text">
             <input type="checkbox" name="erzeugtStundenkontoBewegung" value="ja" />
             erzeugt eine Stundenkontobewegung

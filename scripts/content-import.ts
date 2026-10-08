@@ -10,9 +10,11 @@
  * hat — ein Werbesatz auf der Website ist spaeter woertlich ein Satz im
  * Angebot.
  *
- * **Ein Werkzeug fuer eine Datenbank ohne Pflege** (Voreinstellung O-207,
- * D-802). Der Import setzt jeden Abschnitt, dessen Text vom Seed abweicht, auf
- * den Seed zurueck — auch einen, den jemand im Portal gepflegt hat (V-386).
+ * **Eine Pflege im Portal bleibt stehen** (V-386, D-851; Voreinstellung
+ * O-207, D-802). Der Import schreibt den Seed nur, wo die Zeile noch so steht,
+ * wie er sie zuletzt geschrieben hat (`import_stand`, 0535); eine im Portal
+ * gepflegte laesst er stehen und nennt sie. `--ueberschreiben` setzt auch sie
+ * auf den Seed zurueck — ausdruecklich, nie nebenbei.
  */
 import postgres from 'postgres';
 import { importiere, type ImportSeite } from '../src/server/services/inhalt/import.js';
@@ -109,19 +111,28 @@ const seiten = [...bauen(SEITEN, deutscherTitel), ...leistungen(LEISTUNGSSEITEN)
 const seitenEn = [...bauen(SEITEN_EN, englischerTitel), ...leistungen(LEISTUNGSSEITEN_EN)];
 
 const treiber = { unsafe: (s: string, w?: readonly unknown[]) => sql.unsafe(s, (w ?? []) as never[]) };
-const de = await importiere(treiber, seiten, 'de');
-const en = await importiere(treiber, seitenEn, 'en');
+const ueberschreiben = process.argv.includes('--ueberschreiben');
+const de = await importiere(treiber, seiten, 'de', { ueberschreiben });
+const en = await importiere(treiber, seitenEn, 'en', { ueberschreiben });
 const bericht = {
   angelegt: de.angelegt + en.angelegt,
   geaendert: de.geaendert + en.geaendert,
   unveraendert: de.unveraendert + en.unveraendert,
+  gepflegt: [...de.gepflegt, ...en.gepflegt.map((p) => `en:${p}`)],
 };
 process.stdout.write(
   `Import: ${String(bericht.angelegt)} angelegt, ${String(bericht.geaendert)} geändert, `
-  + `${String(bericht.unveraendert)} unverändert.\n`,
+  + `${String(bericht.unveraendert)} unverändert, `
+  + `${String(bericht.gepflegt.length)} im Portal gepflegt und stehen gelassen.\n`,
 );
+if (bericht.gepflegt.length > 0) {
+  process.stdout.write(`  Stehen gelassen: ${bericht.gepflegt.join(', ')}\n`
+    + '  Zurücksetzen auf den Seed nur ausdrücklich: pnpm content:import --ueberschreiben\n');
+}
 process.stdout.write(
   '  Die Texte sind die Entwurfstexte (Voreinstellung O-207). Gepflegt wird im Portal —\n'
-  + '  dieser Import setzt dort geänderte Abschnitte auf den Seed zurück (V-386).\n',
+  + (ueberschreiben
+    ? '  dieser Lauf hat AUCH gepflegte Abschnitte auf den Seed zurückgesetzt (--ueberschreiben).\n'
+    : '  dort Geändertes lässt der Import stehen (V-386).\n'),
 );
 await sql.end();

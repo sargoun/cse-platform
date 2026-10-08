@@ -116,6 +116,81 @@ describe('(2) Material und Gerät gehen in den Preis — die Basis entscheidet n
   });
 });
 
+describe('(2b) Nachunternehmer ist eine eigene Kostenart (V-338, O-57, D-852)', () => {
+  const nu = { material: cent(0n), geraet: cent(0n), nachunternehmer: cent(4000n) };
+
+  it('geht in den Preis wie Material — Basis Lohn: Gemeinkosten nur auf den Lohn', () => {
+    // Lohn 60,00, Nachunternehmer 40,00; GK 10 % auf 60,00 = 6,00; Zwischensumme 106,00; +5 % = 5,30
+    const k = kalkuliere({ posten: [posten('500', '250')], frequenz, tarif, einzelkosten: nu });
+    expect(k.nachunternehmerkosten).toBe(4000n);
+    expect(k.gemeinkosten).toBe(600n);
+    expect(k.vorZuschlag).toBe(10_600n);
+    expect(k.wagnis).toBe(530n);
+    expect(k.netto).toBe(11_130n);
+  });
+
+  it('Basis Einzelkosten: die Gemeinkosten rechnen auch auf den Nachunternehmer', () => {
+    const k = kalkuliere({
+      posten: [posten('500', '250')], frequenz, tarif, einzelkosten: nu,
+      gemeinkostenBasis: 'selbstkosten',
+    });
+    expect(k.gemeinkostenBezug).toBe(10_000n);
+    expect(k.gemeinkosten).toBe(1000n);
+    expect(k.netto).toBe(11_550n);   // (6000 + 4000 + 1000) × 1,05
+    expect(gemeinkostenBezug('selbstkosten', cent(6000n), nu)).toBe(10_000n);
+    expect(gemeinkostenBezug('lohn', cent(6000n), nu)).toBe(6000n);
+  });
+
+  it('ohne Angabe ist er null — wie bisher; negativ ist er nie', () => {
+    expect(kalkuliere({ posten: [posten('500', '250')], frequenz, tarif }).nachunternehmerkosten)
+      .toBe(0n);
+    expect(LEERE_KALKULATION.nachunternehmerkosten).toBe(0n);
+    expect(() => kalkuliere({
+      posten: [posten('500', '250')], frequenz, tarif,
+      einzelkosten: { ...nu, nachunternehmer: cent(-1n) },
+    })).toThrow(/nicht negativ/u);
+  });
+
+  it('die verteilten Zeilenpreise ergeben EXAKT das Netto mit Nachunternehmer', () => {
+    const k = kalkuliere({
+      posten: [posten('333', '250', 'PVC'), posten('667', '250', 'Fliese')],
+      frequenz, tarif, einzelkosten: nu,
+    });
+    expect(verteileNetto(k.zeilen, k.netto).reduce((s, x) => s + x, 0n)).toBe(k.netto);
+  });
+
+  it('erfassbar wie Material — mit Wort in beiden Sprachen und eigenem Block', () => {
+    const p = pruefeKostenposition({
+      kostenart: 'nachunternehmer', bezeichnung: 'Glasreinigung (Fremdfirma)', menge: '1',
+      einheit: 'psch', einzelpreisEuro: '480,00',
+    });
+    expect(p).toMatchObject({ kostenart: 'nachunternehmer', betrag: 48_000n });
+    for (const sprache of ['de', 'en'] as const) {
+      const t = KALKULATION_TEXTE[sprache];
+      expect(t.kostenart['nachunternehmer']).toBeTruthy();
+      expect(t.block.nachunternehmer).toBeTruthy();
+      expect(t.materialNachunternehmer).toContain('O-57');
+      expect(t.materialNachunternehmer).not.toContain('V-338');
+    }
+    const migration = readFileSync('drizzle/0536_kostenart_nachunternehmer.sql', 'utf8');
+    expect(migration).toContain("alter type kostenart add value if not exists 'nachunternehmer'");
+    expect(migration).toContain('summe_nachunternehmer_cent = s.nachunternehmer');
+    expect(migration).toContain(
+      'or new.summe_nachunternehmer_cent is distinct from old.summe_nachunternehmer_cent');
+  });
+
+  it('jede Kostenart-Auswahl der Seite bietet jede Art genau einmal an', () => {
+    const seite = readFileSync('src/app/portal/[mandant]/angebote/[id]/kalkulation/page.tsx', 'utf8');
+    const auswahlen = seite.split('<select name="kostenart"').slice(1)
+      .map((rest) => rest.slice(0, rest.indexOf('</select>')));
+    expect(auswahlen.length).toBeGreaterThanOrEqual(2);
+    for (const auswahl of auswahlen) {
+      const werte = [...auswahl.matchAll(/<option value="([a-z_]+)"/gu)].map((m) => m[1]);
+      expect(werte).toEqual(['material', 'geraet', 'nachunternehmer']);
+    }
+  });
+});
+
 describe('(3) pruefeKostenposition — Menge × Einzelpreis in ganzen Cent', () => {
   const zeile = {
     kostenart: 'material', bezeichnung: 'Reinigungsmittel', menge: '12,5', einheit: 'l',

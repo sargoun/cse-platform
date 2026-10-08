@@ -58,12 +58,14 @@ interface Kopf {
   readonly summe_lohn: string;
   readonly summe_material: string;
   readonly summe_geraet: string;
+  /** V-338: die Nachunternehmerleistung als eigener Block (O-57). */
+  readonly summe_nachunternehmer: string;
   readonly summe_gemeinkosten: string;
   readonly summe_wagnis_gewinn: string;
   readonly summe_netto: string;
 }
 
-/** Eine Material- oder Gerätezeile (V-174). */
+/** Eine Material-, Geräte- oder Nachunternehmerzeile (V-174, V-338). */
 interface Kostenzeile {
   readonly id: string;
   readonly kostenart: string;
@@ -136,6 +138,7 @@ export default async function KalkulationSeite(
                 coalesce(k.summe_lohn_cent, 0)::text as summe_lohn,
                 coalesce(k.summe_material_cent, 0)::text as summe_material,
                 coalesce(k.summe_geraet_cent, 0)::text as summe_geraet,
+                coalesce(k.summe_nachunternehmer_cent, 0)::text as summe_nachunternehmer,
                 coalesce(k.summe_gemeinkosten_cent, 0)::text as summe_gemeinkosten,
                 coalesce(k.summe_wagnis_gewinn_cent, 0)::text as summe_wagnis_gewinn,
                 coalesce(k.angebotssumme_netto_cent, 0)::text as summe_netto,
@@ -166,7 +169,7 @@ export default async function KalkulationSeite(
         `select id, kostenart::text as kostenart, bezeichnung, menge::text as menge, einheit,
                 einzelbetrag_cent::text as einzelbetrag_cent, betrag_cent::text as betrag_cent
            from kalkulation_position
-          where kalkulation_id = $1 and kostenart in ('material', 'geraet')
+          where kalkulation_id = $1 and kostenart in ('material', 'geraet', 'nachunternehmer')
           order by position_nr`, [kopf.kalkulation_id]);
       return { kopf, zeilen, kostenzeilen };
     })) as Promise<{
@@ -291,7 +294,8 @@ export default async function KalkulationSeite(
                 className="m-0 grid grid-cols-1 gap-s3 rounded-lg border border-line bg-surface p-s5 sm:grid-cols-2">
               {([
                 ['lohn', kopf.summe_lohn], ['material', kopf.summe_material],
-                ['geraet', kopf.summe_geraet], ['gemeinkosten', kopf.summe_gemeinkosten],
+                ['geraet', kopf.summe_geraet], ['nachunternehmer', kopf.summe_nachunternehmer],
+                ['gemeinkosten', kopf.summe_gemeinkosten],
                 ['wagnisGewinn', kopf.summe_wagnis_gewinn], ['netto', kopf.summe_netto],
               ] as const).map(([block, betrag]) => (
                 <div key={block} data-cse={`block-${block}`}>
@@ -349,6 +353,7 @@ export default async function KalkulationSeite(
                             <select name="kostenart" defaultValue={z.kostenart} className={kostenFeld}>
                               <option value="material">{tk.kostenart['material']}</option>
                               <option value="geraet">{tk.kostenart['geraet']}</option>
+                              <option value="nachunternehmer">{tk.kostenart['nachunternehmer']}</option>
                             </select>
                           </label>
                           <label className="block text-sm text-text">
@@ -395,6 +400,7 @@ export default async function KalkulationSeite(
                           data-cse="material-art">
                     <option value="material">{tk.kostenart['material']}</option>
                     <option value="geraet">{tk.kostenart['geraet']}</option>
+                    <option value="nachunternehmer">{tk.kostenart['nachunternehmer']}</option>
                   </select>
                 </label>
                 <label className="block text-sm text-text">
